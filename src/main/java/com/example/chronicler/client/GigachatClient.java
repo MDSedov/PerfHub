@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -20,10 +22,13 @@ import org.springframework.util.Assert;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 @Component
 public class GigachatClient {
+
+    private static final Logger log = LoggerFactory.getLogger(GigachatClient.class);
 
     private final RestTemplate restTemplate;
     private final URI oauthUri;
@@ -31,6 +36,7 @@ public class GigachatClient {
     private final String scope;
     private final String authorizationKey;
     private final String clientId;
+    private final String grantType;
     private final String model;
 
     public GigachatClient(
@@ -40,12 +46,14 @@ public class GigachatClient {
             @Value("${gigachat.scope}") String scope,
             @Value("${gigachat.authorization-key}") String authorizationKey,
             @Value("${gigachat.client-id}") String clientId,
+            @Value("${gigachat.grant-type:client_credentials}") String grantType,
             @Value("${gigachat.model}") String model) {
         Assert.hasText(oauthUrl, "GigaChat OAuth URL must not be empty");
         Assert.hasText(apiUrl, "GigaChat API URL must not be empty");
         Assert.hasText(scope, "GigaChat scope must not be empty");
         Assert.hasText(authorizationKey, "GigaChat authorization key must not be empty");
         Assert.hasText(clientId, "GigaChat client id must not be empty");
+        Assert.hasText(grantType, "GigaChat grant type must not be empty");
         Assert.hasText(model, "GigaChat model must not be empty");
         this.restTemplate = restTemplate;
         this.oauthUri = URI.create(oauthUrl);
@@ -53,6 +61,7 @@ public class GigachatClient {
         this.scope = scope;
         this.authorizationKey = authorizationKey;
         this.clientId = clientId;
+        this.grantType = grantType;
         this.model = model;
     }
 
@@ -66,19 +75,49 @@ public class GigachatClient {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("scope", scope);
         form.add("client_id", clientId);
+        form.add("grant_type", grantType);
 
         HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(form, headers);
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Requesting GigaChat token via {} with scope='{}', client_id='{}', grant_type='{}'",
+                    oauthUri,
+                    scope,
+                    clientId,
+                    grantType);
+        }
         try {
             ResponseEntity<GigachatTokenResponse> response = restTemplate.postForEntity(
                     oauthUri, entity, GigachatTokenResponse.class);
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "GigaChat token response status: {}, body: {}",
+                        response.getStatusCode(),
+                        response.getBody());
+            }
             GigachatTokenResponse body = response.getBody();
             if (body == null || body.accessToken() == null) {
                 throw new GigachatClientException(
                         "GigaChat token response did not contain an access token");
             }
             return body;
+        } catch (RestClientResponseException ex) {
+            log.error(
+                    "GigaChat token request failed with status {} and body {}",
+                    ex.getRawStatusCode(),
+                    ex.getResponseBodyAsString(),
+                    ex);
+            String message = String.format(
+                    "Failed to obtain GigaChat access token (status %s %s)",
+                    ex.getRawStatusCode(),
+                    ex.getStatusText());
+            throw new GigachatClientException(message, ex);
         } catch (RestClientException ex) {
-            throw new GigachatClientException("Failed to obtain GigaChat access token", ex);
+            log.error("GigaChat token request failed", ex);
+            String message = String.format(
+                    "Failed to obtain GigaChat access token: %s",
+                    ex.getMessage());
+            throw new GigachatClientException(message, ex);
         }
     }
 
@@ -100,16 +139,44 @@ public class GigachatClient {
         payload.put("repetition_penalty", Integer.valueOf(1));
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Requesting GigaChat completion via {} with model='{}' and prompt='{}'",
+                    completionsUri,
+                    model,
+                    prompt);
+        }
         try {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     completionsUri, HttpMethod.POST, entity, JsonNode.class);
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "GigaChat completion response status: {}, body: {}",
+                        response.getStatusCode(),
+                        response.getBody());
+            }
             JsonNode body = response.getBody();
             if (body == null) {
                 throw new GigachatClientException("GigaChat completion response was empty");
             }
             return body;
+        } catch (RestClientResponseException ex) {
+            log.error(
+                    "GigaChat completion request failed with status {} and body {}",
+                    ex.getRawStatusCode(),
+                    ex.getResponseBodyAsString(),
+                    ex);
+            String message = String.format(
+                    "Failed to request GigaChat completion (status %s %s)",
+                    ex.getRawStatusCode(),
+                    ex.getStatusText());
+            throw new GigachatClientException(message, ex);
         } catch (RestClientException ex) {
-            throw new GigachatClientException("Failed to request GigaChat completion", ex);
+            log.error("GigaChat completion request failed", ex);
+            String message = String.format(
+                    "Failed to request GigaChat completion: %s",
+                    ex.getMessage());
+            throw new GigachatClientException(message, ex);
         }
     }
 }
