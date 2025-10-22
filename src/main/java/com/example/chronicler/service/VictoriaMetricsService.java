@@ -19,7 +19,7 @@ public class VictoriaMetricsService {
         this.client = client;
     }
 
-    String fetchMetric(String type, Instant start, Instant end) {
+    public String fetchMetric(String type, Instant start, Instant end) {
         if (!end.isAfter(start)) {
             throw new InvalidTimeRangeException("End time must be after start time");
         }

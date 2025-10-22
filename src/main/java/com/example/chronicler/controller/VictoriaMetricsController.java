@@ -2,10 +2,10 @@ package com.example.chronicler.controller;
 
 import com.example.chronicler.dto.VictoriaMetricsRequest;
 import com.example.chronicler.exception.InvalidTimeRangeException;
-import com.example.chronicler.service.VictoriaMetricsService;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 
+import com.example.chronicler.service.VictoriaMetricsService;
 import jakarta.validation.Valid;
 
 import org.springframework.http.MediaType;
