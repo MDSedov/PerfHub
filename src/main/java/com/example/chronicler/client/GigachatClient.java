@@ -107,10 +107,17 @@ public class GigachatClient {
                     ex.getRawStatusCode(),
                     ex.getResponseBodyAsString(),
                     ex);
-            throw new GigachatClientException("Failed to obtain GigaChat access token", ex);
+            String message = String.format(
+                    "Failed to obtain GigaChat access token (status %s %s)",
+                    ex.getRawStatusCode(),
+                    ex.getStatusText());
+            throw new GigachatClientException(message, ex);
         } catch (RestClientException ex) {
             log.error("GigaChat token request failed", ex);
-            throw new GigachatClientException("Failed to obtain GigaChat access token", ex);
+            String message = String.format(
+                    "Failed to obtain GigaChat access token: %s",
+                    ex.getMessage());
+            throw new GigachatClientException(message, ex);
         }
     }
 
@@ -159,10 +166,17 @@ public class GigachatClient {
                     ex.getRawStatusCode(),
                     ex.getResponseBodyAsString(),
                     ex);
-            throw new GigachatClientException("Failed to request GigaChat completion", ex);
+            String message = String.format(
+                    "Failed to request GigaChat completion (status %s %s)",
+                    ex.getRawStatusCode(),
+                    ex.getStatusText());
+            throw new GigachatClientException(message, ex);
         } catch (RestClientException ex) {
             log.error("GigaChat completion request failed", ex);
-            throw new GigachatClientException("Failed to request GigaChat completion", ex);
+            String message = String.format(
+                    "Failed to request GigaChat completion: %s",
+                    ex.getMessage());
+            throw new GigachatClientException(message, ex);
         }
     }
 }
