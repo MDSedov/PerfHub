@@ -31,6 +31,7 @@ public class GigachatClient {
     private final String scope;
     private final String authorizationKey;
     private final String clientId;
+    private final String grantType;
     private final String model;
 
     public GigachatClient(
@@ -40,12 +41,14 @@ public class GigachatClient {
             @Value("${gigachat.scope}") String scope,
             @Value("${gigachat.authorization-key}") String authorizationKey,
             @Value("${gigachat.client-id}") String clientId,
+            @Value("${gigachat.grant-type:client_credentials}") String grantType,
             @Value("${gigachat.model}") String model) {
         Assert.hasText(oauthUrl, "GigaChat OAuth URL must not be empty");
         Assert.hasText(apiUrl, "GigaChat API URL must not be empty");
         Assert.hasText(scope, "GigaChat scope must not be empty");
         Assert.hasText(authorizationKey, "GigaChat authorization key must not be empty");
         Assert.hasText(clientId, "GigaChat client id must not be empty");
+        Assert.hasText(grantType, "GigaChat grant type must not be empty");
         Assert.hasText(model, "GigaChat model must not be empty");
         this.restTemplate = restTemplate;
         this.oauthUri = URI.create(oauthUrl);
@@ -53,6 +56,7 @@ public class GigachatClient {
         this.scope = scope;
         this.authorizationKey = authorizationKey;
         this.clientId = clientId;
+        this.grantType = grantType;
         this.model = model;
     }
 
@@ -66,6 +70,7 @@ public class GigachatClient {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("scope", scope);
         form.add("client_id", clientId);
+        form.add("grant_type", grantType);
 
         HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(form, headers);
         try {
