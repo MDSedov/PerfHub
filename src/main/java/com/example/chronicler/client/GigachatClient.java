@@ -1,9 +1,11 @@
 package com.example.chronicler.client;
 
+import com.example.chronicler.dto.gigachat.GigachatMessage;
 import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
 import com.example.chronicler.exception.GigachatClientException;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,30 +129,28 @@ public class GigachatClient {
         }
     }
 
-    public JsonNode createCompletion(String accessToken, String prompt) {
+    public JsonNode createCompletion(String accessToken, List<GigachatMessage> messages) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
         headers.setBearerAuth(accessToken);
         headers.set("RqUID", UUID.randomUUID().toString());
 
+        Assert.notEmpty(messages, "GigaChat messages must not be empty");
+
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", model);
-        payload.put(
-                "messages",
-                List.of(Map.of(
-                        "role", "user",
-                        "content", prompt)));
+        payload.put("messages", toMessagePayload(messages));
         payload.put("stream", Boolean.FALSE);
         payload.put("repetition_penalty", Integer.valueOf(1));
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
         if (log.isDebugEnabled()) {
             log.debug(
-                    "Requesting GigaChat completion via {} with model='{}' and prompt='{}'",
+                    "Requesting GigaChat completion via {} with model='{}' and {} message(s)",
                     completionsUri,
                     model,
-                    prompt);
+                    messages.size());
         }
         try {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
@@ -184,6 +184,17 @@ public class GigachatClient {
                     ex.getMessage());
             throw new GigachatClientException(message, ex);
         }
+    }
+
+    private static List<Map<String, String>> toMessagePayload(List<GigachatMessage> messages) {
+        List<Map<String, String>> payload = new ArrayList<>(messages.size());
+        for (GigachatMessage message : messages) {
+            Map<String, String> entry = new LinkedHashMap<>();
+            entry.put("role", message.role());
+            entry.put("content", message.content());
+            payload.add(entry);
+        }
+        return payload;
     }
 
     private static boolean isSslHandshakeFailure(Throwable ex) {
