@@ -35,4 +35,10 @@ public class GigachatController {
         JsonNode response = gigachatService.requestAnalysis(request);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping(path = "/tests/", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<JsonNode> analyzeLoadTests(@RequestBody JsonNode payload) {
+        JsonNode response = gigachatService.analyzeLoadTests(payload);
+        return ResponseEntity.ok(response);
+    }
 }
