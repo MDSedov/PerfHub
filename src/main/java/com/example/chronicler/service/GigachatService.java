@@ -5,7 +5,10 @@ import com.example.chronicler.dto.gigachat.GigachatRequest;
 import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
 import com.example.chronicler.exception.GigachatPromptNotFoundException;
 import com.example.chronicler.registry.GigachatPromptRegistry;
+import com.example.chronicler.registry.GigachatTestsPromptProvider;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -22,12 +25,20 @@ public class GigachatService {
 
     private final GigachatClient client;
     private final GigachatPromptRegistry promptRegistry;
+    private final GigachatTestsPromptProvider testsPromptProvider;
+    private final ObjectMapper objectMapper;
 
     private volatile CachedToken cachedToken;
 
-    public GigachatService(GigachatClient client, GigachatPromptRegistry promptRegistry) {
+    public GigachatService(
+            GigachatClient client,
+            GigachatPromptRegistry promptRegistry,
+            GigachatTestsPromptProvider testsPromptProvider,
+            ObjectMapper objectMapper) {
         this.client = client;
         this.promptRegistry = promptRegistry;
+        this.testsPromptProvider = testsPromptProvider;
+        this.objectMapper = objectMapper;
     }
 
     public GigachatTokenResponse fetchAccessToken() {
@@ -42,6 +53,22 @@ public class GigachatService {
         String prompt = applyVariables(promptTemplate, request.variables());
         String accessToken = resolveAccessToken();
         return client.createCompletion(accessToken, prompt);
+    }
+
+    public JsonNode analyzeLoadTests(JsonNode payload) {
+        String promptTemplate = testsPromptProvider.loadPrompt();
+        String payloadJson = serializePayload(payload);
+        String prompt = promptTemplate.replace("{{payload}}", payloadJson);
+        String accessToken = resolveAccessToken();
+        return client.createCompletion(accessToken, prompt);
+    }
+
+    private String serializePayload(JsonNode payload) {
+        try {
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Failed to serialize payload for GigaChat request", ex);
+        }
     }
 
     private String resolveAccessToken() {

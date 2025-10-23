@@ -2,6 +2,7 @@ package com.example.chronicler.controller.advice;
 
 import com.example.chronicler.controller.GigachatController;
 import com.example.chronicler.exception.GigachatClientException;
+import com.example.chronicler.exception.GigachatPromptLoadingException;
 import com.example.chronicler.exception.GigachatPromptNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,12 @@ public class GigachatExceptionHandler {
     @ExceptionHandler(GigachatPromptNotFoundException.class)
     ResponseEntity<GigachatErrorResponse> handlePromptNotFound(GigachatPromptNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new GigachatErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(GigachatPromptLoadingException.class)
+    ResponseEntity<GigachatErrorResponse> handlePromptLoading(GigachatPromptLoadingException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new GigachatErrorResponse(ex.getMessage()));
     }
 
