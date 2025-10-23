@@ -1,6 +1,7 @@
 package com.example.chronicler.service;
 
 import com.example.chronicler.client.GigachatClient;
+import com.example.chronicler.dto.gigachat.GigachatMessage;
 import com.example.chronicler.dto.gigachat.GigachatRequest;
 import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
 import com.example.chronicler.exception.GigachatPromptNotFoundException;
@@ -13,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,15 +54,18 @@ public class GigachatService {
                 .orElseThrow(() -> new GigachatPromptNotFoundException(request.promptKey()));
         String prompt = applyVariables(promptTemplate, request.variables());
         String accessToken = resolveAccessToken();
-        return client.createCompletion(accessToken, prompt);
+        return client.createCompletion(accessToken, List.of(new GigachatMessage("user", prompt)));
     }
 
     public JsonNode analyzeLoadTests(JsonNode payload) {
         String promptTemplate = testsPromptProvider.loadPrompt();
         String payloadJson = serializePayload(payload);
-        String prompt = promptTemplate.replace("{{payload}}", payloadJson);
         String accessToken = resolveAccessToken();
-        return client.createCompletion(accessToken, prompt);
+        return client.createCompletion(
+                accessToken,
+                List.of(
+                        new GigachatMessage("system", promptTemplate),
+                        new GigachatMessage("user", payloadJson)));
     }
 
     private String serializePayload(JsonNode payload) {
