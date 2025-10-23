@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import javax.net.ssl.SSLHandshakeException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,6 +118,10 @@ public class GigachatClient {
             String message = String.format(
                     "Failed to obtain GigaChat access token: %s",
                     ex.getMessage());
+            if (isSslHandshakeFailure(ex)) {
+                message +=
+                        ". Ensure the GigaChat TLS certificate is trusted or configure gigachat.trust-store";
+            }
             throw new GigachatClientException(message, ex);
         }
     }
@@ -178,5 +183,16 @@ public class GigachatClient {
                     ex.getMessage());
             throw new GigachatClientException(message, ex);
         }
+    }
+
+    private static boolean isSslHandshakeFailure(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            if (current instanceof SSLHandshakeException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }
