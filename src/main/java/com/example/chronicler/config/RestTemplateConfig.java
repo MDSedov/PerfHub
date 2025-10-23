@@ -9,6 +9,7 @@ import java.security.KeyStore;
 
 import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +31,27 @@ public class RestTemplateConfig {
             RestTemplateBuilder builder,
             @Value("${gigachat.trust-store:}") String trustStorePath,
             @Value("${gigachat.trust-store-password:}") String trustStorePassword,
-            @Value("${gigachat.trust-store-type:}") String trustStoreType) {
+            @Value("${gigachat.trust-store-type:}") String trustStoreType,
+            @Value("${gigachat.disable-ssl-validation:false}") boolean disableSslValidation) {
+        if (disableSslValidation) {
+            log.warn("Disabling SSL validation for RestTemplate. Do not enable in production.");
+            try {
+                HttpClient httpClient = HttpClients.custom()
+                        .setSSLContext(SSLContextBuilder.create()
+                                .loadTrustMaterial(null, (chain, authType) -> true)
+                                .build())
+                        .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+                        .build();
+
+                HttpComponentsClientHttpRequestFactory requestFactory =
+                        new HttpComponentsClientHttpRequestFactory(httpClient);
+
+                return builder.requestFactory(() -> requestFactory).build();
+            } catch (GeneralSecurityException ex) {
+                throw new IllegalStateException("Failed to disable SSL validation", ex);
+            }
+        }
+
         if (!StringUtils.hasText(trustStorePath)) {
             return builder.build();
         }

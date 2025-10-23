@@ -120,7 +120,8 @@ public class GigachatClient {
                     ex.getMessage());
             if (isSslHandshakeFailure(ex)) {
                 message +=
-                        ". Ensure the GigaChat TLS certificate is trusted or configure gigachat.trust-store";
+                        ". Ensure the GigaChat TLS certificate is trusted, configure gigachat.trust-store, "
+                                + "or enable gigachat.disable-ssl-validation for local development";
             }
             throw new GigachatClientException(message, ex);
         }
