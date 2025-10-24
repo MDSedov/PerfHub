@@ -7,7 +7,7 @@ import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 
-import org.apache.http.client.HttpClient;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.impl.client.HttpClients;
@@ -36,7 +36,7 @@ public class RestTemplateConfig {
         if (disableSslValidation) {
             log.warn("Disabling SSL validation for RestTemplate. Do not enable in production.");
             try {
-                HttpClient httpClient = HttpClients.custom()
+                CloseableHttpClient httpClient = HttpClients.custom()
                         .setSSLContext(SSLContextBuilder.create()
                                 .loadTrustMaterial(null, (chain, authType) -> true)
                                 .build())
@@ -44,9 +44,12 @@ public class RestTemplateConfig {
                         .build();
 
                 HttpComponentsClientHttpRequestFactory requestFactory =
-                        new HttpComponentsClientHttpRequestFactory(httpClient);
+                        new HttpComponentsClientHttpRequestFactory();
+                requestFactory.setHttpClient(httpClient);
 
-                return builder.requestFactory(() -> requestFactory).build();
+                RestTemplate restTemplate = builder.build();
+                restTemplate.setRequestFactory(requestFactory);
+                return restTemplate;
             } catch (GeneralSecurityException ex) {
                 throw new IllegalStateException("Failed to disable SSL validation", ex);
             }
@@ -72,14 +75,17 @@ public class RestTemplateConfig {
             KeyStore trustStore = KeyStore.getInstance(effectiveType);
             trustStore.load(inputStream, password);
 
-            HttpClient httpClient = HttpClients.custom()
+            CloseableHttpClient httpClient = HttpClients.custom()
                     .setSSLContext(new SSLContextBuilder().loadTrustMaterial(trustStore, null).build())
                     .build();
 
             HttpComponentsClientHttpRequestFactory requestFactory =
-                    new HttpComponentsClientHttpRequestFactory(httpClient);
+                    new HttpComponentsClientHttpRequestFactory();
+            requestFactory.setHttpClient(httpClient);
 
-            return builder.requestFactory(() -> requestFactory).build();
+            RestTemplate restTemplate = builder.build();
+            restTemplate.setRequestFactory(requestFactory);
+            return restTemplate;
         } catch (IOException | GeneralSecurityException ex) {
             throw new IllegalStateException("Failed to configure RestTemplate trust store", ex);
         }
