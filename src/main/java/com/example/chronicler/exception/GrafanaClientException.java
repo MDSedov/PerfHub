@@ -1,0 +1,8 @@
+package com.example.chronicler.exception;
+
+public class GrafanaClientException extends RuntimeException {
+
+    public GrafanaClientException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
