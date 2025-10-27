@@ -7,6 +7,7 @@ import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
 import com.example.chronicler.exception.GigachatPromptNotFoundException;
 import com.example.chronicler.exception.VmDataNotCachedException;
 import com.example.chronicler.registry.GigachatPromptRegistry;
+import com.example.chronicler.registry.GigachatCompliancePromptProvider;
 import com.example.chronicler.registry.GigachatTestsPromptProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
@@ -27,18 +28,24 @@ public class GigachatService {
     private final GigachatClient client;
     private final GigachatPromptRegistry promptRegistry;
     private final GigachatTestsPromptProvider testsPromptProvider;
+    private final GigachatCompliancePromptProvider compliancePromptProvider;
     private final VmDataCache vmDataCache;
+    private final GigachatTestsCache gigachatTestsCache;
     private volatile CachedToken cachedToken;
 
     public GigachatService(
             GigachatClient client,
             GigachatPromptRegistry promptRegistry,
             GigachatTestsPromptProvider testsPromptProvider,
-            VmDataCache vmDataCache) {
+            GigachatCompliancePromptProvider compliancePromptProvider,
+            VmDataCache vmDataCache,
+            GigachatTestsCache gigachatTestsCache) {
         this.client = client;
         this.promptRegistry = promptRegistry;
         this.testsPromptProvider = testsPromptProvider;
+        this.compliancePromptProvider = compliancePromptProvider;
         this.vmDataCache = vmDataCache;
+        this.gigachatTestsCache = gigachatTestsCache;
     }
 
     public GigachatTokenResponse fetchAccessToken() {
@@ -57,6 +64,21 @@ public class GigachatService {
 
     public JsonNode analyzeLoadTests(JsonNode payload) {
         String promptTemplate = testsPromptProvider.loadPrompt();
+        String accessToken = resolveAccessToken();
+        VmDataCache.CachedVmData cachedVmData = vmDataCache
+                .getLatest()
+                .orElseThrow(VmDataNotCachedException::new);
+        JsonNode response = client.createCompletion(
+                accessToken,
+                List.of(
+                        new GigachatMessage("system", promptTemplate),
+                        new GigachatMessage("user", cachedVmData.payload())));
+        gigachatTestsCache.store(response);
+        return response;
+    }
+
+    public JsonNode analyzeTestCompliance() {
+        String promptTemplate = compliancePromptProvider.loadPrompt();
         String accessToken = resolveAccessToken();
         VmDataCache.CachedVmData cachedVmData = vmDataCache
                 .getLatest()

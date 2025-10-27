@@ -41,4 +41,10 @@ public class GigachatController {
         JsonNode response = gigachatService.analyzeLoadTests(payload);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping(path = "/test/compliance/")
+    public ResponseEntity<JsonNode> analyzeTestCompliance() {
+        JsonNode response = gigachatService.analyzeTestCompliance();
+        return ResponseEntity.ok(response);
+    }
 }

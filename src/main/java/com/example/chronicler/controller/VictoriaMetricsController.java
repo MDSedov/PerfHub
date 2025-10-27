@@ -1,12 +1,9 @@
 package com.example.chronicler.controller;
 
 import com.example.chronicler.dto.VictoriaMetricsRequest;
-import com.example.chronicler.exception.InvalidTimeRangeException;
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
-
 import com.example.chronicler.service.VictoriaMetricsService;
 import jakarta.validation.Valid;
+import java.util.List;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -26,18 +23,8 @@ public class VictoriaMetricsController {
     }
 
     @PostMapping(path = "/data/", consumes = MediaType.APPLICATION_JSON_VALUE)
-    ResponseEntity<String> fetchMetric(@Valid @RequestBody VictoriaMetricsRequest request) {
-        Instant start = parseInstant(request.start(), "start");
-        Instant end = parseInstant(request.end(), "end");
-        String body = victoriaMetricsService.fetchMetric(request.type(), start, end);
+    ResponseEntity<String> fetchMetric(@RequestBody List<@Valid VictoriaMetricsRequest> requests) {
+        String body = victoriaMetricsService.fetchMetrics(requests);
         return ResponseEntity.ok(body);
-    }
-
-    private Instant parseInstant(String value, String field) {
-        try {
-            return Instant.parse(value);
-        } catch (DateTimeParseException ex) {
-            throw new InvalidTimeRangeException("Unable to parse " + field + " as ISO-8601 instant");
-        }
     }
 }
