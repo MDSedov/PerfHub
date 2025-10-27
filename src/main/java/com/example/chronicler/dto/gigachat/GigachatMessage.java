@@ -2,7 +2,7 @@ package com.example.chronicler.dto.gigachat;
 
 import java.util.Objects;
 
-public record GigachatMessage(String role, String content) {
+public record GigachatMessage(String role, Object content) {
 
     public GigachatMessage {
         Objects.requireNonNull(role, "role must not be null");

@@ -186,10 +186,10 @@ public class GigachatClient {
         }
     }
 
-    private static List<Map<String, String>> toMessagePayload(List<GigachatMessage> messages) {
-        List<Map<String, String>> payload = new ArrayList<>(messages.size());
+    private static List<Map<String, Object>> toMessagePayload(List<GigachatMessage> messages) {
+        List<Map<String, Object>> payload = new ArrayList<>(messages.size());
         for (GigachatMessage message : messages) {
-            Map<String, String> entry = new LinkedHashMap<>();
+            Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("role", message.role());
             entry.put("content", message.content());
             payload.add(entry);
