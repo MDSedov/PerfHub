@@ -3,6 +3,7 @@ package com.example.chronicler.controller.advice;
 import com.example.chronicler.controller.VictoriaMetricsController;
 import com.example.chronicler.exception.InvalidTimeRangeException;
 import com.example.chronicler.exception.VictoriaMetricsClientException;
+import com.example.chronicler.exception.VictoriaMetricsResponseProcessingException;
 import com.example.chronicler.exception.VmQueryNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +38,12 @@ public class VictoriaMetricsExceptionHandler {
 
     @ExceptionHandler(VictoriaMetricsClientException.class)
     ResponseEntity<VmErrorResponse> handleClient(VictoriaMetricsClientException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new VmErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(VictoriaMetricsResponseProcessingException.class)
+    ResponseEntity<VmErrorResponse> handleProcessing(VictoriaMetricsResponseProcessingException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(new VmErrorResponse(ex.getMessage()));
     }
