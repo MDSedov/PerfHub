@@ -1,6 +1,9 @@
 package com.example.chronicler.registry;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -9,7 +12,6 @@ import java.util.Properties;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PropertiesLoaderUtils;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,9 +23,14 @@ public class VmQueryRegistry {
 
     private final Map<String, String> queries;
 
-    public VmQueryRegistry(@Value("classpath:vm-queries.properties") Resource vmQueriesResource)
+    public VmQueryRegistry(
+            @Value("${vm.queries-resource:file:configs/vm-queries.properties}")
+                    Resource vmQueriesResource)
             throws IOException {
-        Properties properties = PropertiesLoaderUtils.loadProperties(vmQueriesResource);
+        Properties properties = new Properties();
+        try (Reader reader = new InputStreamReader(vmQueriesResource.getInputStream(), StandardCharsets.UTF_8)) {
+            properties.load(reader);
+        }
         Map<String, String> loadedQueries = new HashMap<>();
         for (String name : properties.stringPropertyNames()) {
             loadedQueries.put(name, properties.getProperty(name));
