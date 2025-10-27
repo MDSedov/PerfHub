@@ -7,9 +7,7 @@ import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
 import com.example.chronicler.exception.GigachatPromptNotFoundException;
 import com.example.chronicler.registry.GigachatPromptRegistry;
 import com.example.chronicler.registry.GigachatTestsPromptProvider;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -28,19 +26,15 @@ public class GigachatService {
     private final GigachatClient client;
     private final GigachatPromptRegistry promptRegistry;
     private final GigachatTestsPromptProvider testsPromptProvider;
-    private final ObjectMapper objectMapper;
-
     private volatile CachedToken cachedToken;
 
     public GigachatService(
             GigachatClient client,
             GigachatPromptRegistry promptRegistry,
-            GigachatTestsPromptProvider testsPromptProvider,
-            ObjectMapper objectMapper) {
+            GigachatTestsPromptProvider testsPromptProvider) {
         this.client = client;
         this.promptRegistry = promptRegistry;
         this.testsPromptProvider = testsPromptProvider;
-        this.objectMapper = objectMapper;
     }
 
     public GigachatTokenResponse fetchAccessToken() {
@@ -59,21 +53,12 @@ public class GigachatService {
 
     public JsonNode analyzeLoadTests(JsonNode payload) {
         String promptTemplate = testsPromptProvider.loadPrompt();
-        String payloadJson = serializePayload(payload);
         String accessToken = resolveAccessToken();
         return client.createCompletion(
                 accessToken,
                 List.of(
                         new GigachatMessage("system", promptTemplate),
-                        new GigachatMessage("user", payloadJson)));
-    }
-
-    private String serializePayload(JsonNode payload) {
-        try {
-            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(payload);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to serialize payload for GigaChat request", ex);
-        }
+                        new GigachatMessage("user", payload)));
     }
 
     private String resolveAccessToken() {
