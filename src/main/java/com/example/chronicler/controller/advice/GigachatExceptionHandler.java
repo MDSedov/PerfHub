@@ -4,6 +4,7 @@ import com.example.chronicler.controller.GigachatController;
 import com.example.chronicler.exception.GigachatClientException;
 import com.example.chronicler.exception.GigachatPromptLoadingException;
 import com.example.chronicler.exception.GigachatPromptNotFoundException;
+import com.example.chronicler.exception.VmDataNotCachedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -38,6 +39,12 @@ public class GigachatExceptionHandler {
     @ExceptionHandler(GigachatClientException.class)
     ResponseEntity<GigachatErrorResponse> handleClient(GigachatClientException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new GigachatErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(VmDataNotCachedException.class)
+    ResponseEntity<GigachatErrorResponse> handleMissingVmData(VmDataNotCachedException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new GigachatErrorResponse(ex.getMessage()));
     }
 

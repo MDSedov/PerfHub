@@ -5,6 +5,7 @@ import com.example.chronicler.dto.gigachat.GigachatMessage;
 import com.example.chronicler.dto.gigachat.GigachatRequest;
 import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
 import com.example.chronicler.exception.GigachatPromptNotFoundException;
+import com.example.chronicler.exception.VmDataNotCachedException;
 import com.example.chronicler.registry.GigachatPromptRegistry;
 import com.example.chronicler.registry.GigachatTestsPromptProvider;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -26,15 +27,18 @@ public class GigachatService {
     private final GigachatClient client;
     private final GigachatPromptRegistry promptRegistry;
     private final GigachatTestsPromptProvider testsPromptProvider;
+    private final VmDataCache vmDataCache;
     private volatile CachedToken cachedToken;
 
     public GigachatService(
             GigachatClient client,
             GigachatPromptRegistry promptRegistry,
-            GigachatTestsPromptProvider testsPromptProvider) {
+            GigachatTestsPromptProvider testsPromptProvider,
+            VmDataCache vmDataCache) {
         this.client = client;
         this.promptRegistry = promptRegistry;
         this.testsPromptProvider = testsPromptProvider;
+        this.vmDataCache = vmDataCache;
     }
 
     public GigachatTokenResponse fetchAccessToken() {
@@ -54,11 +58,14 @@ public class GigachatService {
     public JsonNode analyzeLoadTests(JsonNode payload) {
         String promptTemplate = testsPromptProvider.loadPrompt();
         String accessToken = resolveAccessToken();
+        VmDataCache.CachedVmData cachedVmData = vmDataCache
+                .getLatest()
+                .orElseThrow(VmDataNotCachedException::new);
         return client.createCompletion(
                 accessToken,
                 List.of(
                         new GigachatMessage("system", promptTemplate),
-                        new GigachatMessage("user", payload)));
+                        new GigachatMessage("user", cachedVmData.payload())));
     }
 
     private String resolveAccessToken() {

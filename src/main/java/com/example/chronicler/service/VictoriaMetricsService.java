@@ -13,10 +13,13 @@ public class VictoriaMetricsService {
 
     private final VmQueryRegistry queryRegistry;
     private final VictoriaMetricsClient client;
+    private final VmDataCache vmDataCache;
 
-    VictoriaMetricsService(VmQueryRegistry queryRegistry, VictoriaMetricsClient client) {
+    VictoriaMetricsService(
+            VmQueryRegistry queryRegistry, VictoriaMetricsClient client, VmDataCache vmDataCache) {
         this.queryRegistry = queryRegistry;
         this.client = client;
+        this.vmDataCache = vmDataCache;
     }
 
     public String fetchMetric(String type, Instant start, Instant end) {
@@ -25,6 +28,8 @@ public class VictoriaMetricsService {
         }
         String query = queryRegistry.findQuery(type)
                 .orElseThrow(() -> new VmQueryNotFoundException(type));
-        return client.queryRange(query, start, end);
+        String response = client.queryRange(query, start, end);
+        vmDataCache.store(type, start, end, response);
+        return response;
     }
 }
