@@ -26,11 +26,14 @@ class GrafanaServiceTest {
     @Mock
     private GrafanaClient grafanaClient;
 
+    @Mock
+    private GrafanaRenderCache grafanaRenderCache;
+
     private GrafanaService grafanaService;
 
     @BeforeEach
     void setUp() {
-        grafanaService = new GrafanaService(grafanaClient);
+        grafanaService = new GrafanaService(grafanaClient, grafanaRenderCache);
     }
 
     @Test
@@ -61,6 +64,7 @@ class GrafanaServiceTest {
 
         verify(grafanaClient).renderPanel("uid", "slug", 1, from, to);
         verify(grafanaClient).renderPanel("uid", "slug", 2, from, to);
+        verify(grafanaRenderCache).store(response);
     }
 
     @Test

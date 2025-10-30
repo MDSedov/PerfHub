@@ -22,9 +22,11 @@ import org.springframework.util.StringUtils;
 public class GrafanaService {
 
     private final GrafanaClient grafanaClient;
+    private final GrafanaRenderCache grafanaRenderCache;
 
-    public GrafanaService(GrafanaClient grafanaClient) {
+    public GrafanaService(GrafanaClient grafanaClient, GrafanaRenderCache grafanaRenderCache) {
         this.grafanaClient = grafanaClient;
+        this.grafanaRenderCache = grafanaRenderCache;
     }
 
     public GrafanaRenderResponse renderDashboards(GrafanaRenderRequest request) {
@@ -68,7 +70,9 @@ public class GrafanaService {
             dashboards.add(new GrafanaRenderedDashboard(uid, slug, renderedPanels));
         }
 
-        return new GrafanaRenderResponse(from.toString(), to.toString(), dashboards);
+        GrafanaRenderResponse response = new GrafanaRenderResponse(from.toString(), to.toString(), dashboards);
+        grafanaRenderCache.store(response);
+        return response;
     }
 
     private Instant parseInstant(String value, String field) {
