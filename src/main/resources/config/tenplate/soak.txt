@@ -1,0 +1,3 @@
+# Soak Template
+
+_Placeholder content for soak tests._
