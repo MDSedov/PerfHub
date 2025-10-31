@@ -90,13 +90,39 @@ class ConfluenceServiceTest {
     }
 
     @Test
-    void publishLatestGrafanaRenderFailsWhenCredentialsMissing() {
+    void publishLatestGrafanaRenderFailsWhenTokenMissing() {
         when(grafanaRenderCache.getLatest()).thenReturn(Optional.of(
                 new GrafanaRenderResponse("from", "to", List.of(new GrafanaRenderedDashboard("u", "s", List.of())))));
 
         assertThatThrownBy(() -> confluenceService.publishLatestGrafanaRender(
-                        new ConfluenceCredentials("", "token"), new ConfluenceReportRequest("123")))
+                        new ConfluenceCredentials("login", ""), new ConfluenceReportRequest("123")))
                 .isInstanceOf(ConfluenceOperationException.class);
+    }
+
+    @Test
+    void publishLatestGrafanaRenderSupportsPersonalAccessToken() {
+        byte[] imageBytes = new byte[] {4, 5, 6};
+        String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
+        GrafanaRenderedPanel panel = new GrafanaRenderedPanel(7, encodedImage);
+        GrafanaRenderedDashboard dashboard = new GrafanaRenderedDashboard("uid", "slug", List.of(panel));
+        GrafanaRenderResponse cachedResponse = new GrafanaRenderResponse("from", "to", List.of(dashboard));
+
+        when(grafanaRenderCache.getLatest()).thenReturn(Optional.of(cachedResponse));
+        ConfluencePage page = new ConfluencePage("456", "page", "Title", 2, "<p>Existing</p>", "SPACE");
+        ConfluenceCredentials credentials = new ConfluenceCredentials(null, "pat-token");
+        when(confluenceClient.getPage(credentials, "456")).thenReturn(page);
+        when(confluenceClient.uploadAttachment(eq(credentials), eq("456"), any(), eq(imageBytes)))
+                .thenReturn("attachment.png");
+
+        ConfluenceReportResponse response = confluenceService.publishLatestGrafanaRender(
+                credentials, new ConfluenceReportRequest("456"));
+
+        assertThat(response.pageId()).isEqualTo("456");
+        assertThat(response.attachmentName()).contains("grafana-panel-7-");
+
+        verify(confluenceClient).getPage(credentials, "456");
+        verify(confluenceClient).uploadAttachment(eq(credentials), eq("456"), any(), eq(imageBytes));
+        verify(confluenceClient).updatePage(eq(credentials), eq(page), any());
     }
 
     @Test

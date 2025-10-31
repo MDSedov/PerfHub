@@ -211,13 +211,18 @@ public class ConfluenceClient {
     }
 
     private HttpHeaders authorizationHeaders(ConfluenceCredentials credentials) {
-        if (!StringUtils.hasText(credentials.login()) || !StringUtils.hasText(credentials.accessToken())) {
-            throw new ConfluenceClientException("Confluence credentials must contain login and access token");
+        if (!StringUtils.hasText(credentials.accessToken())) {
+            throw new ConfluenceClientException("Confluence credentials must contain access token");
         }
-        String authToken = credentials.login() + ":" + credentials.accessToken();
-        String encoded = Base64.getEncoder().encodeToString(authToken.getBytes(StandardCharsets.UTF_8));
+
         HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.AUTHORIZATION, "Basic " + encoded);
+        if (StringUtils.hasText(credentials.login())) {
+            String authToken = credentials.login() + ":" + credentials.accessToken();
+            String encoded = Base64.getEncoder().encodeToString(authToken.getBytes(StandardCharsets.UTF_8));
+            headers.set(HttpHeaders.AUTHORIZATION, "Basic " + encoded);
+        } else {
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + credentials.accessToken());
+        }
         return headers;
     }
 
