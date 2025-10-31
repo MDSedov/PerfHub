@@ -38,17 +38,20 @@ public class GrafanaClient {
             @Value("${grafana.base-url}") String baseUrl,
             @Value("${grafana.render-path}") String renderPath,
             @Value("${grafana.api-key}") String apiKey,
-            @Value("${grafana.image-width}") int imageWidth,
-            @Value("${grafana.image-height}") int imageHeight,
+            @Value("${grafana.image-width}") Integer imageWidth,
+            @Value("${grafana.image-height}") Integer imageHeight,
             @Value("${grafana.timezone}") String timezone) {
         Assert.hasText(baseUrl, "Grafana base URL must not be empty");
+        Assert.hasText(renderPath, "Grafana render path must not be empty");
+        Assert.notNull(imageWidth, "Grafana image width must not be null");
+        Assert.notNull(imageHeight, "Grafana image height must not be null");
         this.restTemplate = restTemplate;
         this.baseUrl = baseUrl;
-        this.renderPath = StringUtils.hasText(renderPath) ? renderPath : "/render/d-solo";
+        this.renderPath = renderPath;
         this.apiKey = apiKey;
-        this.imageWidth = imageWidth > 0 ? imageWidth : null;
-        this.imageHeight = imageHeight > 0 ? imageHeight : null;
-        this.timezone = StringUtils.hasText(timezone) ? timezone : null;
+        this.imageWidth = imageWidth;
+        this.imageHeight = imageHeight;
+        this.timezone = timezone;
     }
 
     public byte[] renderPanel(String dashboardUid, String dashboardSlug, int panelId, Instant from, Instant to) {
@@ -63,17 +66,10 @@ public class GrafanaClient {
                 .pathSegment(dashboardUid, dashboardSlug)
                 .queryParam("panelId", panelId)
                 .queryParam("from", from.toEpochMilli())
-                .queryParam("to", to.toEpochMilli());
-
-        if (imageWidth != null) {
-            builder.queryParam("width", imageWidth);
-        }
-        if (imageHeight != null) {
-            builder.queryParam("height", imageHeight);
-        }
-        if (timezone != null) {
-            builder.queryParam("tz", timezone);
-        }
+                .queryParam("to", to.toEpochMilli())
+                .queryParam("width", imageWidth)
+                .queryParam("height", imageHeight)
+                .queryParam("tz", timezone);
 
         URI uri = builder.build(true).toUri();
         log.info(
@@ -105,9 +101,6 @@ public class GrafanaClient {
     }
 
     private String ensurePathEndsWithSlash(String path) {
-        if (!StringUtils.hasText(path)) {
-            return "/";
-        }
         return path.endsWith("/") ? path : path + "/";
     }
 }
