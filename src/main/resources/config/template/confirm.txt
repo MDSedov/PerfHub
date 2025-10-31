@@ -1,0 +1,3 @@
+# Confirmation Template
+
+_This placeholder will be replaced._
