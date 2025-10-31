@@ -1,0 +1,2 @@
+<h1>Automated Test Report</h1>
+<p>This page summarises the current state of automated testing across all environments.</p>

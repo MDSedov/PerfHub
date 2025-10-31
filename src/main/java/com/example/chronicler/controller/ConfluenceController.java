@@ -1,6 +1,8 @@
 package com.example.chronicler.controller;
 
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
+import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyRequest;
+import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.service.ConfluenceService;
@@ -9,6 +11,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,6 +37,17 @@ public class ConfluenceController {
             @Valid @RequestBody ConfluenceReportRequest request) {
         ConfluenceCredentials credentials = new ConfluenceCredentials(login, token);
         ConfluenceReportResponse response = confluenceService.publishLatestGrafanaRender(credentials, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(path = "/report/hierarchy/", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ConfluenceReportHierarchyResponse> createReportHierarchy(
+            @RequestHeader(LOGIN_HEADER) String login,
+            @RequestHeader(TOKEN_HEADER) String token,
+            @Valid @RequestBody ConfluenceReportHierarchyRequest request) {
+        ConfluenceCredentials credentials = new ConfluenceCredentials(login, token);
+        ConfluenceReportHierarchyResponse response =
+                confluenceService.createReportHierarchy(credentials, request.parentPageId());
         return ResponseEntity.ok(response);
     }
 }
