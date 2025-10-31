@@ -34,7 +34,10 @@ public class ConfluenceClient {
     private final RestTemplate restTemplate;
     private final String baseUrl;
 
-    public ConfluenceClient(RestTemplate restTemplate, @Value("${confluence.base-url}") String baseUrl) {
+    public ConfluenceClient(
+            RestTemplate restTemplate,
+            @Value("${confluence.base-url:${CONFLUENCE_BASE_URL:https://your-confluence-instance.atlassian.net/wiki}}")
+                    String baseUrl) {
         Assert.hasText(baseUrl, "Confluence base URL must not be empty");
         this.restTemplate = restTemplate;
         this.baseUrl = baseUrl;
@@ -168,7 +171,7 @@ public class ConfluenceClient {
             if (body == null || body.results() == null || body.results().isEmpty()) {
                 throw new ConfluenceClientException("Confluence did not return attachment metadata for page " + pageId);
             }
-            AttachmentResult attachment = body.results().getFirst();
+            AttachmentResult attachment = body.results().get(0);
             log.info(
                     "Uploaded attachment '{}' to Confluence page {} (attachment id: {})",
                     attachment.title(),
