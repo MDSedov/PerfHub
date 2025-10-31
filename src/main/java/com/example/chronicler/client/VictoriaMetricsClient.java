@@ -28,13 +28,15 @@ public class VictoriaMetricsClient {
     public VictoriaMetricsClient(
             RestTemplate restTemplate,
             @Value("${vm.base-url}") String baseUrl,
-            @Value("${vm.query-range-path:/api/v1/query_range}") String queryRangePath,
-            @Value("${vm.default-step-seconds:60}") long defaultStepSeconds) {
+            @Value("${vm.query-range-path}") String queryRangePath,
+            @Value("${vm.default-step-seconds}") long defaultStepSeconds) {
         Assert.hasText(baseUrl, "VictoriaMetrics base URL must not be empty");
+        Assert.hasText(queryRangePath, "VictoriaMetrics query range path must not be empty");
+        Assert.isTrue(defaultStepSeconds > 0, "VictoriaMetrics step must be positive");
         this.restTemplate = restTemplate;
         this.baseUrl = baseUrl;
         this.queryRangePath = queryRangePath;
-        this.defaultStep = Duration.ofSeconds(Math.max(1, defaultStepSeconds));
+        this.defaultStep = Duration.ofSeconds(defaultStepSeconds);
     }
 
     public String queryRange(String query, Instant start, Instant end) {

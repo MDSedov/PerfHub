@@ -49,7 +49,7 @@ public class GigachatClient {
             @Value("${gigachat.scope}") String scope,
             @Value("${gigachat.authorization-key}") String authorizationKey,
             @Value("${gigachat.client-id}") String clientId,
-            @Value("${gigachat.grant-type:client_credentials}") String grantType,
+            @Value("${gigachat.grant-type}") String grantType,
             @Value("${gigachat.model}") String model) {
         Assert.hasText(oauthUrl, "GigaChat OAuth URL must not be empty");
         Assert.hasText(apiUrl, "GigaChat API URL must not be empty");
