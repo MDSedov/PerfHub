@@ -35,12 +35,12 @@ public class GrafanaClient {
 
     public GrafanaClient(
             RestTemplate restTemplate,
-            @Value("${grafana.base-url:${GRAFANA_BASE_URL:http://localhost:3000}}") String baseUrl,
-            @Value("${grafana.render-path:/render/d-solo}") String renderPath,
-            @Value("${grafana.api-key:}") String apiKey,
-            @Value("${grafana.image-width:0}") int imageWidth,
-            @Value("${grafana.image-height:0}") int imageHeight,
-            @Value("${grafana.timezone:UTC}") String timezone) {
+            @Value("${grafana.base-url}") String baseUrl,
+            @Value("${grafana.render-path}") String renderPath,
+            @Value("${grafana.api-key}") String apiKey,
+            @Value("${grafana.image-width}") int imageWidth,
+            @Value("${grafana.image-height}") int imageHeight,
+            @Value("${grafana.timezone}") String timezone) {
         Assert.hasText(baseUrl, "Grafana base URL must not be empty");
         this.restTemplate = restTemplate;
         this.baseUrl = baseUrl;

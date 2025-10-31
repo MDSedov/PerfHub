@@ -36,8 +36,7 @@ public class ConfluenceClient {
 
     public ConfluenceClient(
             RestTemplate restTemplate,
-            @Value("${confluence.base-url:${CONFLUENCE_BASE_URL:https://your-confluence-instance.atlassian.net/wiki}}")
-                    String baseUrl) {
+            @Value("${confluence.base-url}") String baseUrl) {
         Assert.hasText(baseUrl, "Confluence base URL must not be empty");
         this.restTemplate = restTemplate;
         this.baseUrl = baseUrl;
