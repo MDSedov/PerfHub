@@ -14,12 +14,12 @@ import org.springframework.util.StringUtils;
 @Component
 public class TemplateLoader {
 
-    private static final Path TEMPLATE_DIRECTORY = Path.of("config", "template");
-    private static final Path TENPLATE_DIRECTORY = Path.of("config", "tenplate");
+    private static final Path TEMPLATE_DIRECTORY = Path.of("configs", "template");
+    private static final Path TENPLATE_DIRECTORY = Path.of("configs", "tenplate");
 
     /**
      * Loads a template by its logical name. Templates are expected to be stored either in
-     * {@code config/template} or {@code config/tenplate} and use the {@code .txt} extension.
+     * {@code configs/template} or {@code configs/tenplate} and use the {@code .txt} extension.
      *
      * @param templateName the logical template name (with or without {@code .txt} extension)
      * @return the template contents as a UTF-8 encoded string
