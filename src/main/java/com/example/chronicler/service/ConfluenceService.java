@@ -47,12 +47,7 @@ public class ConfluenceService {
         Objects.requireNonNull(credentials, "Confluence credentials must not be null");
         Objects.requireNonNull(request, "Confluence report request must not be null");
 
-        if (!StringUtils.hasText(credentials.login())) {
-            throw new ConfluenceOperationException("Confluence login header must not be blank");
-        }
-        if (!StringUtils.hasText(credentials.accessToken())) {
-            throw new ConfluenceOperationException("Confluence access token header must not be blank");
-        }
+        validateCredentials(credentials);
         if (!StringUtils.hasText(request.pageId())) {
             throw new ConfluenceOperationException("pageId is required");
         }
@@ -79,6 +74,7 @@ public class ConfluenceService {
     public ConfluenceReportHierarchyResponse createReportHierarchy(
             ConfluenceCredentials credentials, String parentPageId) {
         Objects.requireNonNull(credentials, "Confluence credentials must not be null");
+        validateCredentials(credentials);
         if (!StringUtils.hasText(parentPageId)) {
             throw new ConfluenceOperationException("parentPageId is required");
         }
@@ -136,6 +132,12 @@ public class ConfluenceService {
         String safeBody = existingBody != null ? existingBody : "";
         String imageMacro = "<p><ac:image><ri:attachment ri:filename=\"" + attachmentName + "\" /></ac:image></p>";
         return safeBody + imageMacro;
+    }
+
+    private void validateCredentials(ConfluenceCredentials credentials) {
+        if (!StringUtils.hasText(credentials.accessToken())) {
+            throw new ConfluenceOperationException("Confluence access token header must not be blank");
+        }
     }
     private record SubReportTemplate(String templateName, String pageTitle) {}
 }

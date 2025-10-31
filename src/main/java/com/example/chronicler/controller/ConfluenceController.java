@@ -32,7 +32,7 @@ public class ConfluenceController {
 
     @PatchMapping(path = "/report/", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConfluenceReportResponse> publishReport(
-            @RequestHeader(LOGIN_HEADER) String login,
+            @RequestHeader(value = LOGIN_HEADER, required = false) String login,
             @RequestHeader(TOKEN_HEADER) String token,
             @Valid @RequestBody ConfluenceReportRequest request) {
         ConfluenceCredentials credentials = new ConfluenceCredentials(login, token);
@@ -42,7 +42,7 @@ public class ConfluenceController {
 
     @PostMapping(path = "/report/hierarchy/", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConfluenceReportHierarchyResponse> createReportHierarchy(
-            @RequestHeader(LOGIN_HEADER) String login,
+            @RequestHeader(value = LOGIN_HEADER, required = false) String login,
             @RequestHeader(TOKEN_HEADER) String token,
             @Valid @RequestBody ConfluenceReportHierarchyRequest request) {
         ConfluenceCredentials credentials = new ConfluenceCredentials(login, token);
