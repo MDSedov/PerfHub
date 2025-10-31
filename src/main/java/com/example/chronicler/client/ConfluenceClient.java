@@ -46,7 +46,7 @@ public class ConfluenceClient {
 
         URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .pathSegment("rest", "api", "content", pageId)
-                .queryParam("expand", "body.storage,version")
+                .queryParam("expand", "body.storage,version,space")
                 .build(true)
                 .toUri();
 
@@ -67,10 +67,68 @@ public class ConfluenceClient {
                 throw new ConfluenceClientException("Confluence response for page " + pageId + " is missing body storage");
             }
             String storageBody = body.body().storage().value();
+            String spaceKey = body.space() != null ? body.space().key() : null;
             return new ConfluencePage(
-                    body.id(), body.type(), body.title(), body.version().number(), storageBody != null ? storageBody : "");
+                    body.id(),
+                    body.type(),
+                    body.title(),
+                    body.version().number(),
+                    storageBody != null ? storageBody : "",
+                    spaceKey);
         } catch (RestClientException ex) {
             throw new ConfluenceClientException("Failed to load Confluence page " + pageId, ex);
+        }
+    }
+
+    public ConfluencePage createChildPage(
+            ConfluenceCredentials credentials,
+            String parentPageId,
+            String spaceKey,
+            String title,
+            String body) {
+        Assert.notNull(credentials, "credentials must not be null");
+        Assert.hasText(parentPageId, "parentPageId must not be empty");
+        Assert.hasText(spaceKey, "spaceKey must not be empty");
+        Assert.hasText(title, "title must not be empty");
+        Assert.notNull(body, "body must not be null");
+
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .pathSegment("rest", "api", "content")
+                .build(true)
+                .toUri();
+
+        HttpHeaders headers = authorizationHeaders(credentials);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+
+        CreateRequest requestBody = new CreateRequest(
+                title,
+                "page",
+                new Space(spaceKey),
+                List.of(new Ancestor(parentPageId)),
+                new Body(new Storage(body, "storage")));
+
+        try {
+            ResponseEntity<ContentResponse> response = restTemplate.exchange(
+                    uri, HttpMethod.POST, new HttpEntity<>(requestBody, headers), ContentResponse.class);
+            ContentResponse responseBody = response.getBody();
+            if (responseBody == null || responseBody.version() == null) {
+                throw new ConfluenceClientException(
+                        "Confluence did not return created page metadata for parent " + parentPageId);
+            }
+            String storageBody = responseBody.body() != null && responseBody.body().storage() != null
+                    ? responseBody.body().storage().value()
+                    : "";
+            String responseSpaceKey = responseBody.space() != null ? responseBody.space().key() : spaceKey;
+            return new ConfluencePage(
+                    responseBody.id(),
+                    responseBody.type(),
+                    responseBody.title(),
+                    responseBody.version().number(),
+                    storageBody != null ? storageBody : "",
+                    responseSpaceKey);
+        } catch (RestClientException ex) {
+            throw new ConfluenceClientException("Failed to create Confluence child page under " + parentPageId, ex);
         }
     }
 
@@ -137,7 +195,11 @@ public class ConfluenceClient {
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 
         UpdateRequest requestBody = new UpdateRequest(
-                page.id(), page.type(), page.title(), new Version(page.version() + 1), new Body(new Storage(updatedBody)));
+                page.id(),
+                page.type(),
+                page.title(),
+                new Version(page.version() + 1),
+                new Body(new Storage(updatedBody, "storage")));
 
         try {
             restTemplate.exchange(uri, HttpMethod.PUT, new HttpEntity<>(requestBody, headers), Void.class);
@@ -157,17 +219,23 @@ public class ConfluenceClient {
         return headers;
     }
 
-    private record ContentResponse(String id, String type, String title, Version version, Body body) {}
+    private record ContentResponse(String id, String type, String title, Version version, Body body, Space space) {}
 
     private record Version(int number) {}
 
     private record Body(Storage storage) {}
 
-    private record Storage(String value) {}
+    private record Storage(String value, String representation) {}
 
     private record AttachmentResponse(List<AttachmentResult> results) {}
 
     private record AttachmentResult(String id, String title) {}
 
     private record UpdateRequest(String id, String type, String title, Version version, Body body) {}
+
+    private record CreateRequest(String title, String type, Space space, List<Ancestor> ancestors, Body body) {}
+
+    private record Space(String key) {}
+
+    private record Ancestor(String id) {}
 }

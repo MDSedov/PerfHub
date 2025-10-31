@@ -1,0 +1,2 @@
+<h2>Stress Test Summary</h2>
+<p>Capture the observed system behaviour under stress scenarios and the identified bottlenecks.</p>
