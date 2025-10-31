@@ -44,8 +44,10 @@ public class GigachatClient {
 
     public GigachatClient(
             RestTemplate restTemplate,
-            @Value("${gigachat.oauth-url}") String oauthUrl,
-            @Value("${gigachat.api-url}") String apiUrl,
+            @Value("${gigachat.oauth-url:${GIGACHAT_OAUTH_URL:https://ngw.devices.sberbank.ru:9443/api/v2/oauth}}")
+                    String oauthUrl,
+            @Value("${gigachat.api-url:${GIGACHAT_API_URL:https://gigachat.devices.sberbank.ru/api/v1/chat/completions}}")
+                    String apiUrl,
             @Value("${gigachat.scope}") String scope,
             @Value("${gigachat.authorization-key}") String authorizationKey,
             @Value("${gigachat.client-id}") String clientId,
