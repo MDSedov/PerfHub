@@ -168,7 +168,7 @@ public class ConfluenceClient {
             if (body == null || body.results() == null || body.results().isEmpty()) {
                 throw new ConfluenceClientException("Confluence did not return attachment metadata for page " + pageId);
             }
-            AttachmentResult attachment = body.results().getFirst();
+            AttachmentResult attachment = body.results().get(0);
             log.info(
                     "Uploaded attachment '{}' to Confluence page {} (attachment id: {})",
                     attachment.title(),
