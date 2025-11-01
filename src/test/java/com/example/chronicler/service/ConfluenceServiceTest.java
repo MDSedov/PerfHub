@@ -54,7 +54,7 @@ class ConfluenceServiceTest {
     void publishLatestGrafanaRenderUploadsAttachmentAndUpdatesPage() {
         byte[] imageBytes = new byte[] {1, 2, 3};
         String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
-        GrafanaRenderedPanel panel = new GrafanaRenderedPanel(42, encodedImage);
+        GrafanaRenderedPanel panel = new GrafanaRenderedPanel(42, "Panel title", "Panel description", encodedImage);
         GrafanaRenderedDashboard dashboard = new GrafanaRenderedDashboard("uid", "slug", List.of(panel));
         GrafanaRenderResponse cachedResponse = new GrafanaRenderResponse("from", "to", List.of(dashboard));
 
@@ -103,7 +103,7 @@ class ConfluenceServiceTest {
     void publishLatestGrafanaRenderSupportsPersonalAccessToken() {
         byte[] imageBytes = new byte[] {4, 5, 6};
         String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
-        GrafanaRenderedPanel panel = new GrafanaRenderedPanel(7, encodedImage);
+        GrafanaRenderedPanel panel = new GrafanaRenderedPanel(7, "Panel title", "Panel description", encodedImage);
         GrafanaRenderedDashboard dashboard = new GrafanaRenderedDashboard("uid", "slug", List.of(panel));
         GrafanaRenderResponse cachedResponse = new GrafanaRenderResponse("from", "to", List.of(dashboard));
 
