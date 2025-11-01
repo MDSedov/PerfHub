@@ -30,20 +30,6 @@ public class ConfluenceController {
         this.confluenceService = confluenceService;
     }
 
-    /**
-     * Публикует последние изображения панелей Grafana на страницу Confluence.
-     *
-     * <p>Пример запроса:
-     * <pre>
-     * PATCH /api/confluence/report/
-     * Headers:
-     *   X-Confluence-Token: &lt;token&gt;
-     * Body:
-     * {
-     *   "pageId": "123"
-     * }
-     * </pre>
-     */
     @PatchMapping(path = "/report/", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConfluenceReportResponse> publishReport(
             @RequestHeader(value = LOGIN_HEADER, required = false) String login,
