@@ -12,6 +12,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,11 +25,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class VictoriaMetricsService {
 
+    private static final ZoneId MOSCOW_ZONE = ZoneId.of("Europe/Moscow");
+    private static final DateTimeFormatter DASHBOARD_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final VmQueryRegistry queryRegistry;
     private final VictoriaMetricsClient client;
     private final VmDataCache vmDataCache;
     private final ObjectMapper objectMapper;
 
+    /** Конструктор подготавливает зависимости сервиса VictoriaMetrics. */
     VictoriaMetricsService(
             VmQueryRegistry queryRegistry,
             VictoriaMetricsClient client,
@@ -38,6 +45,7 @@ public class VictoriaMetricsService {
         this.objectMapper = objectMapper;
     }
 
+    /** Метод собирает данные VictoriaMetrics по списку запросов и кеширует результат. */
     public String fetchMetrics(List<VictoriaMetricsRequest> requests) {
         if (requests == null || requests.isEmpty()) {
             throw new InvalidTimeRangeException("At least one VictoriaMetrics request must be provided");
@@ -85,14 +93,18 @@ public class VictoriaMetricsService {
         return payload;
     }
 
+    /** Метод преобразует время из формата Grafana (МСК) в Instant. */
     private Instant parseInstant(String value, String field) {
         try {
-            return Instant.parse(value);
+            LocalDateTime localDateTime = LocalDateTime.parse(value, DASHBOARD_FORMAT);
+            return localDateTime.atZone(MOSCOW_ZONE).toInstant();
         } catch (DateTimeParseException ex) {
-            throw new InvalidTimeRangeException("Unable to parse " + field + " as ISO-8601 instant");
+            throw new InvalidTimeRangeException(
+                    "Unable to parse " + field + " as 'yyyy-MM-dd HH:mm:ss' in Europe/Moscow timezone");
         }
     }
 
+    /** Метод формирует узел результата с типом и данными. */
     private ObjectNode createResultNode(String type, String response) {
         ObjectNode resultNode = objectMapper.createObjectNode();
         resultNode.put("type", type);
@@ -100,6 +112,7 @@ public class VictoriaMetricsService {
         return resultNode;
     }
 
+    /** Метод преобразует строковый ответ VictoriaMetrics в JSON. */
     private JsonNode readResponse(String response) {
         if (response == null || response.isBlank()) {
             return objectMapper.nullNode();
@@ -112,6 +125,7 @@ public class VictoriaMetricsService {
         }
     }
 
+    /** Метод сериализует агрегированные данные в строку JSON. */
     private String writeAggregated(ObjectNode aggregated) {
         try {
             return objectMapper.writeValueAsString(aggregated);
