@@ -125,12 +125,12 @@ public class GrafanaClient {
                     uri, HttpMethod.GET, new HttpEntity<>(null, headers), GrafanaDashboardResponse.class);
             GrafanaDashboardResponse body = response.getBody();
             if (body == null || body.dashboard() == null) {
-                throw new GrafanaClientException("Grafana dashboard response is empty");
+                throw new GrafanaClientException("Grafana dashboard response is empty", null);
             }
 
             Optional<GrafanaDashboardPanel> panel = body.dashboard().panelById(panelId);
             GrafanaDashboardPanel grafanaPanel = panel.orElseThrow(() ->
-                    new GrafanaClientException("Grafana panel with id " + panelId + " not found"));
+                    new GrafanaClientException("Grafana panel with id " + panelId + " not found", null));
 
             String description = grafanaPanel.description() == null ? "" : grafanaPanel.description();
             return new GrafanaPanelMetadata(grafanaPanel.title(), description);
