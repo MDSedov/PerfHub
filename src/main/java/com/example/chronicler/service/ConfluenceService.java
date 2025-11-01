@@ -15,11 +15,11 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.HtmlUtils;
 
 @Service
 public class ConfluenceService {
@@ -28,6 +28,9 @@ public class ConfluenceService {
     private final GrafanaRenderCache grafanaRenderCache;
     private final TemplateLoader templateLoader;
 
+    /**
+     * Создаёт сервис для работы с Confluence, кешем рендеров Grafana и загрузкой шаблонов.
+     */
     public ConfluenceService(
             ConfluenceClient confluenceClient, GrafanaRenderCache grafanaRenderCache, TemplateLoader templateLoader) {
         this.confluenceClient = confluenceClient;
@@ -42,6 +45,10 @@ public class ConfluenceService {
             new SubReportTemplate("stress-report", "Stress Test Summary"),
             new SubReportTemplate("soak", "Soak Test Summary"));
 
+    /**
+     * Публикует все закешированные панели Grafana на страницу Confluence, добавляя для каждой заголовок,
+     * описание и изображение.
+     */
     public ConfluenceReportResponse publishLatestGrafanaRender(
             ConfluenceCredentials credentials, ConfluenceReportRequest request) {
         Objects.requireNonNull(credentials, "Confluence credentials must not be null");
@@ -56,21 +63,31 @@ public class ConfluenceService {
                 .getLatest()
                 .orElseThrow(() -> new GrafanaRenderNotCachedException("Grafana render result is not cached yet"));
 
-        GrafanaRenderedPanel panel = findFirstPanel(cachedResponse)
-                .orElseThrow(() -> new ConfluenceOperationException("Cached Grafana render does not contain any panels"));
-
-        byte[] imageBytes = decodePanelImage(panel);
-        String attachmentName = generateAttachmentName(panel);
+        List<GrafanaRenderedPanel> panels = findAllPanels(cachedResponse);
+        if (panels.isEmpty()) {
+            throw new ConfluenceOperationException("Cached Grafana render does not contain any panels");
+        }
 
         ConfluencePage page = confluenceClient.getPage(credentials, request.pageId());
-        confluenceClient.uploadAttachment(credentials, page.id(), attachmentName, imageBytes);
+        StringBuilder bodyBuilder = new StringBuilder(getSafeBody(page.body()));
+        List<String> attachmentNames = new ArrayList<>();
 
-        String appendedBody = appendImageToBody(page.body(), attachmentName);
-        confluenceClient.updatePage(credentials, page, appendedBody);
+        for (GrafanaRenderedPanel panel : panels) {
+            byte[] imageBytes = decodePanelImage(panel);
+            String attachmentName = generateAttachmentName(panel);
+            confluenceClient.uploadAttachment(credentials, page.id(), attachmentName, imageBytes);
+            attachmentNames.add(attachmentName);
+            appendPanelToBody(bodyBuilder, panel, attachmentName);
+        }
 
-        return new ConfluenceReportResponse(page.id(), attachmentName);
+        confluenceClient.updatePage(credentials, page, bodyBuilder.toString());
+
+        return new ConfluenceReportResponse(page.id(), List.copyOf(attachmentNames));
     }
 
+    /**
+     * Создаёт иерархию страниц отчёта в Confluence, используя шаблоны для обзорной и дочерних страниц.
+     */
     public ConfluenceReportHierarchyResponse createReportHierarchy(
             ConfluenceCredentials credentials, String parentPageId) {
         Objects.requireNonNull(credentials, "Confluence credentials must not be null");
@@ -100,19 +117,30 @@ public class ConfluenceService {
         return new ConfluenceReportHierarchyResponse(overviewPage.id(), List.copyOf(childPageIds));
     }
 
-    private Optional<GrafanaRenderedPanel> findFirstPanel(GrafanaRenderResponse response) {
+    /**
+     * Извлекает все панели из ответа Grafana, отбрасывая пустые значения.
+     */
+    private List<GrafanaRenderedPanel> findAllPanels(GrafanaRenderResponse response) {
+        List<GrafanaRenderedPanel> panels = new ArrayList<>();
         if (response.dashboards() == null) {
-            return Optional.empty();
+            return panels;
         }
-        return response.dashboards().stream()
-                .filter(Objects::nonNull)
-                .map(GrafanaRenderedDashboard::panels)
-                .filter(Objects::nonNull)
-                .flatMap(List::stream)
-                .filter(Objects::nonNull)
-                .findFirst();
+        for (GrafanaRenderedDashboard dashboard : response.dashboards()) {
+            if (dashboard == null || dashboard.panels() == null) {
+                continue;
+            }
+            for (GrafanaRenderedPanel panel : dashboard.panels()) {
+                if (panel != null) {
+                    panels.add(panel);
+                }
+            }
+        }
+        return panels;
     }
 
+    /**
+     * Декодирует изображение панели из Base64 и валидирует наличие данных.
+     */
     private byte[] decodePanelImage(GrafanaRenderedPanel panel) {
         if (!StringUtils.hasText(panel.imageBase64())) {
             throw new ConfluenceOperationException("Cached Grafana panel image is empty");
@@ -124,16 +152,46 @@ public class ConfluenceService {
         }
     }
 
+    /**
+     * Формирует уникальное имя вложения для изображения панели.
+     */
     private String generateAttachmentName(GrafanaRenderedPanel panel) {
         return "grafana-panel-" + panel.panelId() + "-" + UUID.randomUUID() + ".png";
     }
 
-    private String appendImageToBody(String existingBody, String attachmentName) {
-        String safeBody = existingBody != null ? existingBody : "";
-        String imageMacro = "<p><ac:image><ri:attachment ri:filename=\"" + attachmentName + "\" /></ac:image></p>";
-        return safeBody + imageMacro;
+    /**
+     * Добавляет в тело страницы блок с заголовком, описанием и изображением панели.
+     */
+    private void appendPanelToBody(StringBuilder bodyBuilder, GrafanaRenderedPanel panel, String attachmentName) {
+        String title = StringUtils.hasText(panel.title()) ? panel.title() : "Панель без названия";
+        bodyBuilder
+                .append("<h3>")
+                .append(HtmlUtils.htmlEscape(title))
+                .append("</h3>");
+
+        if (StringUtils.hasText(panel.description())) {
+            bodyBuilder
+                    .append("<p>")
+                    .append(HtmlUtils.htmlEscape(panel.description()))
+                    .append("</p>");
+        }
+
+        bodyBuilder
+                .append("<p><ac:image><ri:attachment ri:filename=\"")
+                .append(HtmlUtils.htmlEscape(attachmentName))
+                .append("\" /></ac:image></p>");
     }
 
+    /**
+     * Возвращает существующее тело страницы или пустую строку, если тело отсутствует.
+     */
+    private String getSafeBody(String existingBody) {
+        return existingBody != null ? existingBody : "";
+    }
+
+    /**
+     * Проверяет корректность переданных учётных данных Confluence.
+     */
     private void validateCredentials(ConfluenceCredentials credentials) {
         if (!StringUtils.hasText(credentials.accessToken())) {
             throw new ConfluenceOperationException("Confluence access token header must not be blank");
