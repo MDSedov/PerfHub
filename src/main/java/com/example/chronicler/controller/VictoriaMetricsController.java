@@ -13,15 +13,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping(path = "/api/vm", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = "/api/victoriametrics", produces = MediaType.APPLICATION_JSON_VALUE)
 public class VictoriaMetricsController {
 
     private final VictoriaMetricsService victoriaMetricsService;
 
+    /** Конструктор сохраняет ссылку на сервис VictoriaMetrics. */
     VictoriaMetricsController(VictoriaMetricsService victoriaMetricsService) {
         this.victoriaMetricsService = victoriaMetricsService;
     }
 
+    /** Метод получает запросы к VictoriaMetrics и возвращает агрегированные данные. */
     @PostMapping(path = "/data/", consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<String> fetchMetric(@RequestBody List<@Valid VictoriaMetricsRequest> requests) {
         String body = victoriaMetricsService.fetchMetrics(requests);
