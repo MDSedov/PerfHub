@@ -1,9 +1,12 @@
 package com.example.chronicler.client;
 
+import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.exception.GrafanaClientException;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +57,9 @@ public class GrafanaClient {
         this.timezone = timezone;
     }
 
+    /**
+     * Выполняет рендеринг панели Grafana и возвращает изображение в виде байтового массива.
+     */
     public byte[] renderPanel(String dashboardUid, String dashboardSlug, int panelId, Instant from, Instant to) {
         Assert.hasText(dashboardUid, "dashboardUid must not be empty");
         Assert.hasText(dashboardSlug, "dashboardSlug must not be empty");
@@ -98,7 +104,63 @@ public class GrafanaClient {
         }
     }
 
+    /**
+     * Получает метаданные панели (заголовок и описание) по идентификатору панели и UID дашборда.
+     */
+    public GrafanaPanelMetadata getPanelMetadata(String dashboardUid, int panelId) {
+        Assert.hasText(dashboardUid, "dashboardUid must not be empty");
+        Assert.isTrue(panelId > 0, "panelId must be positive");
+
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .pathSegment("api", "dashboards", "uid", dashboardUid)
+                .build(true)
+                .toUri();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON, MediaType.ALL));
+        headers.setBearerAuth(apiKey);
+
+        try {
+            ResponseEntity<GrafanaDashboardResponse> response = restTemplate.exchange(
+                    uri, HttpMethod.GET, new HttpEntity<>(null, headers), GrafanaDashboardResponse.class);
+            GrafanaDashboardResponse body = response.getBody();
+            if (body == null || body.dashboard() == null) {
+                throw new GrafanaClientException("Grafana dashboard response is empty");
+            }
+
+            Optional<GrafanaDashboardPanel> panel = body.dashboard().panelById(panelId);
+            GrafanaDashboardPanel grafanaPanel = panel.orElseThrow(() ->
+                    new GrafanaClientException("Grafana panel with id " + panelId + " not found"));
+
+            String description = grafanaPanel.description() == null ? "" : grafanaPanel.description();
+            return new GrafanaPanelMetadata(grafanaPanel.title(), description);
+        } catch (RestClientException ex) {
+            throw new GrafanaClientException("Failed to retrieve Grafana panel metadata", ex);
+        }
+    }
+
+    /**
+     * Гарантирует наличие завершающего слэша в пути к API рендеринга.
+     */
     private String ensurePathEndsWithSlash(String path) {
         return path.endsWith("/") ? path : path + "/";
     }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaDashboardResponse(GrafanaDashboard dashboard) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaDashboard(List<GrafanaDashboardPanel> panels) {
+        Optional<GrafanaDashboardPanel> panelById(int panelId) {
+            if (panels == null) {
+                return Optional.empty();
+            }
+            return panels.stream()
+                    .filter(panel -> panel != null && panel.id() != null && panel.id() == panelId)
+                    .findFirst();
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaDashboardPanel(Integer id, String title, String description) {}
 }

@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.example.chronicler.client.GrafanaClient;
 import com.example.chronicler.dto.grafana.GrafanaDashboardRequest;
-import com.example.chronicler.dto.grafana.GrafanaPanelRequest;
+import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
@@ -48,12 +48,12 @@ class GrafanaServiceTest {
                 List.of(new GrafanaDashboardRequest(
                         "uid",
                         "slug",
-                        List.of(
-                                new GrafanaPanelRequest(1, "Panel 1", "First panel"),
-                                new GrafanaPanelRequest(2, "Panel 2", null)))));
+                        List.of(1, 2))));
 
         when(grafanaClient.renderPanel("uid", "slug", 1, from, to)).thenReturn(new byte[] {1, 2});
         when(grafanaClient.renderPanel("uid", "slug", 2, from, to)).thenReturn(new byte[] {3});
+        when(grafanaClient.getPanelMetadata("uid", 1)).thenReturn(new GrafanaPanelMetadata("Panel 1", "First panel"));
+        when(grafanaClient.getPanelMetadata("uid", 2)).thenReturn(new GrafanaPanelMetadata("Panel 2", null));
 
         GrafanaRenderResponse response = grafanaService.renderDashboards(request);
 
@@ -74,6 +74,8 @@ class GrafanaServiceTest {
 
         verify(grafanaClient).renderPanel("uid", "slug", 1, from, to);
         verify(grafanaClient).renderPanel("uid", "slug", 2, from, to);
+        verify(grafanaClient).getPanelMetadata("uid", 1);
+        verify(grafanaClient).getPanelMetadata("uid", 2);
         verify(grafanaRenderCache).store(response);
     }
 
@@ -83,7 +85,7 @@ class GrafanaServiceTest {
                 "2024-01-01T02:00:00Z",
                 "2024-01-01T01:00:00Z",
                 List.of(new GrafanaDashboardRequest(
-                        "uid", "slug", List.of(new GrafanaPanelRequest(1, "Panel", "Description")))));
+                        "uid", "slug", List.of(1))));
 
         assertThatThrownBy(() -> grafanaService.renderDashboards(request))
                 .isInstanceOf(GrafanaInvalidTimeRangeException.class)
