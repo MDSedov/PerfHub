@@ -30,6 +30,20 @@ public class ConfluenceController {
         this.confluenceService = confluenceService;
     }
 
+    /**
+     * Публикует последние изображения панелей Grafana на страницу Confluence.
+     *
+     * <p>Пример запроса:
+     * <pre>
+     * PATCH /api/confluence/report/
+     * Headers:
+     *   X-Confluence-Token: &lt;token&gt;
+     * Body:
+     * {
+     *   "pageId": "123"
+     * }
+     * </pre>
+     */
     @PatchMapping(path = "/report/", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConfluenceReportResponse> publishReport(
             @RequestHeader(value = LOGIN_HEADER, required = false) String login,
@@ -40,6 +54,20 @@ public class ConfluenceController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Создаёт иерархию страниц отчёта в Confluence под указанным родительским элементом.
+     *
+     * <p>Пример запроса:
+     * <pre>
+     * POST /api/confluence/report/hierarchy/
+     * Headers:
+     *   X-Confluence-Token: &lt;token&gt;
+     * Body:
+     * {
+     *   "parentPageId": "456"
+     * }
+     * </pre>
+     */
     @PostMapping(path = "/report/hierarchy/", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConfluenceReportHierarchyResponse> createReportHierarchy(
             @RequestHeader(value = LOGIN_HEADER, required = false) String login,

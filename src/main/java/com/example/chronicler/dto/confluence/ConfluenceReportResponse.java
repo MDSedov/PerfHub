@@ -1,4 +1,6 @@
 package com.example.chronicler.dto.confluence;
 
-public record ConfluenceReportResponse(String pageId, String attachmentName) {
+import java.util.List;
+
+public record ConfluenceReportResponse(String pageId, List<String> attachmentNames) {
 }

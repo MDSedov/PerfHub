@@ -51,11 +51,14 @@ class ConfluenceServiceTest {
     }
 
     @Test
-    void publishLatestGrafanaRenderUploadsAttachmentAndUpdatesPage() {
+    void publishLatestGrafanaRenderUploadsAllAttachmentsAndUpdatesPage() {
         byte[] imageBytes = new byte[] {1, 2, 3};
+        byte[] secondImageBytes = new byte[] {4, 5, 6};
         String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
+        String secondEncodedImage = Base64.getEncoder().encodeToString(secondImageBytes);
         GrafanaRenderedPanel panel = new GrafanaRenderedPanel(42, "Panel title", "Panel description", encodedImage);
-        GrafanaRenderedDashboard dashboard = new GrafanaRenderedDashboard("uid", "slug", List.of(panel));
+        GrafanaRenderedPanel secondPanel = new GrafanaRenderedPanel(43, "Вторая панель", "Описание", secondEncodedImage);
+        GrafanaRenderedDashboard dashboard = new GrafanaRenderedDashboard("uid", "slug", List.of(panel, secondPanel));
         GrafanaRenderResponse cachedResponse = new GrafanaRenderResponse("from", "to", List.of(dashboard));
 
         when(grafanaRenderCache.getLatest()).thenReturn(Optional.of(cachedResponse));
@@ -63,20 +66,30 @@ class ConfluenceServiceTest {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         when(confluenceClient.getPage(credentials, "123")).thenReturn(page);
         when(confluenceClient.uploadAttachment(eq(credentials), eq("123"), any(), eq(imageBytes)))
-                .thenReturn("attachment.png");
+                .thenReturn("first.png");
+        when(confluenceClient.uploadAttachment(eq(credentials), eq("123"), any(), eq(secondImageBytes)))
+                .thenReturn("second.png");
 
         ConfluenceReportResponse response = confluenceService.publishLatestGrafanaRender(
                 credentials, new ConfluenceReportRequest("123"));
 
         assertThat(response.pageId()).isEqualTo("123");
-        assertThat(response.attachmentName()).contains("grafana-panel-42-");
+        assertThat(response.attachmentNames()).hasSize(2);
+        assertThat(response.attachmentNames().get(0)).contains("grafana-panel-42-");
+        assertThat(response.attachmentNames().get(1)).contains("grafana-panel-43-");
 
         verify(confluenceClient).getPage(credentials, "123");
         verify(confluenceClient).uploadAttachment(eq(credentials), eq("123"), any(), eq(imageBytes));
+        verify(confluenceClient).uploadAttachment(eq(credentials), eq("123"), any(), eq(secondImageBytes));
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
         verify(confluenceClient)
                 .updatePage(eq(credentials), eq(page), bodyCaptor.capture());
-        assertThat(bodyCaptor.getValue()).contains("<ac:image>");
+        String updatedBody = bodyCaptor.getValue();
+        assertThat(updatedBody).contains("<h3>Panel title</h3>");
+        assertThat(updatedBody).contains("<p>Panel description</p>");
+        assertThat(updatedBody).contains("<h3>Вторая панель</h3>");
+        assertThat(updatedBody).contains("<p>Описание</p>");
+        assertThat(updatedBody).contains("<ac:image>");
     }
 
     @Test
@@ -118,7 +131,7 @@ class ConfluenceServiceTest {
                 credentials, new ConfluenceReportRequest("456"));
 
         assertThat(response.pageId()).isEqualTo("456");
-        assertThat(response.attachmentName()).contains("grafana-panel-7-");
+        assertThat(response.attachmentNames()).singleElement().contains("grafana-panel-7-");
 
         verify(confluenceClient).getPage(credentials, "456");
         verify(confluenceClient).uploadAttachment(eq(credentials), eq("456"), any(), eq(imageBytes));
