@@ -15,7 +15,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -43,6 +42,7 @@ public class GrafanaClient {
             @Value("${grafana.timezone}") String timezone) {
         Assert.hasText(baseUrl, "Grafana base URL must not be empty");
         Assert.hasText(renderPath, "Grafana render path must not be empty");
+        Assert.hasText(apiKey, "Grafana API key must not be empty");
         Assert.notNull(imageWidth, "Grafana image width must not be null");
         Assert.notNull(imageHeight, "Grafana image height must not be null");
         this.restTemplate = restTemplate;
@@ -82,9 +82,7 @@ public class GrafanaClient {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(List.of(MediaType.IMAGE_PNG, MediaType.ALL));
-        if (StringUtils.hasText(apiKey)) {
-            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey);
-        }
+        headers.setBearerAuth(apiKey);
 
         try {
             ResponseEntity<byte[]> response = restTemplate.exchange(
