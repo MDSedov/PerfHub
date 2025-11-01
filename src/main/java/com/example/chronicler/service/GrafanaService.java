@@ -10,6 +10,9 @@ import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
 import com.example.chronicler.exception.GrafanaRenderingException;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -21,6 +24,10 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class GrafanaService {
+
+    private static final ZoneId MOSCOW_ZONE_ID = ZoneId.of("Europe/Moscow");
+    private static final DateTimeFormatter DASHBOARD_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final GrafanaClient grafanaClient;
     private final GrafanaRenderCache grafanaRenderCache;
@@ -90,9 +97,11 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException(field + " is required");
         }
         try {
-            return Instant.parse(value);
+            LocalDateTime localDateTime = LocalDateTime.parse(value, DASHBOARD_TIME_FORMATTER);
+            return localDateTime.atZone(MOSCOW_ZONE_ID).toInstant();
         } catch (DateTimeParseException ex) {
-            throw new GrafanaInvalidTimeRangeException("Unable to parse " + field + " as ISO-8601 instant");
+            throw new GrafanaInvalidTimeRangeException(
+                    "Unable to parse " + field + " using pattern yyyy-MM-dd HH:mm:ss (Europe/Moscow)");
         }
     }
 

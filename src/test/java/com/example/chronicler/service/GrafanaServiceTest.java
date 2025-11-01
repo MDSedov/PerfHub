@@ -13,6 +13,9 @@ import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
 import com.example.chronicler.exception.GrafanaRenderingException;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -39,12 +42,16 @@ class GrafanaServiceTest {
 
     @Test
     void renderDashboardsReturnsEncodedImages() {
-        Instant from = Instant.parse("2024-01-01T00:00:00Z");
-        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        ZoneId moscow = ZoneId.of("Europe/Moscow");
+        String fromInput = "2024-01-01 00:00:00";
+        String toInput = "2024-01-01 01:00:00";
+        Instant from = LocalDateTime.parse(fromInput, formatter).atZone(moscow).toInstant();
+        Instant to = LocalDateTime.parse(toInput, formatter).atZone(moscow).toInstant();
 
         GrafanaRenderRequest request = new GrafanaRenderRequest(
-                from.toString(),
-                to.toString(),
+                fromInput,
+                toInput,
                 List.of(new GrafanaDashboardRequest(
                         "uid",
                         "slug",
@@ -82,14 +89,27 @@ class GrafanaServiceTest {
     @Test
     void renderDashboardsRejectsInvalidTimeRange() {
         GrafanaRenderRequest request = new GrafanaRenderRequest(
-                "2024-01-01T02:00:00Z",
-                "2024-01-01T01:00:00Z",
+                "2024-01-01 02:00:00",
+                "2024-01-01 01:00:00",
                 List.of(new GrafanaDashboardRequest(
                         "uid", "slug", List.of(1))));
 
         assertThatThrownBy(() -> grafanaService.renderDashboards(request))
                 .isInstanceOf(GrafanaInvalidTimeRangeException.class)
                 .hasMessage("End time must be after start time");
+    }
+
+    @Test
+    void renderDashboardsRejectsIncorrectFormat() {
+        GrafanaRenderRequest request = new GrafanaRenderRequest(
+                "2024-01-01T00:00:00Z",
+                "2024-01-01 01:00:00",
+                List.of(new GrafanaDashboardRequest(
+                        "uid", "slug", List.of(1))));
+
+        assertThatThrownBy(() -> grafanaService.renderDashboards(request))
+                .isInstanceOf(GrafanaInvalidTimeRangeException.class)
+                .hasMessage("Unable to parse from using pattern yyyy-MM-dd HH:mm:ss (Europe/Moscow)");
     }
 
     @Test
