@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.example.chronicler.client.GrafanaClient;
 import com.example.chronicler.dto.grafana.GrafanaDashboardRequest;
+import com.example.chronicler.dto.grafana.GrafanaPanelRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
@@ -44,7 +45,12 @@ class GrafanaServiceTest {
         GrafanaRenderRequest request = new GrafanaRenderRequest(
                 from.toString(),
                 to.toString(),
-                List.of(new GrafanaDashboardRequest("uid", "slug", List.of(1, 2))));
+                List.of(new GrafanaDashboardRequest(
+                        "uid",
+                        "slug",
+                        List.of(
+                                new GrafanaPanelRequest(1, "Panel 1", "First panel"),
+                                new GrafanaPanelRequest(2, "Panel 2", null)))));
 
         when(grafanaClient.renderPanel("uid", "slug", 1, from, to)).thenReturn(new byte[] {1, 2});
         when(grafanaClient.renderPanel("uid", "slug", 2, from, to)).thenReturn(new byte[] {3});
@@ -58,8 +64,12 @@ class GrafanaServiceTest {
         assertThat(response.dashboards().get(0).slug()).isEqualTo("slug");
         assertThat(response.dashboards().get(0).panels()).hasSize(2);
         assertThat(response.dashboards().get(0).panels().get(0).panelId()).isEqualTo(1);
+        assertThat(response.dashboards().get(0).panels().get(0).title()).isEqualTo("Panel 1");
+        assertThat(response.dashboards().get(0).panels().get(0).description()).isEqualTo("First panel");
         assertThat(response.dashboards().get(0).panels().get(0).imageBase64()).isEqualTo("AQI=");
         assertThat(response.dashboards().get(0).panels().get(1).panelId()).isEqualTo(2);
+        assertThat(response.dashboards().get(0).panels().get(1).title()).isEqualTo("Panel 2");
+        assertThat(response.dashboards().get(0).panels().get(1).description()).isEmpty();
         assertThat(response.dashboards().get(0).panels().get(1).imageBase64()).isEqualTo("Aw==");
 
         verify(grafanaClient).renderPanel("uid", "slug", 1, from, to);
@@ -72,7 +82,8 @@ class GrafanaServiceTest {
         GrafanaRenderRequest request = new GrafanaRenderRequest(
                 "2024-01-01T02:00:00Z",
                 "2024-01-01T01:00:00Z",
-                List.of(new GrafanaDashboardRequest("uid", "slug", List.of(1))));
+                List.of(new GrafanaDashboardRequest(
+                        "uid", "slug", List.of(new GrafanaPanelRequest(1, "Panel", "Description")))));
 
         assertThatThrownBy(() -> grafanaService.renderDashboards(request))
                 .isInstanceOf(GrafanaInvalidTimeRangeException.class)

@@ -2,6 +2,7 @@ package com.example.chronicler.service;
 
 import com.example.chronicler.client.GrafanaClient;
 import com.example.chronicler.dto.grafana.GrafanaDashboardRequest;
+import com.example.chronicler.dto.grafana.GrafanaPanelRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.dto.grafana.GrafanaRenderedDashboard;
@@ -51,20 +52,27 @@ public class GrafanaService {
             String uid = requireText(dashboardRequest.uid(), "uid");
             String slug = requireText(dashboardRequest.slug(), "slug");
 
-            List<Integer> panels = dashboardRequest.panels();
+            List<GrafanaPanelRequest> panels = dashboardRequest.panels();
             if (panels == null || panels.isEmpty()) {
                 throw new GrafanaRenderingException(
                         "Dashboard '" + slug + "' must contain at least one panel identifier");
             }
 
             List<GrafanaRenderedPanel> renderedPanels = new ArrayList<>(panels.size());
-            for (Integer panelId : panels) {
+            for (GrafanaPanelRequest panelRequest : panels) {
+                Objects.requireNonNull(panelRequest, "Grafana panel request must not be null");
+                Integer panelId = panelRequest.panelId();
                 if (panelId == null || panelId <= 0) {
                     throw new GrafanaRenderingException("Panel identifiers must be positive numbers");
                 }
+                String title = requireText(panelRequest.title(), "title");
+                String description = panelRequest.description();
+                if (description == null) {
+                    description = "";
+                }
                 byte[] imageBytes = grafanaClient.renderPanel(uid, slug, panelId, from, to);
                 String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
-                renderedPanels.add(new GrafanaRenderedPanel(panelId, encodedImage));
+                renderedPanels.add(new GrafanaRenderedPanel(panelId, title, description, encodedImage));
             }
 
             dashboards.add(new GrafanaRenderedDashboard(uid, slug, renderedPanels));
