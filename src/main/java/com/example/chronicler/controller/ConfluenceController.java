@@ -40,20 +40,6 @@ public class ConfluenceController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Создаёт иерархию страниц отчёта в Confluence под указанным родительским элементом.
-     *
-     * <p>Пример запроса:
-     * <pre>
-     * POST /api/confluence/report/hierarchy/
-     * Headers:
-     *   X-Confluence-Token: &lt;token&gt;
-     * Body:
-     * {
-     *   "parentPageId": "456"
-     * }
-     * </pre>
-     */
     @PostMapping(path = "/report/hierarchy/", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConfluenceReportHierarchyResponse> createReportHierarchy(
             @RequestHeader(value = LOGIN_HEADER, required = false) String login,
