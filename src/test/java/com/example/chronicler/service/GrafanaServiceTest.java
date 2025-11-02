@@ -13,6 +13,7 @@ import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
 import com.example.chronicler.exception.GrafanaRenderingException;
 import com.example.chronicler.model.GrafanaDashboard;
 import com.example.chronicler.model.LoadTest;
+import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.GrafanaDashboardRepository;
 import com.example.chronicler.repository.LoadTestRepository;
 import java.time.Instant;
@@ -55,7 +56,7 @@ class GrafanaServiceTest {
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
         when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, from, to)));
+                .thenReturn(Optional.of(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN)));
         when(grafanaDashboardRepository.findAll())
                 .thenReturn(List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2))));
         when(grafanaClient.renderPanel("uid", "slug", 1, from, to)).thenReturn(new byte[] {1, 2});
@@ -103,7 +104,7 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
         when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, from, to)));
+                .thenReturn(Optional.of(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN)));
         when(grafanaDashboardRepository.findAll()).thenReturn(List.of());
 
         assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
@@ -118,7 +119,7 @@ class GrafanaServiceTest {
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
         when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, from, to)));
+                .thenReturn(Optional.of(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN)));
         when(grafanaDashboardRepository.findAll())
                 .thenReturn(List.of(new GrafanaDashboard("uid", "slug", List.of(1))));
 

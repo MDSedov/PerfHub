@@ -4,12 +4,26 @@ CREATE TABLE IF NOT EXISTS tests (
     test_uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     start_time TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     end_time TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    test_type TEXT NOT NULL DEFAULT 'unknown',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_tests_start_end UNIQUE (start_time, end_time)
 );
 
 ALTER TABLE tests
     ALTER COLUMN test_uuid SET DEFAULT gen_random_uuid();
+
+ALTER TABLE tests
+    ADD COLUMN IF NOT EXISTS test_type TEXT NOT NULL DEFAULT 'unknown';
+
+ALTER TABLE tests
+    ALTER COLUMN test_type SET DEFAULT 'unknown';
+
+UPDATE tests
+SET test_type = 'unknown'
+WHERE test_type IS NULL;
+
+ALTER TABLE tests
+    ALTER COLUMN test_type SET NOT NULL;
 
 UPDATE tests
 SET test_uuid = gen_random_uuid()

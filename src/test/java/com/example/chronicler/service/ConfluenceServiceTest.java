@@ -20,8 +20,13 @@ import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.dto.grafana.GrafanaRenderedDashboard;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceOperationException;
+import com.example.chronicler.model.LoadTest;
+import com.example.chronicler.model.LoadTestType;
+import com.example.chronicler.repository.LoadTestRepository;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -44,11 +49,15 @@ class ConfluenceServiceTest {
     @Mock
     private TemplateLoader templateLoader;
 
+    @Mock
+    private LoadTestRepository loadTestRepository;
+
     private ConfluenceService confluenceService;
 
     @BeforeEach
     void setUp() {
-        confluenceService = new ConfluenceService(confluenceClient, grafanaService, templateLoader);
+        confluenceService = new ConfluenceService(
+                confluenceClient, grafanaService, templateLoader, loadTestRepository);
     }
 
     @Test
@@ -56,11 +65,16 @@ class ConfluenceServiceTest {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID firstTestUuid = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
         UUID secondTestUuid = UUID.fromString("ffffffff-1111-2222-3333-444444444444");
-        ConfluenceReportRequest request = new ConfluenceReportRequest(
-                "123",
-                List.of(
-                        new ConfluenceReportRequest.TestReport(firstTestUuid, ConfluenceReportRequest.TestType.MAX),
-                        new ConfluenceReportRequest.TestReport(secondTestUuid, ConfluenceReportRequest.TestType.SOAK)));
+        ConfluenceReportRequest request = new ConfluenceReportRequest("123", List.of(firstTestUuid, secondTestUuid));
+
+        Instant firstStart = Instant.parse("2024-01-01T00:00:00Z");
+        Instant firstEnd = Instant.parse("2024-01-01T01:00:00Z");
+        Instant secondStart = Instant.parse("2024-01-02T00:00:00Z");
+        Instant secondEnd = Instant.parse("2024-01-02T05:00:00Z");
+        when(loadTestRepository.findById(firstTestUuid))
+                .thenReturn(Optional.of(new LoadTest(firstTestUuid, firstStart, firstEnd, LoadTestType.MAX)));
+        when(loadTestRepository.findById(secondTestUuid))
+                .thenReturn(Optional.of(new LoadTest(secondTestUuid, secondStart, secondEnd, LoadTestType.SOAK)));
 
         byte[] firstImage = new byte[] {1, 2, 3};
         byte[] secondImage = new byte[] {4, 5, 6};
@@ -81,8 +95,10 @@ class ConfluenceServiceTest {
         when(templateLoader.loadTemplate("max-template")).thenReturn("<p>Max template</p>");
         when(templateLoader.loadTemplate("soak-template")).thenReturn("<p>Soak template</p>");
 
-        String firstTitle = request.tests().get(0).testType().displayName() + " - " + firstTestUuid;
-        String secondTitle = request.tests().get(1).testType().displayName() + " - " + secondTestUuid;
+        ConfluenceReportRequest.TestType firstType = ConfluenceReportRequest.TestType.MAX;
+        ConfluenceReportRequest.TestType secondType = ConfluenceReportRequest.TestType.SOAK;
+        String firstTitle = firstType.displayName() + " - " + firstTestUuid;
+        String secondTitle = secondType.displayName() + " - " + secondTestUuid;
         ConfluencePage firstCreatedPage = new ConfluencePage("456", "page", firstTitle, 1, "<p>Max template</p>", "SPACE");
         ConfluencePage secondCreatedPage =
                 new ConfluencePage("789", "page", secondTitle, 1, "<p>Soak template</p>", "SPACE");
@@ -134,10 +150,12 @@ class ConfluenceServiceTest {
     void createReportsThrowsWhenPanelsMissing() {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID testUuid = UUID.fromString("ffffffff-1111-2222-3333-444444444444");
-        ConfluenceReportRequest request =
-                new ConfluenceReportRequest(
-                        "123", List.of(new ConfluenceReportRequest.TestReport(
-                                testUuid, ConfluenceReportRequest.TestType.SOAK)));
+        ConfluenceReportRequest request = new ConfluenceReportRequest("123", List.of(testUuid));
+
+        Instant start = Instant.parse("2024-01-03T00:00:00Z");
+        Instant end = Instant.parse("2024-01-03T05:00:00Z");
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.SOAK)));
 
         GrafanaRenderResponse renderResponse = new GrafanaRenderResponse("from", "to", List.of());
         when(grafanaService.renderPanels(any(GrafanaRenderRequest.class))).thenReturn(renderResponse);
@@ -153,11 +171,12 @@ class ConfluenceServiceTest {
     void createReportsThrowsWhenParentHasNoSpace() {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID testUuid = UUID.fromString("aaaaaaaa-0000-bbbb-cccc-dddddddddddd");
-        ConfluenceReportRequest request =
-                new ConfluenceReportRequest(
-                        "parent",
-                        List.of(new ConfluenceReportRequest.TestReport(
-                                testUuid, ConfluenceReportRequest.TestType.CONFIRM)));
+        ConfluenceReportRequest request = new ConfluenceReportRequest("parent", List.of(testUuid));
+
+        Instant start = Instant.parse("2024-01-04T00:00:00Z");
+        Instant end = Instant.parse("2024-01-04T01:00:00Z");
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.CONFIRM)));
 
         byte[] imageBytes = new byte[] {9, 8, 7};
         String encodedImage = Base64.getEncoder().encodeToString(imageBytes);

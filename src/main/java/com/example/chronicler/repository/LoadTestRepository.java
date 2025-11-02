@@ -1,6 +1,7 @@
 package com.example.chronicler.repository;
 
 import com.example.chronicler.model.LoadTest;
+import com.example.chronicler.model.LoadTestType;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
@@ -13,23 +14,24 @@ import org.springframework.stereotype.Repository;
 public class LoadTestRepository {
 
     private static final String SELECT_OVERLAP_SQL =
-            "SELECT test_uuid, start_time, end_time FROM tests "
+            "SELECT test_uuid, start_time, end_time, test_type FROM tests "
                     + "WHERE start_time <= ? AND end_time >= ? ORDER BY start_time LIMIT 1";
     private static final String SELECT_BY_ID_SQL =
-            "SELECT test_uuid, start_time, end_time FROM tests WHERE test_uuid = ?";
+            "SELECT test_uuid, start_time, end_time, test_type FROM tests WHERE test_uuid = ?";
     private static final String INSERT_RETURNING_SQL =
-            "INSERT INTO tests (start_time, end_time) VALUES (?, ?) "
-                    + "RETURNING test_uuid, start_time, end_time";
+            "INSERT INTO tests (start_time, end_time, test_type) VALUES (?, ?, ?) "
+                    + "RETURNING test_uuid, start_time, end_time, test_type";
     private static final String UPDATE_RETURNING_SQL =
-            "UPDATE tests SET start_time = ?, end_time = ? WHERE test_uuid = ? "
-                    + "RETURNING test_uuid, start_time, end_time";
+            "UPDATE tests SET start_time = ?, end_time = ?, test_type = ? WHERE test_uuid = ? "
+                    + "RETURNING test_uuid, start_time, end_time, test_type";
 
     private final JdbcTemplate jdbcTemplate;
     private final RowMapper<LoadTest> rowMapper =
             (rs, rowNum) -> new LoadTest(
                     rs.getObject("test_uuid", UUID.class),
                     rs.getTimestamp("start_time").toInstant(),
-                    rs.getTimestamp("end_time").toInstant());
+                    rs.getTimestamp("end_time").toInstant(),
+                    LoadTestType.fromDatabaseValue(rs.getString("test_type")));
 
     public LoadTestRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -47,12 +49,13 @@ public class LoadTestRepository {
                 .findFirst();
     }
 
-    public LoadTest insert(Instant start, Instant end) {
+    public LoadTest insert(Instant start, Instant end, LoadTestType type) {
         return jdbcTemplate.queryForObject(
                 INSERT_RETURNING_SQL,
                 (rs, rowNum) -> rowMapper.mapRow(rs, rowNum),
                 Timestamp.from(start),
-                Timestamp.from(end));
+                Timestamp.from(end),
+                type.value());
     }
 
     public Optional<LoadTest> findById(UUID id) {
@@ -64,23 +67,24 @@ public class LoadTestRepository {
                 .findFirst();
     }
 
-    public LoadTest update(UUID id, Instant start, Instant end) {
+    public LoadTest update(UUID id, Instant start, Instant end, LoadTestType type) {
         return jdbcTemplate.queryForObject(
                 UPDATE_RETURNING_SQL,
                 (rs, rowNum) -> rowMapper.mapRow(rs, rowNum),
                 Timestamp.from(start),
                 Timestamp.from(end),
+                type.value(),
                 id);
     }
 
-    public LoadTest saveOrUpdate(Instant start, Instant end) {
+    public LoadTest saveOrUpdate(Instant start, Instant end, LoadTestType type) {
         Optional<LoadTest> existingOpt = findOverlap(start, end);
         if (existingOpt.isPresent()) {
             LoadTest existing = existingOpt.get();
             Instant newStart = start.isBefore(existing.start()) ? start : existing.start();
             Instant newEnd = end.isAfter(existing.end()) ? end : existing.end();
-            return update(existing.id(), newStart, newEnd);
+            return update(existing.id(), newStart, newEnd, type);
         }
-        return insert(start, end);
+        return insert(start, end, type);
     }
 }

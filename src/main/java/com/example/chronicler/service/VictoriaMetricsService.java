@@ -6,6 +6,7 @@ import com.example.chronicler.exception.InvalidTimeRangeException;
 import com.example.chronicler.exception.VictoriaMetricsResponseProcessingException;
 import com.example.chronicler.exception.VmQueryNotFoundException;
 import com.example.chronicler.model.LoadTest;
+import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.registry.VmQueryRegistry;
 import com.example.chronicler.repository.LoadTestRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -37,6 +38,21 @@ public class VictoriaMetricsService {
     private static final String INTENSITY_TYPE = "intensity";
     private static final Duration TEST_GAP_THRESHOLD = Duration.ofMinutes(3);
     private static final Duration MIN_TEST_DURATION = Duration.ofMinutes(5);
+    private static final Duration SOAK_THRESHOLD = Duration.ofHours(3);
+    private static final int MIN_SAMPLES_FOR_ANALYSIS = 6;
+    private static final int MIN_PLATEAU_POINTS = 6;
+    private static final double PLATEAU_MIN_FRACTION = 0.25d;
+    private static final Duration PLATEAU_MIN_DURATION = Duration.ofMinutes(15);
+    private static final double PLATEAU_VARIATION_THRESHOLD = 0.2d;
+    private static final double PLATEAU_LEVEL_RATIO = 0.75d;
+    private static final double SECONDARY_PLATEAU_RATIO = 0.6d;
+    private static final double PLATEAU_MIN_COVERAGE = 0.4d;
+    private static final double PLATEAU_DURATION_RATIO = 0.4d;
+    private static final double RAMP_UP_RATIO = 1.2d;
+    private static final double GROWTH_RATIO_FOR_MAX = 1.4d;
+    private static final double FINAL_DROP_RATIO = 0.35d;
+    private static final double QUARTILE_FRACTION = 0.25d;
+    private static final double EPS = 1e-6d;
     private final VmQueryRegistry queryRegistry;
     private final VictoriaMetricsClient client;
     private final VmDataCache vmDataCache;
@@ -114,9 +130,15 @@ public class VictoriaMetricsService {
         JsonNode aggregated = readAggregated(payload);
         JsonNode intensityNode = findIntensityNode(aggregated.path("results"));
         NavigableMap<Instant, Double> samples = extractSamples(intensityNode);
-        List<LoadTest> persistedTests = detectTests(samples).stream()
-                .map(interval -> loadTestRepository.saveOrUpdate(interval.start(), interval.end()))
-                .toList();
+        List<TestInterval> intervals = detectTests(samples);
+        List<LoadTest> persistedTests = new ArrayList<>(intervals.size());
+        for (TestInterval interval : intervals) {
+            NavigableMap<Instant, Double> intervalSamples =
+                    samples.subMap(interval.start(), true, interval.end(), true);
+            LoadTestType type = classifyTest(intervalSamples, interval.start(), interval.end());
+            LoadTest persisted = loadTestRepository.saveOrUpdate(interval.start(), interval.end(), type);
+            persistedTests.add(persisted);
+        }
 
         ArrayNode testsNode = objectMapper.createArrayNode();
         for (LoadTest test : persistedTests) {
@@ -124,6 +146,7 @@ public class VictoriaMetricsService {
             testNode.put("id", test.id().toString());
             testNode.put("start", formatInstant(test.start()));
             testNode.put("end", formatInstant(test.end()));
+            testNode.put("type", test.type().value());
             testsNode.add(testNode);
         }
 
@@ -298,6 +321,186 @@ public class VictoriaMetricsService {
     private void addTestIfLongEnough(List<TestInterval> tests, Instant start, Instant end) {
         if (Duration.between(start, end).compareTo(MIN_TEST_DURATION) >= 0) {
             tests.add(new TestInterval(start, end));
+        }
+    }
+
+    private LoadTestType classifyTest(NavigableMap<Instant, Double> intervalSamples, Instant start, Instant end) {
+        if (intervalSamples == null || intervalSamples.isEmpty()) {
+            return LoadTestType.UNKNOWN;
+        }
+
+        List<Instant> timestamps = new ArrayList<>(intervalSamples.keySet());
+        List<Double> values = new ArrayList<>(intervalSamples.values());
+        if (values.size() < MIN_SAMPLES_FOR_ANALYSIS) {
+            return LoadTestType.UNKNOWN;
+        }
+
+        double max = values.stream().mapToDouble(Double::doubleValue).max().orElse(0.0d);
+        if (max <= EPS) {
+            return LoadTestType.UNKNOWN;
+        }
+
+        Duration totalDuration = Duration.between(start, end);
+        PlateauSegment plateau = findStablePlateau(timestamps, values, max);
+        LoadTestType plateauType = null;
+        boolean stablePlateau = false;
+        if (plateau != null) {
+            int plateauLength = plateau.length();
+            int requiredLength = Math.max(MIN_PLATEAU_POINTS, (int) Math.round(values.size() * PLATEAU_MIN_FRACTION));
+            boolean longEnough = plateauLength >= requiredLength;
+            boolean durationEnough = plateau.duration().compareTo(PLATEAU_MIN_DURATION) >= 0;
+            double coverage = values.isEmpty() ? 0.0d : plateauLength / (double) values.size();
+            double durationRatio = totalDuration.isZero()
+                    ? 0.0d
+                    : (double) plateau.duration().toMillis() / (double) totalDuration.toMillis();
+            boolean coverageEnough = coverage >= PLATEAU_MIN_COVERAGE || durationRatio >= PLATEAU_DURATION_RATIO;
+
+            if ((longEnough || durationEnough) && coverageEnough) {
+                List<Double> plateauValues = values.subList(plateau.startIndex(), plateau.endIndex() + 1);
+                double plateauMean = mean(plateauValues);
+                if (plateauMean > EPS) {
+                    double variation = coefficientOfVariation(plateauValues, plateauMean);
+                    if (variation <= PLATEAU_VARIATION_THRESHOLD) {
+                        List<Double> beforeValues = plateau.startIndex() > 0
+                                ? values.subList(0, plateau.startIndex())
+                                : List.of();
+                        double beforeMean = mean(beforeValues);
+                        if (Double.isNaN(beforeMean) || beforeMean <= EPS || plateauMean >= beforeMean * RAMP_UP_RATIO) {
+                            stablePlateau = true;
+                            plateauType = totalDuration.compareTo(SOAK_THRESHOLD) >= 0
+                                    ? LoadTestType.SOAK
+                                    : LoadTestType.CONFIRM;
+                        }
+                    }
+                }
+            }
+        }
+
+        int peakIndex = findPeakIndex(values);
+        int quartileSize = Math.max(1, (int) Math.round(values.size() * QUARTILE_FRACTION));
+        double earlyMean = mean(values.subList(0, Math.min(quartileSize, values.size())));
+        int peakWindowStart = Math.max(0, peakIndex - quartileSize);
+        int peakWindowEnd = Math.min(values.size(), peakIndex + quartileSize + 1);
+        double peakWindowMean = mean(values.subList(peakWindowStart, peakWindowEnd));
+        double lastValue = values.get(values.size() - 1);
+        boolean upwardTrend;
+        if (Double.isNaN(earlyMean) || earlyMean <= EPS) {
+            upwardTrend = peakWindowMean > EPS;
+        } else {
+            upwardTrend = !Double.isNaN(peakWindowMean) && peakWindowMean >= earlyMean * GROWTH_RATIO_FOR_MAX;
+        }
+        boolean strongDrop = max > EPS && (max - lastValue) / max >= FINAL_DROP_RATIO;
+        boolean peakNearEnd = peakIndex >= values.size() - Math.max(2, quartileSize);
+
+        if (upwardTrend && (strongDrop || peakNearEnd) && !stablePlateau) {
+            return LoadTestType.MAX;
+        }
+
+        if (plateauType != null) {
+            return plateauType;
+        }
+
+        return LoadTestType.UNKNOWN;
+    }
+
+    private PlateauSegment findStablePlateau(List<Instant> timestamps, List<Double> values, double maxValue) {
+        PlateauSegment plateau = findPlateauSegment(timestamps, values, maxValue * PLATEAU_LEVEL_RATIO);
+        if (plateau == null) {
+            plateau = findPlateauSegment(timestamps, values, maxValue * SECONDARY_PLATEAU_RATIO);
+        }
+        return plateau;
+    }
+
+    private PlateauSegment findPlateauSegment(List<Instant> timestamps, List<Double> values, double threshold) {
+        int bestStart = -1;
+        int bestEnd = -1;
+        int currentStart = -1;
+
+        for (int i = 0; i < values.size(); i++) {
+            if (values.get(i) >= threshold) {
+                if (currentStart < 0) {
+                    currentStart = i;
+                }
+            } else if (currentStart >= 0) {
+                if (bestStart < 0 || (i - 1) - currentStart > bestEnd - bestStart) {
+                    bestStart = currentStart;
+                    bestEnd = i - 1;
+                }
+                currentStart = -1;
+            }
+        }
+
+        if (currentStart >= 0) {
+            if (bestStart < 0 || (values.size() - 1) - currentStart > bestEnd - bestStart) {
+                bestStart = currentStart;
+                bestEnd = values.size() - 1;
+            }
+        }
+
+        if (bestStart >= 0 && bestEnd >= bestStart) {
+            return new PlateauSegment(bestStart, bestEnd, timestamps.get(bestStart), timestamps.get(bestEnd));
+        }
+        return null;
+    }
+
+    private int findPeakIndex(List<Double> values) {
+        if (values.isEmpty()) {
+            return 0;
+        }
+        double peak = values.get(0);
+        int peakIndex = 0;
+        for (int i = 1; i < values.size(); i++) {
+            double value = values.get(i);
+            if (value > peak) {
+                peak = value;
+                peakIndex = i;
+            }
+        }
+        return peakIndex;
+    }
+
+    private double mean(List<Double> values) {
+        if (values == null || values.isEmpty()) {
+            return Double.NaN;
+        }
+        double sum = 0.0d;
+        for (double value : values) {
+            sum += value;
+        }
+        return sum / values.size();
+    }
+
+    private double coefficientOfVariation(List<Double> values, double mean) {
+        if (values == null || values.isEmpty() || mean <= EPS) {
+            return Double.POSITIVE_INFINITY;
+        }
+        double stdDev = standardDeviation(values, mean);
+        return stdDev / mean;
+    }
+
+    private double standardDeviation(List<Double> values, double mean) {
+        if (values == null || values.isEmpty()) {
+            return Double.NaN;
+        }
+        double sumSquares = 0.0d;
+        for (double value : values) {
+            double diff = value - mean;
+            sumSquares += diff * diff;
+        }
+        return Math.sqrt(sumSquares / values.size());
+    }
+
+    private record PlateauSegment(int startIndex, int endIndex, Instant startTimestamp, Instant endTimestamp) {
+
+        int length() {
+            return endIndex - startIndex + 1;
+        }
+
+        Duration duration() {
+            if (endTimestamp.isAfter(startTimestamp)) {
+                return Duration.between(startTimestamp, endTimestamp);
+            }
+            return Duration.ZERO;
         }
     }
 

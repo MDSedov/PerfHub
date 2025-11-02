@@ -2,7 +2,6 @@ package com.example.chronicler.dto.confluence;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -12,7 +11,7 @@ import java.util.UUID;
 
 public record ConfluenceReportRequest(
         @NotBlank(message = "parentPageId is required") String parentPageId,
-        @NotEmpty(message = "tests must not be empty") @Valid List<TestReport> tests) {
+        @NotEmpty(message = "tests must not be empty") List<@NotNull UUID> tests) {
 
     public enum TestType {
         MAX("max-template", "Max Test Report"),
@@ -52,8 +51,4 @@ public record ConfluenceReportRequest(
             }
         }
     }
-
-    public record TestReport(
-            @NotNull(message = "testUuid is required") UUID testUuid,
-            @NotNull(message = "testType is required") TestType testType) {}
 }

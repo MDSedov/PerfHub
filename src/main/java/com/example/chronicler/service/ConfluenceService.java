@@ -11,6 +11,9 @@ import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.dto.grafana.GrafanaRenderedDashboard;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceOperationException;
+import com.example.chronicler.model.LoadTest;
+import com.example.chronicler.model.LoadTestType;
+import com.example.chronicler.repository.LoadTestRepository;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -27,15 +30,20 @@ public class ConfluenceService {
     private final ConfluenceClient confluenceClient;
     private final GrafanaService grafanaService;
     private final TemplateLoader templateLoader;
+    private final LoadTestRepository loadTestRepository;
 
     /**
      * Создаёт сервис для работы с Confluence, кешем рендеров Grafana и загрузкой шаблонов.
      */
     public ConfluenceService(
-            ConfluenceClient confluenceClient, GrafanaService grafanaService, TemplateLoader templateLoader) {
+            ConfluenceClient confluenceClient,
+            GrafanaService grafanaService,
+            TemplateLoader templateLoader,
+            LoadTestRepository loadTestRepository) {
         this.confluenceClient = confluenceClient;
         this.grafanaService = grafanaService;
         this.templateLoader = templateLoader;
+        this.loadTestRepository = loadTestRepository;
     }
 
     private static final String OVERVIEW_TEMPLATE_NAME = "overall-report";
@@ -67,12 +75,12 @@ public class ConfluenceService {
         }
 
         List<ConfluenceReportResponse.ReportPage> createdPages = new ArrayList<>();
-        for (ConfluenceReportRequest.TestReport testReport : request.tests()) {
-            if (testReport == null) {
+        for (UUID testUuid : request.tests()) {
+            if (testUuid == null) {
                 throw new ConfluenceOperationException("tests must not contain null elements");
             }
             ConfluenceReportResponse.ReportPage reportPage =
-                    createSingleReport(credentials, parentPage.id(), parentPage.spaceKey(), testReport);
+                    createSingleReport(credentials, parentPage.id(), parentPage.spaceKey(), testUuid);
             createdPages.add(reportPage);
         }
 
@@ -115,24 +123,23 @@ public class ConfluenceService {
             ConfluenceCredentials credentials,
             String parentPageId,
             String spaceKey,
-            ConfluenceReportRequest.TestReport testReport) {
-        if (testReport.testUuid() == null) {
+            UUID testUuid) {
+        if (testUuid == null) {
             throw new ConfluenceOperationException("testUuid is required");
         }
-        if (testReport.testType() == null) {
-            throw new ConfluenceOperationException("testType is required");
-        }
+
+        ConfluenceReportRequest.TestType testType = resolveTestType(testUuid);
 
         GrafanaRenderResponse renderResponse =
-                grafanaService.renderPanels(new GrafanaRenderRequest(testReport.testUuid()));
+                grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
         List<GrafanaRenderedPanel> panels = findAllPanels(renderResponse);
         if (panels.isEmpty()) {
             throw new ConfluenceOperationException("Grafana render does not contain any panels");
         }
 
-        String templateBody = templateLoader.loadTemplate(testReport.testType().templateName());
+        String templateBody = templateLoader.loadTemplate(testType.templateName());
         ConfluencePage reportPage = confluenceClient.createChildPage(
-                credentials, parentPageId, spaceKey, buildPageTitle(testReport), templateBody);
+                credentials, parentPageId, spaceKey, buildPageTitle(testUuid, testType), templateBody);
 
         StringBuilder updatedBody = new StringBuilder(getSafeBody(templateBody));
         if (updatedBody.length() > 0) {
@@ -151,11 +158,26 @@ public class ConfluenceService {
         confluenceClient.updatePage(credentials, reportPage, updatedBody.toString());
 
         return new ConfluenceReportResponse.ReportPage(
-                testReport.testUuid(), reportPage.id(), List.copyOf(attachmentNames));
+                testUuid, reportPage.id(), List.copyOf(attachmentNames));
     }
 
-    private String buildPageTitle(ConfluenceReportRequest.TestReport testReport) {
-        return testReport.testType().displayName() + " - " + testReport.testUuid();
+    private ConfluenceReportRequest.TestType resolveTestType(UUID testUuid) {
+        LoadTest loadTest = loadTestRepository.findById(testUuid)
+                .orElseThrow(() -> new ConfluenceOperationException("Test with UUID " + testUuid + " not found"));
+        LoadTestType loadTestType = loadTest.type();
+        if (loadTestType == null || loadTestType == LoadTestType.UNKNOWN) {
+            throw new ConfluenceOperationException("Test type for test " + testUuid + " is not defined");
+        }
+        return switch (loadTestType) {
+            case MAX -> ConfluenceReportRequest.TestType.MAX;
+            case CONFIRM -> ConfluenceReportRequest.TestType.CONFIRM;
+            case SOAK -> ConfluenceReportRequest.TestType.SOAK;
+            case UNKNOWN -> throw new ConfluenceOperationException("Test type for test " + testUuid + " is not defined");
+        };
+    }
+
+    private String buildPageTitle(UUID testUuid, ConfluenceReportRequest.TestType testType) {
+        return testType.displayName() + " - " + testUuid;
     }
 
     /**
