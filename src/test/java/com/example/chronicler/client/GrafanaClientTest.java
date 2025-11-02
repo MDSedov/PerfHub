@@ -2,8 +2,10 @@ package com.example.chronicler.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.chronicler.service.ConfigurationProvider;
 import java.time.Instant;
-
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -24,14 +26,14 @@ class GrafanaClientTest {
     void setUp() {
         restTemplate = new RestTemplate();
         mockServer = MockRestServiceServer.createServer(restTemplate);
-        grafanaClient = new GrafanaClient(
-                restTemplate,
-                "http://localhost:3000",
-                "/render/d-solo",
-                "test-token",
-                1000,
-                500,
-                "UTC");
+        ConfigurationProvider configurationProvider = new InMemoryConfigurationProvider(Map.of(
+                key("base-url"), "http://localhost:3000",
+                key("render-path"), "/render/d-solo",
+                key("api-key"), "test-token",
+                key("image-width"), "1000",
+                key("image-height"), "500",
+                key("timezone"), "UTC"));
+        grafanaClient = new GrafanaClient(restTemplate, configurationProvider);
     }
 
     @Test
@@ -50,5 +52,29 @@ class GrafanaClientTest {
 
         mockServer.verify();
         assertThat(result).containsExactly(1, 2, 3);
+    }
+
+    private static String key(String key) {
+        return "grafana:" + key;
+    }
+
+    private static final class InMemoryConfigurationProvider implements ConfigurationProvider {
+
+        private final Map<String, String> values;
+
+        private InMemoryConfigurationProvider(Map<String, String> values) {
+            this.values = values;
+        }
+
+        @Override
+        public String getRequiredValue(String service, String key) {
+            return findValue(service, key)
+                    .orElseThrow(() -> new IllegalStateException("Missing config for " + service + ":" + key));
+        }
+
+        @Override
+        public Optional<String> findValue(String service, String key) {
+            return Optional.ofNullable(values.get(service + ":" + key));
+        }
     }
 }

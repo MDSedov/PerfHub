@@ -5,8 +5,11 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.example.chronicler.client.VictoriaMetricsClient;
+import com.example.chronicler.service.ConfigurationProvider;
 import java.time.Instant;
-
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -19,7 +22,11 @@ class VictoriaMetricsClientTest {
     void buildsExpectedQueryRangeRequest() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.createServer(restTemplate);
-        VictoriaMetricsClient client = new VictoriaMetricsClient(restTemplate, "http://localhost:8428", "/api/v1/query_range", 60);
+        ConfigurationProvider configurationProvider = new InMemoryConfigurationProvider(Map.of(
+                key("base-url"), "http://localhost:8428",
+                key("query-range-path"), "/api/v1/query_range",
+                key("default-step-seconds"), "60"));
+        VictoriaMetricsClient client = new VictoriaMetricsClient(restTemplate, configurationProvider);
 
         Instant start = Instant.parse("2024-10-01T10:00:00Z");
         Instant end = start.plusSeconds(120);
@@ -32,5 +39,29 @@ class VictoriaMetricsClientTest {
 
         assertThat(body).isEqualTo("{\"status\":\"ok\"}");
         server.verify();
+    }
+
+    private static String key(String key) {
+        return "victoria-metrics:" + key;
+    }
+
+    private static final class InMemoryConfigurationProvider implements ConfigurationProvider {
+
+        private final Map<String, String> values;
+
+        private InMemoryConfigurationProvider(Map<String, String> values) {
+            this.values = values;
+        }
+
+        @Override
+        public String getRequiredValue(String service, String key) {
+            return findValue(service, key)
+                    .orElseThrow(() -> new IllegalStateException("Missing config for " + service + ":" + key));
+        }
+
+        @Override
+        public Optional<String> findValue(String service, String key) {
+            return Optional.ofNullable(values.get(service + ":" + key));
+        }
     }
 }

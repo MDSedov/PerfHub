@@ -16,9 +16,9 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
+import com.example.chronicler.service.ConfigurationProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,12 +32,19 @@ public class RestTemplateConfig {
     private static final Logger log = LoggerFactory.getLogger(RestTemplateConfig.class);
 
     @Bean
-    public RestTemplate restTemplate(
-            RestTemplateBuilder builder,
-            @Value("${gigachat.trust-store:}") String trustStorePath,
-            @Value("${gigachat.trust-store-password:}") String trustStorePassword,
-            @Value("${gigachat.trust-store-type:}") String trustStoreType,
-            @Value("${gigachat.disable-ssl-validation:false}") boolean disableSslValidation) {
+    public RestTemplate restTemplate(RestTemplateBuilder builder, ConfigurationProvider configurationProvider) {
+        String trustStorePath =
+                configurationProvider.findValue("gigachat", "trust-store").map(String::trim).orElse("");
+        String trustStorePassword =
+                configurationProvider.findValue("gigachat", "trust-store-password").orElse("");
+        String trustStoreType =
+                configurationProvider.findValue("gigachat", "trust-store-type").orElse("");
+        boolean disableSslValidation = configurationProvider
+                .findValue("gigachat", "disable-ssl-validation")
+                .map(String::trim)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
+
         if (disableSslValidation) {
             log.warn("Disabling SSL validation for RestTemplate. Do not enable in production.");
             try {

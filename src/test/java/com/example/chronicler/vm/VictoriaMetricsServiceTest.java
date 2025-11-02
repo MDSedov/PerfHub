@@ -1,10 +1,13 @@
 package com.example.chronicler.vm;
 
+import com.example.chronicler.client.VictoriaMetricsClient;
+import com.example.chronicler.service.ConfigurationProvider;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,14 +87,41 @@ class VictoriaMetricsServiceTest {
         private String capturedQuery;
 
         private StubVictoriaMetricsClient() {
-            super(new RestTemplate(), "http://localhost", "/api", 60);
+            super(new RestTemplate(), new InMemoryConfigurationProvider(Map.of(
+                    key("base-url"), "http://localhost",
+                    key("query-range-path"), "/api",
+                    key("default-step-seconds"), "60")));
         }
 
         @Override
-        String queryRange(String query, Instant start, Instant end) {
+        public String queryRange(String query, Instant start, Instant end) {
             invoked = true;
             capturedQuery = query;
             return "{}";
+        }
+    }
+
+    private static String key(String key) {
+        return "victoria-metrics:" + key;
+    }
+
+    private static final class InMemoryConfigurationProvider implements ConfigurationProvider {
+
+        private final Map<String, String> values;
+
+        private InMemoryConfigurationProvider(Map<String, String> values) {
+            this.values = values;
+        }
+
+        @Override
+        public String getRequiredValue(String service, String key) {
+            return findValue(service, key)
+                    .orElseThrow(() -> new IllegalStateException("Missing config for " + service + ":" + key));
+        }
+
+        @Override
+        public Optional<String> findValue(String service, String key) {
+            return Optional.ofNullable(values.get(service + ":" + key));
         }
     }
 }

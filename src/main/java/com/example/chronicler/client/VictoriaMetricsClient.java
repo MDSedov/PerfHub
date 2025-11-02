@@ -1,13 +1,13 @@
 package com.example.chronicler.client;
 
 import com.example.chronicler.exception.VictoriaMetricsClientException;
+import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
@@ -19,27 +19,24 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class VictoriaMetricsClient {
 
     private static final Logger log = LoggerFactory.getLogger(VictoriaMetricsClient.class);
+    private static final String SERVICE = "victoria-metrics";
+    private static final String BASE_URL_KEY = "base-url";
+    private static final String QUERY_RANGE_PATH_KEY = "query-range-path";
+    private static final String DEFAULT_STEP_SECONDS_KEY = "default-step-seconds";
 
     private final RestTemplate restTemplate;
-    private final String baseUrl;
-    private final String queryRangePath;
-    private final Duration defaultStep;
+    private final ConfigurationProvider configurationProvider;
 
-    public VictoriaMetricsClient(
-            RestTemplate restTemplate,
-            @Value("${vm.base-url}") String baseUrl,
-            @Value("${vm.query-range-path}") String queryRangePath,
-            @Value("${vm.default-step-seconds}") long defaultStepSeconds) {
-        Assert.hasText(baseUrl, "VictoriaMetrics base URL must not be empty");
-        Assert.hasText(queryRangePath, "VictoriaMetrics query range path must not be empty");
-        Assert.isTrue(defaultStepSeconds > 0, "VictoriaMetrics step must be positive");
+    public VictoriaMetricsClient(RestTemplate restTemplate, ConfigurationProvider configurationProvider) {
         this.restTemplate = restTemplate;
-        this.baseUrl = baseUrl;
-        this.queryRangePath = queryRangePath;
-        this.defaultStep = Duration.ofSeconds(defaultStepSeconds);
+        this.configurationProvider = configurationProvider;
     }
 
     public String queryRange(String query, Instant start, Instant end) {
+        String baseUrl = required(BASE_URL_KEY);
+        String queryRangePath = required(QUERY_RANGE_PATH_KEY);
+        Duration defaultStep = resolveDuration(DEFAULT_STEP_SECONDS_KEY);
+
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .path(queryRangePath)
                 .queryParam("query", query)
@@ -58,6 +55,22 @@ public class VictoriaMetricsClient {
             return response.getBody() != null ? response.getBody() : "";
         } catch (RestClientException ex) {
             throw new VictoriaMetricsClientException("Failed to query VictoriaMetrics", ex);
+        }
+    }
+
+    private String required(String key) {
+        return configurationProvider.getRequiredValue(SERVICE, key);
+    }
+
+    private Duration resolveDuration(String key) {
+        String value = required(key);
+        try {
+            long seconds = Long.parseLong(value);
+            Assert.isTrue(seconds > 0, "Duration must be positive");
+            return Duration.ofSeconds(seconds);
+        } catch (NumberFormatException ex) {
+            throw new IllegalStateException("Configuration value for %s.%s must be a number but was '%s'"
+                    .formatted(SERVICE, key, value));
         }
     }
 }

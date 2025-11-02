@@ -3,6 +3,7 @@ package com.example.chronicler.client;
 import com.example.chronicler.dto.gigachat.GigachatMessage;
 import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
 import com.example.chronicler.exception.GigachatClientException;
+import com.example.chronicler.service.ConfigurationProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
 import java.util.ArrayList;
@@ -14,7 +15,6 @@ import javax.net.ssl.SSLHandshakeException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -32,45 +32,30 @@ import org.springframework.web.client.RestTemplate;
 public class GigachatClient {
 
     private static final Logger log = LoggerFactory.getLogger(GigachatClient.class);
+    private static final String SERVICE = "gigachat";
+    private static final String OAUTH_URL_KEY = "oauth-url";
+    private static final String API_URL_KEY = "api-url";
+    private static final String SCOPE_KEY = "scope";
+    private static final String AUTHORIZATION_KEY_KEY = "authorization-key";
+    private static final String CLIENT_ID_KEY = "client-id";
+    private static final String GRANT_TYPE_KEY = "grant-type";
+    private static final String MODEL_KEY = "model";
 
     private final RestTemplate restTemplate;
-    private final URI oauthUri;
-    private final URI completionsUri;
-    private final String scope;
-    private final String authorizationKey;
-    private final String clientId;
-    private final String grantType;
-    private final String model;
+    private final ConfigurationProvider configurationProvider;
 
-    public GigachatClient(
-            RestTemplate restTemplate,
-            @Value("${gigachat.oauth-url:${GIGACHAT_OAUTH_URL:https://ngw.devices.sberbank.ru:9443/api/v2/oauth}}")
-                    String oauthUrl,
-            @Value("${gigachat.api-url:${GIGACHAT_API_URL:https://gigachat.devices.sberbank.ru/api/v1/chat/completions}}")
-                    String apiUrl,
-            @Value("${gigachat.scope}") String scope,
-            @Value("${gigachat.authorization-key}") String authorizationKey,
-            @Value("${gigachat.client-id}") String clientId,
-            @Value("${gigachat.grant-type}") String grantType,
-            @Value("${gigachat.model}") String model) {
-        Assert.hasText(oauthUrl, "GigaChat OAuth URL must not be empty");
-        Assert.hasText(apiUrl, "GigaChat API URL must not be empty");
-        Assert.hasText(scope, "GigaChat scope must not be empty");
-        Assert.hasText(authorizationKey, "GigaChat authorization key must not be empty");
-        Assert.hasText(clientId, "GigaChat client id must not be empty");
-        Assert.hasText(grantType, "GigaChat grant type must not be empty");
-        Assert.hasText(model, "GigaChat model must not be empty");
+    public GigachatClient(RestTemplate restTemplate, ConfigurationProvider configurationProvider) {
         this.restTemplate = restTemplate;
-        this.oauthUri = URI.create(oauthUrl);
-        this.completionsUri = URI.create(apiUrl);
-        this.scope = scope;
-        this.authorizationKey = authorizationKey;
-        this.clientId = clientId;
-        this.grantType = grantType;
-        this.model = model;
+        this.configurationProvider = configurationProvider;
     }
 
     public GigachatTokenResponse requestToken() {
+        URI oauthUri = resolveUri(OAUTH_URL_KEY);
+        String scope = required(SCOPE_KEY);
+        String authorizationKey = required(AUTHORIZATION_KEY_KEY);
+        String clientId = required(CLIENT_ID_KEY);
+        String grantType = required(GRANT_TYPE_KEY);
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
@@ -92,8 +77,8 @@ public class GigachatClient {
                     grantType);
         }
         try {
-            ResponseEntity<GigachatTokenResponse> response = restTemplate.postForEntity(
-                    oauthUri, entity, GigachatTokenResponse.class);
+            ResponseEntity<GigachatTokenResponse> response =
+                    restTemplate.postForEntity(oauthUri, entity, GigachatTokenResponse.class);
             if (log.isDebugEnabled()) {
                 log.debug(
                         "GigaChat token response status: {}, body: {}",
@@ -132,6 +117,9 @@ public class GigachatClient {
     }
 
     public JsonNode createCompletion(String accessToken, List<GigachatMessage> messages) {
+        URI completionsUri = resolveUri(API_URL_KEY);
+        String model = required(MODEL_KEY);
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
@@ -185,6 +173,20 @@ public class GigachatClient {
                     "Failed to request GigaChat completion: %s",
                     ex.getMessage());
             throw new GigachatClientException(message, ex);
+        }
+    }
+
+    private String required(String key) {
+        return configurationProvider.getRequiredValue(SERVICE, key);
+    }
+
+    private URI resolveUri(String key) {
+        String value = required(key);
+        try {
+            return URI.create(value);
+        } catch (IllegalArgumentException ex) {
+            throw new GigachatClientException(
+                    "Configuration value for %s.%s is not a valid URI: %s".formatted(SERVICE, key, value), ex);
         }
     }
 

@@ -1,2 +1,0 @@
-<h2>Soak Test Summary</h2>
-<p>Summarise results of extended soak testing runs, focusing on stability metrics and anomalies.</p>

@@ -3,6 +3,7 @@ package com.example.chronicler.client;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePage;
 import com.example.chronicler.exception.ConfluenceClientException;
+import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -10,7 +11,6 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -30,23 +30,22 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class ConfluenceClient {
 
     private static final Logger log = LoggerFactory.getLogger(ConfluenceClient.class);
+    private static final String SERVICE = "confluence";
+    private static final String BASE_URL_KEY = "base-url";
 
     private final RestTemplate restTemplate;
-    private final String baseUrl;
+    private final ConfigurationProvider configurationProvider;
 
-    public ConfluenceClient(
-            RestTemplate restTemplate,
-            @Value("${confluence.base-url}") String baseUrl) {
-        Assert.hasText(baseUrl, "Confluence base URL must not be empty");
+    public ConfluenceClient(RestTemplate restTemplate, ConfigurationProvider configurationProvider) {
         this.restTemplate = restTemplate;
-        this.baseUrl = baseUrl;
+        this.configurationProvider = configurationProvider;
     }
 
     public ConfluencePage getPage(ConfluenceCredentials credentials, String pageId) {
         Assert.notNull(credentials, "credentials must not be null");
         Assert.hasText(pageId, "pageId must not be empty");
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
                 .pathSegment("rest", "api", "content", pageId)
                 .queryParam("expand", "body.storage,version,space")
                 .build(true)
@@ -94,7 +93,7 @@ public class ConfluenceClient {
         Assert.hasText(title, "title must not be empty");
         Assert.notNull(body, "body must not be null");
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
                 .pathSegment("rest", "api", "content")
                 .build(true)
                 .toUri();
@@ -141,7 +140,7 @@ public class ConfluenceClient {
         Assert.hasText(fileName, "fileName must not be empty");
         Assert.notNull(fileContents, "fileContents must not be null");
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
                 .pathSegment("rest", "api", "content", pageId, "child", "attachment")
                 .build(true)
                 .toUri();
@@ -187,7 +186,7 @@ public class ConfluenceClient {
         Assert.notNull(page, "page must not be null");
         Assert.notNull(updatedBody, "updatedBody must not be null");
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
                 .pathSegment("rest", "api", "content", page.id())
                 .build(true)
                 .toUri();
@@ -224,6 +223,10 @@ public class ConfluenceClient {
             headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + credentials.accessToken());
         }
         return headers;
+    }
+
+    private String baseUrl() {
+        return configurationProvider.getRequiredValue(SERVICE, BASE_URL_KEY);
     }
 
     private record ContentResponse(String id, String type, String title, Version version, Body body, Space space) {}

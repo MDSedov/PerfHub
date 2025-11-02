@@ -1,0 +1,56 @@
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+CREATE TABLE IF NOT EXISTS tests (
+    test_uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    start_time TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_tests_start_end UNIQUE (start_time, end_time)
+);
+
+ALTER TABLE tests
+    ALTER COLUMN test_uuid SET DEFAULT gen_random_uuid();
+
+UPDATE tests
+SET test_uuid = gen_random_uuid()
+WHERE test_uuid IS NULL;
+
+CREATE TABLE IF NOT EXISTS grafana_dashboards (
+    dashboard_uid TEXT PRIMARY KEY,
+    slug TEXT NOT NULL,
+    panels INTEGER[] NOT NULL
+);
+
+INSERT INTO grafana_dashboards (dashboard_uid, slug, panels)
+VALUES ('adrr5xs', 'jmeter-metrics', ARRAY[1, 2])
+ON CONFLICT (dashboard_uid) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS configurations (
+    id SERIAL PRIMARY KEY,
+    service TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    value TEXT NOT NULL,
+    CONSTRAINT uq_configurations_service_key UNIQUE (service, "key")
+);
+
+INSERT INTO configurations (service, "key", value) VALUES
+    ('victoria-metrics', 'base-url', 'http://95.163.220.93:8428'),
+    ('victoria-metrics', 'query-range-path', '/api/v1/query_range'),
+    ('victoria-metrics', 'default-step-seconds', '15'),
+    ('gigachat', 'oauth-url', 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth'),
+    ('gigachat', 'api-url', 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions'),
+    ('gigachat', 'scope', 'GIGACHAT_API_PERS'),
+    ('gigachat', 'authorization-key', 'MDE5YTBlMWQtMzRlNi03Yzg2LWFhMzgtZDBkZTM2OWE3MDc2OjdmMzIzMTljLTA1MGEtNDkxMC1iZDY5LTQ1MGZkN2IzN2YxOQ=='),
+    ('gigachat', 'client-id', '019a0e1d-34e6-7c86-aa38-d0de369a7076'),
+    ('gigachat', 'grant-type', 'client_credentials'),
+    ('gigachat', 'model', 'GigaChat-2-Max'),
+    ('gigachat', 'disable-ssl-validation', 'true'),
+    ('grafana', 'base-url', 'http://95.163.220.93:3000'),
+    ('grafana', 'render-path', '/render/d-solo'),
+    ('grafana', 'api-key', 'glsa_Mqy9asYfNmvmy76EMSEkL0pGeqlwvnT4_32995c7a'),
+    ('grafana', 'image-width', '1000'),
+    ('grafana', 'image-height', '500'),
+    ('grafana', 'timezone', 'Europe/Moscow'),
+    ('confluence', 'base-url', 'http://95.163.220.93:8090'),
+    ('confluence', 'personal-access-token', 'MDAxNTA0MjY1MzI2Ot9WllQZDPt7+VDKPR2HieuP9owM')
+ON CONFLICT (service, "key") DO UPDATE SET value = EXCLUDED.value;

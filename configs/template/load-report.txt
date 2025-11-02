@@ -1,2 +1,0 @@
-<h2>Load Test Summary</h2>
-<p>Document load test execution results, key metrics and conclusions for the latest run.</p>

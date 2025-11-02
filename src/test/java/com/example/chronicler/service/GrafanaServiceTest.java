@@ -6,18 +6,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.example.chronicler.client.GrafanaClient;
-import com.example.chronicler.dto.grafana.GrafanaDashboardRequest;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
 import com.example.chronicler.exception.GrafanaRenderingException;
+import com.example.chronicler.model.GrafanaDashboard;
+import com.example.chronicler.model.LoadTest;
+import com.example.chronicler.repository.GrafanaDashboardRepository;
+import com.example.chronicler.repository.LoadTestRepository;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
-
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,36 +34,36 @@ class GrafanaServiceTest {
     @Mock
     private GrafanaRenderCache grafanaRenderCache;
 
+    @Mock
+    private LoadTestRepository loadTestRepository;
+
+    @Mock
+    private GrafanaDashboardRepository grafanaDashboardRepository;
+
     private GrafanaService grafanaService;
 
     @BeforeEach
     void setUp() {
-        grafanaService = new GrafanaService(grafanaClient, grafanaRenderCache);
+        grafanaService = new GrafanaService(
+                grafanaClient, grafanaRenderCache, loadTestRepository, grafanaDashboardRepository);
     }
 
     @Test
-    void renderDashboardsReturnsEncodedImages() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        ZoneId moscow = ZoneId.of("Europe/Moscow");
-        String fromInput = "2024-01-01 00:00:00";
-        String toInput = "2024-01-01 01:00:00";
-        Instant from = LocalDateTime.parse(fromInput, formatter).atZone(moscow).toInstant();
-        Instant to = LocalDateTime.parse(toInput, formatter).atZone(moscow).toInstant();
+    void renderPanelsReturnsEncodedImages() {
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        GrafanaRenderRequest request = new GrafanaRenderRequest(
-                fromInput,
-                toInput,
-                List.of(new GrafanaDashboardRequest(
-                        "uid",
-                        "slug",
-                        List.of(1, 2))));
-
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, from, to)));
+        when(grafanaDashboardRepository.findAll())
+                .thenReturn(List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2))));
         when(grafanaClient.renderPanel("uid", "slug", 1, from, to)).thenReturn(new byte[] {1, 2});
         when(grafanaClient.renderPanel("uid", "slug", 2, from, to)).thenReturn(new byte[] {3});
         when(grafanaClient.getPanelMetadata("uid", 1)).thenReturn(new GrafanaPanelMetadata("Panel 1", "First panel"));
         when(grafanaClient.getPanelMetadata("uid", 2)).thenReturn(new GrafanaPanelMetadata("Panel 2", null));
 
-        GrafanaRenderResponse response = grafanaService.renderDashboards(request);
+        GrafanaRenderResponse response = grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
 
         assertThat(response.from()).isEqualTo(from.toString());
         assertThat(response.to()).isEqualTo(to.toString());
@@ -87,40 +88,42 @@ class GrafanaServiceTest {
     }
 
     @Test
-    void renderDashboardsRejectsInvalidTimeRange() {
-        GrafanaRenderRequest request = new GrafanaRenderRequest(
-                "2024-01-01 02:00:00",
-                "2024-01-01 01:00:00",
-                List.of(new GrafanaDashboardRequest(
-                        "uid", "slug", List.of(1))));
+    void renderPanelsThrowsWhenTestNotFound() {
+        UUID testUuid = UUID.randomUUID();
+        when(loadTestRepository.findById(testUuid)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> grafanaService.renderDashboards(request))
+        assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
+                .isInstanceOf(GrafanaRenderingException.class)
+                .hasMessageContaining("Test with UUID " + testUuid + " not found");
+    }
+
+    @Test
+    void renderPanelsThrowsWhenDashboardsMissing() {
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, from, to)));
+        when(grafanaDashboardRepository.findAll()).thenReturn(List.of());
+
+        assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
+                .isInstanceOf(GrafanaRenderingException.class)
+                .hasMessage("No Grafana dashboards configured");
+    }
+
+    @Test
+    void renderPanelsThrowsWhenTimeRangeInvalid() {
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T02:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, from, to)));
+        when(grafanaDashboardRepository.findAll())
+                .thenReturn(List.of(new GrafanaDashboard("uid", "slug", List.of(1))));
+
+        assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
                 .isInstanceOf(GrafanaInvalidTimeRangeException.class)
                 .hasMessage("End time must be after start time");
-    }
-
-    @Test
-    void renderDashboardsRejectsIncorrectFormat() {
-        GrafanaRenderRequest request = new GrafanaRenderRequest(
-                "2024-01-01T00:00:00Z",
-                "2024-01-01 01:00:00",
-                List.of(new GrafanaDashboardRequest(
-                        "uid", "slug", List.of(1))));
-
-        assertThatThrownBy(() -> grafanaService.renderDashboards(request))
-                .isInstanceOf(GrafanaInvalidTimeRangeException.class)
-                .hasMessage("Unable to parse from using pattern yyyy-MM-dd HH:mm:ss (Europe/Moscow)");
-    }
-
-    @Test
-    void renderDashboardsRejectsMissingDashboards() {
-        GrafanaRenderRequest request = new GrafanaRenderRequest(
-                "2024-01-01T00:00:00Z",
-                "2024-01-01T01:00:00Z",
-                List.of());
-
-        assertThatThrownBy(() -> grafanaService.renderDashboards(request))
-                .isInstanceOf(GrafanaRenderingException.class)
-                .hasMessage("At least one dashboard must be provided");
     }
 }

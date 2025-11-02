@@ -1,6 +1,7 @@
 package com.example.chronicler.controller;
 
 import com.example.chronicler.dto.VictoriaMetricsRequest;
+import com.example.chronicler.dto.VictoriaMetricsTestsRequest;
 import com.example.chronicler.service.VictoriaMetricsService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -27,6 +28,12 @@ public class VictoriaMetricsController {
     @PostMapping(path = "/data/", consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<String> fetchMetric(@RequestBody List<@Valid VictoriaMetricsRequest> requests) {
         String body = victoriaMetricsService.fetchMetrics(requests);
+        return ResponseEntity.ok(body);
+    }
+
+    @PostMapping(path = "/tests/", consumes = MediaType.APPLICATION_JSON_VALUE)
+    ResponseEntity<String> fetchTests(@Valid @RequestBody VictoriaMetricsTestsRequest request) {
+        String body = victoriaMetricsService.detectLoadTests(request.start(), request.end());
         return ResponseEntity.ok(body);
     }
 }

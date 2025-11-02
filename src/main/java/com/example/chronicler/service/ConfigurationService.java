@@ -1,0 +1,50 @@
+package com.example.chronicler.service;
+
+import com.example.chronicler.model.ConfigurationEntry;
+import com.example.chronicler.repository.ConfigurationRepository;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+@Service
+public class ConfigurationService implements ConfigurationProvider {
+
+    private final ConfigurationRepository repository;
+
+    public ConfigurationService(ConfigurationRepository repository) {
+        this.repository = repository;
+    }
+
+    public List<ConfigurationEntry> fetchAll() {
+        return repository.findAllOrdered();
+    }
+
+    public void upsertAll(List<ConfigurationEntry> entries) {
+        for (ConfigurationEntry entry : entries) {
+            String service = StringUtils.trimWhitespace(entry.service());
+            String key = StringUtils.trimWhitespace(entry.key());
+            if (!StringUtils.hasText(service)) {
+                throw new IllegalArgumentException("Service name must not be blank");
+            }
+            if (!StringUtils.hasText(key)) {
+                throw new IllegalArgumentException("Configuration key must not be blank");
+            }
+            String value = entry.value() != null ? entry.value() : "";
+            repository.upsert(service, key, value);
+        }
+    }
+
+    @Override
+    public String getRequiredValue(String service, String key) {
+        return findValue(service, key)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Configuration parameter not found for service '%s' and key '%s'"
+                                .formatted(service, key)));
+    }
+
+    @Override
+    public Optional<String> findValue(String service, String key) {
+        return repository.findValue(service, key);
+    }
+}

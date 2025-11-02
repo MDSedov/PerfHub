@@ -22,10 +22,10 @@ public class GrafanaController {
         this.grafanaService = grafanaService;
     }
 
-    @PostMapping(path = "/render/", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<GrafanaRenderResponse> renderDashboards(
+    @PostMapping(path = "/panels/", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<GrafanaRenderResponse> renderPanels(
             @Valid @RequestBody GrafanaRenderRequest request) {
-        GrafanaRenderResponse response = grafanaService.renderDashboards(request);
+        GrafanaRenderResponse response = grafanaService.renderPanels(request);
         return ResponseEntity.ok(response);
     }
 }
