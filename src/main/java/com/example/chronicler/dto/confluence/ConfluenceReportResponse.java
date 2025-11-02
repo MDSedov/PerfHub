@@ -1,6 +1,9 @@
 package com.example.chronicler.dto.confluence;
 
 import java.util.List;
+import java.util.UUID;
 
-public record ConfluenceReportResponse(String pageId, List<String> attachmentNames) {
+public record ConfluenceReportResponse(List<ReportPage> reports) {
+
+    public record ReportPage(UUID testUuid, String pageId, List<String> attachmentNames) {}
 }
