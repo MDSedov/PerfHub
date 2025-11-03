@@ -3,8 +3,10 @@ package com.example.chronicler.client;
 import com.example.chronicler.exception.VictoriaMetricsClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.time.Duration;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,14 +39,8 @@ public class VictoriaMetricsClient {
         String queryRangePath = required(QUERY_RANGE_PATH_KEY);
         Duration defaultStep = resolveDuration(DEFAULT_STEP_SECONDS_KEY);
 
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .path(queryRangePath)
-                .queryParam("query", query)
-                .queryParam("start", start.getEpochSecond())
-                .queryParam("end", end.getEpochSecond())
-                .queryParam("step", defaultStep.getSeconds());
         try {
-            URI uri = builder.build(true).toUri();
+            URI uri = buildQueryRangeUri(baseUrl, queryRangePath, query, start, end, defaultStep);
             log.info(
                     "Querying VictoriaMetrics with expression '{}' from {} to {} via {}",
                     query,
@@ -72,5 +68,28 @@ public class VictoriaMetricsClient {
             throw new IllegalStateException("Configuration value for %s.%s must be a number but was '%s'"
                     .formatted(SERVICE, key, value));
         }
+    }
+
+    private URI buildQueryRangeUri(
+            String baseUrl,
+            String queryRangePath,
+            String query,
+            Instant start,
+            Instant end,
+            Duration step) {
+        String sanitizedBase = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        String sanitizedPath = queryRangePath.startsWith("/") ? queryRangePath : "/" + queryRangePath;
+        String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
+        return URI.create(
+                sanitizedBase
+                        + sanitizedPath
+                        + "?query="
+                        + encodedQuery
+                        + "&start="
+                        + start.getEpochSecond()
+                        + "&end="
+                        + end.getEpochSecond()
+                        + "&step="
+                        + step.getSeconds());
     }
 }

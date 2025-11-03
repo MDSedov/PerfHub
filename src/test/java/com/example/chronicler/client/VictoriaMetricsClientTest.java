@@ -40,6 +40,31 @@ class VictoriaMetricsClientTest {
         server.verify();
     }
 
+    @Test
+    void encodesSpecialCharactersInQueryExpression() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.createServer(restTemplate);
+        ConfigurationProvider configurationProvider = new InMemoryConfigurationProvider(Map.of(
+                key("base-url"), "http://localhost:8428/",
+                key("query-range-path"), "api/v1/query_range",
+                key("default-step-seconds"), "60"));
+        VictoriaMetricsClient client = new VictoriaMetricsClient(restTemplate, configurationProvider);
+
+        Instant start = Instant.parse("2024-10-01T10:00:00Z");
+        Instant end = start.plusSeconds(300);
+        String query = "sum_over_time(jmeterall.a.count[5m])";
+        String expectedEncoded = "sum_over_time%28jmeterall.a.count%5B5m%5D%29";
+
+        server.expect(requestTo("http://localhost:8428/api/v1/query_range?query="
+                        + expectedEncoded
+                        + "&start=1727776800&end=1727777100&step=60"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));
+
+        client.queryRange(query, start, end);
+        server.verify();
+    }
+
     private static String key(String key) {
         return "victoria-metrics:" + key;
     }

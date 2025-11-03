@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 
+import com.example.chronicler.registry.VmQueryRegistry;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.FileSystemResource;
 

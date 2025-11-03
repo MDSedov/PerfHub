@@ -119,10 +119,12 @@ class ConfluenceServiceTest {
         ConfluenceReportResponse.ReportPage secondReport = response.reports().get(1);
         assertThat(firstReport.testUuid()).isEqualTo(firstTestUuid);
         assertThat(firstReport.pageId()).isEqualTo("456");
-        assertThat(firstReport.attachmentNames()).singleElement().contains("grafana-panel-7-");
+        assertThat(firstReport.attachmentNames()).hasSize(1);
+        assertThat(firstReport.attachmentNames().get(0)).contains("grafana-panel-7-");
         assertThat(secondReport.testUuid()).isEqualTo(secondTestUuid);
         assertThat(secondReport.pageId()).isEqualTo("789");
-        assertThat(secondReport.attachmentNames()).singleElement().contains("grafana-panel-9-");
+        assertThat(secondReport.attachmentNames()).hasSize(1);
+        assertThat(secondReport.attachmentNames().get(0)).contains("grafana-panel-9-");
 
         ArgumentCaptor<GrafanaRenderRequest> renderRequestCaptor = ArgumentCaptor.forClass(GrafanaRenderRequest.class);
         verify(grafanaService, times(2)).renderPanels(renderRequestCaptor.capture());
