@@ -19,6 +19,7 @@
             font-weight: 600;
             letter-spacing: 0.03em;
             color: #ffffff !important;
+            cursor: pointer;
         }
 
         .navbar-sber {
@@ -150,15 +151,81 @@
             background-color: #00b960;
             border-color: #00a060;
         }
+
+        .settings-panel {
+            background-color: #e8f9f0;
+            border-bottom: 1px solid rgba(0, 152, 70, 0.12);
+        }
+
+        .settings-card {
+            border-radius: 18px;
+        }
+
+        .settings-item {
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(0, 152, 70, 0.08);
+        }
+
+        .settings-group .settings-item:last-child {
+            border-bottom: none;
+        }
+
+        .settings-key {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #4b5d54;
+        }
+
+        .settings-description {
+            font-weight: 600;
+            color: #1a1d1f;
+        }
+
+        .settings-service-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #0b6b3c;
+        }
+
+        .settings-group {
+            padding: 1.5rem 0;
+            border-top: 1px solid rgba(0, 152, 70, 0.15);
+        }
+
+        .settings-group:first-child {
+            border-top: none;
+            padding-top: 0;
+        }
     </style>
 </head>
 <body>
 <nav class="navbar navbar-expand navbar-sber">
     <div class="container-fluid">
-        <span class="navbar-brand">Летописец</span>
+        <span class="navbar-brand" role="button" tabindex="0">Летописец</span>
         <button class="btn btn-outline-light btn-settings" type="button">Настройки</button>
     </div>
 </nav>
+
+<section id="settingsSection" class="settings-panel d-none">
+    <div class="container-fluid py-3">
+        <div class="card settings-card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">Настройки</h5>
+                    <span id="settingsCount" class="badge bg-secondary">0</span>
+                </div>
+                <div id="settingsList"></div>
+                <div id="settingsEmpty" class="text-muted d-none">Настройки не найдены.</div>
+                <div class="text-end mt-3">
+                    <button type="button" class="btn btn-primary" id="saveSettingsButton" disabled>Сохранить</button>
+                </div>
+                <div id="settingsStatus" class="alert d-none mt-3" role="alert"></div>
+            </div>
+        </div>
+    </div>
+</section>
 
 <main class="container-fluid py-4">
     <div class="row g-4">
@@ -255,12 +322,24 @@
     const selectedTestsList = document.getElementById('selectedTestsList');
     const selectedTestsEmpty = document.getElementById('selectedTestsEmpty');
     const selectedTestsCount = document.getElementById('selectedTestsCount');
+    const settingsButton = document.querySelector('.btn-settings');
+    const settingsSection = document.getElementById('settingsSection');
+    const settingsList = document.getElementById('settingsList');
+    const settingsEmpty = document.getElementById('settingsEmpty');
+    const saveSettingsButton = document.getElementById('saveSettingsButton');
+    const settingsStatus = document.getElementById('settingsStatus');
+    const settingsCount = document.getElementById('settingsCount');
+    const mainSection = document.querySelector('main');
+    const brandButton = document.querySelector('.navbar-brand');
 
     const MS_IN_SECOND = 1000;
     const SECONDS_IN_DAY = 86400;
     const MOSCOW_TZ = 'Europe/Moscow';
     const selectedTests = new Map();
     let isReportSubmitting = false;
+    let settingsCache = [];
+    const settingsChanges = new Map();
+    let isSettingsSaving = false;
 
     function formatInMoscow(date) {
         const formatter = new Intl.DateTimeFormat('sv-SE', {
@@ -291,6 +370,202 @@
             applyQuickRange(days);
         });
     });
+
+    function isSettingsVisible() {
+        return settingsSection && !settingsSection.classList.contains('d-none');
+    }
+
+    function showSettingsSection() {
+        if (!settingsSection) {
+            return;
+        }
+        settingsSection.classList.remove('d-none');
+        if (mainSection) {
+            mainSection.classList.add('d-none');
+        }
+    }
+
+    function hideSettingsSection() {
+        if (!settingsSection) {
+            return;
+        }
+        settingsSection.classList.add('d-none');
+        if (mainSection) {
+            mainSection.classList.remove('d-none');
+        }
+        clearSettingsStatus();
+    }
+
+    function getSettingsKey(service, key) {
+        return `${service}::${key}`;
+    }
+
+    function toggleSaveSettingsButton() {
+        if (!saveSettingsButton) {
+            return;
+        }
+        saveSettingsButton.disabled = settingsChanges.size === 0 || isSettingsSaving;
+    }
+
+    function setSettingsStatus(message, type = 'info') {
+        if (!settingsStatus) {
+            return;
+        }
+        settingsStatus.textContent = message;
+        settingsStatus.className = `alert alert-${type} mt-3`;
+        settingsStatus.classList.remove('d-none');
+    }
+
+    function clearSettingsStatus() {
+        if (settingsStatus) {
+            settingsStatus.classList.add('d-none');
+        }
+    }
+
+    function renderSettings(items) {
+        if (!settingsList) {
+            return;
+        }
+        settingsList.innerHTML = '';
+        settingsChanges.clear();
+        toggleSaveSettingsButton();
+
+        if (settingsCount) {
+            settingsCount.textContent = items.length.toString();
+        }
+
+        if (!items.length) {
+            settingsList.classList.add('d-none');
+            if (settingsEmpty) {
+                settingsEmpty.classList.remove('d-none');
+            }
+            return;
+        }
+
+        settingsList.classList.remove('d-none');
+        if (settingsEmpty) {
+            settingsEmpty.classList.add('d-none');
+        }
+
+        const groups = new Map();
+        items.forEach(item => {
+            if (!groups.has(item.service)) {
+                groups.set(item.service, []);
+            }
+            groups.get(item.service).push(item);
+        });
+
+        groups.forEach((groupItems, service) => {
+            const groupWrapper = document.createElement('div');
+            groupWrapper.className = 'settings-group';
+
+            const serviceTitle = document.createElement('div');
+            serviceTitle.className = 'settings-service-title';
+            serviceTitle.textContent = service;
+            groupWrapper.appendChild(serviceTitle);
+
+            groupItems.forEach(item => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'settings-item row g-3 align-items-center';
+
+                const descriptionCol = document.createElement('div');
+                descriptionCol.className = 'col-lg-6';
+                const keyLabel = document.createElement('div');
+                keyLabel.className = 'settings-key';
+                keyLabel.textContent = item.key;
+                const descriptionLabel = document.createElement('div');
+                descriptionLabel.className = 'settings-description';
+                descriptionLabel.textContent = item.description ?? '—';
+                descriptionCol.appendChild(keyLabel);
+                descriptionCol.appendChild(descriptionLabel);
+
+                const valueCol = document.createElement('div');
+                valueCol.className = 'col-lg-6';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'form-control';
+                input.value = item.value ?? '';
+                input.dataset.service = item.service;
+                input.dataset.key = item.key;
+
+                const originalValue = input.value;
+                input.addEventListener('input', () => {
+                    const compoundKey = getSettingsKey(item.service, item.key);
+                    if (input.value === originalValue) {
+                        settingsChanges.delete(compoundKey);
+                    } else {
+                        settingsChanges.set(compoundKey, {
+                            service: item.service,
+                            key: item.key,
+                            value: input.value
+                        });
+                    }
+                    toggleSaveSettingsButton();
+                });
+
+                valueCol.appendChild(input);
+                wrapper.appendChild(descriptionCol);
+                wrapper.appendChild(valueCol);
+                groupWrapper.appendChild(wrapper);
+            });
+
+            settingsList.appendChild(groupWrapper);
+        });
+    }
+
+    async function loadSettings() {
+        if (!settingsList) {
+            return;
+        }
+        setSettingsStatus('Загружаем настройки…', 'info');
+        try {
+            const response = await fetch('/api/chronicler/properties/');
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            settingsCache = await response.json();
+            renderSettings(settingsCache);
+            clearSettingsStatus();
+        } catch (error) {
+            setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');
+        }
+    }
+
+    async function saveSettings() {
+        if (settingsChanges.size === 0) {
+            return;
+        }
+        isSettingsSaving = true;
+        toggleSaveSettingsButton();
+        setSettingsStatus('Сохраняем изменения…', 'info');
+        const payload = {
+            parameters: Array.from(settingsChanges.values()).map(item => ({
+                service: item.service,
+                key: item.key,
+                value: item.value
+            }))
+        };
+        try {
+            const response = await fetch('/api/chronicler/properties/', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            settingsCache = await response.json();
+            renderSettings(settingsCache);
+            setSettingsStatus('Настройки сохранены.', 'success');
+        } catch (error) {
+            setSettingsStatus('Не удалось сохранить настройки: ' + error.message, 'danger');
+        } finally {
+            isSettingsSaving = false;
+            toggleSaveSettingsButton();
+        }
+    }
 
     function setStatus(message, type = 'info') {
         statusMessage.textContent = message;
@@ -484,6 +759,36 @@
             isReportSubmitting = false;
             updateReportButtonState();
         }
+    }
+
+    if (settingsButton) {
+        settingsButton.addEventListener('click', async () => {
+            if (!settingsSection) {
+                return;
+            }
+            if (isSettingsVisible()) {
+                hideSettingsSection();
+            } else {
+                showSettingsSection();
+                await loadSettings();
+            }
+        });
+    }
+
+    if (brandButton) {
+        brandButton.addEventListener('click', () => {
+            hideSettingsSection();
+        });
+        brandButton.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                hideSettingsSection();
+            }
+        });
+    }
+
+    if (saveSettingsButton) {
+        saveSettingsButton.addEventListener('click', saveSettings);
     }
 
     reportButton.addEventListener('click', submitReport);

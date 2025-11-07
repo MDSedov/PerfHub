@@ -44,30 +44,36 @@ CREATE TABLE IF NOT EXISTS configurations (
     service TEXT NOT NULL,
     "key" TEXT NOT NULL,
     value TEXT NOT NULL,
+    description TEXT,
     CONSTRAINT uq_configurations_service_key UNIQUE (service, "key")
 );
 
-INSERT INTO configurations (service, "key", value) VALUES
-    ('victoria-metrics', 'base-url', 'http://95.163.220.93:8428'),
-    ('victoria-metrics', 'query-range-path', '/api/v1/query_range'),
-    ('victoria-metrics', 'default-step-seconds', '15'),
-    ('gigachat', 'oauth-url', 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth'),
-    ('gigachat', 'api-url', 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions'),
-    ('gigachat', 'scope', 'GIGACHAT_API_PERS'),
-    ('gigachat', 'authorization-key', 'MDE5YTBlMWQtMzRlNi03Yzg2LWFhMzgtZDBkZTM2OWE3MDc2OjdmMzIzMTljLTA1MGEtNDkxMC1iZDY5LTQ1MGZkN2IzN2YxOQ=='),
-    ('gigachat', 'client-id', '019a0e1d-34e6-7c86-aa38-d0de369a7076'),
-    ('gigachat', 'grant-type', 'client_credentials'),
-    ('gigachat', 'model', 'GigaChat-2-Max'),
-    ('gigachat', 'disable-ssl-validation', 'true'),
-    ('grafana', 'base-url', 'http://95.163.220.93:3000'),
-    ('grafana', 'render-path', '/render/d-solo'),
-    ('grafana', 'api-key', 'glsa_Mqy9asYfNmvmy76EMSEkL0pGeqlwvnT4_32995c7a'),
-    ('grafana', 'image-width', '1000'),
-    ('grafana', 'image-height', '500'),
-    ('grafana', 'timezone', 'Europe/Moscow'),
-    ('confluence', 'base-url', 'http://95.163.220.93:8090'),
-    ('confluence', 'personal-access-token', 'MDAxNTA0MjY1MzI2Ot9WllQZDPt7+VDKPR2HieuP9owM')
-ON CONFLICT (service, "key") DO UPDATE SET value = EXCLUDED.value;
+ALTER TABLE configurations
+    ADD COLUMN IF NOT EXISTS description TEXT;
+
+INSERT INTO configurations (service, "key", value, description) VALUES
+    ('victoria-metrics', 'base-url', 'http://95.163.220.93:8428', 'Базовый URL инстанса VictoriaMetrics'),
+    ('victoria-metrics', 'query-range-path', '/api/v1/query_range', 'Путь API для запроса диапазона метрик'),
+    ('victoria-metrics', 'default-step-seconds', '15', 'Шаг агрегации метрик в секундах по умолчанию'),
+    ('gigachat', 'oauth-url', 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth', 'Endpoint получения OAuth-токена GigaChat'),
+    ('gigachat', 'api-url', 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions', 'Основной URL API GigaChat'),
+    ('gigachat', 'scope', 'GIGACHAT_API_PERS', 'Значение OAuth scope для GigaChat'),
+    ('gigachat', 'authorization-key', 'MDE5YTBlMWQtMzRlNi03Yzg2LWFhMzgtZDBkZTM2OWE3MDc2OjdmMzIzMTljLTA1MGEtNDkxMC1iZDY5LTQ1MGZkN2IzN2YxOQ==', 'Base64 ключ авторизации клиента GigaChat'),
+    ('gigachat', 'client-id', '019a0e1d-34e6-7c86-aa38-d0de369a7076', 'Идентификатор клиента для GigaChat'),
+    ('gigachat', 'grant-type', 'client_credentials', 'Тип grant''а при OAuth-авторизации GigaChat'),
+    ('gigachat', 'model', 'GigaChat-2-Max', 'Название модели GigaChat для генерации ответов'),
+    ('gigachat', 'disable-ssl-validation', 'true', 'Флаг отключения проверки SSL при обращении к GigaChat'),
+    ('grafana', 'base-url', 'http://95.163.220.93:3000', 'Базовый URL панели Grafana'),
+    ('grafana', 'render-path', '/render/d-solo', 'Путь API Grafana для рендеринга панелей'),
+    ('grafana', 'api-key', 'glsa_Mqy9asYfNmvmy76EMSEkL0pGeqlwvnT4_32995c7a', 'API-ключ доступа к Grafana'),
+    ('grafana', 'image-width', '1000', 'Ширина рендеримых изображений Grafana'),
+    ('grafana', 'image-height', '500', 'Высота рендеримых изображений Grafana'),
+    ('grafana', 'timezone', 'Europe/Moscow', 'Таймзона для отображения данных Grafana'),
+    ('confluence', 'base-url', 'http://95.163.220.93:8090', 'Базовый URL портала Confluence'),
+    ('confluence', 'personal-access-token', 'MDAxNTA0MjY1MzI2Ot9WllQZDPt7+VDKPR2HieuP9owM', 'Токен доступа к Confluence')
+ON CONFLICT (service, "key") DO UPDATE
+SET value = EXCLUDED.value,
+    description = EXCLUDED.description;
 
 CREATE TABLE IF NOT EXISTS non_functional_requirements (
     id SERIAL PRIMARY KEY,

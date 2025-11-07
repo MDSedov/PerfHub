@@ -38,13 +38,14 @@ public class ConfigurationController {
                         null,
                         item.service().trim(),
                         item.key().trim(),
-                        item.value()))
+                        item.value(),
+                        null))
                 .collect(Collectors.toList());
         configurationService.upsertAll(entries);
         return listAll();
     }
 
     private ConfigurationItemDto toDto(ConfigurationEntry entry) {
-        return new ConfigurationItemDto(entry.id(), entry.service(), entry.key(), entry.value());
+        return new ConfigurationItemDto(entry.id(), entry.service(), entry.key(), entry.value(), entry.description());
     }
 }

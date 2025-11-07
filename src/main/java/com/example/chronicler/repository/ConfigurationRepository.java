@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 public class ConfigurationRepository {
 
     private static final String SELECT_ALL_SQL =
-            "SELECT id, service, \"key\", value FROM configurations ORDER BY service, \"key\"";
+            "SELECT id, service, \"key\", value, description FROM configurations ORDER BY service, \"key\"";
     private static final String SELECT_ONE_SQL =
             "SELECT value FROM configurations WHERE service = ? AND \"key\" = ?";
     private static final String UPSERT_SQL = """
@@ -48,6 +48,11 @@ public class ConfigurationRepository {
     private static ConfigurationEntry mapRow(ResultSet rs, int rowNum) throws SQLException {
         Number idValue = (Number) rs.getObject("id");
         Long id = idValue != null ? idValue.longValue() : null;
-        return new ConfigurationEntry(id, rs.getString("service"), rs.getString("key"), rs.getString("value"));
+        return new ConfigurationEntry(
+                id,
+                rs.getString("service"),
+                rs.getString("key"),
+                rs.getString("value"),
+                rs.getString("description"));
     }
 }
