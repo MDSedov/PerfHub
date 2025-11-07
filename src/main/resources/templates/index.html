@@ -336,6 +336,7 @@
     const SECONDS_IN_DAY = 86400;
     const MOSCOW_TZ = 'Europe/Moscow';
     const selectedTests = new Map();
+    const activeStatusRequests = new Set();
     let isReportSubmitting = false;
     let settingsCache = [];
     const settingsChanges = new Map();
@@ -619,11 +620,79 @@
         reportStatusMessage.classList.add('d-none');
     }
 
+    function resetTestStatusRequests() {
+        activeStatusRequests.forEach(controller => controller.abort());
+        activeStatusRequests.clear();
+    }
+
+    function setTestStatusView(element, state) {
+        element.classList.remove('text-muted', 'text-success', 'text-danger', 'text-warning');
+        switch (state) {
+            case 'loading':
+                element.textContent = 'Проверка…';
+                element.classList.add('text-muted');
+                break;
+            case 'pass':
+                element.textContent = 'Соответствует';
+                element.classList.add('text-success');
+                break;
+            case 'fail':
+                element.textContent = 'Не соответствует';
+                element.classList.add('text-danger');
+                break;
+            case 'missing':
+                element.textContent = 'Нет данных';
+                element.classList.add('text-muted');
+                break;
+            default:
+                element.textContent = 'Ошибка';
+                element.classList.add('text-warning');
+        }
+    }
+
+    async function evaluateTestStatus(testId, statusElement) {
+        if (!testId) {
+            setTestStatusView(statusElement, 'missing');
+            return;
+        }
+
+        const controller = new AbortController();
+        activeStatusRequests.add(controller);
+        setTestStatusView(statusElement, 'loading');
+
+        try {
+            const response = await fetch('/api/requirements/evaluate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({testUuid: testId}),
+                signal: controller.signal
+            });
+
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+
+            const payload = await response.json();
+            const compliant = Boolean(payload.compliant);
+            setTestStatusView(statusElement, compliant ? 'pass' : 'fail');
+        } catch (error) {
+            if (controller.signal.aborted) {
+                return;
+            }
+            setTestStatusView(statusElement, 'error');
+        } finally {
+            activeStatusRequests.delete(controller);
+        }
+    }
+
     function renderTests(tests) {
         testsList.innerHTML = '';
         testsCount.textContent = tests.length.toString();
         selectedTests.clear();
         updateSelectedTestsUI();
+        resetTestStatusRequests();
 
         if (tests.length === 0) {
             testsList.innerHTML = '<div class="text-muted">По заданному диапазону тесты не найдены.</div>';
@@ -667,7 +736,7 @@
 
             const statusSpan = document.createElement('span');
             statusSpan.className = 'test-status text-muted';
-            statusSpan.textContent = '—';
+            setTestStatusView(statusSpan, 'loading');
 
             testItem.appendChild(checkboxWrapper);
             testItem.appendChild(typeSpan);
@@ -677,6 +746,8 @@
 
             item.appendChild(testItem);
             testsList.appendChild(item);
+
+            evaluateTestStatus(test.id, statusSpan);
         });
     }
 
