@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Летописец — Поиск нагрузочных тестов</title>
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            crossorigin="anonymous">
+    <style>
+        body {
+            background-color: #f0fff6;
+            font-family: "SF Pro Display", "Roboto", "Segoe UI", sans-serif;
+        }
+
+        .navbar-brand {
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            color: #ffffff !important;
+        }
+
+        .navbar-sber {
+            background: linear-gradient(90deg, #009846, #2cd67b);
+            color: #ffffff;
+            box-shadow: 0 4px 18px rgba(0, 132, 82, 0.3);
+        }
+
+        .navbar-sber .btn-settings {
+            border-color: rgba(255, 255, 255, 0.6);
+            color: #ffffff;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .navbar-sber .btn-settings:hover,
+        .navbar-sber .btn-settings:focus {
+            background-color: #00b960;
+            border-color: #00a060;
+            color: #ffffff;
+        }
+
+        .range-buttons .btn {
+            min-width: 64px;
+            border-color: rgba(0, 152, 70, 0.4);
+            color: #009846;
+        }
+
+        .card-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .tests-card {
+            max-height: 70vh;
+            overflow-y: auto;
+            border: none;
+            box-shadow: 0 16px 50px rgba(3, 76, 45, 0.08);
+        }
+
+        .test-badge {
+            text-transform: uppercase;
+            background-color: #009846;
+        }
+
+        .btn-primary {
+            background-color: #00b960;
+            border-color: #00a060;
+        }
+
+        .btn-primary:disabled {
+            background-color: #7bd6a5;
+            border-color: #7bd6a5;
+        }
+
+        .card {
+            border: none;
+            border-radius: 18px;
+            box-shadow: 0 16px 50px rgba(3, 76, 45, 0.08);
+        }
+
+        .list-group-item {
+            border: none;
+            border-radius: 0;
+            border-bottom: 1px solid rgba(0, 152, 70, 0.1);
+        }
+
+        .tests-header,
+        .test-item {
+            display: grid;
+            grid-template-columns: 0.4fr 1.2fr 1fr 1fr 1fr;
+            gap: 1rem;
+            align-items: center;
+            font-size: 0.95rem;
+            white-space: nowrap;
+        }
+
+        .tests-header {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #4b5d54;
+            padding: 0 1rem 0.5rem 1rem;
+            border-bottom: 1px solid rgba(0, 152, 70, 0.15);
+        }
+
+        .test-item span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .test-label {
+            font-weight: 600;
+            color: #1a1d1f;
+        }
+
+        .test-time {
+            color: #4b5d54;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .tests-header span {
+            display: block;
+        }
+
+        .selected-tests-list {
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .selected-tests-list .list-group-item {
+            border: none;
+            border-bottom: 1px solid rgba(0, 152, 70, 0.08);
+        }
+
+        .selected-tests-list .list-group-item:last-child {
+            border-bottom: none;
+        }
+
+        .report-card .form-control {
+            border-radius: 12px;
+        }
+
+        .report-card .card-title {
+            font-size: 1rem;
+        }
+
+        .form-check-input:checked {
+            background-color: #00b960;
+            border-color: #00a060;
+        }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-expand navbar-sber">
+    <div class="container-fluid">
+        <span class="navbar-brand">Летописец</span>
+        <button class="btn btn-outline-light btn-settings" type="button">Настройки</button>
+    </div>
+</nav>
+
+<main class="container-fluid py-4">
+    <div class="row g-4">
+        <section class="col-lg-4 card-section">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Диапазон поиска</h5>
+                    <form id="testsForm" novalidate>
+                        <div class="mb-3">
+                            <label for="startInput" class="form-label">Начало (формат Grafana)</label>
+                            <input type="text" class="form-control" id="startInput" placeholder="2025-11-07 23:59:59"
+                                   required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="endInput" class="form-label">Конец (формат Grafana)</label>
+                            <input type="text" class="form-control" id="endInput" placeholder="2025-11-08 23:59:59"
+                                   required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Быстрый выбор</label>
+                            <div class="btn-group flex-wrap range-buttons" role="group" aria-label="Диапазоны">
+                                <button type="button" class="btn btn-outline-primary" data-days="1">1 д</button>
+                                <button type="button" class="btn btn-outline-primary" data-days="3">3 д</button>
+                                <button type="button" class="btn btn-outline-primary" data-days="7">7 д</button>
+                                <button type="button" class="btn btn-outline-primary" data-days="14">14 д</button>
+                                <button type="button" class="btn btn-outline-primary" data-days="30">30 д</button>
+                            </div>
+                        </div>
+                        <div class="d-grid">
+                            <button type="button" id="searchButton" class="btn btn-primary">Найти тесты</button>
+                        </div>
+                    </form>
+                    <div id="statusMessage" class="alert alert-info mt-3 d-none" role="alert"></div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm report-card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Генерация отчета по НТ</h5>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">Выбранные тесты</span>
+                            <span id="selectedTestsCount" class="badge bg-success-subtle text-success-emphasis">0</span>
+                        </div>
+                        <div id="selectedTestsEmpty" class="text-muted small">Пока ничего не выбрано.</div>
+                        <ul id="selectedTestsList" class="list-group selected-tests-list d-none"></ul>
+                    </div>
+                    <div class="mb-3">
+                        <label for="parentPageInput" class="form-label">ID родительской страницы в Confluence</label>
+                        <input type="text" class="form-control" id="parentPageInput" placeholder="Например, 123456">
+                    </div>
+                    <div class="d-grid">
+                        <button type="button" id="reportButton" class="btn btn-primary" disabled>Сформировать отчет по НТ</button>
+                    </div>
+                    <div id="reportStatusMessage" class="alert alert-info mt-3 d-none" role="alert"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="col-lg-8">
+            <div class="card shadow-sm tests-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">Найденные нагрузочные тесты</h5>
+                        <span id="testsCount" class="badge bg-secondary">0</span>
+                    </div>
+                    <div class="tests-header">
+                        <span>Выбор</span>
+                        <span>Тип теста</span>
+                        <span>Начало теста</span>
+                        <span>Конец теста</span>
+                        <span>Статус теста</span>
+                    </div>
+                    <div id="testsList" class="list-group">
+                        <div class="text-muted">Задайте диапазон и нажмите «Найти тесты», чтобы увидеть результаты.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
+
+<script>
+    const startInput = document.getElementById('startInput');
+    const endInput = document.getElementById('endInput');
+    const statusMessage = document.getElementById('statusMessage');
+    const testsList = document.getElementById('testsList');
+    const testsCount = document.getElementById('testsCount');
+    const quickRangeButtons = document.querySelectorAll('.range-buttons button');
+    const searchButton = document.getElementById('searchButton');
+    const parentPageInput = document.getElementById('parentPageInput');
+    const reportButton = document.getElementById('reportButton');
+    const reportStatusMessage = document.getElementById('reportStatusMessage');
+    const selectedTestsList = document.getElementById('selectedTestsList');
+    const selectedTestsEmpty = document.getElementById('selectedTestsEmpty');
+    const selectedTestsCount = document.getElementById('selectedTestsCount');
+
+    const MS_IN_SECOND = 1000;
+    const SECONDS_IN_DAY = 86400;
+    const MOSCOW_TZ = 'Europe/Moscow';
+    const selectedTests = new Map();
+    let isReportSubmitting = false;
+
+    function formatInMoscow(date) {
+        const formatter = new Intl.DateTimeFormat('sv-SE', {
+            timeZone: MOSCOW_TZ,
+            hour12: false,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        return formatter.format(date);
+    }
+
+    function applyQuickRange(days) {
+        const now = new Date();
+        const end = formatInMoscow(now);
+        const startDate = new Date(now.getTime() - days * SECONDS_IN_DAY * MS_IN_SECOND);
+        const start = formatInMoscow(startDate);
+        startInput.value = start;
+        endInput.value = end;
+    }
+
+    quickRangeButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const days = Number(button.dataset.days);
+            applyQuickRange(days);
+        });
+    });
+
+    function setStatus(message, type = 'info') {
+        statusMessage.textContent = message;
+        statusMessage.className = `alert alert-${type} mt-3`;
+        statusMessage.classList.remove('d-none');
+    }
+
+    function clearStatus() {
+        statusMessage.classList.add('d-none');
+    }
+
+    function updateSelectedTestsUI() {
+        selectedTestsList.innerHTML = '';
+        const selectedArray = Array.from(selectedTests.values());
+
+        if (selectedArray.length === 0) {
+            selectedTestsList.classList.add('d-none');
+            selectedTestsEmpty.classList.remove('d-none');
+        } else {
+            selectedTestsList.classList.remove('d-none');
+            selectedTestsEmpty.classList.add('d-none');
+
+            selectedArray.forEach(test => {
+                const item = document.createElement('li');
+                item.className = 'list-group-item d-flex justify-content-between align-items-center px-0';
+                item.innerHTML = `
+                    <span class="text-truncate">${test.type ?? '—'}</span>
+                    <span class="text-muted small">${test.start ?? '—'} → ${test.end ?? '—'}</span>
+                `;
+                selectedTestsList.appendChild(item);
+            });
+        }
+
+        selectedTestsCount.textContent = selectedArray.length.toString();
+        updateReportButtonState();
+    }
+
+    function updateReportButtonState() {
+        const hasSelection = selectedTests.size > 0;
+        const parentFilled = parentPageInput.value.trim().length > 0;
+        reportButton.disabled = !hasSelection || !parentFilled || isReportSubmitting;
+    }
+
+    function setReportStatus(message, type = 'info') {
+        reportStatusMessage.textContent = message;
+        reportStatusMessage.className = `alert alert-${type} mt-3`;
+        reportStatusMessage.classList.remove('d-none');
+    }
+
+    function clearReportStatus() {
+        reportStatusMessage.classList.add('d-none');
+    }
+
+    function renderTests(tests) {
+        testsList.innerHTML = '';
+        testsCount.textContent = tests.length.toString();
+        selectedTests.clear();
+        updateSelectedTestsUI();
+
+        if (tests.length === 0) {
+            testsList.innerHTML = '<div class="text-muted">По заданному диапазону тесты не найдены.</div>';
+            return;
+        }
+
+        tests.forEach(test => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item';
+
+            const testItem = document.createElement('div');
+            testItem.className = 'test-item';
+
+            const checkboxWrapper = document.createElement('div');
+            checkboxWrapper.className = 'form-check m-0';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'form-check-input';
+            checkbox.id = `test-${test.id}`;
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    selectedTests.set(test.id, test);
+                } else {
+                    selectedTests.delete(test.id);
+                }
+                updateSelectedTestsUI();
+            });
+            checkboxWrapper.appendChild(checkbox);
+
+            const typeSpan = document.createElement('span');
+            typeSpan.className = 'test-label';
+            typeSpan.textContent = test.type ?? '—';
+
+            const startSpan = document.createElement('span');
+            startSpan.className = 'test-time';
+            startSpan.textContent = test.start ?? '—';
+
+            const endSpan = document.createElement('span');
+            endSpan.className = 'test-time';
+            endSpan.textContent = test.end ?? '—';
+
+            const statusSpan = document.createElement('span');
+            statusSpan.className = 'test-status text-muted';
+            statusSpan.textContent = '—';
+
+            testItem.appendChild(checkboxWrapper);
+            testItem.appendChild(typeSpan);
+            testItem.appendChild(startSpan);
+            testItem.appendChild(endSpan);
+            testItem.appendChild(statusSpan);
+
+            item.appendChild(testItem);
+            testsList.appendChild(item);
+        });
+    }
+
+    async function fetchTests() {
+        const start = startInput.value.trim();
+        const end = endInput.value.trim();
+
+        if (!start || !end) {
+            setStatus('Пожалуйста, заполните оба значения диапазона.', 'warning');
+            return;
+        }
+
+        setStatus('Выполняется поиск тестов…', 'info');
+        searchButton.disabled = true;
+
+        try {
+            const response = await fetch('/api/victoriametrics/tests/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({start, end})
+            });
+
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+
+            const payload = await response.json();
+            renderTests(payload.tests ?? []);
+            clearStatus();
+        } catch (error) {
+            setStatus('Не удалось получить данные: ' + error.message, 'danger');
+        } finally {
+            searchButton.disabled = false;
+        }
+    }
+
+    searchButton.addEventListener('click', fetchTests);
+    parentPageInput.addEventListener('input', updateReportButtonState);
+
+    async function submitReport() {
+        const parentPageId = parentPageInput.value.trim();
+
+        if (selectedTests.size === 0) {
+            setReportStatus('Сначала выберите тесты для отчета.', 'warning');
+            return;
+        }
+        if (!parentPageId) {
+            setReportStatus('Укажите ID родительской страницы в Confluence.', 'warning');
+            return;
+        }
+
+        const testsPayload = Array.from(selectedTests.keys());
+        setReportStatus('Создание отчетов…', 'info');
+        isReportSubmitting = true;
+        updateReportButtonState();
+
+        try {
+            const response = await fetch('/api/confluence/report/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    parentPageId,
+                    tests: testsPayload
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+
+            await response.json();
+            setReportStatus('Отчеты успешно созданы.', 'success');
+        } catch (error) {
+            setReportStatus('Не удалось создать отчет: ' + error.message, 'danger');
+        } finally {
+            isReportSubmitting = false;
+            updateReportButtonState();
+        }
+    }
+
+    reportButton.addEventListener('click', submitReport);
+    applyQuickRange(1);
+</script>
+</body>
+</html>

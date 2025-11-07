@@ -5,8 +5,6 @@ import com.example.chronicler.dto.confluence.ConfluencePage;
 import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -52,8 +50,8 @@ public class ConfluenceClient {
                 .toUri();
 
         HttpHeaders headers = authorizationHeaders(credentials);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        logConfluenceRequest("GET", uri, headers, "pageId=%s".formatted(pageId));
         try {
             ResponseEntity<ContentResponse> response = restTemplate.exchange(
                     uri, HttpMethod.GET, new HttpEntity<>(headers), ContentResponse.class);
@@ -100,7 +98,6 @@ public class ConfluenceClient {
 
         HttpHeaders headers = authorizationHeaders(credentials);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 
         CreateRequest requestBody = new CreateRequest(
                 title,
@@ -109,6 +106,8 @@ public class ConfluenceClient {
                 List.of(new Ancestor(parentPageId)),
                 new Body(new Storage(body, "storage")));
 
+        logConfluenceRequest(
+                "POST", uri, headers, "parentPageId=%s, title=%s".formatted(parentPageId, title));
         try {
             ResponseEntity<ContentResponse> response = restTemplate.exchange(
                     uri, HttpMethod.POST, new HttpEntity<>(requestBody, headers), ContentResponse.class);
@@ -162,6 +161,8 @@ public class ConfluenceClient {
         MultiValueMap<String, Object> multipartBody = new LinkedMultiValueMap<>();
         multipartBody.add("file", new HttpEntity<>(resource, fileHeaders));
 
+        logConfluenceRequest(
+                "POST", uri, headers, "pageId=%s, fileName=%s".formatted(pageId, fileName));
         try {
             ResponseEntity<AttachmentResponse> response = restTemplate.exchange(
                     uri, HttpMethod.POST, new HttpEntity<>(multipartBody, headers), AttachmentResponse.class);
@@ -193,7 +194,6 @@ public class ConfluenceClient {
 
         HttpHeaders headers = authorizationHeaders(credentials);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 
         UpdateRequest requestBody = new UpdateRequest(
                 page.id(),
@@ -202,6 +202,7 @@ public class ConfluenceClient {
                 new Version(page.version() + 1),
                 new Body(new Storage(updatedBody, "storage")));
 
+        logConfluenceRequest("PUT", uri, headers, "pageId=%s, title=%s".formatted(page.id(), page.title()));
         try {
             restTemplate.exchange(uri, HttpMethod.PUT, new HttpEntity<>(requestBody, headers), Void.class);
         } catch (RestClientException ex) {
@@ -215,13 +216,8 @@ public class ConfluenceClient {
         }
 
         HttpHeaders headers = new HttpHeaders();
-        if (StringUtils.hasText(credentials.login())) {
-            String authToken = credentials.login() + ":" + credentials.accessToken();
-            String encoded = Base64.getEncoder().encodeToString(authToken.getBytes(StandardCharsets.UTF_8));
-            headers.set(HttpHeaders.AUTHORIZATION, "Basic " + encoded);
-        } else {
-            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + credentials.accessToken());
-        }
+        headers.set("X-Confluence-Token", credentials.accessToken());
+        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + credentials.accessToken());
         return headers;
     }
 
@@ -248,4 +244,13 @@ public class ConfluenceClient {
     private record Space(String key) {}
 
     private record Ancestor(String id) {}
+
+    private void logConfluenceRequest(String method, URI uri, HttpHeaders headers, String context) {
+        log.info(
+                "Confluence request: {} {} headers={} {}",
+                method,
+                uri,
+                headers.toSingleValueMap(),
+                context != null ? context : "");
+    }
 }

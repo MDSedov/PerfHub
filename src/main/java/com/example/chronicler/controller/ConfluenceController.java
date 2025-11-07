@@ -6,6 +6,7 @@ import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.service.ConfluenceService;
+import com.example.chronicler.service.ConfigurationProvider;
 import jakarta.validation.Valid;
 
 import org.springframework.http.MediaType;
@@ -22,19 +23,25 @@ public class ConfluenceController {
 
     public static final String LOGIN_HEADER = "X-Confluence-Login";
     public static final String TOKEN_HEADER = "X-Confluence-Token";
+    private static final String CONFLUENCE_SERVICE = "confluence";
+    private static final String PERSONAL_ACCESS_TOKEN_KEY = "personal-access-token";
 
     private final ConfluenceService confluenceService;
+    private final ConfigurationProvider configurationProvider;
 
-    public ConfluenceController(ConfluenceService confluenceService) {
+    public ConfluenceController(ConfluenceService confluenceService, ConfigurationProvider configurationProvider) {
         this.confluenceService = confluenceService;
+        this.configurationProvider = configurationProvider;
     }
 
     @PostMapping(path = "/report/", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConfluenceReportResponse> publishReport(
             @RequestHeader(value = LOGIN_HEADER, required = false) String login,
-            @RequestHeader(TOKEN_HEADER) String token,
+            @RequestHeader(value = TOKEN_HEADER, required = false) String token,
             @Valid @RequestBody ConfluenceReportRequest request) {
-        ConfluenceCredentials credentials = new ConfluenceCredentials(login, token);
+        String resolvedLogin = resolveLogin(login);
+        String resolvedToken = resolveToken(token);
+        ConfluenceCredentials credentials = new ConfluenceCredentials(resolvedLogin, resolvedToken);
         ConfluenceReportResponse response = confluenceService.createReports(credentials, request);
         return ResponseEntity.ok(response);
     }
@@ -42,11 +49,24 @@ public class ConfluenceController {
     @PostMapping(path = "/report/hierarchy/", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConfluenceReportHierarchyResponse> createReportHierarchy(
             @RequestHeader(value = LOGIN_HEADER, required = false) String login,
-            @RequestHeader(TOKEN_HEADER) String token,
+            @RequestHeader(value = TOKEN_HEADER, required = false) String token,
             @Valid @RequestBody ConfluenceReportHierarchyRequest request) {
-        ConfluenceCredentials credentials = new ConfluenceCredentials(login, token);
+        String resolvedLogin = resolveLogin(login);
+        String resolvedToken = resolveToken(token);
+        ConfluenceCredentials credentials = new ConfluenceCredentials(resolvedLogin, resolvedToken);
         ConfluenceReportHierarchyResponse response =
                 confluenceService.createReportHierarchy(credentials, request.parentPageId());
         return ResponseEntity.ok(response);
+    }
+
+    private String resolveLogin(String headerLogin) {
+        if (headerLogin != null && !headerLogin.isBlank()) {
+            return headerLogin;
+        }
+        return configurationProvider.getRequiredValue(CONFLUENCE_SERVICE, PERSONAL_ACCESS_TOKEN_KEY);
+    }
+
+    private String resolveToken(String headerToken) {
+        return configurationProvider.getRequiredValue(CONFLUENCE_SERVICE, PERSONAL_ACCESS_TOKEN_KEY);
     }
 }
