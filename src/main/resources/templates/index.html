@@ -54,8 +54,6 @@
         }
 
         .tests-card {
-            max-height: 70vh;
-            overflow-y: auto;
             border: none;
             box-shadow: 0 16px 50px rgba(3, 76, 45, 0.08);
         }
@@ -90,7 +88,7 @@
         .tests-header,
         .test-item {
             display: grid;
-            grid-template-columns: 0.4fr 1.2fr 1fr 1fr 1fr;
+            grid-template-columns: 0.4fr 1.2fr 1fr 1fr 1fr auto;
             gap: 1rem;
             align-items: center;
             font-size: 0.95rem;
@@ -198,6 +196,80 @@
             border-top: none;
             padding-top: 0;
         }
+
+        .test-expand-toggle {
+            border: none;
+            background-color: transparent;
+            color: #009846;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .test-expand-toggle:hover,
+        .test-expand-toggle:focus-visible {
+            background-color: rgba(0, 152, 70, 0.1);
+            outline: none;
+        }
+
+        .test-expand-icon {
+            font-size: 1rem;
+            transition: transform 0.2s ease;
+        }
+
+        .test-expand-toggle[aria-expanded="true"] .test-expand-icon {
+            transform: rotate(90deg);
+        }
+
+        .test-details {
+            margin-top: 1rem;
+            border-top: 1px solid rgba(0, 152, 70, 0.15);
+            padding-top: 1rem;
+            display: none;
+        }
+
+        .test-details.show {
+            display: block;
+        }
+
+        .test-details-empty,
+        .test-details-error {
+            color: #4b5d54;
+            font-size: 0.9rem;
+        }
+
+        .grafana-panel {
+            border: 1px solid rgba(0, 152, 70, 0.15);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background-color: #f8fffb;
+        }
+
+        .grafana-panel:last-child {
+            margin-bottom: 0;
+        }
+
+        .grafana-panel-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .grafana-panel-description {
+            font-size: 0.9rem;
+            color: #4b5d54;
+            margin-bottom: 0.75rem;
+        }
+
+        .grafana-panel-image {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 152, 70, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -298,6 +370,7 @@
                         <span>Начало теста</span>
                         <span>Конец теста</span>
                         <span>Статус теста</span>
+                        <span class="text-end">Детали</span>
                     </div>
                     <div id="testsList" class="list-group">
                         <div class="text-muted">Задайте диапазон и нажмите «Найти тесты», чтобы увидеть результаты.</div>
@@ -337,6 +410,8 @@
     const MOSCOW_TZ = 'Europe/Moscow';
     const selectedTests = new Map();
     const activeStatusRequests = new Set();
+    const grafanaPanelsCache = new Map();
+    const grafanaPanelRequests = new Map();
     let isReportSubmitting = false;
     let settingsCache = [];
     const settingsChanges = new Map();
@@ -625,6 +700,124 @@
         activeStatusRequests.clear();
     }
 
+    function flattenGrafanaPanels(response) {
+        if (!response || !Array.isArray(response.dashboards)) {
+            return [];
+        }
+        const panels = [];
+        response.dashboards.forEach(dashboard => {
+            if (!dashboard || !Array.isArray(dashboard.panels)) {
+                return;
+            }
+            dashboard.panels.forEach(panel => {
+                if (panel) {
+                    panels.push(panel);
+                }
+            });
+        });
+        return panels;
+    }
+
+    function showDetailsMessage(container, message, className = 'test-details-empty') {
+        container.innerHTML = '';
+        const element = document.createElement('div');
+        element.className = className;
+        element.textContent = message;
+        container.appendChild(element);
+    }
+
+    function createGrafanaPanelElement(panel) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'grafana-panel';
+
+        const title = document.createElement('div');
+        title.className = 'grafana-panel-title';
+        title.textContent = panel && panel.title ? panel.title : 'Без названия';
+        wrapper.appendChild(title);
+
+        const description = document.createElement('div');
+        description.className = 'grafana-panel-description';
+        const descriptionText =
+                panel && typeof panel.description === 'string' && panel.description.trim().length > 0
+                        ? panel.description
+                        : 'Описание отсутствует.';
+        description.textContent = descriptionText;
+        wrapper.appendChild(description);
+
+        if (panel && panel.imageBase64) {
+            const image = document.createElement('img');
+            image.className = 'grafana-panel-image';
+            image.src = `data:image/png;base64,${panel.imageBase64}`;
+            image.alt = panel && panel.title ? `График ${panel.title}` : 'График';
+            wrapper.appendChild(image);
+        } else {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'test-details-empty';
+            placeholder.textContent = 'Изображение недоступно.';
+            wrapper.appendChild(placeholder);
+        }
+
+        return wrapper;
+    }
+
+    function renderGrafanaPanels(container, panels) {
+        container.innerHTML = '';
+        if (!panels || panels.length === 0) {
+            showDetailsMessage(container, 'Для этого теста нет графиков.');
+            return;
+        }
+        const fragment = document.createDocumentFragment();
+        panels.forEach(panel => {
+            fragment.appendChild(createGrafanaPanelElement(panel));
+        });
+        container.appendChild(fragment);
+    }
+
+    async function fetchGrafanaPanels(testId) {
+        const response = await fetch('/api/grafana/panels/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({testUuid: testId})
+        });
+
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+
+        const payload = await response.json();
+        const panels = flattenGrafanaPanels(payload);
+        grafanaPanelsCache.set(testId, panels);
+        return panels;
+    }
+
+    async function ensureGrafanaPanels(testId) {
+        if (grafanaPanelsCache.has(testId)) {
+            return grafanaPanelsCache.get(testId);
+        }
+        if (!grafanaPanelRequests.has(testId)) {
+            const request = fetchGrafanaPanels(testId).finally(() => {
+                grafanaPanelRequests.delete(testId);
+            });
+            grafanaPanelRequests.set(testId, request);
+        }
+        return grafanaPanelRequests.get(testId);
+    }
+
+    async function loadAndRenderGrafanaPanels(testId, container) {
+        showDetailsMessage(container, 'Загружаем графики…', 'text-muted small');
+        try {
+            const panels = await ensureGrafanaPanels(testId);
+            renderGrafanaPanels(container, panels);
+        } catch (error) {
+            showDetailsMessage(
+                    container,
+                    'Не удалось загрузить графики: ' + error.message,
+                    'test-details-error');
+        }
+    }
+
     function setTestStatusView(element, state) {
         element.classList.remove('text-muted', 'text-success', 'text-danger', 'text-warning');
         switch (state) {
@@ -693,6 +886,8 @@
         selectedTests.clear();
         updateSelectedTestsUI();
         resetTestStatusRequests();
+        grafanaPanelsCache.clear();
+        grafanaPanelRequests.clear();
 
         if (tests.length === 0) {
             testsList.innerHTML = '<div class="text-muted">По заданному диапазону тесты не найдены.</div>';
@@ -738,13 +933,53 @@
             statusSpan.className = 'test-status text-muted';
             setTestStatusView(statusSpan, 'loading');
 
+            const toggleButton = document.createElement('button');
+            toggleButton.type = 'button';
+            toggleButton.className = 'test-expand-toggle';
+            toggleButton.setAttribute('aria-expanded', 'false');
+            toggleButton.setAttribute('aria-label', 'Показать детали теста');
+            const toggleIcon = document.createElement('span');
+            toggleIcon.className = 'test-expand-icon';
+            toggleIcon.innerHTML = '&#9656;';
+            toggleButton.appendChild(toggleIcon);
+
+            const toggleWrapper = document.createElement('div');
+            toggleWrapper.className = 'text-end';
+            toggleWrapper.appendChild(toggleButton);
+
+            const detailsContainer = document.createElement('div');
+            detailsContainer.className = 'test-details';
+            const detailsContent = document.createElement('div');
+            detailsContainer.appendChild(detailsContent);
+
+            toggleButton.addEventListener('click', () => {
+                const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
+                if (isExpanded) {
+                    toggleButton.setAttribute('aria-expanded', 'false');
+                    toggleButton.setAttribute('aria-label', 'Показать детали теста');
+                    detailsContainer.classList.remove('show');
+                    return;
+                }
+
+                toggleButton.setAttribute('aria-expanded', 'true');
+                toggleButton.setAttribute('aria-label', 'Скрыть детали теста');
+                detailsContainer.classList.add('show');
+                if (test && test.id) {
+                    loadAndRenderGrafanaPanels(test.id, detailsContent);
+                } else {
+                    showDetailsMessage(detailsContent, 'Идентификатор теста отсутствует.', 'test-details-error');
+                }
+            });
+
             testItem.appendChild(checkboxWrapper);
             testItem.appendChild(typeSpan);
             testItem.appendChild(startSpan);
             testItem.appendChild(endSpan);
             testItem.appendChild(statusSpan);
+            testItem.appendChild(toggleWrapper);
 
             item.appendChild(testItem);
+            item.appendChild(detailsContainer);
             testsList.appendChild(item);
 
             evaluateTestStatus(test.id, statusSpan);
