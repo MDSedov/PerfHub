@@ -1,41 +1,28 @@
 package com.example.chronicler.registry;
 
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashMap;
+import com.example.chronicler.repository.VictoriaMetricsQueryRepository;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Properties;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * Loads VictoriaMetrics query templates from a dedicated properties file and
- * exposes them as an immutable map that can be searched by query type.
+ * Loads VictoriaMetrics query templates from the database and exposes them
+ * as an immutable map that can be searched by query code.
  */
 @Component
 public class VmQueryRegistry {
 
     private final Map<String, String> queries;
 
-    public VmQueryRegistry(
-            @Value("${vm.queries-resource:file:configs/vm-queries.properties}")
-                    Resource vmQueriesResource)
-            throws IOException {
-        Properties properties = new Properties();
-        try (Reader reader = new InputStreamReader(vmQueriesResource.getInputStream(), StandardCharsets.UTF_8)) {
-            properties.load(reader);
-        }
-        Map<String, String> loadedQueries = new HashMap<>();
-        for (String name : properties.stringPropertyNames()) {
-            loadedQueries.put(name, properties.getProperty(name));
-        }
-        this.queries = Collections.unmodifiableMap(loadedQueries);
+    @Autowired
+    public VmQueryRegistry(VictoriaMetricsQueryRepository repository) {
+        this(repository.findAll());
+    }
+
+    protected VmQueryRegistry(Map<String, String> queries) {
+        this.queries = Map.copyOf(new LinkedHashMap<>(queries));
     }
 
     public Optional<String> findQuery(String type) {

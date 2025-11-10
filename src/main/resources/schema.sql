@@ -75,6 +75,31 @@ ON CONFLICT (service, "key") DO UPDATE
 SET value = EXCLUDED.value,
     description = EXCLUDED.description;
 
+CREATE TABLE IF NOT EXISTS victoria_metrics_queries (
+    id SERIAL PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    expression TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO victoria_metrics_queries (code, expression, description) VALUES
+    ('intensity', 'jmeterall.a.count', 'Суммарная интенсивность запросов'),
+    ('response_time_90', 'jmeterall.a.pct90', '90-й перцентиль времени отклика'),
+    ('response_time_95', 'jmeterall.a.pct95', '95-й перцентиль времени отклика'),
+    ('response_time_99', 'jmeterall.a.pct99', '99-й перцентиль времени отклика'),
+    ('request_total', 'sum_over_time(jmeterall.a.count[5m])', 'Общее число запросов за интервал'),
+    ('request_error', 'sum_over_time(jmeterall.a.count{status="ko"}[5m])', 'Число ошибочных запросов за интервал'),
+    ('container_cpu_utilization', '100 * max_over_time(container_cpu_usage_seconds_total{namespace="testing"}[5m])', 'Процент утилизации CPU контейнеров'),
+    ('container_memory_utilization', '100 * max_over_time(container_memory_usage_bytes{namespace="testing"}[5m]) / max_over_time(container_spec_memory_limit_bytes{namespace="testing"}[5m])', 'Процент утилизации памяти контейнеров'),
+    ('pod_restarts', 'increase(kube_pod_container_status_restarts_total{namespace="testing"}[5m])', 'Число рестартов pod')
+ON CONFLICT (code) DO UPDATE
+SET
+    expression = EXCLUDED.expression,
+    description = EXCLUDED.description,
+    updated_at = NOW();
+
 CREATE TABLE IF NOT EXISTS non_functional_requirements (
     id SERIAL PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,

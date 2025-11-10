@@ -26,9 +26,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.web.client.RestTemplate;
 
 class VictoriaMetricsServiceTest {
 
@@ -201,8 +200,8 @@ class VictoriaMetricsServiceTest {
 
         private final Map<String, String> queries = new HashMap<>();
 
-        private StubVmQueryRegistry() throws Exception {
-            super(new ByteArrayResource(new byte[0]));
+        private StubVmQueryRegistry() {
+            super(Map.of());
         }
 
         void register(String type, String query) {
