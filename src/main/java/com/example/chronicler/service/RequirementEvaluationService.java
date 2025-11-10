@@ -7,6 +7,7 @@ import com.example.chronicler.exception.VmQueryNotFoundException;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.NonFunctionalRequirement;
 import com.example.chronicler.model.RequirementEvaluationStatus;
+import com.example.chronicler.model.TestRequirementEvaluation;
 import com.example.chronicler.registry.VmQueryRegistry;
 import com.example.chronicler.repository.LoadTestRepository;
 import com.example.chronicler.repository.NonFunctionalRequirementRepository;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -84,21 +86,61 @@ public class RequirementEvaluationService {
                     result.unit(),
                     result.details(),
                     evaluatedAt);
-            views.add(new RequirementEvaluationView(
-                    requirement.id(),
-                    requirement.code(),
-                    requirement.metricType(),
-                    requirement.thresholdValue(),
-                    requirement.thresholdUnit(),
+            views.add(toView(
+                    requirement,
                     result.status(),
                     result.measuredValue(),
                     result.unit(),
                     result.details(),
-                    evaluatedAt,
-                    requirement.descriptionRu(),
-                    requirement.descriptionEn()));
+                    evaluatedAt));
         }
         return views;
+    }
+
+    public List<RequirementEvaluationView> getCachedOrEvaluate(UUID testUuid) {
+        List<TestRequirementEvaluation> stored = evaluationRepository.findByTest(testUuid);
+        List<NonFunctionalRequirement> requirements = requirementRepository.findAllActive();
+        Map<Integer, TestRequirementEvaluation> storedByRequirement = stored.stream()
+                .collect(Collectors.toMap(TestRequirementEvaluation::requirementId, eval -> eval));
+        boolean hasAllEvaluations = !stored.isEmpty()
+                && requirements.stream().allMatch(req -> storedByRequirement.containsKey(req.id()));
+        if (hasAllEvaluations) {
+            List<RequirementEvaluationView> views = new ArrayList<>(requirements.size());
+            for (NonFunctionalRequirement requirement : requirements) {
+                TestRequirementEvaluation evaluation = storedByRequirement.get(requirement.id());
+                views.add(toView(
+                        requirement,
+                        evaluation.status(),
+                        evaluation.measuredValue(),
+                        evaluation.unit(),
+                        evaluation.details(),
+                        evaluation.evaluatedAt()));
+            }
+            return views;
+        }
+        return evaluate(testUuid);
+    }
+
+    private RequirementEvaluationView toView(
+            NonFunctionalRequirement requirement,
+            RequirementEvaluationStatus status,
+            Double measuredValue,
+            String unit,
+            JsonNode details,
+            Instant evaluatedAt) {
+        return new RequirementEvaluationView(
+                requirement.id(),
+                requirement.code(),
+                requirement.metricType(),
+                requirement.thresholdValue(),
+                requirement.thresholdUnit(),
+                status,
+                measuredValue,
+                unit,
+                details,
+                evaluatedAt,
+                requirement.descriptionRu(),
+                requirement.descriptionEn());
     }
 
     private RequirementResult evaluateRequirement(

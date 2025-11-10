@@ -27,12 +27,22 @@ public class RequirementController {
     @PostMapping(path = "/evaluate", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<RequirementEvaluationResponse> evaluate(
             @Valid @RequestBody RequirementEvaluationRequest request) {
-        var testUuid = request.testUuid();
-        List<RequirementEvaluationView> evaluations = requirementEvaluationService.evaluate(testUuid);
-        boolean compliant = evaluations.stream().allMatch(view -> view.status() == RequirementEvaluationStatus.PASS
-                || view.status() == RequirementEvaluationStatus.NOT_APPLICABLE);
-        RequirementEvaluationResponse response =
-                new RequirementEvaluationResponse(testUuid, compliant, evaluations);
-        return ResponseEntity.ok(response);
+        List<RequirementEvaluationView> evaluations = requirementEvaluationService.evaluate(request.testUuid());
+        return ResponseEntity.ok(buildResponse(request.testUuid(), evaluations));
+    }
+
+    @PostMapping(path = "/status", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<RequirementEvaluationResponse> status(
+            @Valid @RequestBody RequirementEvaluationRequest request) {
+        List<RequirementEvaluationView> evaluations = requirementEvaluationService.getCachedOrEvaluate(request.testUuid());
+        return ResponseEntity.ok(buildResponse(request.testUuid(), evaluations));
+    }
+
+    private RequirementEvaluationResponse buildResponse(
+            java.util.UUID testUuid, List<RequirementEvaluationView> evaluations) {
+        boolean compliant = evaluations.stream()
+                .allMatch(view -> view.status() == RequirementEvaluationStatus.PASS
+                        || view.status() == RequirementEvaluationStatus.NOT_APPLICABLE);
+        return new RequirementEvaluationResponse(testUuid, compliant, evaluations);
     }
 }
