@@ -20,6 +20,13 @@ public class DashboardController {
         return "reports";
     }
 
+    /** Отображает страницу конфигурации DropApp. */
+    @GetMapping("/configuration")
+    public String configuration(Model model) {
+        model.addAttribute("activePage", "configuration");
+        return "configuration";
+    }
+
     @GetMapping("/settings")
     public String settings(Model model) {
         model.addAttribute("activePage", "settings");
