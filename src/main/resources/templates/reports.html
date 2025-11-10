@@ -40,6 +40,41 @@
             background-color: #ffffff;
             color: #009846;
         }
+
+        .card {
+            border-radius: 18px;
+        }
+
+        .badge-test-type {
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .report-form-hint {
+            background-color: rgba(0, 152, 70, 0.08);
+            border: 1px dashed rgba(0, 152, 70, 0.4);
+            border-radius: 14px;
+            padding: 0.85rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .table thead th {
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            color: #6a7c73;
+        }
+
+        .tests-loader {
+            padding: 1.5rem 0;
+        }
+
+        .status-pill {
+            border-radius: 999px;
+            padding: 0.35rem 0.9rem;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -64,12 +99,309 @@
 </nav>
 
 <main class="container py-5">
-    <div class="card border-0 shadow-sm">
-        <div class="card-body text-center py-5">
-            <h5 class="card-title mb-3">Раздел «Отчеты»</h5>
-            <p class="text-muted mb-0">Страница пока пуста. Здесь появится конструктор отчетов.</p>
+    <div class="row g-4">
+        <div class="col-12 col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <h5 class="card-title mb-1">Генерация отчетов</h5>
+                            <p class="text-muted mb-0 small">Создайте страницы Confluence по выбранным тестам.</p>
+                        </div>
+                    </div>
+                    <form id="reportForm" novalidate>
+                        <div class="mb-3">
+                            <label for="parentPageId" class="form-label">ID родительской страницы</label>
+                            <input type="text" class="form-control" id="parentPageId" placeholder="Например, 1234567" required>
+                            <div class="form-text">Страница, под которой появятся дочерние отчеты.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Выбранные тесты</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <span id="selectedCounter" class="badge text-bg-success-subtle text-success-emphasis">0</span>
+                                <span class="text-muted small">шт.</span>
+                            </div>
+                        </div>
+                        <div class="report-form-hint mb-3">
+                            1. Выберите один или несколько тестов в таблице справа.<br>
+                            2. Укажите родительскую страницу Confluence.<br>
+                            3. Нажмите «Создать отчеты по тестам».
+                        </div>
+                        <div id="reportAlert" class="alert d-none" role="alert"></div>
+                        <button type="submit" class="btn btn-success w-100" id="createReportsButton" disabled>
+                            Создать отчеты по тестам
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3 gap-3">
+                        <div>
+                            <h5 class="card-title mb-0">Тесты для отчетов</h5>
+                            <p class="text-muted small mb-0">Тип, временной интервал, длительность и соответствие НФТ.</p>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="selectAllTests">
+                            <label class="form-check-label" for="selectAllTests">Выбрать все</label>
+                        </div>
+                    </div>
+                    <div id="testsLoading" class="tests-loader text-center text-muted">
+                        Загружаем список тестов…
+                    </div>
+                    <div id="testsError" class="alert alert-danger d-none" role="alert"></div>
+                    <div class="table-responsive d-none" id="testsTableWrapper">
+                        <table class="table align-middle">
+                            <thead>
+                            <tr>
+                                <th style="width: 50px;"></th>
+                                <th>Тест</th>
+                                <th>Начало</th>
+                                <th>Окончание</th>
+                                <th>Длительность</th>
+                                <th>Соответствие НФТ</th>
+                            </tr>
+                            </thead>
+                            <tbody id="testsTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="testsEmpty" class="text-center text-muted py-4 d-none">
+                        <p class="mb-1 fw-semibold">Тесты не найдены</p>
+                        <p class="mb-0 small">Добавьте тесты в разделе «Тесты», чтобы сформировать отчеты.</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </main>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const testsTableBody = document.getElementById('testsTableBody');
+        const testsLoading = document.getElementById('testsLoading');
+        const testsError = document.getElementById('testsError');
+        const testsEmpty = document.getElementById('testsEmpty');
+        const testsTableWrapper = document.getElementById('testsTableWrapper');
+        const selectAllCheckbox = document.getElementById('selectAllTests');
+        const selectedCounter = document.getElementById('selectedCounter');
+        const parentPageInput = document.getElementById('parentPageId');
+        const createReportsButton = document.getElementById('createReportsButton');
+        const reportAlert = document.getElementById('reportAlert');
+        const reportForm = document.getElementById('reportForm');
+
+        let tests = [];
+        const selectedTestIds = new Set();
+
+        const formatDuration = (seconds) => {
+            if (!Number.isFinite(seconds) || seconds <= 0) {
+                return '—';
+            }
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const parts = [];
+            if (hours > 0) {
+                parts.push(hours + ' ч');
+            }
+            if (minutes > 0 || parts.length === 0) {
+                parts.push(minutes + ' мин');
+            }
+            return parts.join(' ');
+        };
+
+        const formatRequirementStatus = (requirement) => {
+            if (!requirement || !requirement.evaluated) {
+                return `
+                    <span class="status-pill text-bg-secondary-subtle text-secondary-emphasis">Не оценено</span>
+                    <div class="text-muted small">Запустите проверку НФТ</div>
+                `;
+            }
+            const badgeClass = requirement.compliant
+                ? 'text-bg-success'
+                : 'text-bg-danger';
+            const label = requirement.compliant ? 'Соответствует' : 'Есть нарушения';
+            const evaluatedAt = requirement.evaluatedAt
+                ? `<div class="text-muted small">от ${requirement.evaluatedAt}</div>`
+                : '';
+            return `<span class="status-pill ${badgeClass}">${label}</span>${evaluatedAt}`;
+        };
+
+        const renderTests = () => {
+            testsTableBody.innerHTML = '';
+            if (tests.length === 0) {
+                testsTableWrapper.classList.add('d-none');
+                testsEmpty.classList.remove('d-none');
+                selectAllCheckbox.checked = false;
+                return;
+            }
+            testsEmpty.classList.add('d-none');
+            testsTableWrapper.classList.remove('d-none');
+
+            tests.forEach((test) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <input class="form-check-input test-checkbox" type="checkbox"
+                               data-test-id="${test.id}" ${selectedTestIds.has(test.id) ? 'checked' : ''}>
+                    </td>
+                    <td>
+                        <div class="fw-semibold">${test.id.slice(0, 8)}…</div>
+                        <span class="badge text-bg-light text-success badge-test-type">${(test.type || 'unknown').toUpperCase()}</span>
+                    </td>
+                    <td class="text-nowrap">${test.start ?? '—'}</td>
+                    <td class="text-nowrap">${test.end ?? '—'}</td>
+                    <td>${formatDuration(test.durationSeconds)}</td>
+                    <td>${formatRequirementStatus(test.requirementCompliance)}</td>
+                `;
+                testsTableBody.appendChild(row);
+            });
+
+            document.querySelectorAll('.test-checkbox').forEach((checkbox) => {
+                checkbox.addEventListener('change', (event) => {
+                    const testId = event.target.dataset.testId;
+                    if (event.target.checked) {
+                        selectedTestIds.add(testId);
+                    } else {
+                        selectedTestIds.delete(testId);
+                    }
+                    updateSelectionState();
+                });
+            });
+            syncSelectAll();
+        };
+
+        const syncSelectAll = () => {
+            if (tests.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+                return;
+            }
+            const selectedCount = selectedTestIds.size;
+            if (selectedCount === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (selectedCount === tests.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else {
+                selectAllCheckbox.indeterminate = true;
+            }
+        };
+
+        const updateSelectionState = () => {
+            selectedCounter.textContent = selectedTestIds.size;
+            syncSelectAll();
+            updateSubmitState();
+        };
+
+        const updateSubmitState = () => {
+            const hasParentPage = parentPageInput.value.trim().length > 0;
+            createReportsButton.disabled = !(hasParentPage && selectedTestIds.size > 0);
+        };
+
+        selectAllCheckbox.addEventListener('change', (event) => {
+            if (tests.length === 0) {
+                event.target.checked = false;
+                return;
+            }
+            const shouldSelectAll = event.target.checked && !event.target.indeterminate;
+            document.querySelectorAll('.test-checkbox').forEach((checkbox) => {
+                checkbox.checked = shouldSelectAll;
+                const testId = checkbox.dataset.testId;
+                if (shouldSelectAll) {
+                    selectedTestIds.add(testId);
+                } else {
+                    selectedTestIds.delete(testId);
+                }
+            });
+            updateSelectionState();
+        });
+
+        parentPageInput.addEventListener('input', updateSubmitState);
+
+        reportForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (createReportsButton.disabled) {
+                return;
+            }
+            const payload = {
+                parentPageId: parentPageInput.value.trim(),
+                tests: Array.from(selectedTestIds)
+            };
+            toggleReportAlert('info', 'Создаем страницы в Confluence…');
+            createReportsButton.disabled = true;
+            createReportsButton.textContent = 'Создание…';
+            try {
+                const response = await fetch('/api/confluence/report/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Не удалось создать отчеты');
+                }
+                const data = await response.json();
+                handleSuccessResponse(data);
+            } catch (error) {
+                toggleReportAlert('danger', `Ошибка при создании отчетов: ${error.message}`);
+            } finally {
+                createReportsButton.textContent = 'Создать отчеты по тестам';
+                updateSubmitState();
+            }
+        });
+
+        const handleSuccessResponse = (response) => {
+            if (response && Array.isArray(response.reports) && response.reports.length > 0) {
+                const listItems = response.reports
+                    .map((report) => `<li>Тест <code>${report.testUuid}</code> → страница <code>${report.pageId}</code></li>`)
+                    .join('');
+                toggleReportAlert('success', `
+                    Отчеты успешно созданы:
+                    <ul class="mb-0 mt-2">${listItems}</ul>
+                `);
+            } else {
+                toggleReportAlert('success', 'Confluence вернул ответ без созданных страниц, проверьте журнал сервиса.');
+            }
+            selectedTestIds.clear();
+            document.querySelectorAll('.test-checkbox').forEach((checkbox) => {
+                checkbox.checked = false;
+            });
+            updateSelectionState();
+        };
+
+        const toggleReportAlert = (type, message) => {
+            reportAlert.className = `alert alert-${type}`;
+            reportAlert.innerHTML = message;
+            reportAlert.classList.remove('d-none');
+        };
+
+        const loadTests = async () => {
+            testsLoading.classList.remove('d-none');
+            testsError.classList.add('d-none');
+            testsTableWrapper.classList.add('d-none');
+            testsEmpty.classList.add('d-none');
+            try {
+                const response = await fetch('/api/tests');
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить список тестов');
+                }
+                tests = await response.json();
+                renderTests();
+            } catch (error) {
+                testsError.textContent = error.message;
+                testsError.classList.remove('d-none');
+            } finally {
+                testsLoading.classList.add('d-none');
+                updateSelectionState();
+            }
+        };
+
+        loadTests();
+    });
+</script>
 </body>
 </html>
