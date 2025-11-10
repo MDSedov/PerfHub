@@ -70,7 +70,10 @@ INSERT INTO configurations (service, "key", value, description) VALUES
     ('grafana', 'image-height', '500', 'Высота рендеримых изображений Grafana'),
     ('grafana', 'timezone', 'Europe/Moscow', 'Таймзона для отображения данных Grafana'),
     ('confluence', 'base-url', 'http://95.163.220.93:8090', 'Базовый URL портала Confluence'),
-    ('confluence', 'personal-access-token', 'MDAxNTA0MjY1MzI2Ot9WllQZDPt7+VDKPR2HieuP9owM', 'Токен доступа к Confluence')
+    ('confluence', 'personal-access-token', 'MDAxNTA0MjY1MzI2Ot9WllQZDPt7+VDKPR2HieuP9owM', 'Токен доступа к Confluence'),
+    ('dropapp', 'base-url', 'https://dropapp.example.com', 'Базовый URL сервиса DropApp'),
+    ('dropapp', 'token', 'example-dropapp-token', 'Токен авторизации для обращения к DropApp'),
+    ('dropapp', 'namespaces', 'default,testing', 'Список namespace, для которых нужно получать конфигурацию DropApp')
 ON CONFLICT (service, "key") DO UPDATE
 SET value = EXCLUDED.value,
     description = EXCLUDED.description;
