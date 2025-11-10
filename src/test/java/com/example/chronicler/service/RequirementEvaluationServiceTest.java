@@ -16,6 +16,7 @@ import com.example.chronicler.registry.VmQueryRegistry;
 import com.example.chronicler.repository.LoadTestRepository;
 import com.example.chronicler.repository.NonFunctionalRequirementRepository;
 import com.example.chronicler.repository.TestRequirementEvaluationRepository;
+import com.example.chronicler.repository.TestTypeRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -252,7 +253,7 @@ class RequirementEvaluationServiceTest {
         private final Map<UUID, LoadTest> storage = new HashMap<>();
 
         private StubLoadTestRepository() {
-            super(new JdbcTemplate());
+            super(new JdbcTemplate(), new TestTypeRepository(new JdbcTemplate()));
         }
 
         void put(LoadTest loadTest) {

@@ -10,6 +10,7 @@ import com.example.chronicler.exception.VmQueryNotFoundException;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.LoadTestRepository;
+import com.example.chronicler.repository.TestTypeRepository;
 import com.example.chronicler.service.ConfigurationProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -296,7 +297,7 @@ class VictoriaMetricsServiceTest {
         private LoadTestType lastType;
 
         private StubLoadTestRepository() {
-            super(new JdbcTemplate());
+            super(new JdbcTemplate(), new TestTypeRepository(new JdbcTemplate()));
         }
 
         void setIdToReturn(UUID id) {

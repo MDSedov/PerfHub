@@ -1,61 +1,45 @@
 package com.example.chronicler.service;
 
 import com.example.chronicler.exception.TemplateLoadingException;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import com.example.chronicler.repository.ConfluenceTemplateRepository;
+import java.util.Locale;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/**
- * Loads Confluence report templates from the configuration directory.
- */
+/** Loads Confluence report templates from the database. */
 @Component
 public class TemplateLoader {
 
-    private static final Path TEMPLATE_DIRECTORY = Path.of("configs", "template");
-    private static final Path TENPLATE_DIRECTORY = Path.of("configs", "tenplate");
+    private final ConfluenceTemplateRepository templateRepository;
+
+    public TemplateLoader(ConfluenceTemplateRepository templateRepository) {
+        this.templateRepository = templateRepository;
+    }
 
     /**
-     * Loads a template by its logical name. Templates are expected to be stored either in
-     * {@code configs/template} or {@code configs/tenplate} and use the {@code .txt} extension.
+     * Loads a template by its logical name. Templates are looked up in the {@code confluence_templates}
+     * table and can be referenced with or without the {@code .txt} suffix.
      *
      * @param templateName the logical template name (with or without {@code .txt} extension)
      * @return the template contents as a UTF-8 encoded string
-     * @throws TemplateLoadingException if the template cannot be found or read
+     * @throws TemplateLoadingException if the template cannot be found
      */
     public String loadTemplate(String templateName) {
         if (!StringUtils.hasText(templateName)) {
             throw new TemplateLoadingException("Template name must not be empty");
         }
 
-        String fileName = templateName.endsWith(".txt") ? templateName : templateName + ".txt";
-
-        Path templatePath = resolveTemplatePath(fileName);
-        try {
-            return Files.readString(templatePath, StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            throw new TemplateLoadingException(
-                    "Failed to read template '" + fileName + "' from " + templatePath, ex);
-        }
+        String normalizedName = normalizeTemplateName(templateName);
+        return templateRepository.findTemplateBody(normalizedName)
+                .orElseThrow(() -> new TemplateLoadingException(
+                        "Template '" + normalizedName + "' was not found in confluence_templates table"));
     }
 
-    private Path resolveTemplatePath(String fileName) {
-        Path primary = TEMPLATE_DIRECTORY.resolve(fileName);
-        if (Files.exists(primary)) {
-            return primary;
+    private String normalizeTemplateName(String templateName) {
+        String name = templateName.trim();
+        if (name.toLowerCase(Locale.ROOT).endsWith(".txt")) {
+            return name.substring(0, name.length() - 4);
         }
-
-        Path secondary = TENPLATE_DIRECTORY.resolve(fileName);
-        if (Files.exists(secondary)) {
-            return secondary;
-        }
-
-        throw new TemplateLoadingException(
-                "Template '" + fileName + "' was not found in "
-                        + TEMPLATE_DIRECTORY
-                        + " or "
-                        + TENPLATE_DIRECTORY);
+        return name;
     }
 }

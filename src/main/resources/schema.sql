@@ -1,10 +1,23 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+CREATE TABLE IF NOT EXISTS test_types (
+    id SERIAL PRIMARY KEY,
+    test_type TEXT NOT NULL UNIQUE,
+    description TEXT
+);
+
+INSERT INTO test_types (test_type, description) VALUES
+    ('max', 'Поиск максимальной производительности'),
+    ('confirm', 'Подтверждение ожидаемой производительности'),
+    ('soak', 'Длительный прогон на надежность')
+ON CONFLICT (test_type) DO UPDATE
+SET description = EXCLUDED.description;
+
 CREATE TABLE IF NOT EXISTS tests (
     test_uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     start_time TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     end_time TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    test_type TEXT NOT NULL DEFAULT 'unknown',
+    test_type_id INTEGER REFERENCES test_types(id),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_tests_start_end UNIQUE (start_time, end_time)
 );
@@ -13,21 +26,62 @@ ALTER TABLE tests
     ALTER COLUMN test_uuid SET DEFAULT gen_random_uuid();
 
 ALTER TABLE tests
-    ADD COLUMN IF NOT EXISTS test_type TEXT NOT NULL DEFAULT 'unknown';
+    ADD COLUMN IF NOT EXISTS test_type_id INTEGER;
 
 ALTER TABLE tests
-    ALTER COLUMN test_type SET DEFAULT 'unknown';
+    ADD COLUMN IF NOT EXISTS test_type TEXT;
 
-UPDATE tests
-SET test_type = 'unknown'
-WHERE test_type IS NULL;
+UPDATE tests t
+SET test_type_id = tt.id
+FROM test_types tt
+WHERE t.test_type_id IS NULL
+  AND lower(tt.test_type) = lower(t.test_type);
 
 ALTER TABLE tests
-    ALTER COLUMN test_type SET NOT NULL;
+    DROP COLUMN IF EXISTS test_type;
+
+ALTER TABLE tests
+    DROP CONSTRAINT IF EXISTS fk_tests_test_types;
+
+ALTER TABLE tests
+    ADD CONSTRAINT fk_tests_test_types
+    FOREIGN KEY (test_type_id) REFERENCES test_types(id)
+    ON DELETE SET NULL;
 
 UPDATE tests
 SET test_uuid = gen_random_uuid()
 WHERE test_uuid IS NULL;
+
+CREATE TABLE IF NOT EXISTS confluence_templates (
+    id SERIAL PRIMARY KEY,
+    test_type_id INTEGER NOT NULL REFERENCES test_types(id) ON DELETE CASCADE,
+    name TEXT NOT NULL UNIQUE,
+    text TEXT NOT NULL
+);
+
+INSERT INTO confluence_templates (test_type_id, name, text)
+SELECT tt.id, 'max-template', $$Тест поиска максимальной производительности$$
+FROM test_types tt
+WHERE tt.test_type = 'max'
+ON CONFLICT (name) DO UPDATE
+SET test_type_id = EXCLUDED.test_type_id,
+    text = EXCLUDED.text;
+
+INSERT INTO confluence_templates (test_type_id, name, text)
+SELECT tt.id, 'confirm-template', $$Тест подтверждения максимальной производительности$$
+FROM test_types tt
+WHERE tt.test_type = 'confirm'
+ON CONFLICT (name) DO UPDATE
+SET test_type_id = EXCLUDED.test_type_id,
+    text = EXCLUDED.text;
+
+INSERT INTO confluence_templates (test_type_id, name, text)
+SELECT tt.id, 'soak-template', $$Тест надежности$$
+FROM test_types tt
+WHERE tt.test_type = 'soak'
+ON CONFLICT (name) DO UPDATE
+SET test_type_id = EXCLUDED.test_type_id,
+    text = EXCLUDED.text;
 
 CREATE TABLE IF NOT EXISTS grafana_dashboards (
     dashboard_uid TEXT PRIMARY KEY,
