@@ -14,6 +14,9 @@ import com.example.chronicler.exception.ConfluenceOperationException;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.LoadTestRepository;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -27,6 +30,9 @@ import org.springframework.web.util.HtmlUtils;
 @Service
 public class ConfluenceService {
 
+    private static final ZoneId MOSCOW_ZONE = ZoneId.of("Europe/Moscow");
+    private static final DateTimeFormatter PAGE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(MOSCOW_ZONE);
     private final ConfluenceClient confluenceClient;
     private final GrafanaService grafanaService;
     private final TemplateLoader templateLoader;
@@ -128,7 +134,9 @@ public class ConfluenceService {
             throw new ConfluenceOperationException("testUuid is required");
         }
 
-        ConfluenceReportRequest.TestType testType = resolveTestType(testUuid);
+        TestContext testContext = resolveTestContext(testUuid);
+        LoadTest loadTest = testContext.loadTest();
+        ConfluenceReportRequest.TestType testType = testContext.reportType();
 
         GrafanaRenderResponse renderResponse =
                 grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
@@ -139,7 +147,7 @@ public class ConfluenceService {
 
         String templateBody = templateLoader.loadTemplate(testType.templateName());
         ConfluencePage reportPage = confluenceClient.createChildPage(
-                credentials, parentPageId, spaceKey, buildPageTitle(testUuid, testType), templateBody);
+                credentials, parentPageId, spaceKey, buildPageTitle(loadTest, testType), templateBody);
 
         StringBuilder updatedBody = new StringBuilder(getSafeBody(templateBody));
         if (updatedBody.length() > 0) {
@@ -147,6 +155,9 @@ public class ConfluenceService {
         }
 
         List<String> attachmentNames = new ArrayList<>();
+        if (!panels.isEmpty()) {
+            updatedBody.append("<h2>Данные мониторинга</h2>\n");
+        }
         for (GrafanaRenderedPanel panel : panels) {
             byte[] imageBytes = decodePanelImage(panel);
             String attachmentName = generateAttachmentName(panel);
@@ -161,23 +172,35 @@ public class ConfluenceService {
                 testUuid, reportPage.id(), List.copyOf(attachmentNames));
     }
 
-    private ConfluenceReportRequest.TestType resolveTestType(UUID testUuid) {
+    private TestContext resolveTestContext(UUID testUuid) {
         LoadTest loadTest = loadTestRepository.findById(testUuid)
                 .orElseThrow(() -> new ConfluenceOperationException("Test with UUID " + testUuid + " not found"));
         LoadTestType loadTestType = loadTest.type();
         if (loadTestType == null || loadTestType == LoadTestType.UNKNOWN) {
             throw new ConfluenceOperationException("Test type for test " + testUuid + " is not defined");
         }
-        return switch (loadTestType) {
+        ConfluenceReportRequest.TestType reportType = switch (loadTestType) {
             case MAX -> ConfluenceReportRequest.TestType.MAX;
             case CONFIRM -> ConfluenceReportRequest.TestType.CONFIRM;
             case SOAK -> ConfluenceReportRequest.TestType.SOAK;
             case UNKNOWN -> throw new ConfluenceOperationException("Test type for test " + testUuid + " is not defined");
         };
+        return new TestContext(loadTest, reportType);
     }
 
-    private String buildPageTitle(UUID testUuid, ConfluenceReportRequest.TestType testType) {
-        return testType.displayName() + " - " + testUuid;
+    private String buildPageTitle(LoadTest loadTest, ConfluenceReportRequest.TestType testType) {
+        String startTime = formatInstant(loadTest.start());
+        if (StringUtils.hasText(startTime)) {
+            return testType.displayName() + " — " + startTime;
+        }
+        return testType.displayName() + " — " + loadTest.id();
+    }
+
+    private String formatInstant(Instant instant) {
+        if (instant == null) {
+            return null;
+        }
+        return PAGE_TIME_FORMATTER.format(instant);
     }
 
     /**
@@ -260,5 +283,8 @@ public class ConfluenceService {
             throw new ConfluenceOperationException("Confluence access token header must not be blank");
         }
     }
+
     private record SubReportTemplate(String templateName, String pageTitle) {}
+
+    private record TestContext(LoadTest loadTest, ConfluenceReportRequest.TestType reportType) {}
 }

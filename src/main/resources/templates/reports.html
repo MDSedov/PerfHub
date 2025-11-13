@@ -98,7 +98,7 @@
     </div>
 </nav>
 
-<main class="container py-5">
+<main class="container-fluid py-5 px-4 px-lg-5">
     <div class="row g-4">
         <div class="col-12 col-lg-4">
             <div class="card border-0 shadow-sm h-100">
@@ -212,19 +212,11 @@
 
         const formatRequirementStatus = (requirement) => {
             if (!requirement || !requirement.evaluated) {
-                return `
-                    <span class="status-pill text-bg-secondary-subtle text-secondary-emphasis">Не оценено</span>
-                    <div class="text-muted small">Запустите проверку НФТ</div>
-                `;
+                return '<span class="status-pill text-bg-secondary-subtle text-secondary-emphasis">Не оценено</span>';
             }
-            const badgeClass = requirement.compliant
-                ? 'text-bg-success'
-                : 'text-bg-danger';
-            const label = requirement.compliant ? 'Соответствует' : 'Есть нарушения';
-            const evaluatedAt = requirement.evaluatedAt
-                ? `<div class="text-muted small">от ${requirement.evaluatedAt}</div>`
-                : '';
-            return `<span class="status-pill ${badgeClass}">${label}</span>${evaluatedAt}`;
+            const badgeClass = requirement.compliant ? 'text-bg-success' : 'text-bg-danger';
+            const label = requirement.compliant ? 'Соответствует' : 'Не соответствует';
+            return `<span class="status-pill ${badgeClass}">${label}</span>`;
         };
 
         const renderTests = () => {
@@ -246,7 +238,6 @@
                                data-test-id="${test.id}" ${selectedTestIds.has(test.id) ? 'checked' : ''}>
                     </td>
                     <td>
-                        <div class="fw-semibold">${test.id.slice(0, 8)}…</div>
                         <span class="badge text-bg-light text-success badge-test-type">${(test.type || 'unknown').toUpperCase()}</span>
                     </td>
                     <td class="text-nowrap">${test.start ?? '—'}</td>
