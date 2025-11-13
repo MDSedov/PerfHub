@@ -164,12 +164,14 @@ CREATE TABLE IF NOT EXISTS non_functional_requirements (
     threshold_value DOUBLE PRECISION NOT NULL,
     threshold_unit TEXT NOT NULL,
     description_ru TEXT,
-    description_en TEXT,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     parameters JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE non_functional_requirements
+    DROP COLUMN IF EXISTS description_en;
 
 CREATE TABLE IF NOT EXISTS test_requirement_evaluations (
     id BIGSERIAL PRIMARY KEY,
@@ -189,28 +191,22 @@ INSERT INTO non_functional_requirements (
     threshold_value,
     threshold_unit,
     description_ru,
-    description_en,
     parameters
 ) VALUES
     ('LATENCY_P90', 'LATENCY_P90', 1000.0, 'milliseconds',
         '90-й перцентиль времени отклика должен быть < 1000 миллисекунд',
-        '90th percentile latency must stay under 1000 milliseconds',
         '{"query":"response_time_90"}'),
     ('ERROR_RATE', 'ERROR_RATE', 1.0, 'percent',
         'Доля ошибок за тест должна быть < 1% от общего числа запросов',
-        'Total error rate during the test must be below 1%',
         '{"totalQuery":"request_total","errorQuery":"request_error"}'),
     ('CPU_UTILIZATION', 'CPU_UTILIZATION', 80.0, 'percent',
         'Утилизация CPU каждого контейнера должна быть < 80%',
-        'CPU utilization of each container must stay below 80%',
         '{"query":"container_cpu_utilization","groupLabel":"container"}'),
     ('MEMORY_UTILIZATION', 'MEMORY_UTILIZATION', 80.0, 'percent',
         'Утилизация RAM каждого контейнера должна быть < 80%',
-        'Memory utilization of each container must stay below 80%',
         '{"query":"container_memory_utilization","groupLabel":"container"}'),
     ('POD_RESTARTS', 'POD_RESTARTS', 0.0, 'count',
         'Во время теста не должно быть рестартов pod',
-        'Pods must not restart during the test window',
         '{"query":"pod_restarts","groupLabel":"pod"}')
 ON CONFLICT (code) DO UPDATE
 SET
@@ -218,6 +214,5 @@ SET
     threshold_value = EXCLUDED.threshold_value,
     threshold_unit = EXCLUDED.threshold_unit,
     description_ru = EXCLUDED.description_ru,
-    description_en = EXCLUDED.description_en,
     parameters = EXCLUDED.parameters,
     updated_at = NOW();

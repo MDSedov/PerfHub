@@ -4,7 +4,6 @@ import com.example.chronicler.repository.VictoriaMetricsQueryRepository;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,15 +13,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class VmQueryRegistry {
 
-    private final Map<String, String> queries;
+    private final VictoriaMetricsQueryRepository repository;
+    private volatile Map<String, String> queries;
 
-    @Autowired
     public VmQueryRegistry(VictoriaMetricsQueryRepository repository) {
-        this(repository.findAll());
-    }
-
-    protected VmQueryRegistry(Map<String, String> queries) {
-        this.queries = Map.copyOf(new LinkedHashMap<>(queries));
+        this.repository = repository;
+        this.queries = loadQueries();
     }
 
     public Optional<String> findQuery(String type) {
@@ -31,5 +27,13 @@ public class VmQueryRegistry {
 
     public Map<String, String> getAll() {
         return queries;
+    }
+
+    public synchronized void reload() {
+        this.queries = loadQueries();
+    }
+
+    private Map<String, String> loadQueries() {
+        return Map.copyOf(new LinkedHashMap<>(repository.findAll()));
     }
 }

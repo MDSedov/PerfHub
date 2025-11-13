@@ -41,6 +41,43 @@
             color: #009846;
         }
 
+        .main-menu .dropdown-toggle::after {
+            margin-left: 0.35rem;
+        }
+
+        .dropdown-menu {
+            background-color: #ffffff;
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 152, 70, 0.25);
+            padding: 0.5rem;
+            min-width: 16rem;
+            max-width: min(22rem, calc(100vw - 1.5rem));
+            left: auto;
+            right: 0;
+        }
+
+        .dropdown-item {
+            border-radius: 12px;
+            padding: 0.5rem 0.9rem;
+            font-weight: 500;
+            color: #0b6b3c;
+        }
+
+        .dropdown-item.active,
+        .dropdown-item:focus,
+        .dropdown-item:hover {
+            background-color: rgba(0, 152, 70, 0.12);
+            color: #009846;
+        }
+
+        @media (min-width: 992px) {
+            .nav-item.dropdown:hover .dropdown-menu {
+                display: block;
+                margin-top: 0;
+            }
+        }
+
         .tests-card {
             border: none;
             border-radius: 20px;
@@ -229,8 +266,53 @@
             <li class="nav-item">
                 <a class="nav-link" th:href="@{/configuration}" th:classappend="${activePage} == 'configuration' ? ' active' : ''">Конфигурация</a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link" th:href="@{/settings}" th:classappend="${activePage} == 'settings' ? ' active' : ''">Настройки</a>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle"
+                   href="#"
+                   id="settingsMenu"
+                   role="button"
+                   data-bs-toggle="dropdown"
+                   aria-expanded="false"
+                   th:classappend="${activePage} == 'settings' ? ' active' : ''">
+                    Настройки
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="settingsMenu">
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/connections}"
+                           th:classappend="${activeSettingsSection} == 'connections' ? ' active' : ''">
+                            Подключения
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/templates}"
+                           th:classappend="${activeSettingsSection} == 'templates' ? ' active' : ''">
+                            Шаблоны отчетов
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/requirements}"
+                           th:classappend="${activeSettingsSection} == 'requirements' ? ' active' : ''">
+                            Нефункциональные требования
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/victoria-metrics}"
+                           th:classappend="${activeSettingsSection} == 'victoria-metrics' ? ' active' : ''">
+                            Запросы в Victoria Metrics
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/grafana-dashboards}"
+                           th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                            Дашборды Grafana
+                        </a>
+                    </li>
+                </ul>
             </li>
         </ul>
     </div>
@@ -280,6 +362,10 @@
     </div>
 </main>
 
+<script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
+        crossorigin="anonymous"></script>
 <script>
     const testsList = document.getElementById('testsList');
     const testsStatus = document.getElementById('testsStatus');

@@ -139,8 +139,7 @@ public class RequirementEvaluationService {
                 unit,
                 details,
                 evaluatedAt,
-                requirement.descriptionRu(),
-                requirement.descriptionEn());
+                requirement.descriptionRu());
     }
 
     private RequirementResult evaluateRequirement(

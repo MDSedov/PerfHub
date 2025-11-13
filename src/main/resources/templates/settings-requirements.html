@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Летописец — НФТ</title>
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            crossorigin="anonymous">
+    <style>
+        body {
+            background-color: #f5fff9;
+            font-family: "SF Pro Display", "Roboto", "Segoe UI", sans-serif;
+        }
+
+        .navbar-sber {
+            background: linear-gradient(90deg, #009846, #2cd67b);
+            color: #ffffff;
+            box-shadow: 0 4px 18px rgba(0, 132, 82, 0.3);
+        }
+
+        .navbar-brand {
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            color: #ffffff !important;
+        }
+
+        .main-menu .nav-link {
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 500;
+            border-radius: 999px;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        .main-menu .nav-link.active,
+        .main-menu .nav-link:hover,
+        .main-menu .nav-link:focus-visible {
+            background-color: #ffffff;
+            color: #009846;
+        }
+
+        .main-menu .dropdown-toggle::after {
+            margin-left: 0.35rem;
+        }
+
+        .dropdown-menu {
+            background-color: #ffffff;
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 152, 70, 0.25);
+            padding: 0.5rem;
+            min-width: 16rem;
+            max-width: min(22rem, calc(100vw - 1.5rem));
+            left: auto;
+            right: 0;
+        }
+
+        .dropdown-item {
+            border-radius: 12px;
+            padding: 0.5rem 0.9rem;
+            font-weight: 500;
+            color: #0b6b3c;
+        }
+
+        .dropdown-item.active,
+        .dropdown-item:focus,
+        .dropdown-item:hover {
+            background-color: rgba(0, 152, 70, 0.12);
+            color: #009846;
+        }
+
+        @media (min-width: 992px) {
+            .nav-item.dropdown:hover .dropdown-menu {
+                display: block;
+                margin-top: 0;
+            }
+        }
+
+        .requirement-card {
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 16px 50px rgba(3, 76, 45, 0.08);
+        }
+
+        .requirement-card + .requirement-card {
+            margin-top: 1.5rem;
+        }
+
+        .parameters-field {
+            font-family: "SF Mono", "JetBrains Mono", "Courier New", monospace;
+        }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-expand navbar-sber">
+    <div class="container-fluid align-items-center">
+        <span class="navbar-brand">Летописец</span>
+        <ul class="nav main-menu ms-3">
+            <li class="nav-item">
+                <a class="nav-link" th:href="@{/tests}" th:classappend="${activePage} == 'tests' ? ' active' : ''">Тесты</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:href="@{/reports}" th:classappend="${activePage} == 'reports' ? ' active' : ''">Отчеты</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:href="@{/configuration}" th:classappend="${activePage} == 'configuration' ? ' active' : ''">Конфигурация</a>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle"
+                   href="#"
+                   id="settingsMenu"
+                   role="button"
+                   data-bs-toggle="dropdown"
+                   aria-expanded="false"
+                   th:classappend="${activePage} == 'settings' ? ' active' : ''">
+                    Настройки
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="settingsMenu">
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/connections}"
+                           th:classappend="${activeSettingsSection} == 'connections' ? ' active' : ''">
+                            Подключения
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/templates}"
+                           th:classappend="${activeSettingsSection} == 'templates' ? ' active' : ''">
+                            Шаблоны отчетов
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/requirements}"
+                           th:classappend="${activeSettingsSection} == 'requirements' ? ' active' : ''">
+                            Нефункциональные требования
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/victoria-metrics}"
+                           th:classappend="${activeSettingsSection} == 'victoria-metrics' ? ' active' : ''">
+                            Запросы в Victoria Metrics
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           th:href="@{/settings/grafana-dashboards}"
+                           th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                            Дашборды Grafana
+                        </a>
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<main class="container-fluid py-5 px-4 px-lg-5">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h5 class="mb-1">Нефункциональные требования</h5>
+            <p class="text-muted small mb-0">Управляйте набором требований для оценки тестов.</p>
+        </div>
+        <button type="button" class="btn btn-success" id="addRequirementButton">Добавить требование</button>
+    </div>
+    <div id="requirementsStatus" class="alert d-none" role="alert"></div>
+    <div id="requirementsList"></div>
+    <div id="requirementsEmpty" class="text-muted">Требования отсутствуют.</div>
+</main>
+
+<script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
+        crossorigin="anonymous"></script>
+<script th:inline="javascript">
+    const METRIC_TYPES = /*[[${metricTypes}]]*/ [];
+</script>
+<script>
+    const requirementsList = document.getElementById('requirementsList');
+    const requirementsEmpty = document.getElementById('requirementsEmpty');
+    const requirementsStatus = document.getElementById('requirementsStatus');
+    const addRequirementButton = document.getElementById('addRequirementButton');
+
+    function setRequirementsStatus(message, type = 'info') {
+        requirementsStatus.textContent = message;
+        requirementsStatus.className = `alert alert-${type}`;
+        requirementsStatus.classList.remove('d-none');
+    }
+
+    function clearRequirementsStatus() {
+        requirementsStatus.classList.add('d-none');
+    }
+
+    function renderRequirements(items) {
+        requirementsList.innerHTML = '';
+        if (!items.length) {
+            requirementsEmpty.classList.remove('d-none');
+            return;
+        }
+        requirementsEmpty.classList.add('d-none');
+        items.forEach(item => {
+            const card = buildRequirementCard(item);
+            requirementsList.appendChild(card);
+        });
+    }
+
+    function buildRequirementCard(item) {
+        const card = document.createElement('div');
+        card.className = 'card requirement-card';
+        card.dataset.requirementId = item?.id ?? '';
+        card.dataset.isNew = (!item || !item.id).toString();
+
+        const body = document.createElement('div');
+        body.className = 'card-body';
+
+        const row = document.createElement('div');
+        row.className = 'row g-3';
+
+        row.appendChild(buildInputColumn('col-md-3', 'Код требования', 'text', 'code', item?.code ?? ''));
+        row.appendChild(buildSelectColumn('col-md-3', 'Метрика', 'metricType', item?.metricType ?? '', METRIC_TYPES));
+        row.appendChild(buildInputColumn('col-md-2', 'Пороговое значение', 'number', 'thresholdValue', item?.thresholdValue ?? ''));
+        row.appendChild(buildInputColumn('col-md-2', 'Единица измерения', 'text', 'thresholdUnit', item?.thresholdUnit ?? ''));
+
+        const activeCol = document.createElement('div');
+        activeCol.className = 'col-md-2';
+        const activeLabel = document.createElement('label');
+        activeLabel.className = 'form-label';
+        activeLabel.textContent = 'Активно';
+        const activeSwitch = document.createElement('div');
+        activeSwitch.className = 'form-check form-switch';
+        const activeInput = document.createElement('input');
+        activeInput.type = 'checkbox';
+        activeInput.className = 'form-check-input requirement-input';
+        activeInput.dataset.field = 'active';
+        activeInput.checked = item?.active ?? true;
+        activeSwitch.appendChild(activeInput);
+        activeCol.appendChild(activeLabel);
+        activeCol.appendChild(activeSwitch);
+        row.appendChild(activeCol);
+
+        row.appendChild(buildTextareaColumn('col-12', 'Описание', 'descriptionRu', item?.descriptionRu ?? ''));
+        row.appendChild(buildTextareaColumn('col-12', 'Параметры (JSON)', 'parameters', JSON.stringify(item?.parameters ?? {}, null, 2), 'parameters-field', 6));
+
+        body.appendChild(row);
+
+        const footer = document.createElement('div');
+        footer.className = 'd-flex justify-content-between align-items-center mt-3';
+        const meta = document.createElement('div');
+        meta.className = 'text-muted small';
+        meta.textContent = item?.id ? `ID ${item.id}` : 'Новая запись';
+        footer.appendChild(meta);
+
+        const actions = document.createElement('div');
+        actions.className = 'd-flex gap-2';
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'btn btn-outline-danger btn-sm';
+        deleteButton.textContent = 'Удалить';
+        deleteButton.addEventListener('click', () => deleteRequirement(card));
+
+        const saveButton = document.createElement('button');
+        saveButton.type = 'button';
+        saveButton.className = 'btn btn-success btn-sm';
+        saveButton.textContent = 'Сохранить';
+        saveButton.addEventListener('click', () => saveRequirement(card));
+
+        actions.appendChild(deleteButton);
+        actions.appendChild(saveButton);
+        footer.appendChild(actions);
+
+        body.appendChild(footer);
+        card.appendChild(body);
+        return card;
+    }
+
+    function buildInputColumn(colClass, labelText, type, field, value) {
+        const col = document.createElement('div');
+        col.className = colClass;
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.textContent = labelText;
+        const input = document.createElement('input');
+        input.type = type;
+        input.className = 'form-control requirement-input';
+        input.dataset.field = field;
+        input.value = value ?? '';
+        col.appendChild(label);
+        col.appendChild(input);
+        return col;
+    }
+
+    function buildSelectColumn(colClass, labelText, field, value, options) {
+        const col = document.createElement('div');
+        col.className = colClass;
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.textContent = labelText;
+        const select = document.createElement('select');
+        select.className = 'form-select requirement-input';
+        select.dataset.field = field;
+        options.forEach(optionValue => {
+            const option = document.createElement('option');
+            option.value = optionValue;
+            option.textContent = optionValue;
+            if (optionValue === value) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+        col.appendChild(label);
+        col.appendChild(select);
+        return col;
+    }
+
+    function buildTextareaColumn(colClass, labelText, field, value, extraClass = '', rows = 3) {
+        const col = document.createElement('div');
+        col.className = colClass;
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.textContent = labelText;
+        const textarea = document.createElement('textarea');
+        textarea.className = `form-control requirement-input ${extraClass}`.trim();
+        textarea.rows = rows;
+        textarea.dataset.field = field;
+        textarea.value = value ?? '';
+        col.appendChild(label);
+        col.appendChild(textarea);
+        return col;
+    }
+
+    function getRequirementPayload(card) {
+        const payload = {};
+        const inputs = card.querySelectorAll('.requirement-input');
+        inputs.forEach(input => {
+            const field = input.dataset.field;
+            if (field === 'active') {
+                payload[field] = input.checked;
+            } else if (field === 'thresholdValue') {
+                payload[field] = input.value !== '' ? parseFloat(input.value) : null;
+            } else if (field === 'parameters') {
+                payload[field] = parseParameters(input.value);
+            } else {
+                payload[field] = input.value;
+            }
+        });
+        return payload;
+    }
+
+    function parseParameters(raw) {
+        if (!raw || !raw.trim()) {
+            return {};
+        }
+        try {
+            return JSON.parse(raw);
+        } catch (error) {
+            throw new Error('Ошибка в JSON параметрах: ' + error.message);
+        }
+    }
+
+    async function loadRequirements() {
+        setRequirementsStatus('Загружаем требования…');
+        try {
+            const response = await fetch('/api/settings/non-functional-requirements');
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            const data = await response.json();
+            renderRequirements(data);
+            clearRequirementsStatus();
+        } catch (error) {
+            setRequirementsStatus('Не удалось загрузить требования: ' + error.message, 'danger');
+        }
+    }
+
+    async function saveRequirement(card) {
+        try {
+            const payload = getRequirementPayload(card);
+            if (payload.thresholdValue === null || Number.isNaN(payload.thresholdValue)) {
+                throw new Error('Укажите числовое пороговое значение.');
+            }
+            if (!payload.code || !payload.code.trim()) {
+                throw new Error('Код требования обязателен.');
+            }
+            if (!payload.thresholdUnit || !payload.thresholdUnit.trim()) {
+                throw new Error('Единица измерения обязательна.');
+            }
+            if (!payload.metricType || !payload.metricType.trim()) {
+                throw new Error('Выберите тип метрики.');
+            }
+            const isNew = card.dataset.isNew === 'true';
+            const id = card.dataset.requirementId;
+            const method = isNew ? 'POST' : 'PUT';
+            const url = isNew
+                    ? '/api/settings/non-functional-requirements'
+                    : `/api/settings/non-functional-requirements/${id}`;
+            const response = await fetch(url, {
+                method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            const saved = await response.json();
+            const updatedCard = buildRequirementCard(saved);
+            requirementsList.replaceChild(updatedCard, card);
+            clearRequirementsStatus();
+            setRequirementsStatus('Требование сохранено.', 'success');
+        } catch (error) {
+            setRequirementsStatus(error.message, 'danger');
+        }
+    }
+
+    async function deleteRequirement(card) {
+        const isNew = card.dataset.isNew === 'true';
+        if (isNew) {
+            card.remove();
+            if (!requirementsList.children.length) {
+                requirementsEmpty.classList.remove('d-none');
+            }
+            return;
+        }
+        if (!confirm('Удалить требование?')) {
+            return;
+        }
+        try {
+            const id = card.dataset.requirementId;
+            const response = await fetch(`/api/settings/non-functional-requirements/${id}`, {method: 'DELETE'});
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            card.remove();
+            setRequirementsStatus('Требование удалено.', 'success');
+            if (!requirementsList.children.length) {
+                requirementsEmpty.classList.remove('d-none');
+            }
+        } catch (error) {
+            setRequirementsStatus('Не удалось удалить требование: ' + error.message, 'danger');
+        }
+    }
+
+    function addRequirement() {
+        const card = buildRequirementCard(null);
+        requirementsList.prepend(card);
+        requirementsEmpty.classList.add('d-none');
+    }
+
+    addRequirementButton.addEventListener('click', addRequirement);
+
+    (async function init() {
+        await loadRequirements();
+    })();
+</script>
+</body>
+</html>

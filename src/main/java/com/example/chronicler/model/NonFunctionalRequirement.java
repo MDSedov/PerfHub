@@ -10,5 +10,4 @@ public record NonFunctionalRequirement(
         String thresholdUnit,
         boolean active,
         JsonNode parameters,
-        String descriptionRu,
-        String descriptionEn) {}
+        String descriptionRu) {}

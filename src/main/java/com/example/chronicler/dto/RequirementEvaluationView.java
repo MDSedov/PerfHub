@@ -16,5 +16,4 @@ public record RequirementEvaluationView(
         String measuredUnit,
         JsonNode details,
         Instant evaluatedAt,
-        String descriptionRu,
-        String descriptionEn) {}
+        String descriptionRu) {}
