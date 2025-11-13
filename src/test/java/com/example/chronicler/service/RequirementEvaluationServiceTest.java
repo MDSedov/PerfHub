@@ -17,8 +17,10 @@ import com.example.chronicler.repository.LoadTestRepository;
 import com.example.chronicler.repository.NonFunctionalRequirementRepository;
 import com.example.chronicler.repository.TestRequirementEvaluationRepository;
 import com.example.chronicler.repository.TestTypeRepository;
+import com.example.chronicler.repository.VictoriaMetricsQueryRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -64,6 +66,8 @@ class RequirementEvaluationServiceTest {
         UUID testUuid = UUID.randomUUID();
         Instant start = Instant.parse("2024-01-01T00:00:00Z");
         Instant end = Instant.parse("2024-01-01T01:00:00Z");
+        Instant trimmedStart = start.plus(Duration.ofMinutes(3));
+        Instant trimmedEnd = end.minus(Duration.ofMinutes(3));
 
         loadTestRepository.put(new LoadTest(testUuid, start, end, LoadTestType.UNKNOWN));
 
@@ -106,16 +110,19 @@ class RequirementEvaluationServiceTest {
         vmQueryRegistry.register("memory", "memory_expr");
         vmQueryRegistry.register("restarts", "restarts_expr");
 
-        victoriaMetricsClient.registerResponse("latency_expr", start, end, matrixResponse(Map.of("", new double[] {0.4, 0.8})));
-        victoriaMetricsClient.registerResponse("total_expr", start, end, matrixResponse(Map.of("", new double[] {100.0, 200.0})));
-        victoriaMetricsClient.registerResponse("error_expr", start, end, matrixResponse(Map.of("", new double[] {0.0, 1.0})));
-        victoriaMetricsClient.registerResponse("cpu_expr", start, end, matrixResponse(Map.of(
+        victoriaMetricsClient.registerResponse(
+                "latency_expr", trimmedStart, trimmedEnd, matrixResponse(Map.of("", new double[] {0.4, 0.8})));
+        victoriaMetricsClient.registerResponse(
+                "total_expr", trimmedStart, trimmedEnd, matrixResponse(Map.of("", new double[] {100.0, 200.0})));
+        victoriaMetricsClient.registerResponse(
+                "error_expr", trimmedStart, trimmedEnd, matrixResponse(Map.of("", new double[] {0.0, 1.0})));
+        victoriaMetricsClient.registerResponse("cpu_expr", trimmedStart, trimmedEnd, matrixResponse(Map.of(
                 "c1", new double[] {65.0, 70.0},
                 "c2", new double[] {40.0, 60.0})));
-        victoriaMetricsClient.registerResponse("memory_expr", start, end, matrixResponse(Map.of(
+        victoriaMetricsClient.registerResponse("memory_expr", trimmedStart, trimmedEnd, matrixResponse(Map.of(
                 "c1", new double[] {55.0, 60.0},
                 "c2", new double[] {30.0, 35.0})));
-        victoriaMetricsClient.registerResponse("restarts_expr", start, end, matrixResponse(Map.of(
+        victoriaMetricsClient.registerResponse("restarts_expr", trimmedStart, trimmedEnd, matrixResponse(Map.of(
                 "pod-a", new double[] {0.0, 0.0},
                 "pod-b", new double[] {0.0, 0.0})));
 
@@ -154,6 +161,21 @@ class RequirementEvaluationServiceTest {
                 .hasMessage("No active non-functional requirements configured");
     }
 
+    @Test
+    void evaluateFailsWhenTestDurationTooShort() throws Exception {
+        UUID testUuid = UUID.randomUUID();
+        Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        Instant end = start.plus(Duration.ofMinutes(5));
+        loadTestRepository.put(new LoadTest(testUuid, start, end, LoadTestType.UNKNOWN));
+
+        requirementRepository.setRequirements(List.of(requirement(
+                1, "LATENCY_P90", RequirementMetricType.LATENCY_P90, 1.0, "seconds", "{\"query\":\"latency\"}")));
+
+        assertThatThrownBy(() -> service.evaluate(testUuid))
+                .isInstanceOf(RequirementEvaluationException.class)
+                .hasMessage("Test " + testUuid + " duration must exceed 6 minutes to evaluate non-functional requirements");
+    }
+
     private NonFunctionalRequirement requirement(
             int id,
             String code,
@@ -163,7 +185,7 @@ class RequirementEvaluationServiceTest {
             String parametersJson)
             throws Exception {
         JsonNode parameters = OBJECT_MAPPER.readTree(parametersJson);
-        return new NonFunctionalRequirement(id, code, metricType, threshold, unit, true, parameters, null, null);
+        return new NonFunctionalRequirement(id, code, metricType, threshold, unit, true, parameters, null);
     }
 
     private String matrixResponse(Map<String, double[]> series) throws Exception {
@@ -288,23 +310,37 @@ class RequirementEvaluationServiceTest {
 
     private static final class StubVmQueryRegistry extends VmQueryRegistry {
 
-        private final Map<String, String> queries = new HashMap<>();
+        private final InMemoryVmQueryRepository repository;
 
         private StubVmQueryRegistry() {
-            super(Map.of());
+            this(new InMemoryVmQueryRepository());
+        }
+
+        private StubVmQueryRegistry(InMemoryVmQueryRepository repository) {
+            super(repository);
+            this.repository = repository;
         }
 
         void register(String type, String query) {
-            queries.put(type, query);
+            repository.put(type, query);
+            reload();
+        }
+    }
+
+    private static final class InMemoryVmQueryRepository extends VictoriaMetricsQueryRepository {
+
+        private final Map<String, String> queries = new LinkedHashMap<>();
+
+        private InMemoryVmQueryRepository() {
+            super(new JdbcTemplate());
+        }
+
+        void put(String code, String expression) {
+            queries.put(code, expression);
         }
 
         @Override
-        public Optional<String> findQuery(String type) {
-            return Optional.ofNullable(queries.get(type));
-        }
-
-        @Override
-        public Map<String, String> getAll() {
+        public Map<String, String> findAll() {
             return Map.copyOf(queries);
         }
     }

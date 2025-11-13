@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -33,6 +34,8 @@ import org.springframework.util.StringUtils;
 public class RequirementEvaluationService {
 
     private static final String DEFAULT_GROUP_LABEL = "container";
+    private static final Duration TRIM_DURATION = Duration.ofMinutes(3);
+    private static final Duration MIN_EVALUATION_DURATION = TRIM_DURATION.multipliedBy(2);
 
     private final NonFunctionalRequirementRepository requirementRepository;
     private final TestRequirementEvaluationRepository evaluationRepository;
@@ -73,11 +76,19 @@ public class RequirementEvaluationService {
             throw new RequirementEvaluationException("No active non-functional requirements configured");
         }
 
+        Instant evaluationStart = start.plus(TRIM_DURATION);
+        Instant evaluationEnd = end.minus(TRIM_DURATION);
+        if (!evaluationEnd.isAfter(evaluationStart)) {
+            throw new RequirementEvaluationException("Test " + testUuid + " duration must exceed "
+                    + MIN_EVALUATION_DURATION.toMinutes()
+                    + " minutes to evaluate non-functional requirements");
+        }
+
         Instant evaluatedAt = Instant.now();
         Map<String, JsonNode> queryCache = new HashMap<>();
         List<RequirementEvaluationView> views = new ArrayList<>(requirements.size());
         for (NonFunctionalRequirement requirement : requirements) {
-            RequirementResult result = evaluateRequirement(requirement, start, end, queryCache);
+            RequirementResult result = evaluateRequirement(requirement, evaluationStart, evaluationEnd, queryCache);
             evaluationRepository.upsert(
                     testUuid,
                     requirement.id(),
