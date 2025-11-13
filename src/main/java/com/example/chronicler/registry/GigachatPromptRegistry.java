@@ -1,61 +1,39 @@
 package com.example.chronicler.registry;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
+import com.example.chronicler.exception.GigachatPromptLoadingException;
+import com.example.chronicler.repository.GigachatPromptRepository;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 @Component
 public class GigachatPromptRegistry {
 
-    private final Map<String, String> prompts;
+    private final GigachatPromptRepository repository;
+    private volatile Map<String, String> prompts;
 
-    public GigachatPromptRegistry(
-            @Value("${gigachat.prompts-directory:file:configs/prompts}") Resource promptsDirectory)
-            throws IOException {
-        File directory = promptsDirectory.getFile();
-        if (directory == null || !directory.isDirectory()) {
-            throw new IOException("Prompt directory not found: " + promptsDirectory);
-        }
-
-        Path directoryPath = directory.toPath();
-        List<Path> files;
-        try (var paths = Files.list(directoryPath)) {
-            files = paths.filter(Files::isRegularFile).collect(Collectors.toList());
-        } catch (IOException ex) {
-            throw new IOException("Failed to list prompt files in " + directoryPath, ex);
-        }
-
-        Map<String, String> loadedPrompts = new HashMap<>();
-        for (Path file : files) {
-            String filename = file.getFileName().toString();
-            String key = extractKey(filename);
-            String prompt = Files.readString(file, StandardCharsets.UTF_8);
-            loadedPrompts.put(key, prompt);
-        }
-        this.prompts = Collections.unmodifiableMap(loadedPrompts);
+    public GigachatPromptRegistry(GigachatPromptRepository repository) {
+        this.repository = repository;
+        this.prompts = loadPrompts();
     }
 
     public Optional<String> findPrompt(String key) {
         return Optional.ofNullable(prompts.get(key));
     }
 
-    private String extractKey(String filename) {
-        int lastDot = filename.lastIndexOf('.');
-        if (lastDot > 0) {
-            return filename.substring(0, lastDot);
+    public Map<String, String> getAll() {
+        return prompts;
+    }
+
+    public synchronized void reload() {
+        this.prompts = loadPrompts();
+    }
+
+    private Map<String, String> loadPrompts() {
+        Map<String, String> loaded = repository.findAll();
+        if (loaded.isEmpty()) {
+            throw new GigachatPromptLoadingException("No GigaChat prompts were found in the database");
         }
-        return filename;
+        return Map.copyOf(loaded);
     }
 }
