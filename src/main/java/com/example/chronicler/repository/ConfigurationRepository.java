@@ -13,14 +13,13 @@ import org.springframework.stereotype.Repository;
 public class ConfigurationRepository {
 
     private static final String SELECT_ALL_SQL =
-            "SELECT id, service, \"key\", value, description FROM configurations ORDER BY service, \"key\"";
+            "SELECT id, service, \"key\", config_value, description FROM configurations ORDER BY service, \"key\"";
     private static final String SELECT_ONE_SQL =
-            "SELECT value FROM configurations WHERE service = ? AND \"key\" = ?";
-    private static final String UPSERT_SQL = """
-            INSERT INTO configurations (service, "key", value)
-            VALUES (?, ?, ?)
-            ON CONFLICT (service, "key") DO UPDATE SET value = EXCLUDED.value
-            """;
+            "SELECT config_value FROM configurations WHERE service = ? AND \"key\" = ?";
+    private static final String INSERT_SQL =
+            "INSERT INTO configurations (service, \"key\", config_value) VALUES (?, ?, ?)";
+    private static final String UPDATE_SQL =
+            "UPDATE configurations SET config_value = ? WHERE service = ? AND \"key\" = ?";
 
     private final JdbcTemplate jdbcTemplate;
     private final RowMapper<ConfigurationEntry> rowMapper = ConfigurationRepository::mapRow;
@@ -34,7 +33,7 @@ public class ConfigurationRepository {
     }
 
     public Optional<String> findValue(String service, String key) {
-        List<String> results = jdbcTemplate.query(SELECT_ONE_SQL, (rs, rowNum) -> rs.getString("value"), service, key);
+        List<String> results = jdbcTemplate.query(SELECT_ONE_SQL, (rs, rowNum) -> rs.getString("config_value"), service, key);
         if (results.isEmpty()) {
             return Optional.empty();
         }
@@ -42,7 +41,10 @@ public class ConfigurationRepository {
     }
 
     public void upsert(String service, String key, String value) {
-        jdbcTemplate.update(UPSERT_SQL, service, key, value);
+        int updated = jdbcTemplate.update(UPDATE_SQL, value, service, key);
+        if (updated == 0) {
+            jdbcTemplate.update(INSERT_SQL, service, key, value);
+        }
     }
 
     private static ConfigurationEntry mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -52,7 +54,7 @@ public class ConfigurationRepository {
                 id,
                 rs.getString("service"),
                 rs.getString("key"),
-                rs.getString("value"),
+                rs.getString("config_value"),
                 rs.getString("description"));
     }
 }

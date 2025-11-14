@@ -8,8 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
@@ -27,17 +27,13 @@ public class NonFunctionalRequirementRepository {
             active,
             parameters
             """;
-    private static final String SELECT_ACTIVE_SQL = """
+    private static final String SELECT_BASE_SQL = """
             SELECT %s
               FROM non_functional_requirements
-             WHERE active = TRUE
-             ORDER BY id
             """.formatted(SELECT_COLUMNS);
-    private static final String SELECT_ALL_SQL = """
-            SELECT %s
-              FROM non_functional_requirements
-             ORDER BY id
-            """.formatted(SELECT_COLUMNS);
+    private static final String SELECT_ACTIVE_SQL =
+            SELECT_BASE_SQL + " WHERE active = TRUE ORDER BY id";
+    private static final String SELECT_ALL_SQL = SELECT_BASE_SQL + " ORDER BY id";
     private static final String INSERT_SQL = """
             INSERT INTO non_functional_requirements (
                 code,
@@ -47,9 +43,8 @@ public class NonFunctionalRequirementRepository {
                 description_ru,
                 active,
                 parameters
-            ) VALUES (?, ?, ?, ?, ?, ?, ?::jsonb)
-            RETURNING %s
-            """.formatted(SELECT_COLUMNS);
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """;
     private static final String UPDATE_SQL = """
             UPDATE non_functional_requirements
                SET code = ?,
@@ -58,11 +53,10 @@ public class NonFunctionalRequirementRepository {
                    threshold_unit = ?,
                    description_ru = ?,
                    active = ?,
-                   parameters = ?::jsonb,
+                   parameters = ?,
                    updated_at = NOW()
              WHERE id = ?
-         RETURNING %s
-            """.formatted(SELECT_COLUMNS);
+            """;
     private static final String DELETE_SQL = "DELETE FROM non_functional_requirements WHERE id = ?";
 
     private final JdbcTemplate jdbcTemplate;
@@ -83,30 +77,42 @@ public class NonFunctionalRequirementRepository {
     }
 
     public NonFunctionalRequirement insert(NonFunctionalRequirement requirement) {
-        return jdbcTemplate.query(
-                        INSERT_SQL,
-                        ps -> bindRequirement(ps, requirement),
-                        rowMapper)
-                .stream()
-                .findFirst()
+        jdbcTemplate.update(INSERT_SQL, ps -> bindRequirement(ps, requirement));
+        return findByCode(requirement.code())
                 .orElseThrow(() -> new IllegalStateException("Failed to insert requirement"));
     }
 
     public NonFunctionalRequirement update(NonFunctionalRequirement requirement) {
-        return jdbcTemplate.query(
+        int updated =
+                jdbcTemplate.update(
                         UPDATE_SQL,
                         ps -> {
                             bindRequirement(ps, requirement);
                             ps.setInt(8, requirement.id());
-                        },
-                        rowMapper)
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Failed to update requirement " + requirement.id()));
+                        });
+        if (updated == 0) {
+            throw new IllegalStateException("Failed to update requirement " + requirement.id());
+        }
+        return findById(requirement.id())
+                .orElseThrow(() -> new IllegalStateException("Requirement not found after update"));
     }
 
     public void delete(int id) {
         jdbcTemplate.update(DELETE_SQL, id);
+    }
+
+    private Optional<NonFunctionalRequirement> findById(int id) {
+        return jdbcTemplate.query(
+                        SELECT_BASE_SQL + " WHERE id = ?", ps -> ps.setInt(1, id), rowMapper)
+                .stream()
+                .findFirst();
+    }
+
+    private Optional<NonFunctionalRequirement> findByCode(String code) {
+        return jdbcTemplate.query(
+                        SELECT_BASE_SQL + " WHERE code = ?", ps -> ps.setString(1, code), rowMapper)
+                .stream()
+                .findFirst();
     }
 
     private void bindRequirement(PreparedStatement ps, NonFunctionalRequirement requirement) throws SQLException {
@@ -116,10 +122,10 @@ public class NonFunctionalRequirementRepository {
         ps.setString(4, requirement.thresholdUnit());
         ps.setString(5, requirement.descriptionRu());
         ps.setBoolean(6, requirement.active());
-        ps.setObject(7, toJsonDatabaseValue(requirement.parameters()), Types.OTHER);
+        ps.setString(7, toJsonDatabaseValue(requirement.parameters()));
     }
 
-    private Object toJsonDatabaseValue(JsonNode node) {
+    private String toJsonDatabaseValue(JsonNode node) {
         try {
             if (node == null || node.isNull()) {
                 return "{}";
@@ -133,7 +139,7 @@ public class NonFunctionalRequirementRepository {
     private NonFunctionalRequirement mapRow(ResultSet rs, int rowNum) throws SQLException {
         RequirementMetricType metricType =
                 RequirementMetricType.fromDatabaseValue(rs.getString("metric_type"));
-        JsonNode parameters = parseParameters(rs.getObject("parameters"));
+        JsonNode parameters = parseParameters(rs.getString("parameters"));
         return new NonFunctionalRequirement(
                 rs.getInt("id"),
                 rs.getString("code"),
@@ -145,18 +151,12 @@ public class NonFunctionalRequirementRepository {
                 rs.getString("description_ru"));
     }
 
-    private JsonNode parseParameters(Object rawValue) throws SQLException {
-        if (rawValue == null) {
-            return objectMapper.createObjectNode();
-        }
+    private JsonNode parseParameters(String rawValue) throws SQLException {
         try {
-            if (rawValue instanceof String stringValue) {
-                if (stringValue.isBlank()) {
-                    return objectMapper.createObjectNode();
-                }
-                return objectMapper.readTree(stringValue);
+            if (rawValue == null || rawValue.isBlank()) {
+                return objectMapper.createObjectNode();
             }
-            return objectMapper.readTree(rawValue.toString());
+            return objectMapper.readTree(rawValue);
         } catch (JsonProcessingException ex) {
             throw new SQLException("Unable to parse requirement parameters JSON", ex);
         }

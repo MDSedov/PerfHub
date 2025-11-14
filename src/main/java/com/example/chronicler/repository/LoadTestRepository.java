@@ -2,7 +2,6 @@ package com.example.chronicler.repository;
 
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
-import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
@@ -11,7 +10,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.PreparedStatementSetter;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
@@ -29,14 +27,10 @@ public class LoadTestRepository {
     private static final String SELECT_BY_ID_SQL = BASE_SELECT + "WHERE t.test_uuid = ?";
     private static final String SELECT_ALL_ORDERED_SQL =
             BASE_SELECT + "ORDER BY t.start_time DESC";
-    private static final String INSERT_RETURNING_SQL =
-            "INSERT INTO tests (start_time, end_time, test_type_id) VALUES (?, ?, ?) "
-                    + "RETURNING test_uuid, start_time, end_time, "
-                    + "(SELECT test_type FROM test_types WHERE id = tests.test_type_id) AS test_type";
-    private static final String UPDATE_RETURNING_SQL =
-            "UPDATE tests SET start_time = ?, end_time = ?, test_type_id = ? WHERE test_uuid = ? "
-                    + "RETURNING test_uuid, start_time, end_time, "
-                    + "(SELECT test_type FROM test_types WHERE id = tests.test_type_id) AS test_type";
+    private static final String INSERT_SQL =
+            "INSERT INTO tests (test_uuid, start_time, end_time, test_type_id) VALUES (?, ?, ?, ?)";
+    private static final String UPDATE_SQL =
+            "UPDATE tests SET start_time = ?, end_time = ?, test_type_id = ? WHERE test_uuid = ?";
 
     private final JdbcTemplate jdbcTemplate;
     private final TestTypeRepository testTypeRepository;
@@ -66,17 +60,21 @@ public class LoadTestRepository {
 
     public LoadTest insert(Instant start, Instant end, LoadTestType type) {
         Integer testTypeId = resolveTestTypeId(type);
-        return executeReturningStatement(
-                INSERT_RETURNING_SQL,
+        UUID testId = UUID.randomUUID();
+        jdbcTemplate.update(
+                INSERT_SQL,
                 ps -> {
-                    ps.setTimestamp(1, Timestamp.from(start));
-                    ps.setTimestamp(2, Timestamp.from(end));
+                    ps.setObject(1, testId);
+                    ps.setTimestamp(2, Timestamp.from(start));
+                    ps.setTimestamp(3, Timestamp.from(end));
                     if (testTypeId == null) {
-                        ps.setNull(3, Types.INTEGER);
+                        ps.setNull(4, Types.INTEGER);
                     } else {
-                        ps.setInt(3, testTypeId);
+                        ps.setInt(4, testTypeId);
                     }
                 });
+        return findById(testId)
+                .orElseThrow(() -> new IllegalStateException("Failed to load inserted test " + testId));
     }
 
     public Optional<LoadTest> findById(UUID id) {
@@ -90,18 +88,23 @@ public class LoadTestRepository {
 
     public LoadTest update(UUID id, Instant start, Instant end, LoadTestType type) {
         Integer testTypeId = resolveTestTypeId(type);
-        return executeReturningStatement(
-                UPDATE_RETURNING_SQL,
-                ps -> {
-                    ps.setTimestamp(1, Timestamp.from(start));
-                    ps.setTimestamp(2, Timestamp.from(end));
-                    if (testTypeId == null) {
-                        ps.setNull(3, Types.INTEGER);
-                    } else {
-                        ps.setInt(3, testTypeId);
-                    }
-                    ps.setObject(4, id);
-                });
+        int updated =
+                jdbcTemplate.update(
+                        UPDATE_SQL,
+                        ps -> {
+                            ps.setTimestamp(1, Timestamp.from(start));
+                            ps.setTimestamp(2, Timestamp.from(end));
+                            if (testTypeId == null) {
+                                ps.setNull(3, Types.INTEGER);
+                            } else {
+                                ps.setInt(3, testTypeId);
+                            }
+                            ps.setObject(4, id);
+                        });
+        if (updated == 0) {
+            throw new IncorrectResultSizeDataAccessException("Expected to update one row", 1, 0);
+        }
+        return findById(id).orElseThrow(() -> new IllegalStateException("Failed to load updated test " + id));
     }
 
     public List<LoadTest> findAllOrderByStartDesc() {
@@ -128,18 +131,4 @@ public class LoadTestRepository {
                         "Test type '" + type.value() + "' is not configured in test_types table"));
     }
 
-    private LoadTest executeReturningStatement(String sql, PreparedStatementSetter setter) {
-        return jdbcTemplate.query(
-                connection -> {
-                    PreparedStatement preparedStatement = connection.prepareStatement(sql);
-                    setter.setValues(preparedStatement);
-                    return preparedStatement;
-                },
-                rs -> {
-                    if (rs.next()) {
-                        return rowMapper.mapRow(rs, 1);
-                    }
-                    throw new IncorrectResultSizeDataAccessException("Expected one row", 1, 0);
-                });
-    }
 }

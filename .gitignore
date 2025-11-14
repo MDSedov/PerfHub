@@ -15,6 +15,11 @@
 logs/
 *.log
 
+# H2 database files
+config/*.mv.db
+config/*.trace.db
+config/*.lock.db
+
 # OS
 .DS_Store
 Thumbs.db

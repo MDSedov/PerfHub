@@ -18,7 +18,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class TestRequirementEvaluationRepository {
 
-    private static final String UPSERT_SQL = """
+    private static final String INSERT_SQL = """
             INSERT INTO test_requirement_evaluations (
                 test_uuid,
                 requirement_id,
@@ -27,14 +27,18 @@ public class TestRequirementEvaluationRepository {
                 unit,
                 details,
                 evaluated_at)
-            VALUES (?, ?, ?, ?, ?, ?::jsonb, ?)
-            ON CONFLICT (test_uuid, requirement_id)
-            DO UPDATE SET
-                status = EXCLUDED.status,
-                measured_value = EXCLUDED.measured_value,
-                unit = EXCLUDED.unit,
-                details = EXCLUDED.details,
-                evaluated_at = EXCLUDED.evaluated_at
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """;
+
+    private static final String UPDATE_SQL = """
+            UPDATE test_requirement_evaluations
+               SET status = ?,
+                   measured_value = ?,
+                   unit = ?,
+                   details = ?,
+                   evaluated_at = ?
+             WHERE test_uuid = ?
+               AND requirement_id = ?
             """;
 
     private static final String SELECT_BY_TEST_SQL = """
@@ -68,15 +72,28 @@ public class TestRequirementEvaluationRepository {
             String unit,
             JsonNode details,
             Instant evaluatedAt) {
-        jdbcTemplate.update(
-                UPSERT_SQL,
-                testUuid,
-                requirementId,
+        Timestamp evaluatedTimestamp = Timestamp.from(evaluatedAt);
+        String detailsJson = details != null ? details.toString() : null;
+        int updated = jdbcTemplate.update(
+                UPDATE_SQL,
                 status.name(),
                 measuredValue,
                 unit,
-                details != null ? details.toString() : null,
-                Timestamp.from(evaluatedAt));
+                detailsJson,
+                evaluatedTimestamp,
+                testUuid,
+                requirementId);
+        if (updated == 0) {
+            jdbcTemplate.update(
+                    INSERT_SQL,
+                    testUuid,
+                    requirementId,
+                    status.name(),
+                    measuredValue,
+                    unit,
+                    detailsJson,
+                    evaluatedTimestamp);
+        }
     }
 
     public List<TestRequirementEvaluation> findByTest(UUID testUuid) {
@@ -87,7 +104,7 @@ public class TestRequirementEvaluationRepository {
         RequirementEvaluationStatus status =
                 RequirementEvaluationStatus.fromDatabaseValue(rs.getString("status"));
         Double measuredValue = (Double) rs.getObject("measured_value");
-        JsonNode details = parseDetails(rs.getObject("details"));
+        JsonNode details = parseDetails(rs.getString("details"));
         Timestamp evaluatedAt = rs.getTimestamp("evaluated_at");
         return new TestRequirementEvaluation(
                 rs.getLong("id"),
@@ -100,18 +117,12 @@ public class TestRequirementEvaluationRepository {
                 evaluatedAt != null ? evaluatedAt.toInstant() : null);
     }
 
-    private JsonNode parseDetails(Object rawValue) throws SQLException {
-        if (rawValue == null) {
-            return null;
-        }
+    private JsonNode parseDetails(String rawValue) throws SQLException {
         try {
-            if (rawValue instanceof String stringValue) {
-                if (stringValue.isBlank()) {
-                    return null;
-                }
-                return objectMapper.readTree(stringValue);
+            if (rawValue == null || rawValue.isBlank()) {
+                return null;
             }
-            return objectMapper.readTree(rawValue.toString());
+            return objectMapper.readTree(rawValue);
         } catch (JsonProcessingException ex) {
             throw new SQLException("Unable to parse test requirement evaluation details JSON", ex);
         }
