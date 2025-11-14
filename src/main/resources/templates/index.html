@@ -206,18 +206,25 @@
             border: 1px solid rgba(0, 152, 70, 0.15);
             border-radius: 14px;
             padding: 0.9rem;
-            margin-bottom: 1rem;
-            background-color: #ffffff;
-        }
-
-        .grafana-panel:last-child {
             margin-bottom: 0;
+            background-color: #ffffff;
+            height: 100%;
         }
 
         .grafana-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .grafana-grid-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 1rem;
+        }
+
+        .grafana-grid-row > .grafana-panel:only-child {
+            grid-column: span 2;
         }
 
         .grafana-panel-title {
@@ -254,6 +261,14 @@
             .tests-header,
             .test-row {
                 grid-template-columns: 1fr 1fr;
+            }
+
+            .grafana-grid-row {
+                grid-template-columns: 1fr;
+            }
+
+            .grafana-grid-row > .grafana-panel:only-child {
+                grid-column: span 1;
             }
 
             .test-row span:last-child,
@@ -832,9 +847,15 @@
         }
         const grid = document.createElement('div');
         grid.className = 'grafana-grid';
-        panels.forEach(panel => {
-            grid.appendChild(createGrafanaPanelElement(panel));
-        });
+        for (let i = 0; i < panels.length; i += 2) {
+            const row = document.createElement('div');
+            row.className = 'grafana-grid-row';
+            row.appendChild(createGrafanaPanelElement(panels[i]));
+            if (panels[i + 1]) {
+                row.appendChild(createGrafanaPanelElement(panels[i + 1]));
+            }
+            grid.appendChild(row);
+        }
         container.appendChild(grid);
     }
 
