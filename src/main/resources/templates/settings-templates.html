@@ -211,6 +211,10 @@
     const templateChanges = new Map();
     let templatesCache = [];
     let isSaving = false;
+    const bootstrapCollapseConstructor =
+        window.bootstrap && typeof window.bootstrap.Collapse === 'function'
+            ? window.bootstrap.Collapse
+            : null;
 
     function setTemplatesStatus(message, type = 'info') {
         templatesStatus.textContent = message;
@@ -301,6 +305,25 @@
             bodyWrapper.appendChild(body);
             accordionItem.appendChild(bodyWrapper);
             templatesAccordion.appendChild(accordionItem);
+
+            const collapseInstance = bootstrapCollapseConstructor
+                ? new bootstrapCollapseConstructor(bodyWrapper, {toggle: false})
+                : null;
+
+            button.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (collapseInstance) {
+                    collapseInstance.toggle();
+                    return;
+                }
+
+                const willShow = !bodyWrapper.classList.contains('show');
+                bodyWrapper.classList.toggle('show', willShow);
+                button.classList.toggle('collapsed', !willShow);
+                button.setAttribute('aria-expanded', willShow.toString());
+            });
         });
     }
 
