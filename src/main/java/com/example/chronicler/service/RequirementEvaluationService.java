@@ -252,11 +252,13 @@ public class RequirementEvaluationService {
                         panel.panelId(),
                         panel.panelTitle(),
                         panel.panelQuery(),
-                        panel.panelThreshold()))
+                        panel.panelThreshold(),
+                        Boolean.TRUE.equals(panel.testQuery())))
                 .orElse(null);
     }
 
-    private record PanelRequirement(String dashboardUid, int panelId, String title, String query, Double threshold) {}
+    private record PanelRequirement(
+            String dashboardUid, int panelId, String title, String query, Double threshold, boolean testQuery) {}
 
     private record RequirementResult(
             RequirementEvaluationStatus status, Double measuredValue, String unit, JsonNode details) {}

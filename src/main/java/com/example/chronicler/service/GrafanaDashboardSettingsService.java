@@ -11,8 +11,9 @@ import com.example.chronicler.repository.GrafanaDashboardRepository;
 import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
 import com.example.chronicler.dto.settings.GrafanaDashboardPanelUpdateRequest;
 import java.util.List;
-import java.util.Objects;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -44,13 +45,14 @@ public class GrafanaDashboardSettingsService {
 
     public List<GrafanaDashboardDetailsDto> pullFromGrafana() {
         List<GrafanaDashboard> saved = repository.findAll();
+        Map<String, List<GrafanaDashboardPanelRecord>> cachedPanelsByUid = panelRepository.findAllGroupedByUid();
         var savedByUid = saved.stream()
                 .collect(Collectors.toMap(
                         item -> normalizeUid(item.uid()),
                         item -> item,
                         (first, second) -> first));
         List<GrafanaDashboardDetailsDto> discovered = grafanaClient.discoverDashboards().stream()
-                .map(discoveredDashboard -> syncWithDb(discoveredDashboard, savedByUid))
+                .map(discoveredDashboard -> syncWithDb(discoveredDashboard, savedByUid, cachedPanelsByUid))
                 .toList();
 
         Set<String> discoveredUids = discovered.stream()
@@ -94,6 +96,13 @@ public class GrafanaDashboardSettingsService {
                         .toList();
 
         if (panelSettings != null && !panelSettings.isEmpty()) {
+            long testQuerySelections = panelSettings.stream()
+                    .filter(req -> Boolean.TRUE.equals(req.testQuery()))
+                    .count();
+            if (testQuerySelections > 1) {
+                throw new IllegalArgumentException("Можно выбрать только один запрос для поиска тестов");
+            }
+
             List<GrafanaDashboardPanelRecord> cachedPanels = panelRepository.findByDashboardUid(normalizedUid);
             Map<Integer, GrafanaDashboardPanelRecord> cachedById = cachedPanels.stream()
                     .collect(Collectors.toMap(
@@ -107,6 +116,10 @@ public class GrafanaDashboardSettingsService {
                     .findFirst()
                     .orElse(normalizedSlug);
 
+            if (testQuerySelections == 1) {
+                panelRepository.clearTestQueryFlag();
+            }
+
             List<GrafanaDashboardPanelRecord> updatedPanels = panelSettings.stream()
                     .filter(item -> item.panelId() != null)
                     .map(setting -> {
@@ -118,6 +131,9 @@ public class GrafanaDashboardSettingsService {
                         Double threshold = setting.threshold() != null
                                 ? setting.threshold()
                                 : (cached != null ? cached.panelThreshold() : null);
+                        boolean testQuery = testQuerySelections == 1
+                                ? Boolean.TRUE.equals(setting.testQuery())
+                                : (cached != null && Boolean.TRUE.equals(cached.testQuery()));
                         return new GrafanaDashboardPanelRecord(
                                 normalizedUid,
                                 normalizedSlug,
@@ -125,7 +141,8 @@ public class GrafanaDashboardSettingsService {
                                 setting.panelId(),
                                 title,
                                 query,
-                                threshold);
+                                threshold,
+                                testQuery);
                     })
                     .toList();
             panelRepository.replaceForDashboard(normalizedUid, normalizedSlug, dashboardTitle, updatedPanels);
@@ -143,7 +160,9 @@ public class GrafanaDashboardSettingsService {
     }
 
     private GrafanaDashboardDetailsDto syncWithDb(
-            GrafanaDashboardDefinition discovered, Map<String, GrafanaDashboard> savedByUid) {
+            GrafanaDashboardDefinition discovered,
+            Map<String, GrafanaDashboard> savedByUid,
+            Map<String, List<GrafanaDashboardPanelRecord>> cachedPanelsByUid) {
         String normalizedUid = normalizeUid(discovered.uid());
         Set<Integer> availablePanels = discovered.panels().stream()
                 .map(GrafanaPanelDefinition::panelId)
@@ -163,6 +182,13 @@ public class GrafanaDashboardSettingsService {
                 List.copyOf(selectedPanels),
                 enabled));
 
+        Map<Integer, GrafanaDashboardPanelRecord> cachedPanels = cachedPanelsByUid.getOrDefault(normalizedUid, List.of())
+                .stream()
+                .collect(Collectors.toMap(
+                        GrafanaDashboardPanelRecord::panelId,
+                        item -> item,
+                        (first, second) -> first));
+
         List<GrafanaDashboardPanelRecord> panelRecords = discovered.panels().stream()
                 .map(panel -> new GrafanaDashboardPanelRecord(
                         normalizedUid,
@@ -171,7 +197,10 @@ public class GrafanaDashboardSettingsService {
                         panel.panelId(),
                         panel.title(),
                         panel.query(),
-                        panel.threshold()))
+                        panel.threshold(),
+                        Boolean.TRUE.equals(Optional.ofNullable(cachedPanels.get(panel.panelId()))
+                                .map(GrafanaDashboardPanelRecord::testQuery)
+                                .orElse(false))))
                 .toList();
         panelRepository.replaceForDashboard(
                 normalizedUid,
@@ -185,7 +214,10 @@ public class GrafanaDashboardSettingsService {
                         panel.title(),
                         selectedPanels.contains(panel.panelId()),
                         panel.query(),
-                        panel.threshold()))
+                        panel.threshold(),
+                        Boolean.TRUE.equals(Optional.ofNullable(cachedPanels.get(panel.panelId()))
+                                .map(GrafanaDashboardPanelRecord::testQuery)
+                                .orElse(false))))
                 .toList();
 
         return new GrafanaDashboardDetailsDto(
@@ -206,7 +238,7 @@ public class GrafanaDashboardSettingsService {
         String title;
         if (cachedPanels == null || cachedPanels.isEmpty()) {
             panels = selectedPanels.stream()
-                    .map(panelId -> new GrafanaDashboardPanelDto(panelId, "График " + panelId, true, null, null))
+                    .map(panelId -> new GrafanaDashboardPanelDto(panelId, "График " + panelId, true, null, null, false))
                     .toList();
             title = savedDashboard.slug();
         } else {
@@ -216,7 +248,8 @@ public class GrafanaDashboardSettingsService {
                             panel.panelTitle(),
                             selectedPanels.contains(panel.panelId()),
                             panel.panelQuery(),
-                            panel.panelThreshold()))
+                            panel.panelThreshold(),
+                            Boolean.TRUE.equals(panel.testQuery())))
                     .toList();
             title = cachedPanels.stream()
                     .map(GrafanaDashboardPanelRecord::dashboardTitle)

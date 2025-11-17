@@ -82,11 +82,12 @@ class GrafanaDashboardSettingsServiceTest {
                         GrafanaDashboardPanelRecord::panelId,
                         GrafanaDashboardPanelRecord::panelTitle,
                         GrafanaDashboardPanelRecord::panelQuery,
-                        GrafanaDashboardPanelRecord::panelThreshold)
+                        GrafanaDashboardPanelRecord::panelThreshold,
+                        GrafanaDashboardPanelRecord::testQuery)
                 .contains(
-                        tuple("uid1", 10, "Throughput", "sum(rate(x[1m]))", 300d),
-                        tuple("uid1", 11, "Latency", "histogram_quantile(0.95, ...)", null),
-                        tuple("uid2", 1, "Errors", "sum(rate(errors[5m]))", 1d));
+                        tuple("uid1", 10, "Throughput", "sum(rate(x[1m]))", 300d, false),
+                        tuple("uid1", 11, "Latency", "histogram_quantile(0.95, ...)", null, false),
+                        tuple("uid2", 1, "Errors", "sum(rate(errors[5m]))", 1d, false));
     }
 
     @Test
@@ -96,7 +97,7 @@ class GrafanaDashboardSettingsServiceTest {
                 "uid1",
                 "slug1",
                 "Cached",
-                List.of(new GrafanaDashboardPanelRecord("uid1", "slug1", "Cached", 10, "Throughput", "up", 0.0)));
+                List.of(new GrafanaDashboardPanelRecord("uid1", "slug1", "Cached", 10, "Throughput", "up", 0.0, false)));
 
         List<GrafanaDashboardDetailsDto> dashboards = service.listDashboards();
 
@@ -156,6 +157,29 @@ class GrafanaDashboardSettingsServiceTest {
         }
 
         @Override
+        public Optional<GrafanaDashboardPanelRecord> findByUidAndPanelId(String dashboardUid, int panelId) {
+            return storage.getOrDefault(dashboardUid, List.of()).stream()
+                    .filter(panel -> panel.panelId() == panelId)
+                    .findFirst();
+        }
+
+        @Override
+        public Optional<GrafanaDashboardPanelRecord> findFirstByPanelId(int panelId) {
+            return storage.values().stream()
+                    .flatMap(List::stream)
+                    .filter(panel -> panel.panelId() == panelId)
+                    .findFirst();
+        }
+
+        @Override
+        public Optional<GrafanaDashboardPanelRecord> findTestQueryPanel() {
+            return storage.values().stream()
+                    .flatMap(List::stream)
+                    .filter(panel -> Boolean.TRUE.equals(panel.testQuery()))
+                    .findFirst();
+        }
+
+        @Override
         public Map<String, List<GrafanaDashboardPanelRecord>> findAllGroupedByUid() {
             return storage;
         }
@@ -167,6 +191,21 @@ class GrafanaDashboardSettingsServiceTest {
                 String dashboardTitle,
                 Collection<GrafanaDashboardPanelRecord> panels) {
             storage.put(dashboardUid, panels.stream().toList());
+        }
+
+        @Override
+        public void clearTestQueryFlag() {
+            storage.replaceAll((uid, panels) -> panels.stream()
+                    .map(panel -> new GrafanaDashboardPanelRecord(
+                            panel.dashboardUid(),
+                            panel.dashboardSlug(),
+                            panel.dashboardTitle(),
+                            panel.panelId(),
+                            panel.panelTitle(),
+                            panel.panelQuery(),
+                            panel.panelThreshold(),
+                            false))
+                    .toList());
         }
 
         @Override

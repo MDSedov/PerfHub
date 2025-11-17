@@ -6,4 +6,5 @@ public record GrafanaDashboardPanelUpdateRequest(
         @NotNull Integer panelId,
         @NotNull Boolean selected,
         String query,
-        Double threshold) {}
+        Double threshold,
+        Boolean testQuery) {}

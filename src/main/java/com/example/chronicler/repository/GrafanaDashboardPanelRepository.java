@@ -6,6 +6,7 @@ import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
@@ -16,19 +17,17 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class GrafanaDashboardPanelRepository {
 
-    private static final String SELECT_ALL =
-            "SELECT dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title, panel_query, panel_threshold"
-                    + " FROM grafana_dashboard_panels"
-                    + " ORDER BY dashboard_uid, panel_id";
-    private static final String SELECT_BY_UID =
-            "SELECT dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title, panel_query, panel_threshold"
-                    + " FROM grafana_dashboard_panels WHERE dashboard_uid = ? ORDER BY panel_id";
+    private static final String BASE_SELECT =
+            "SELECT dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title, panel_query, panel_threshold, is_test_query"
+                    + " FROM grafana_dashboard_panels";
+    private static final String SELECT_ALL = BASE_SELECT + " ORDER BY dashboard_uid, panel_id";
+    private static final String SELECT_BY_UID = BASE_SELECT + " WHERE dashboard_uid = ? ORDER BY panel_id";
     private static final String DELETE_BY_UID =
             "DELETE FROM grafana_dashboard_panels WHERE dashboard_uid = ?";
     private static final String INSERT_SQL =
             "INSERT INTO grafana_dashboard_panels"
-                    + " (dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title, panel_query, panel_threshold)"
-                    + " VALUES (?, ?, ?, ?, ?, ?, ?)";
+                    + " (dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title, panel_query, panel_threshold, is_test_query)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
     private final JdbcTemplate jdbcTemplate;
     private final RowMapper<GrafanaDashboardPanelRecord> rowMapper = (rs, rowNum) -> {
@@ -47,7 +46,8 @@ public class GrafanaDashboardPanelRepository {
                 rs.getInt("panel_id"),
                 rs.getString("panel_title"),
                 rs.getString("panel_query"),
-                threshold);
+                threshold,
+                rs.getObject("is_test_query") != null ? rs.getBoolean("is_test_query") : Boolean.FALSE);
     };
 
     public GrafanaDashboardPanelRepository(JdbcTemplate jdbcTemplate) {
@@ -60,6 +60,21 @@ public class GrafanaDashboardPanelRepository {
 
     public List<GrafanaDashboardPanelRecord> findByDashboardUid(String dashboardUid) {
         return jdbcTemplate.query(SELECT_BY_UID, rowMapper, dashboardUid);
+    }
+
+    public Optional<GrafanaDashboardPanelRecord> findByUidAndPanelId(String dashboardUid, int panelId) {
+        String sql = BASE_SELECT + " WHERE dashboard_uid = ? AND panel_id = ? LIMIT 1";
+        return jdbcTemplate.query(sql, rowMapper, dashboardUid, panelId).stream().findFirst();
+    }
+
+    public Optional<GrafanaDashboardPanelRecord> findFirstByPanelId(int panelId) {
+        String sql = BASE_SELECT + " WHERE panel_id = ? LIMIT 1";
+        return jdbcTemplate.query(sql, rowMapper, panelId).stream().findFirst();
+    }
+
+    public Optional<GrafanaDashboardPanelRecord> findTestQueryPanel() {
+        String sql = BASE_SELECT + " WHERE is_test_query = TRUE LIMIT 1";
+        return jdbcTemplate.query(sql, rowMapper).stream().findFirst();
     }
 
     public Map<String, List<GrafanaDashboardPanelRecord>> findAllGroupedByUid() {
@@ -92,6 +107,7 @@ public class GrafanaDashboardPanelRepository {
                 } else {
                     ps.setDouble(7, panel.panelThreshold());
                 }
+                ps.setBoolean(8, Boolean.TRUE.equals(panel.testQuery()));
             }
 
             @Override
@@ -113,5 +129,9 @@ public class GrafanaDashboardPanelRepository {
         String placeholders = existingUids.stream().map(uid -> "?").collect(Collectors.joining(","));
         String sql = "DELETE FROM grafana_dashboard_panels WHERE dashboard_uid NOT IN (" + placeholders + ")";
         jdbcTemplate.update(sql, existingUids.toArray());
+    }
+
+    public void clearTestQueryFlag() {
+        jdbcTemplate.update("UPDATE grafana_dashboard_panels SET is_test_query = FALSE WHERE is_test_query = TRUE");
     }
 }

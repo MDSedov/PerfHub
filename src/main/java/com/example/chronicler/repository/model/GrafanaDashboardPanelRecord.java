@@ -7,4 +7,5 @@ public record GrafanaDashboardPanelRecord(
         int panelId,
         String panelTitle,
         String panelQuery,
-        Double panelThreshold) {}
+        Double panelThreshold,
+        Boolean testQuery) {}

@@ -7,7 +7,8 @@ import com.example.chronicler.exception.VictoriaMetricsResponseProcessingExcepti
 import com.example.chronicler.exception.VmQueryNotFoundException;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
-import com.example.chronicler.registry.VmQueryRegistry;
+import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
+import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
 import com.example.chronicler.repository.LoadTestRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,9 +26,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 public class VictoriaMetricsService {
@@ -53,7 +56,7 @@ public class VictoriaMetricsService {
     private static final double FINAL_DROP_RATIO = 0.35d;
     private static final double QUARTILE_FRACTION = 0.25d;
     private static final double EPS = 1e-6d;
-    private final VmQueryRegistry queryRegistry;
+    private final GrafanaDashboardPanelRepository grafanaPanelRepository;
     private final VictoriaMetricsClient client;
     private final VmDataCache vmDataCache;
     private final VictoriaMetricsTestsCache testsCache;
@@ -62,13 +65,13 @@ public class VictoriaMetricsService {
 
     /** Конструктор подготавливает зависимости сервиса VictoriaMetrics. */
     VictoriaMetricsService(
-            VmQueryRegistry queryRegistry,
+            GrafanaDashboardPanelRepository grafanaPanelRepository,
             VictoriaMetricsClient client,
             VmDataCache vmDataCache,
             VictoriaMetricsTestsCache testsCache,
             LoadTestRepository loadTestRepository,
             ObjectMapper objectMapper) {
-        this.queryRegistry = queryRegistry;
+        this.grafanaPanelRepository = grafanaPanelRepository;
         this.client = client;
         this.vmDataCache = vmDataCache;
         this.testsCache = testsCache;
@@ -105,9 +108,7 @@ public class VictoriaMetricsService {
             }
 
             String type = request.type();
-            String query = queryRegistry
-                    .findQuery(type)
-                    .orElseThrow(() -> new VmQueryNotFoundException(type));
+            String query = resolveQuery(type);
 
             String response = client.queryRange(query, start, end);
             types.add(type);
@@ -156,6 +157,51 @@ public class VictoriaMetricsService {
         String response = writeAggregated(responseNode);
         testsCache.store(response);
         return response;
+    }
+
+    private String resolveQuery(String type) {
+        if (INTENSITY_TYPE.equals(type)) {
+            Optional<GrafanaDashboardPanelRecord> selected = grafanaPanelRepository.findTestQueryPanel();
+            return selected.map(GrafanaDashboardPanelRecord::panelQuery)
+                    .filter(StringUtils::hasText)
+                    .orElseThrow(() -> new VmQueryNotFoundException("test-query"));
+        }
+
+        Optional<GrafanaDashboardPanelRecord> panel = resolvePanel(type);
+        return panel.map(GrafanaDashboardPanelRecord::panelQuery)
+                .filter(StringUtils::hasText)
+                .orElseThrow(() -> new VmQueryNotFoundException(type));
+    }
+
+    private Optional<GrafanaDashboardPanelRecord> resolvePanel(String type) {
+        return tryResolveByUid(type).or(() -> {
+            Integer panelId = parsePanelId(type);
+            if (panelId == null) {
+                return Optional.empty();
+            }
+            return grafanaPanelRepository.findFirstByPanelId(panelId);
+        });
+    }
+
+    private Optional<GrafanaDashboardPanelRecord> tryResolveByUid(String value) {
+        int delimiter = value.indexOf(':');
+        if (delimiter <= 0 || delimiter >= value.length() - 1) {
+            return Optional.empty();
+        }
+        String uid = value.substring(0, delimiter);
+        Integer panelId = parsePanelId(value.substring(delimiter + 1));
+        if (!StringUtils.hasText(uid) || panelId == null) {
+            return Optional.empty();
+        }
+        return grafanaPanelRepository.findByUidAndPanelId(uid, panelId);
+    }
+
+    private Integer parsePanelId(String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     /** Метод преобразует время из формата Grafana (МСК) в Instant. */

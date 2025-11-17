@@ -9,10 +9,10 @@ import com.example.chronicler.exception.InvalidTimeRangeException;
 import com.example.chronicler.exception.VmQueryNotFoundException;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
+import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
 import com.example.chronicler.repository.LoadTestRepository;
 import com.example.chronicler.repository.TestTypeRepository;
-import com.example.chronicler.repository.VictoriaMetricsQueryRepository;
-import com.example.chronicler.service.ConfigurationProvider;
+import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -36,7 +36,7 @@ class VictoriaMetricsServiceTest {
     private static final DateTimeFormatter DASHBOARD_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final ZoneId MOSCOW_ZONE = ZoneId.of("Europe/Moscow");
 
-    private StubVmQueryRegistry queryRegistry;
+    private StubGrafanaDashboardPanelRepository panelRepository;
 
     private StubVictoriaMetricsClient client;
 
@@ -52,13 +52,13 @@ class VictoriaMetricsServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         objectMapper = new ObjectMapper();
-        queryRegistry = new StubVmQueryRegistry();
+        panelRepository = new StubGrafanaDashboardPanelRepository();
         client = new StubVictoriaMetricsClient();
         vmDataCache = new VmDataCache();
         testsCache = new VictoriaMetricsTestsCache();
         loadTestRepository = new StubLoadTestRepository();
         service = new VictoriaMetricsService(
-                queryRegistry, client, vmDataCache, testsCache, loadTestRepository, objectMapper);
+                panelRepository, client, vmDataCache, testsCache, loadTestRepository, objectMapper);
     }
 
     @Test
@@ -87,7 +87,7 @@ class VictoriaMetricsServiceTest {
     void fetchMetricsAggregatesResponsesAndWritesToCache() throws Exception {
         String start = "2024-01-02 09:00:00";
         String end = "2024-01-02 09:10:00";
-        VictoriaMetricsRequest request = new VictoriaMetricsRequest("latency", start, end);
+        VictoriaMetricsRequest request = new VictoriaMetricsRequest("10", start, end);
 
         Instant expectedStart = toInstant(start);
         Instant expectedEnd = toInstant(end);
@@ -102,7 +102,7 @@ class VictoriaMetricsServiceTest {
                 }
                 """;
 
-        queryRegistry.register("latency", "latency_expr");
+        panelRepository.register(new GrafanaDashboardPanelRecord("uid", "slug", "title", 10, "Latency", "latency_expr", null, false));
         client.setResponse(vmResponse);
 
         String aggregated = service.fetchMetrics(List.of(request));
@@ -112,7 +112,7 @@ class VictoriaMetricsServiceTest {
         assertThat(aggregatedJson.path("end").asText()).isEqualTo(expectedEnd.toString());
         assertThat(aggregatedJson.path("results")).hasSize(1);
         JsonNode resultNode = aggregatedJson.path("results").get(0);
-        assertThat(resultNode.path("type").asText()).isEqualTo("latency");
+        assertThat(resultNode.path("type").asText()).isEqualTo("10");
         assertThat(resultNode.path("data")).isEqualTo(objectMapper.readTree(vmResponse));
 
         assertThat(client.recordedQuery()).isEqualTo("latency_expr");
@@ -120,7 +120,7 @@ class VictoriaMetricsServiceTest {
         assertThat(client.recordedEnd()).isEqualTo(expectedEnd);
 
         VmDataCache.CachedVmData cached = vmDataCache.getLatest().orElseThrow();
-        assertThat(cached.types()).containsExactly("latency");
+        assertThat(cached.types()).containsExactly("10");
         assertThat(cached.start()).isEqualTo(expectedStart);
         assertThat(cached.end()).isEqualTo(expectedEnd);
         assertThat(cached.payload()).isEqualTo(aggregated);
@@ -133,7 +133,8 @@ class VictoriaMetricsServiceTest {
         Instant intervalStart = toInstant(start);
         Instant intervalEnd = toInstant(end);
 
-        queryRegistry.register("intensity", "intensity_expr");
+        panelRepository.register(new GrafanaDashboardPanelRecord(
+                "uid", "slug", "title", 1, "Intensity", "intensity_expr", null, true));
         client.setResponse(intensityPayload(intervalStart, new double[] {0, 5, 5, 5, 5, 5, 5, 0}, 60));
 
         UUID testId = UUID.fromString("00000000-0000-0000-0000-000000000001");
@@ -198,43 +199,37 @@ class VictoriaMetricsServiceTest {
         return objectMapper.writeValueAsString(root);
     }
 
-    private static final class StubVmQueryRegistry extends com.example.chronicler.registry.VmQueryRegistry {
+    private static final class StubGrafanaDashboardPanelRepository extends GrafanaDashboardPanelRepository {
 
-        private final Map<String, String> queries = new HashMap<>();
+        private final Map<String, GrafanaDashboardPanelRecord> panels = new HashMap<>();
 
-        private StubVmQueryRegistry() {
-            super(new StubVictoriaMetricsQueryRepository());
-        }
-
-        void register(String type, String query) {
-            queries.put(type, query);
-        }
-
-        @Override
-        public Optional<String> findQuery(String type) {
-            return Optional.ofNullable(queries.get(type));
-        }
-
-        @Override
-        public Map<String, String> getAll() {
-            return Map.copyOf(queries);
-        }
-
-        @Override
-        public synchronized void reload() {
-            // registry is managed manually in tests
-        }
-    }
-
-    private static final class StubVictoriaMetricsQueryRepository extends VictoriaMetricsQueryRepository {
-
-        private StubVictoriaMetricsQueryRepository() {
+        private StubGrafanaDashboardPanelRepository() {
             super(new JdbcTemplate());
         }
 
+        void register(GrafanaDashboardPanelRecord record) {
+            panels.put(record.dashboardUid() + ":" + record.panelId(), record);
+        }
+
         @Override
-        public Map<String, String> findAll() {
-            return Map.of();
+        public Optional<GrafanaDashboardPanelRecord> findFirstByPanelId(int panelId) {
+            return panels.values().stream()
+                    .filter(record -> record.panelId() == panelId)
+                    .findFirst();
+        }
+
+        @Override
+        public Optional<GrafanaDashboardPanelRecord> findTestQueryPanel() {
+            return panels.values().stream()
+                    .filter(record -> Boolean.TRUE.equals(record.testQuery()))
+                    .findFirst();
+        }
+
+        @Override
+        public Optional<GrafanaDashboardPanelRecord> findByUidAndPanelId(String dashboardUid, int panelId) {
+            return panels.values().stream()
+                    .filter(record -> record.dashboardUid().equals(dashboardUid) && record.panelId() == panelId)
+                    .findFirst();
         }
     }
 
