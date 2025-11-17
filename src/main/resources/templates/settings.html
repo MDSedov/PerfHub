@@ -96,14 +96,9 @@
         }
 
         .settings-menu {
-            max-height: none;
-            overflow: visible;
-        }
-
-        .settings-group + .settings-group {
-            border-top: 1px solid rgba(0, 152, 70, 0.15);
-            margin-top: 1.5rem;
-            padding-top: 1.5rem;
+            display: grid;
+            gap: 1.25rem;
+            grid-template-columns: 1fr;
         }
 
         .settings-service-title {
@@ -130,6 +125,10 @@
         .settings-description {
             font-weight: 600;
             color: #1d2822;
+        }
+
+        .integration-card .btn {
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -203,23 +202,20 @@
 </nav>
 
 <main class="container-fluid py-5 px-4 px-lg-5">
-    <div class="card settings-card">
+    <div class="card settings-card mb-4">
         <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
                     <h5 class="card-title mb-1">Подключения</h5>
-                    <p class="text-muted small mb-0">Всего <span id="settingsCount">0</span> параметров подключения</p>
+                    <p class="text-muted small mb-0">Всего <span id="settingsCount">0</span> интеграций</p>
                 </div>
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="reloadSettingsButton">Сбросить</button>
-                    <button type="button" class="btn btn-success btn-sm" id="saveSettingsButton" disabled>Сохранить</button>
-                </div>
+                <div class="text-muted small">Изменения сохраняются отдельно для каждой интеграции.</div>
             </div>
-            <div id="settingsStatus" class="alert d-none" role="alert"></div>
-            <div id="settingsList" class="settings-menu"></div>
-            <div id="settingsEmpty" class="text-muted d-none">Настройки не найдены.</div>
+            <div id="settingsStatus" class="alert d-none mt-3 mb-0" role="alert"></div>
         </div>
     </div>
+    <div id="settingsList" class="settings-menu"></div>
+    <div id="settingsEmpty" class="text-muted d-none">Настройки не найдены.</div>
 </main>
 
 <script
@@ -231,14 +227,31 @@
     const settingsList = document.getElementById('settingsList');
     const settingsStatus = document.getElementById('settingsStatus');
     const settingsEmpty = document.getElementById('settingsEmpty');
-    const saveSettingsButton = document.getElementById('saveSettingsButton');
-    const reloadSettingsButton = document.getElementById('reloadSettingsButton');
     const settingsCount = document.getElementById('settingsCount');
+
+    const SERVICE_ORDER = [
+        'Victoria Metrics',
+        'Grafana',
+        'Confluence',
+        'DropApp',
+        'GigaChat'
+    ];
+    const servicePriority = new Map(SERVICE_ORDER.map((name, index) => [name, index]));
 
     const settingsChanges = new Map();
     const connectionStatuses = new Map();
+    const serviceCards = new Map();
+    const serviceSaving = new Set();
     let settingsCache = [];
-    let isSettingsSaving = false;
+
+    function compareServices(a, b) {
+        const priorityA = servicePriority.has(a) ? servicePriority.get(a) : SERVICE_ORDER.length;
+        const priorityB = servicePriority.has(b) ? servicePriority.get(b) : SERVICE_ORDER.length;
+        if (priorityA !== priorityB) {
+            return priorityA - priorityB;
+        }
+        return a.localeCompare(b, 'ru');
+    }
 
     function getCompoundKey(service, key) {
         return `${service}::${key}`;
@@ -252,10 +265,6 @@
 
     function clearSettingsStatus() {
         settingsStatus.classList.add('d-none');
-    }
-
-    function toggleSaveSettingsButton() {
-        saveSettingsButton.disabled = settingsChanges.size === 0 || isSettingsSaving;
     }
 
     function applyStoredConnectionStatus(service, element) {
@@ -273,6 +282,36 @@
         const className = isSuccess ? 'small text-success' : 'small text-danger';
         connectionStatuses.set(service, {text, className});
         return className;
+    }
+
+    function setServiceMessage(service, message, tone = 'muted') {
+        const card = serviceCards.get(service);
+        if (!card) {
+            return;
+        }
+        const baseClass = `small text-${tone} mb-2`;
+        if (!message) {
+            card.status.textContent = '';
+            card.status.className = `${baseClass} d-none`;
+            return;
+        }
+        card.status.textContent = message;
+        card.status.className = baseClass;
+    }
+
+    function getServiceChanges(service) {
+        return Array.from(settingsChanges.values()).filter(item => item.service === service);
+    }
+
+    function refreshServiceActions(service) {
+        const card = serviceCards.get(service);
+        if (!card) {
+            return;
+        }
+        const hasChanges = getServiceChanges(service).length > 0;
+        const isSaving = serviceSaving.has(service);
+        card.saveButton.disabled = !hasChanges || isSaving;
+        card.resetButton.disabled = !hasChanges || isSaving;
     }
 
     async function checkConnection(service, button, statusElement) {
@@ -300,131 +339,44 @@
         }
     }
 
-    function renderSettings(items) {
-        settingsList.innerHTML = '';
-        settingsChanges.clear();
-        toggleSaveSettingsButton();
-
-        if (settingsCount) {
-            settingsCount.textContent = items.length.toString();
-        }
-
-        if (!items.length) {
-            settingsList.classList.add('d-none');
-            settingsEmpty.classList.remove('d-none');
-            return;
-        }
-
-        settingsList.classList.remove('d-none');
-        settingsEmpty.classList.add('d-none');
-
-        const groups = new Map();
-        items.forEach(item => {
-            if (!groups.has(item.service)) {
-                groups.set(item.service, []);
-            }
-            groups.get(item.service).push(item);
-        });
-
-        groups.forEach((groupItems, service) => {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'settings-group';
-
-            const header = document.createElement('div');
-            header.className = 'd-flex flex-wrap justify-content-between align-items-center mb-2 gap-2';
-
-            const title = document.createElement('div');
-            title.className = 'settings-service-title mb-0';
-            title.textContent = service;
-
-            const actions = document.createElement('div');
-            actions.className = 'd-flex align-items-center gap-2 flex-wrap';
-
-            const testButton = document.createElement('button');
-            testButton.type = 'button';
-            testButton.className = 'btn btn-outline-success btn-sm';
-            testButton.textContent = 'Проверить соединение';
-
-            const status = document.createElement('div');
-            status.className = 'small text-muted';
-            applyStoredConnectionStatus(service, status);
-
-            testButton.addEventListener('click', () => checkConnection(service, testButton, status));
-
-            actions.appendChild(testButton);
-            actions.appendChild(status);
-            header.appendChild(title);
-            header.appendChild(actions);
-            wrapper.appendChild(header);
-
-            groupItems.forEach(item => {
-                const entry = document.createElement('div');
-                entry.className = 'settings-item';
-
-                const meta = document.createElement('div');
-                meta.className = 'mb-2';
-                const keyLabel = document.createElement('div');
-                keyLabel.className = 'settings-key';
-                keyLabel.textContent = item.key;
-                const description = document.createElement('div');
-                description.className = 'settings-description';
-                description.textContent = item.description ?? '—';
-                meta.appendChild(keyLabel);
-                meta.appendChild(description);
-
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.className = 'form-control';
-                input.value = item.value ?? '';
-                const originalValue = input.value;
-
-                input.addEventListener('input', () => {
-                    const compoundKey = getCompoundKey(item.service, item.key);
-                    if (input.value === originalValue) {
-                        settingsChanges.delete(compoundKey);
-                    } else {
-                        settingsChanges.set(compoundKey, {
-                            service: item.service,
-                            key: item.key,
-                            value: input.value
-                        });
-                    }
-                    toggleSaveSettingsButton();
-                });
-
-                entry.appendChild(meta);
-                entry.appendChild(input);
-                wrapper.appendChild(entry);
-            });
-
-            settingsList.appendChild(wrapper);
-        });
+    function getServiceItemsFromCache(service) {
+        return settingsCache.filter(item => item.service === service);
     }
 
-    async function loadSettings() {
-        setSettingsStatus('Загружаем настройки…', 'info');
-        try {
-            const response = await fetch('/api/chronicler/properties/');
-            if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
-            }
-            settingsCache = await response.json();
-            renderSettings(settingsCache);
-            clearSettingsStatus();
-        } catch (error) {
-            setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');
-        }
-    }
-
-    async function saveSettings() {
-        if (settingsChanges.size === 0) {
+    function resetService(service) {
+        const card = serviceCards.get(service);
+        if (!card) {
             return;
         }
-        isSettingsSaving = true;
-        toggleSaveSettingsButton();
-        setSettingsStatus('Сохраняем изменения…', 'info');
+        const originals = new Map(getServiceItemsFromCache(service).map(item => [item.key, item.value ?? '']));
+        card.inputs.forEach(input => {
+            const originalValue = originals.get(input.dataset.key) ?? '';
+            input.value = originalValue;
+            input.dataset.originalValue = originalValue;
+            settingsChanges.delete(getCompoundKey(service, input.dataset.key));
+        });
+        setServiceMessage(service, 'Изменения отменены.', 'muted');
+        refreshServiceActions(service);
+    }
+
+    function updateSettingsCount() {
+        if (!settingsCount) {
+            return;
+        }
+        const uniqueServices = new Set(settingsCache.map(item => item.service));
+        settingsCount.textContent = uniqueServices.size.toString();
+    }
+
+    async function saveService(service) {
+        const changes = getServiceChanges(service);
+        if (!changes.length) {
+            return;
+        }
+        serviceSaving.add(service);
+        refreshServiceActions(service);
+        setServiceMessage(service, 'Сохраняем изменения…', 'info');
         const payload = {
-            parameters: Array.from(settingsChanges.values()).map(item => ({
+            parameters: changes.map(item => ({
                 service: item.service,
                 key: item.key,
                 value: item.value
@@ -442,18 +394,222 @@
                 throw new Error('Ответ сервера: ' + response.status);
             }
             settingsCache = await response.json();
-            renderSettings(settingsCache);
-            setSettingsStatus('Настройки сохранены.', 'success');
+            const keysToDelete = [];
+            settingsChanges.forEach((value, key) => {
+                if (value.service === service) {
+                    keysToDelete.push(key);
+                }
+            });
+            keysToDelete.forEach(key => settingsChanges.delete(key));
+            updateSettingsCount();
+            rebuildServiceCard(service);
+            setServiceMessage(service, 'Настройки сохранены.', 'success');
         } catch (error) {
-            setSettingsStatus('Не удалось сохранить настройки: ' + error.message, 'danger');
+            setServiceMessage(service, 'Не удалось сохранить: ' + error.message, 'danger');
         } finally {
-            isSettingsSaving = false;
-            toggleSaveSettingsButton();
+            serviceSaving.delete(service);
+            refreshServiceActions(service);
         }
     }
 
-    saveSettingsButton.addEventListener('click', saveSettings);
-    reloadSettingsButton.addEventListener('click', loadSettings);
+    function createServiceCard(service, groupItems) {
+        const card = document.createElement('div');
+        card.className = 'card settings-card integration-card h-100';
+
+        const body = document.createElement('div');
+        body.className = 'card-body d-flex flex-column';
+
+        const header = document.createElement('div');
+        header.className = 'd-flex flex-wrap justify-content-between align-items-start gap-3 mb-3';
+
+        const titleBox = document.createElement('div');
+        const title = document.createElement('div');
+        title.className = 'settings-service-title mb-1';
+        title.textContent = service;
+        const subtitle = document.createElement('div');
+        subtitle.className = 'text-muted small';
+        subtitle.textContent = `${groupItems.length} параметров`;
+        titleBox.appendChild(title);
+        titleBox.appendChild(subtitle);
+
+        const actions = document.createElement('div');
+        actions.className = 'd-flex flex-wrap align-items-center gap-2';
+
+        const resetButton = document.createElement('button');
+        resetButton.type = 'button';
+        resetButton.className = 'btn btn-outline-secondary btn-sm';
+        resetButton.textContent = 'Сбросить';
+
+        const saveButton = document.createElement('button');
+        saveButton.type = 'button';
+        saveButton.className = 'btn btn-success btn-sm';
+        saveButton.textContent = 'Сохранить';
+        saveButton.disabled = true;
+
+        const testButton = document.createElement('button');
+        testButton.type = 'button';
+        testButton.className = 'btn btn-outline-success btn-sm';
+        testButton.textContent = 'Проверить соединение';
+
+        const connectionStatus = document.createElement('div');
+        connectionStatus.className = 'small text-muted';
+        applyStoredConnectionStatus(service, connectionStatus);
+
+        actions.appendChild(resetButton);
+        actions.appendChild(saveButton);
+        actions.appendChild(testButton);
+        actions.appendChild(connectionStatus);
+
+        header.appendChild(titleBox);
+        header.appendChild(actions);
+
+        const status = document.createElement('div');
+        status.className = 'small text-muted mb-2 d-none';
+
+        const fields = document.createElement('div');
+        fields.className = 'd-flex flex-column gap-3';
+
+        const cardState = {
+            element: card,
+            saveButton,
+            resetButton,
+            testButton,
+            status,
+            connectionStatus,
+            inputs: []
+        };
+
+        groupItems.forEach(item => {
+            const entry = document.createElement('div');
+            entry.className = 'settings-item';
+
+            const meta = document.createElement('div');
+            meta.className = 'mb-2';
+            const keyLabel = document.createElement('div');
+            keyLabel.className = 'settings-key';
+            keyLabel.textContent = item.key;
+            const description = document.createElement('div');
+            description.className = 'settings-description';
+            description.textContent = item.description ?? '—';
+            meta.appendChild(keyLabel);
+            meta.appendChild(description);
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control';
+            input.value = item.value ?? '';
+            input.dataset.service = item.service;
+            input.dataset.key = item.key;
+            input.dataset.originalValue = input.value;
+
+            input.addEventListener('input', () => {
+                const originalValue = input.dataset.originalValue ?? '';
+                const compoundKey = getCompoundKey(item.service, item.key);
+                if (input.value === originalValue) {
+                    settingsChanges.delete(compoundKey);
+                } else {
+                    settingsChanges.set(compoundKey, {
+                        service: item.service,
+                        key: item.key,
+                        value: input.value
+                    });
+                }
+                setServiceMessage(service, '', 'muted');
+                refreshServiceActions(item.service);
+            });
+
+            cardState.inputs.push(input);
+
+            entry.appendChild(meta);
+            entry.appendChild(input);
+            fields.appendChild(entry);
+        });
+
+        resetButton.addEventListener('click', () => resetService(service));
+        saveButton.addEventListener('click', () => saveService(service));
+        testButton.addEventListener('click', () => checkConnection(service, testButton, connectionStatus));
+
+        body.appendChild(header);
+        body.appendChild(status);
+        body.appendChild(fields);
+        card.appendChild(body);
+
+        return cardState;
+    }
+
+    function rebuildServiceCard(service) {
+        const serviceItems = getServiceItemsFromCache(service);
+        const newCard = createServiceCard(service, serviceItems);
+        const existing = serviceCards.get(service);
+        if (existing) {
+            settingsList.replaceChild(newCard.element, existing.element);
+        } else {
+            const services = Array.from(serviceCards.keys()).sort(compareServices);
+            const insertBeforeService = services.find(other => compareServices(service, other) < 0);
+            if (insertBeforeService) {
+                const target = serviceCards.get(insertBeforeService);
+                settingsList.insertBefore(newCard.element, target.element);
+            } else {
+                settingsList.appendChild(newCard.element);
+            }
+        }
+        serviceCards.set(service, newCard);
+        setServiceMessage(service, '', 'muted');
+        refreshServiceActions(service);
+    }
+
+    function renderSettings(items) {
+        settingsList.innerHTML = '';
+        settingsChanges.clear();
+        serviceCards.clear();
+
+        if (!items.length) {
+            if (settingsCount) {
+                settingsCount.textContent = '0';
+            }
+            settingsList.classList.add('d-none');
+            settingsEmpty.classList.remove('d-none');
+            return;
+        }
+
+        settingsList.classList.remove('d-none');
+        settingsEmpty.classList.add('d-none');
+
+        const groups = new Map();
+        items.forEach(item => {
+            if (!groups.has(item.service)) {
+                groups.set(item.service, []);
+            }
+            groups.get(item.service).push(item);
+        });
+
+        const services = Array.from(groups.keys()).sort(compareServices);
+        settingsCache = items;
+        updateSettingsCount();
+
+        services.forEach(service => {
+            const card = createServiceCard(service, groups.get(service));
+            serviceCards.set(service, card);
+            settingsList.appendChild(card.element);
+            refreshServiceActions(service);
+        });
+    }
+
+    async function loadSettings() {
+        setSettingsStatus('Загружаем настройки…', 'info');
+        try {
+            const response = await fetch('/api/chronicler/properties/');
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            const data = await response.json();
+            settingsCache = data;
+            renderSettings(settingsCache);
+            clearSettingsStatus();
+        } catch (error) {
+            setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');
+        }
+    }
 
     (async function init() {
         await loadSettings();
