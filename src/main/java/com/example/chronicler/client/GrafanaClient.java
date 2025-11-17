@@ -1,12 +1,17 @@
 package com.example.chronicler.client;
 
+import com.example.chronicler.dto.grafana.GrafanaDashboardDefinition;
+import com.example.chronicler.dto.grafana.GrafanaPanelDefinition;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.net.URI;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -18,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -40,6 +46,47 @@ public class GrafanaClient {
     public GrafanaClient(RestTemplate restTemplate, ConfigurationProvider configurationProvider) {
         this.restTemplate = restTemplate;
         this.configurationProvider = configurationProvider;
+    }
+
+    /**
+     * Возвращает список дашбордов Grafana и их панелей.
+     */
+    public List<GrafanaDashboardDefinition> discoverDashboards() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON, MediaType.ALL));
+        headers.setBearerAuth(required(API_KEY_KEY));
+
+        URI searchUri = UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
+                .pathSegment("api", "search")
+                .queryParam("type", "dash-db")
+                .build(true)
+                .toUri();
+
+        try {
+            ResponseEntity<GrafanaSearchItem[]> searchResponse = restTemplate.exchange(
+                    searchUri, HttpMethod.GET, new HttpEntity<>(null, headers), GrafanaSearchItem[].class);
+            GrafanaSearchItem[] dashboards = searchResponse.getBody();
+            if (dashboards == null || dashboards.length == 0) {
+                return List.of();
+            }
+
+            List<GrafanaDashboardDefinition> result = new ArrayList<>();
+            for (GrafanaSearchItem item : dashboards) {
+                if (item == null || !StringUtils.hasText(item.uid())) {
+                    continue;
+                }
+                String slug = extractSlug(item.url());
+                List<GrafanaPanelDefinition> panels = fetchPanels(headers, item.uid());
+                result.add(new GrafanaDashboardDefinition(
+                        item.uid(),
+                        slug,
+                        item.title(),
+                        panels));
+            }
+            return List.copyOf(result);
+        } catch (RestClientException ex) {
+            throw new GrafanaClientException("Failed to list Grafana dashboards", ex);
+        }
     }
 
     /**
@@ -159,6 +206,51 @@ public class GrafanaClient {
         }
     }
 
+    private List<GrafanaPanelDefinition> fetchPanels(HttpHeaders headers, String dashboardUid) {
+        URI uri = UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
+                .pathSegment("api", "dashboards", "uid", dashboardUid)
+                .build(true)
+                .toUri();
+
+        try {
+            ResponseEntity<GrafanaDashboardResponse> response = restTemplate.exchange(
+                    uri, HttpMethod.GET, new HttpEntity<>(null, headers), GrafanaDashboardResponse.class);
+            GrafanaDashboardResponse body = response.getBody();
+            if (body == null || body.dashboard() == null || body.dashboard().panels() == null) {
+                return List.of();
+            }
+
+            Map<Integer, String> panelsById = new LinkedHashMap<>();
+            for (GrafanaDashboardPanel panel : body.dashboard().panels()) {
+                if (panel == null || panel.id() == null || panel.id() <= 0) {
+                    continue;
+                }
+                String title = panel.title();
+                if (!StringUtils.hasText(title)) {
+                    title = "Панель " + panel.id();
+                }
+                panelsById.put(panel.id(), title);
+            }
+
+            return panelsById.entrySet().stream()
+                    .map(entry -> new GrafanaPanelDefinition(entry.getKey(), entry.getValue()))
+                    .toList();
+        } catch (RestClientException ex) {
+            throw new GrafanaClientException("Failed to load Grafana dashboard " + dashboardUid, ex);
+        }
+    }
+
+    private String extractSlug(String url) {
+        if (!StringUtils.hasText(url)) {
+            throw new GrafanaClientException("Grafana dashboard url is missing", null);
+        }
+        int lastSlash = url.lastIndexOf('/');
+        if (lastSlash < 0 || lastSlash == url.length() - 1) {
+            throw new GrafanaClientException("Grafana dashboard url has no slug: " + url, null);
+        }
+        return url.substring(lastSlash + 1);
+    }
+
     /**
      * Гарантирует наличие завершающего слэша в пути к API рендеринга.
      */
@@ -197,6 +289,9 @@ public class GrafanaClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaDashboardPanel(Integer id, String title, String description) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaSearchItem(String uid, String url, String title) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaHealthResponse(String database, String message) {}

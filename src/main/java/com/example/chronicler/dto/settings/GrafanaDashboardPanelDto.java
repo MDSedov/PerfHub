@@ -1,0 +1,3 @@
+package com.example.chronicler.dto.settings;
+
+public record GrafanaDashboardPanelDto(int panelId, String title, boolean selected) {}

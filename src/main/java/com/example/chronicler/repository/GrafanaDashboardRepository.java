@@ -14,13 +14,13 @@ import org.springframework.util.StringUtils;
 public class GrafanaDashboardRepository {
 
     private static final String SELECT_ALL_SQL =
-            "SELECT dashboard_uid, slug, panels FROM grafana_dashboards ORDER BY dashboard_uid";
+            "SELECT dashboard_uid, slug, panels, enabled FROM grafana_dashboards ORDER BY dashboard_uid";
     private static final String SELECT_ONE_SQL =
-            "SELECT dashboard_uid, slug, panels FROM grafana_dashboards WHERE dashboard_uid = ?";
+            "SELECT dashboard_uid, slug, panels, enabled FROM grafana_dashboards WHERE dashboard_uid = ?";
     private static final String INSERT_SQL =
-            "INSERT INTO grafana_dashboards (dashboard_uid, slug, panels) VALUES (?, ?, ?)";
+            "INSERT INTO grafana_dashboards (dashboard_uid, slug, panels, enabled) VALUES (?, ?, ?, ?)";
     private static final String UPDATE_SQL =
-            "UPDATE grafana_dashboards SET slug = ?, panels = ? WHERE dashboard_uid = ?";
+            "UPDATE grafana_dashboards SET slug = ?, panels = ?, enabled = ? WHERE dashboard_uid = ?";
     private static final String DELETE_SQL = "DELETE FROM grafana_dashboards WHERE dashboard_uid = ?";
 
     private final JdbcTemplate jdbcTemplate;
@@ -29,7 +29,8 @@ public class GrafanaDashboardRepository {
         return new GrafanaDashboard(
                 rs.getString("dashboard_uid"),
                 rs.getString("slug"),
-                panels);
+                panels,
+                rs.getBoolean("enabled"));
     };
 
     public GrafanaDashboardRepository(JdbcTemplate jdbcTemplate) {
@@ -42,9 +43,14 @@ public class GrafanaDashboardRepository {
 
     public GrafanaDashboard upsert(GrafanaDashboard dashboard) {
         String panelsValue = serializePanels(dashboard.panels());
-        int updated = jdbcTemplate.update(UPDATE_SQL, dashboard.slug(), panelsValue, dashboard.uid());
+        int updated = jdbcTemplate.update(
+                UPDATE_SQL,
+                dashboard.slug(),
+                panelsValue,
+                dashboard.enabled(),
+                dashboard.uid());
         if (updated == 0) {
-            jdbcTemplate.update(INSERT_SQL, dashboard.uid(), dashboard.slug(), panelsValue);
+            jdbcTemplate.update(INSERT_SQL, dashboard.uid(), dashboard.slug(), panelsValue, dashboard.enabled());
         }
         return jdbcTemplate.query(SELECT_ONE_SQL, rowMapper, dashboard.uid()).stream()
                 .findFirst()

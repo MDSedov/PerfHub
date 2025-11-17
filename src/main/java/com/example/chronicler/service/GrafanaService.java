@@ -66,9 +66,11 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        List<GrafanaDashboard> dashboardConfigs = grafanaDashboardRepository.findAll();
+        List<GrafanaDashboard> dashboardConfigs = grafanaDashboardRepository.findAll().stream()
+                .filter(GrafanaDashboard::enabled)
+                .toList();
         if (dashboardConfigs.isEmpty()) {
-            throw new GrafanaRenderingException("No Grafana dashboards configured");
+            throw new GrafanaRenderingException("No enabled Grafana dashboards configured");
         }
 
         List<GrafanaRenderedDashboard> dashboards = new ArrayList<>();

@@ -11,6 +11,7 @@ import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.LoadTestRepository;
 import com.example.chronicler.repository.TestTypeRepository;
+import com.example.chronicler.repository.VictoriaMetricsQueryRepository;
 import com.example.chronicler.service.ConfigurationProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -202,7 +203,7 @@ class VictoriaMetricsServiceTest {
         private final Map<String, String> queries = new HashMap<>();
 
         private StubVmQueryRegistry() {
-            super(Map.of());
+            super(new StubVictoriaMetricsQueryRepository());
         }
 
         void register(String type, String query) {
@@ -217,6 +218,23 @@ class VictoriaMetricsServiceTest {
         @Override
         public Map<String, String> getAll() {
             return Map.copyOf(queries);
+        }
+
+        @Override
+        public synchronized void reload() {
+            // registry is managed manually in tests
+        }
+    }
+
+    private static final class StubVictoriaMetricsQueryRepository extends VictoriaMetricsQueryRepository {
+
+        private StubVictoriaMetricsQueryRepository() {
+            super(new JdbcTemplate());
+        }
+
+        @Override
+        public Map<String, String> findAll() {
+            return Map.of();
         }
     }
 

@@ -1,6 +1,7 @@
 package com.example.chronicler.controller.settings;
 
 import com.example.chronicler.dto.settings.GrafanaDashboardCreateRequest;
+import com.example.chronicler.dto.settings.GrafanaDashboardDetailsDto;
 import com.example.chronicler.dto.settings.GrafanaDashboardDto;
 import com.example.chronicler.dto.settings.GrafanaDashboardUpdateRequest;
 import com.example.chronicler.model.GrafanaDashboard;
@@ -37,9 +38,15 @@ public class GrafanaDashboardSettingsController {
                 .collect(Collectors.toList());
     }
 
+    @GetMapping("/discover")
+    public List<GrafanaDashboardDetailsDto> discoverDashboards() {
+        return service.pullFromGrafana();
+    }
+
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public GrafanaDashboardDto createDashboard(@Valid @RequestBody GrafanaDashboardCreateRequest request) {
-        GrafanaDashboard dashboard = service.create(request.uid(), request.slug(), request.panels());
+        GrafanaDashboard dashboard = service.create(
+                request.uid(), request.slug(), request.panels(), request.enabled());
         return toDto(dashboard);
     }
 
@@ -47,7 +54,7 @@ public class GrafanaDashboardSettingsController {
     public GrafanaDashboardDto updateDashboard(
             @PathVariable String uid,
             @Valid @RequestBody GrafanaDashboardUpdateRequest request) {
-        GrafanaDashboard dashboard = service.update(uid, request.slug(), request.panels());
+        GrafanaDashboard dashboard = service.update(uid, request.slug(), request.panels(), request.enabled());
         return toDto(dashboard);
     }
 
@@ -57,6 +64,6 @@ public class GrafanaDashboardSettingsController {
     }
 
     private GrafanaDashboardDto toDto(GrafanaDashboard dashboard) {
-        return new GrafanaDashboardDto(dashboard.uid(), dashboard.slug(), dashboard.panels());
+        return new GrafanaDashboardDto(dashboard.uid(), dashboard.slug(), dashboard.panels(), dashboard.enabled());
     }
 }

@@ -6,5 +6,5 @@ import java.util.List;
 
 public record GrafanaDashboardUpdateRequest(
         @NotBlank String slug,
-        @NotNull List<Integer> panels) {}
-
+        @NotNull List<Integer> panels,
+        @NotNull Boolean enabled) {}

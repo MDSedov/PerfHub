@@ -7,5 +7,5 @@ import java.util.List;
 public record GrafanaDashboardCreateRequest(
         @NotBlank String uid,
         @NotBlank String slug,
-        @NotNull List<Integer> panels) {}
-
+        @NotNull List<Integer> panels,
+        @NotNull Boolean enabled) {}

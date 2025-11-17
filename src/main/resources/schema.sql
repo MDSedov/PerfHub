@@ -57,11 +57,15 @@ WHERE test_type = 'soak'
 CREATE TABLE IF NOT EXISTS grafana_dashboards (
     dashboard_uid VARCHAR(64) PRIMARY KEY,
     slug VARCHAR(128) NOT NULL,
-    panels CLOB NOT NULL
+    panels CLOB NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-INSERT INTO grafana_dashboards (dashboard_uid, slug, panels)
-SELECT 'adrr5xs', 'jmeter-metrics', '1,2'
+ALTER TABLE grafana_dashboards ADD COLUMN IF NOT EXISTS enabled BOOLEAN DEFAULT TRUE;
+UPDATE grafana_dashboards SET enabled = TRUE WHERE enabled IS NULL;
+
+INSERT INTO grafana_dashboards (dashboard_uid, slug, panels, enabled)
+SELECT 'adrr5xs', 'jmeter-metrics', '1,2', TRUE
 WHERE NOT EXISTS (SELECT 1 FROM grafana_dashboards WHERE dashboard_uid = 'adrr5xs');
 
 CREATE TABLE IF NOT EXISTS configurations (

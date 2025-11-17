@@ -93,10 +93,26 @@
             border: none;
             border-radius: 20px;
             box-shadow: 0 16px 50px rgba(3, 76, 45, 0.08);
+            width: 100%;
         }
 
-        .dashboard-card + .dashboard-card {
-            margin-top: 1.25rem;
+        .dashboard-card.offline {
+            opacity: 0.8;
+        }
+
+        .dashboard-meta {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .panel-table th {
+            color: #6c757d;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .panel-table td {
+            vertical-align: middle;
         }
     </style>
 </head>
@@ -173,13 +189,13 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
             <h5 class="mb-1">Дашборды Grafana</h5>
-            <p class="text-muted small mb-0">Укажите UID, slug и панели для рендера.</p>
+            <p class="text-muted small mb-0">Запросите дашборды из Grafana и отметьте панели, которые нужно включать в отчеты и детали тестов.</p>
         </div>
-        <button type="button" class="btn btn-success" id="addDashboardButton">Добавить дашборд</button>
+        <button type="button" class="btn btn-success" id="fetchDashboardsButton">Запросить данные по дашбордам</button>
     </div>
     <div id="dashboardsStatus" class="alert d-none" role="alert"></div>
-    <div id="dashboardsList"></div>
-    <div id="dashboardsEmpty" class="text-muted">Дашборды отсутствуют.</div>
+    <div id="dashboardsList" class="d-flex flex-column gap-3"></div>
+    <div id="dashboardsEmpty" class="text-muted">Нажмите «Запросить данные по дашбордам», чтобы подтянуть их из Grafana.</div>
 </main>
 
 <script
@@ -190,7 +206,7 @@
     const dashboardsList = document.getElementById('dashboardsList');
     const dashboardsEmpty = document.getElementById('dashboardsEmpty');
     const dashboardsStatus = document.getElementById('dashboardsStatus');
-    const addDashboardButton = document.getElementById('addDashboardButton');
+    const fetchDashboardsButton = document.getElementById('fetchDashboardsButton');
 
     function setDashboardsStatus(message, type = 'info') {
         dashboardsStatus.textContent = message;
@@ -204,7 +220,7 @@
 
     function renderDashboards(items) {
         dashboardsList.innerHTML = '';
-        if (!items.length) {
+        if (!items || !items.length) {
             dashboardsEmpty.classList.remove('d-none');
             return;
         }
@@ -216,198 +232,170 @@
         const card = document.createElement('div');
         card.className = 'card dashboard-card';
         card.dataset.dashboardUid = item?.uid ?? '';
-        card.dataset.isNew = (!item || !item.uid).toString();
+        card.dataset.dashboardSlug = item?.slug ?? '';
 
         const body = document.createElement('div');
         body.className = 'card-body';
 
-        const row = document.createElement('div');
-        row.className = 'row g-3';
+        const header = document.createElement('div');
+        header.className = 'd-flex flex-wrap justify-content-between align-items-start gap-3 mb-3';
 
-        const uidCol = buildInputColumn('col-md-3', 'UID', 'uid', item?.uid ?? '');
-        if (item?.uid) {
-            uidCol.querySelector('input').readOnly = true;
+        const title = document.createElement('div');
+        const heading = document.createElement('h6');
+        heading.className = 'mb-1';
+        heading.textContent = item?.title || 'Без названия';
+        const meta = document.createElement('div');
+        meta.className = 'dashboard-meta';
+        meta.textContent = `UID: ${item?.uid ?? '—'} · Slug: ${item?.slug ?? '—'}`;
+        title.appendChild(heading);
+        title.appendChild(meta);
+
+        const toggleWrapper = document.createElement('div');
+        toggleWrapper.className = 'form-check form-switch';
+        const toggle = document.createElement('input');
+        toggle.type = 'checkbox';
+        toggle.className = 'form-check-input dashboard-toggle';
+        toggle.role = 'switch';
+        toggle.checked = Boolean(item?.enabled);
+        toggle.addEventListener('change', () => card.classList.toggle('offline', !toggle.checked));
+        const toggleLabel = document.createElement('label');
+        toggleLabel.className = 'form-check-label';
+        toggleLabel.textContent = 'Выгружать графики';
+
+        toggleWrapper.appendChild(toggle);
+        toggleWrapper.appendChild(toggleLabel);
+
+        header.appendChild(title);
+        header.appendChild(toggleWrapper);
+        body.appendChild(header);
+
+        if (item?.panels?.length) {
+            const table = document.createElement('table');
+            table.className = 'table table-sm align-middle panel-table mb-3';
+
+            const thead = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            ['Добавлять', 'График', '№ панели'].forEach(text => {
+                const th = document.createElement('th');
+                th.scope = 'col';
+                th.textContent = text;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            item.panels.forEach(panel => tbody.appendChild(buildPanelRow(panel)));
+            table.appendChild(tbody);
+            body.appendChild(table);
+        } else {
+            const empty = document.createElement('div');
+            empty.className = 'text-muted small';
+            empty.textContent = 'Панели не найдены.';
+            body.appendChild(empty);
         }
-        row.appendChild(uidCol);
-        row.appendChild(buildInputColumn('col-md-4', 'Slug', 'slug', item?.slug ?? ''));
-        row.appendChild(buildInputColumn('col-md-5', 'Панели (через запятую)', 'panels', formatPanels(item?.panels)));
-
-        body.appendChild(row);
-
-        const helper = document.createElement('div');
-        helper.className = 'text-muted small mt-2';
-        helper.textContent = 'Пример панелей: 1, 2, 3';
-        body.appendChild(helper);
 
         const footer = document.createElement('div');
-        footer.className = 'd-flex justify-content-between align-items-center mt-3';
-        const meta = document.createElement('div');
-        meta.className = 'text-muted small';
-        meta.textContent = item?.uid ? `UID ${item.uid}` : 'Новый дашборд';
-        footer.appendChild(meta);
-
-        const actions = document.createElement('div');
-        actions.className = 'd-flex gap-2';
-
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'btn btn-outline-danger btn-sm';
-        deleteButton.textContent = 'Удалить';
-        deleteButton.addEventListener('click', () => deleteDashboard(card));
-
+        footer.className = 'd-flex flex-wrap justify-content-between align-items-center gap-3 mt-3';
+        const hint = document.createElement('div');
+        hint.className = 'text-muted small';
+        hint.textContent = 'Отмеченные графики будут попадать в отчеты и детали теста.';
         const saveButton = document.createElement('button');
         saveButton.type = 'button';
         saveButton.className = 'btn btn-success btn-sm';
         saveButton.textContent = 'Сохранить';
         saveButton.addEventListener('click', () => saveDashboard(card));
-
-        actions.appendChild(deleteButton);
-        actions.appendChild(saveButton);
-        footer.appendChild(actions);
+        footer.appendChild(hint);
+        footer.appendChild(saveButton);
         body.appendChild(footer);
 
+        card.classList.toggle('offline', !toggle.checked);
         card.appendChild(body);
         return card;
     }
 
-    function buildInputColumn(colClass, labelText, field, value) {
-        const col = document.createElement('div');
-        col.className = colClass;
-        const label = document.createElement('label');
-        label.className = 'form-label';
-        label.textContent = labelText;
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'form-control dashboard-input';
-        input.dataset.field = field;
-        input.value = value ?? '';
-        col.appendChild(label);
-        col.appendChild(input);
-        return col;
-    }
+    function buildPanelRow(panel) {
+        const row = document.createElement('tr');
 
-    function formatPanels(panels) {
-        if (!panels || !panels.length) {
-            return '';
-        }
-        return panels.join(', ');
-    }
+        const selectCell = document.createElement('td');
+        selectCell.className = 'w-25';
+        const checkWrapper = document.createElement('div');
+        checkWrapper.className = 'form-check';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'form-check-input panel-select';
+        checkbox.dataset.panelId = panel.panelId;
+        checkbox.checked = Boolean(panel.selected);
+        checkWrapper.appendChild(checkbox);
+        selectCell.appendChild(checkWrapper);
 
-    function parsePanels(raw) {
-        if (!raw || !raw.trim()) {
-            return [];
-        }
-        const values = raw.split(',').map(item => item.trim()).filter(Boolean);
-        const parsed = values.map(value => {
-            const number = Number.parseInt(value, 10);
-            if (Number.isNaN(number)) {
-                throw new Error(`Некорректный номер панели: ${value}`);
-            }
-            return number;
-        });
-        return parsed;
-    }
+        const nameCell = document.createElement('td');
+        nameCell.textContent = panel.title || 'Без названия';
 
-    function getDashboardPayload(card) {
-        const payload = {};
-        const inputs = card.querySelectorAll('.dashboard-input');
-        inputs.forEach(input => {
-            const field = input.dataset.field;
-            if (field === 'panels') {
-                payload.panels = parsePanels(input.value);
-            } else {
-                payload[field] = input.value;
-            }
-        });
-        return payload;
+        const idCell = document.createElement('td');
+        idCell.textContent = panel.panelId ?? '—';
+
+        row.appendChild(selectCell);
+        row.appendChild(nameCell);
+        row.appendChild(idCell);
+        return row;
     }
 
     async function loadDashboards() {
-        setDashboardsStatus('Загружаем дашборды…');
+        setDashboardsStatus('Запрашиваем данные из Grafana…');
         try {
-            const response = await fetch('/api/settings/grafana-dashboards');
+            const response = await fetch('/api/settings/grafana-dashboards/discover');
             if (!response.ok) {
                 throw new Error('Ответ сервера: ' + response.status);
             }
             const data = await response.json();
             renderDashboards(data);
-            clearDashboardsStatus();
+            setDashboardsStatus('Данные по дашбордам обновлены.', 'success');
         } catch (error) {
-            setDashboardsStatus('Не удалось загрузить дашборды: ' + error.message, 'danger');
+            setDashboardsStatus('Не удалось получить дашборды: ' + error.message, 'danger');
         }
+    }
+
+    function collectDashboardPayload(card) {
+        const uid = card.dataset.dashboardUid;
+        const slug = card.dataset.dashboardSlug;
+        const enabled = card.querySelector('.dashboard-toggle')?.checked ?? false;
+        const panels = Array.from(card.querySelectorAll('.panel-select'))
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => Number.parseInt(checkbox.dataset.panelId, 10))
+                .filter(Number.isFinite);
+        return { uid, slug, enabled, panels };
     }
 
     async function saveDashboard(card) {
         try {
-            const payload = getDashboardPayload(card);
-            if (!payload.uid || !payload.uid.trim()) {
-                throw new Error('UID обязателен.');
+            const payload = collectDashboardPayload(card);
+            if (!payload.uid || !payload.slug) {
+                throw new Error('Нет данных о дашборде.');
             }
-            if (!payload.slug || !payload.slug.trim()) {
-                throw new Error('Slug обязателен.');
+            if (payload.enabled && (!payload.panels || payload.panels.length === 0)) {
+                throw new Error('Выберите хотя бы один график или выключите дашборд.');
             }
-            const isNew = card.dataset.isNew === 'true';
-            const uid = card.dataset.dashboardUid || payload.uid;
-            const method = isNew ? 'POST' : 'PUT';
-            const url = isNew
-                    ? '/api/settings/grafana-dashboards'
-                    : `/api/settings/grafana-dashboards/${uid}`;
-            const response = await fetch(url, {
-                method,
+
+            const response = await fetch(`/api/settings/grafana-dashboards/${payload.uid}`, {
+                method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    slug: payload.slug,
+                    panels: payload.panels,
+                    enabled: payload.enabled
+                })
             });
             if (!response.ok) {
                 throw new Error('Ответ сервера: ' + response.status);
             }
-            const saved = await response.json();
-            const updatedCard = buildDashboardCard(saved);
-            dashboardsList.replaceChild(updatedCard, card);
             setDashboardsStatus('Дашборд сохранен.', 'success');
         } catch (error) {
-            setDashboardsStatus(error.message, 'danger');
+            setDashboardsStatus('Не удалось сохранить дашборд: ' + error.message, 'danger');
         }
     }
 
-    async function deleteDashboard(card) {
-        const isNew = card.dataset.isNew === 'true';
-        if (isNew) {
-            card.remove();
-            if (!dashboardsList.children.length) {
-                dashboardsEmpty.classList.remove('d-none');
-            }
-            return;
-        }
-        if (!confirm('Удалить дашборд?')) {
-            return;
-        }
-        try {
-            const uid = card.dataset.dashboardUid;
-            const response = await fetch(`/api/settings/grafana-dashboards/${uid}`, {method: 'DELETE'});
-            if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
-            }
-            card.remove();
-            setDashboardsStatus('Дашборд удален.', 'success');
-            if (!dashboardsList.children.length) {
-                dashboardsEmpty.classList.remove('d-none');
-            }
-        } catch (error) {
-            setDashboardsStatus('Не удалось удалить дашборд: ' + error.message, 'danger');
-        }
-    }
-
-    function addDashboard() {
-        const card = buildDashboardCard(null);
-        dashboardsList.prepend(card);
-        dashboardsEmpty.classList.add('d-none');
-    }
-
-    addDashboardButton.addEventListener('click', addDashboard);
-
-    (async function init() {
-        await loadDashboards();
-    })();
+    fetchDashboardsButton.addEventListener('click', loadDashboards);
 </script>
 </body>
 </html>

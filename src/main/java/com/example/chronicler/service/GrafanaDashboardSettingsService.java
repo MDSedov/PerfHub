@@ -1,9 +1,15 @@
 package com.example.chronicler.service;
 
+import com.example.chronicler.client.GrafanaClient;
+import com.example.chronicler.dto.grafana.GrafanaDashboardDefinition;
+import com.example.chronicler.dto.settings.GrafanaDashboardDetailsDto;
+import com.example.chronicler.dto.settings.GrafanaDashboardPanelDto;
 import com.example.chronicler.model.GrafanaDashboard;
 import com.example.chronicler.repository.GrafanaDashboardRepository;
 import java.util.List;
 import java.util.Objects;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -12,31 +18,71 @@ import org.springframework.util.StringUtils;
 public class GrafanaDashboardSettingsService {
 
     private final GrafanaDashboardRepository repository;
+    private final GrafanaClient grafanaClient;
 
-    public GrafanaDashboardSettingsService(GrafanaDashboardRepository repository) {
+    public GrafanaDashboardSettingsService(GrafanaDashboardRepository repository, GrafanaClient grafanaClient) {
         this.repository = repository;
+        this.grafanaClient = grafanaClient;
     }
 
     public List<GrafanaDashboard> listDashboards() {
         return repository.findAll();
     }
 
-    public GrafanaDashboard create(String uid, String slug, List<Integer> panels) {
-        return repository.upsert(new GrafanaDashboard(
-                normalizeUid(uid),
-                normalizeSlug(slug),
-                normalizePanels(panels)));
+    public List<GrafanaDashboardDetailsDto> pullFromGrafana() {
+        List<GrafanaDashboard> saved = repository.findAll();
+        var savedByUid = saved.stream()
+                .collect(Collectors.toMap(
+                        item -> normalizeUid(item.uid()),
+                        item -> item,
+                        (first, second) -> first));
+        return grafanaClient.discoverDashboards().stream()
+                .map(discovered -> toDetails(discovered, savedByUid))
+                .toList();
     }
 
-    public GrafanaDashboard update(String uid, String slug, List<Integer> panels) {
+    public GrafanaDashboard create(String uid, String slug, List<Integer> panels, boolean enabled) {
         return repository.upsert(new GrafanaDashboard(
                 normalizeUid(uid),
                 normalizeSlug(slug),
-                normalizePanels(panels)));
+                normalizePanels(panels),
+                enabled));
+    }
+
+    public GrafanaDashboard update(String uid, String slug, List<Integer> panels, boolean enabled) {
+        return repository.upsert(new GrafanaDashboard(
+                normalizeUid(uid),
+                normalizeSlug(slug),
+                normalizePanels(panels),
+                enabled));
     }
 
     public void delete(String uid) {
         repository.deleteByUid(normalizeUid(uid));
+    }
+
+    private GrafanaDashboardDetailsDto toDetails(
+            GrafanaDashboardDefinition discovered, Map<String, GrafanaDashboard> savedByUid) {
+        String normalizedUid = normalizeUid(discovered.uid());
+        GrafanaDashboard savedDashboard = savedByUid.get(normalizedUid);
+        Set<Integer> selectedPanels = savedDashboard == null
+                ? Set.of()
+                : Set.copyOf(savedDashboard.panels());
+        boolean enabled = savedDashboard != null && savedDashboard.enabled();
+
+        List<GrafanaDashboardPanelDto> panels = discovered.panels().stream()
+                .map(panel -> new GrafanaDashboardPanelDto(
+                        panel.panelId(),
+                        panel.title(),
+                        selectedPanels.contains(panel.panelId())))
+                .toList();
+
+        return new GrafanaDashboardDetailsDto(
+                discovered.uid(),
+                discovered.slug(),
+                StringUtils.hasText(discovered.title()) ? discovered.title() : discovered.slug(),
+                enabled,
+                panels);
     }
 
     private String normalizeUid(String uid) {

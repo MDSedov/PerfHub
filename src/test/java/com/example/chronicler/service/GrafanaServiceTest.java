@@ -2,8 +2,6 @@ package com.example.chronicler.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import com.example.chronicler.client.GrafanaClient;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
@@ -16,35 +14,33 @@ import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.GrafanaDashboardRepository;
 import com.example.chronicler.repository.LoadTestRepository;
+import com.example.chronicler.repository.TestTypeRepository;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.web.client.RestTemplate;
 
-@ExtendWith(MockitoExtension.class)
 class GrafanaServiceTest {
 
-    @Mock
-    private GrafanaClient grafanaClient;
-
-    @Mock
+    private StubGrafanaClient grafanaClient;
     private GrafanaRenderCache grafanaRenderCache;
-
-    @Mock
-    private LoadTestRepository loadTestRepository;
-
-    @Mock
-    private GrafanaDashboardRepository grafanaDashboardRepository;
-
+    private StubLoadTestRepository loadTestRepository;
+    private StubGrafanaDashboardRepository grafanaDashboardRepository;
     private GrafanaService grafanaService;
 
     @BeforeEach
     void setUp() {
+        grafanaClient = new StubGrafanaClient();
+        grafanaRenderCache = new GrafanaRenderCache();
+        loadTestRepository = new StubLoadTestRepository();
+        grafanaDashboardRepository = new StubGrafanaDashboardRepository();
         grafanaService = new GrafanaService(
                 grafanaClient, grafanaRenderCache, loadTestRepository, grafanaDashboardRepository);
     }
@@ -55,14 +51,13 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN)));
-        when(grafanaDashboardRepository.findAll())
-                .thenReturn(List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2))));
-        when(grafanaClient.renderPanel("uid", "slug", 1, from, to)).thenReturn(new byte[] {1, 2});
-        when(grafanaClient.renderPanel("uid", "slug", 2, from, to)).thenReturn(new byte[] {3});
-        when(grafanaClient.getPanelMetadata("uid", 1)).thenReturn(new GrafanaPanelMetadata("Panel 1", "First panel"));
-        when(grafanaClient.getPanelMetadata("uid", 2)).thenReturn(new GrafanaPanelMetadata("Panel 2", null));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN));
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2), true)));
+        grafanaClient.setRenderedPanel(1, new byte[] {1, 2});
+        grafanaClient.setRenderedPanel(2, new byte[] {3});
+        grafanaClient.setPanelMetadata(1, new GrafanaPanelMetadata("Panel 1", "First panel"));
+        grafanaClient.setPanelMetadata(2, new GrafanaPanelMetadata("Panel 2", null));
 
         GrafanaRenderResponse response = grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
 
@@ -81,17 +76,13 @@ class GrafanaServiceTest {
         assertThat(response.dashboards().get(0).panels().get(1).description()).isEmpty();
         assertThat(response.dashboards().get(0).panels().get(1).imageBase64()).isEqualTo("Aw==");
 
-        verify(grafanaClient).renderPanel("uid", "slug", 1, from, to);
-        verify(grafanaClient).renderPanel("uid", "slug", 2, from, to);
-        verify(grafanaClient).getPanelMetadata("uid", 1);
-        verify(grafanaClient).getPanelMetadata("uid", 2);
-        verify(grafanaRenderCache).store(response);
+        assertThat(grafanaClient.renderCalls()).containsExactly(1, 2);
+        assertThat(grafanaRenderCache.getLatest()).contains(response);
     }
 
     @Test
     void renderPanelsThrowsWhenTestNotFound() {
         UUID testUuid = UUID.randomUUID();
-        when(loadTestRepository.findById(testUuid)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
                 .isInstanceOf(GrafanaRenderingException.class)
@@ -103,13 +94,12 @@ class GrafanaServiceTest {
         UUID testUuid = UUID.randomUUID();
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
-        when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN)));
-        when(grafanaDashboardRepository.findAll()).thenReturn(List.of());
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN));
+        grafanaDashboardRepository.setDashboards(List.of());
 
         assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
                 .isInstanceOf(GrafanaRenderingException.class)
-                .hasMessage("No Grafana dashboards configured");
+                .hasMessage("No enabled Grafana dashboards configured");
     }
 
     @Test
@@ -118,13 +108,122 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T02:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN)));
-        when(grafanaDashboardRepository.findAll())
-                .thenReturn(List.of(new GrafanaDashboard("uid", "slug", List.of(1))));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN));
+        grafanaDashboardRepository.setDashboards(List.of(new GrafanaDashboard("uid", "slug", List.of(1), true)));
 
         assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
                 .isInstanceOf(GrafanaInvalidTimeRangeException.class)
                 .hasMessage("End time must be after start time");
+    }
+
+    @Test
+    void renderPanelsThrowsWhenDashboardsDisabled() {
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN));
+        grafanaDashboardRepository.setDashboards(List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2), false)));
+
+        assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
+                .isInstanceOf(GrafanaRenderingException.class)
+                .hasMessage("No enabled Grafana dashboards configured");
+    }
+
+    private static final class StubGrafanaClient extends GrafanaClient {
+
+        private final Map<Integer, byte[]> rendered = new HashMap<>();
+        private final Map<Integer, GrafanaPanelMetadata> metadata = new HashMap<>();
+        private final List<Integer> renderCalls = new ArrayList<>();
+
+        private StubGrafanaClient() {
+            super(new RestTemplate(), new com.example.chronicler.service.ConfigurationProvider() {
+                @Override
+                public String getRequiredValue(String service, String key) {
+                    return findValue(service, key)
+                            .orElseThrow(() -> new IllegalStateException("Missing config for " + service + ":" + key));
+                }
+
+                @Override
+                public Optional<String> findValue(String service, String key) {
+                    return Optional.empty();
+                }
+            });
+        }
+
+        void setRenderedPanel(int panelId, byte[] data) {
+            rendered.put(panelId, data);
+        }
+
+        void setPanelMetadata(int panelId, GrafanaPanelMetadata value) {
+            metadata.put(panelId, value);
+        }
+
+        List<Integer> renderCalls() {
+            return List.copyOf(renderCalls);
+        }
+
+        @Override
+        public byte[] renderPanel(String dashboardUid, String dashboardSlug, int panelId, Instant from, Instant to) {
+            renderCalls.add(panelId);
+            return rendered.getOrDefault(panelId, new byte[0]);
+        }
+
+        @Override
+        public GrafanaPanelMetadata getPanelMetadata(String dashboardUid, int panelId) {
+            return metadata.get(panelId);
+        }
+    }
+
+    private static final class StubLoadTestRepository extends LoadTestRepository {
+
+        private final Map<UUID, LoadTest> tests = new HashMap<>();
+
+        private StubLoadTestRepository() {
+            super(new JdbcTemplate(), new TestTypeRepository(new JdbcTemplate()));
+        }
+
+        void put(LoadTest loadTest) {
+            tests.put(loadTest.id(), loadTest);
+        }
+
+        @Override
+        public Optional<LoadTest> findById(UUID id) {
+            return Optional.ofNullable(tests.get(id));
+        }
+
+        @Override
+        public LoadTest saveOrUpdate(Instant start, Instant end, LoadTestType type) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static final class StubGrafanaDashboardRepository extends GrafanaDashboardRepository {
+
+        private List<GrafanaDashboard> dashboards = List.of();
+
+        private StubGrafanaDashboardRepository() {
+            super(new JdbcTemplate());
+        }
+
+        void setDashboards(List<GrafanaDashboard> dashboards) {
+            this.dashboards = dashboards;
+        }
+
+        @Override
+        public List<GrafanaDashboard> findAll() {
+            return dashboards;
+        }
+
+        @Override
+        public GrafanaDashboard upsert(GrafanaDashboard dashboard) {
+            dashboards = List.of(dashboard);
+            return dashboard;
+        }
+
+        @Override
+        public void deleteByUid(String uid) {
+            throw new UnsupportedOperationException();
+        }
     }
 }
