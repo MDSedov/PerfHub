@@ -21,13 +21,14 @@ public class TestRequirementEvaluationRepository {
     private static final String INSERT_SQL = """
             INSERT INTO test_requirement_evaluations (
                 test_uuid,
-                requirement_id,
+                dashboard_uid,
+                panel_id,
                 status,
                 measured_value,
                 unit,
                 details,
                 evaluated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String UPDATE_SQL = """
@@ -38,13 +39,15 @@ public class TestRequirementEvaluationRepository {
                    details = ?,
                    evaluated_at = ?
              WHERE test_uuid = ?
-               AND requirement_id = ?
+               AND dashboard_uid = ?
+               AND panel_id = ?
             """;
 
     private static final String SELECT_BY_TEST_SQL = """
             SELECT id,
                    test_uuid,
-                   requirement_id,
+                   dashboard_uid,
+                   panel_id,
                    status,
                    measured_value,
                    unit,
@@ -52,7 +55,7 @@ public class TestRequirementEvaluationRepository {
                    evaluated_at
               FROM test_requirement_evaluations
              WHERE test_uuid = ?
-             ORDER BY requirement_id
+             ORDER BY dashboard_uid, panel_id
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -66,7 +69,8 @@ public class TestRequirementEvaluationRepository {
 
     public void upsert(
             UUID testUuid,
-            int requirementId,
+            String dashboardUid,
+            int panelId,
             RequirementEvaluationStatus status,
             Double measuredValue,
             String unit,
@@ -82,12 +86,14 @@ public class TestRequirementEvaluationRepository {
                 detailsJson,
                 evaluatedTimestamp,
                 testUuid,
-                requirementId);
+                dashboardUid,
+                panelId);
         if (updated == 0) {
             jdbcTemplate.update(
                     INSERT_SQL,
                     testUuid,
-                    requirementId,
+                    dashboardUid,
+                    panelId,
                     status.name(),
                     measuredValue,
                     unit,
@@ -109,7 +115,8 @@ public class TestRequirementEvaluationRepository {
         return new TestRequirementEvaluation(
                 rs.getLong("id"),
                 rs.getObject("test_uuid", UUID.class),
-                rs.getInt("requirement_id"),
+                rs.getString("dashboard_uid"),
+                rs.getInt("panel_id"),
                 status,
                 measuredValue,
                 rs.getString("unit"),

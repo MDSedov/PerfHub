@@ -7,7 +7,8 @@ import java.util.UUID;
 public record TestRequirementEvaluation(
         long id,
         UUID testUuid,
-        int requirementId,
+        String dashboardUid,
+        int panelId,
         RequirementEvaluationStatus status,
         Double measuredValue,
         String unit,

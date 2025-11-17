@@ -51,7 +51,8 @@ public class GrafanaDashboardSettingsController {
     public GrafanaDashboardDto updateDashboard(
             @PathVariable String uid,
             @Valid @RequestBody GrafanaDashboardUpdateRequest request) {
-        GrafanaDashboard dashboard = service.update(uid, request.slug(), request.panels(), request.enabled());
+        GrafanaDashboard dashboard = service.update(
+                uid, request.slug(), request.panels(), request.enabled(), request.panelSettings());
         return toDto(dashboard);
     }
 

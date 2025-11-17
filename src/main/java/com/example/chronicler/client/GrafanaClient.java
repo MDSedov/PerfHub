@@ -220,7 +220,7 @@ public class GrafanaClient {
                 return List.of();
             }
 
-            Map<Integer, String> panelsById = new LinkedHashMap<>();
+            Map<Integer, GrafanaPanelDefinition> panelsById = new LinkedHashMap<>();
             for (GrafanaDashboardPanel panel : body.dashboard().panels()) {
                 if (panel == null || panel.id() == null || panel.id() <= 0) {
                     continue;
@@ -229,15 +229,54 @@ public class GrafanaClient {
                 if (!StringUtils.hasText(title)) {
                     title = "Панель " + panel.id();
                 }
-                panelsById.put(panel.id(), title);
+                String query = extractFirstQuery(panel.targets());
+                Double threshold = extractFirstThreshold(panel.fieldConfig());
+                panelsById.put(panel.id(), new GrafanaPanelDefinition(panel.id(), title, query, threshold));
             }
 
             return panelsById.entrySet().stream()
-                    .map(entry -> new GrafanaPanelDefinition(entry.getKey(), entry.getValue()))
+                    .map(Map.Entry::getValue)
                     .toList();
         } catch (RestClientException ex) {
             throw new GrafanaClientException("Failed to load Grafana dashboard " + dashboardUid, ex);
         }
+    }
+
+    private String extractFirstQuery(List<GrafanaTarget> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return null;
+        }
+        for (GrafanaTarget target : targets) {
+            if (target != null && StringUtils.hasText(target.expr())) {
+                return target.expr();
+            }
+        }
+        return null;
+    }
+
+    private Double extractFirstThreshold(GrafanaFieldConfig fieldConfig) {
+        if (fieldConfig == null || fieldConfig.defaults() == null || fieldConfig.defaults().thresholds() == null) {
+            return null;
+        }
+        List<GrafanaThresholdStep> steps = fieldConfig.defaults().thresholds().steps();
+        if (steps == null || steps.isEmpty()) {
+            return null;
+        }
+        // Если в Grafana только базовый шаг (обычно value = null или 0), считаем порог отсутствующим.
+        if (steps.size() == 1) {
+            Double value = steps.get(0) != null ? steps.get(0).value() : null;
+            if (value == null || value == 0d) {
+                return null;
+            }
+            return value;
+        }
+        for (int i = steps.size() - 1; i >= 0; i--) {
+            GrafanaThresholdStep step = steps.get(i);
+            if (step != null && step.value() != null) {
+                return step.value();
+            }
+        }
+        return null;
     }
 
     private String extractSlug(String url) {
@@ -288,7 +327,27 @@ public class GrafanaClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record GrafanaDashboardPanel(Integer id, String title, String description) {}
+    private record GrafanaDashboardPanel(
+            Integer id,
+            String title,
+            String description,
+            List<GrafanaTarget> targets,
+            GrafanaFieldConfig fieldConfig) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaTarget(String expr) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaFieldConfig(GrafanaDefaults defaults) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaDefaults(GrafanaThresholds thresholds) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaThresholds(List<GrafanaThresholdStep> steps) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaThresholdStep(Double value, String color) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaSearchItem(String uid, String url, String title) {}

@@ -17,27 +17,38 @@ import org.springframework.stereotype.Repository;
 public class GrafanaDashboardPanelRepository {
 
     private static final String SELECT_ALL =
-            "SELECT dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title"
+            "SELECT dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title, panel_query, panel_threshold"
                     + " FROM grafana_dashboard_panels"
                     + " ORDER BY dashboard_uid, panel_id";
     private static final String SELECT_BY_UID =
-            "SELECT dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title"
+            "SELECT dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title, panel_query, panel_threshold"
                     + " FROM grafana_dashboard_panels WHERE dashboard_uid = ? ORDER BY panel_id";
     private static final String DELETE_BY_UID =
             "DELETE FROM grafana_dashboard_panels WHERE dashboard_uid = ?";
     private static final String INSERT_SQL =
             "INSERT INTO grafana_dashboard_panels"
-                    + " (dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title)"
-                    + " VALUES (?, ?, ?, ?, ?)";
+                    + " (dashboard_uid, dashboard_slug, dashboard_title, panel_id, panel_title, panel_query, panel_threshold)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?)";
 
     private final JdbcTemplate jdbcTemplate;
-    private final RowMapper<GrafanaDashboardPanelRecord> rowMapper = (rs, rowNum) ->
-            new GrafanaDashboardPanelRecord(
-                    rs.getString("dashboard_uid"),
-                    rs.getString("dashboard_slug"),
-                    rs.getString("dashboard_title"),
-                    rs.getInt("panel_id"),
-                    rs.getString("panel_title"));
+    private final RowMapper<GrafanaDashboardPanelRecord> rowMapper = (rs, rowNum) -> {
+        Double threshold = null;
+        Object rawThreshold = rs.getObject("panel_threshold");
+        if (rawThreshold != null) {
+            threshold = rs.getDouble("panel_threshold");
+            if (rs.wasNull()) {
+                threshold = null;
+            }
+        }
+        return new GrafanaDashboardPanelRecord(
+                rs.getString("dashboard_uid"),
+                rs.getString("dashboard_slug"),
+                rs.getString("dashboard_title"),
+                rs.getInt("panel_id"),
+                rs.getString("panel_title"),
+                rs.getString("panel_query"),
+                threshold);
+    };
 
     public GrafanaDashboardPanelRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -75,6 +86,12 @@ public class GrafanaDashboardPanelRepository {
                 ps.setString(3, dashboardTitle);
                 ps.setInt(4, panel.panelId());
                 ps.setString(5, panel.panelTitle());
+                ps.setString(6, panel.panelQuery());
+                if (panel.panelThreshold() == null) {
+                    ps.setObject(7, null);
+                } else {
+                    ps.setDouble(7, panel.panelThreshold());
+                }
             }
 
             @Override

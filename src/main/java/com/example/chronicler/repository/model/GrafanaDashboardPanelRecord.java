@@ -5,4 +5,6 @@ public record GrafanaDashboardPanelRecord(
         String dashboardSlug,
         String dashboardTitle,
         int panelId,
-        String panelTitle) {}
+        String panelTitle,
+        String panelQuery,
+        Double panelThreshold) {}

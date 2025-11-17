@@ -327,23 +327,9 @@
                     </li>
                     <li>
                         <a class="dropdown-item"
-                           th:href="@{/settings/requirements}"
-                           th:classappend="${activeSettingsSection} == 'requirements' ? ' active' : ''">
-                            Нефункциональные требования
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item"
-                           th:href="@{/settings/victoria-metrics}"
-                           th:classappend="${activeSettingsSection} == 'victoria-metrics' ? ' active' : ''">
-                            Запросы в Victoria Metrics
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item"
                            th:href="@{/settings/grafana-dashboards}"
                            th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
-                            Дашборды Grafana
+                            Графики, запросы, требования
                         </a>
                     </li>
                 </ul>
@@ -859,8 +845,7 @@
         table.innerHTML = `
             <thead>
                 <tr>
-                    <th scope="col">Код</th>
-                    <th scope="col" class="requirement-desc">Описание</th>
+                    <th scope="col">Название графика</th>
                     <th scope="col">Порог</th>
                     <th scope="col">Факт</th>
                     <th scope="col">Статус</th>
@@ -873,13 +858,9 @@
         requirements.forEach(requirement => {
             const row = document.createElement('tr');
 
-            const codeCell = document.createElement('td');
-            codeCell.className = 'requirement-code';
-            codeCell.textContent = requirement?.code ?? '—';
-
-            const descCell = document.createElement('td');
-            descCell.className = 'requirement-meta requirement-desc';
-            descCell.textContent = requirement?.descriptionRu ?? '—';
+            const titleCell = document.createElement('td');
+            titleCell.className = 'requirement-meta requirement-desc';
+            titleCell.textContent = requirement?.title ?? '—';
 
             const thresholdCell = document.createElement('td');
             const thresholdValue = requirement?.thresholdValue ?? '—';
@@ -901,8 +882,7 @@
             badge.textContent = REQUIREMENT_STATUS_LABELS[statusKey] ?? statusKey;
             statusCell.appendChild(badge);
 
-            row.appendChild(codeCell);
-            row.appendChild(descCell);
+            row.appendChild(titleCell);
             row.appendChild(thresholdCell);
             row.appendChild(measuredCell);
             row.appendChild(statusCell);

@@ -5,7 +5,8 @@ public enum RequirementMetricType {
     ERROR_RATE,
     CPU_UTILIZATION,
     MEMORY_UTILIZATION,
-    POD_RESTARTS;
+    POD_RESTARTS,
+    CUSTOM_PANEL;
 
     public static RequirementMetricType fromDatabaseValue(String value) {
         for (RequirementMetricType type : values()) {

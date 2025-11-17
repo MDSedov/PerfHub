@@ -48,13 +48,13 @@ class GrafanaDashboardSettingsServiceTest {
                         "slug1",
                         "Main dashboard",
                         List.of(
-                                new GrafanaPanelDefinition(10, "Throughput"),
-                                new GrafanaPanelDefinition(11, "Latency"))),
+                                new GrafanaPanelDefinition(10, "Throughput", "sum(rate(x[1m]))", 300d),
+                                new GrafanaPanelDefinition(11, "Latency", "histogram_quantile(0.95, ...)", null))),
                 new GrafanaDashboardDefinition(
                         "uid2",
                         "slug2",
                         "Secondary",
-                        List.of(new GrafanaPanelDefinition(1, "Errors")))));
+                        List.of(new GrafanaPanelDefinition(1, "Errors", "sum(rate(errors[5m]))", 1d)))));
 
         List<GrafanaDashboardDetailsDto> dashboards = service.pullFromGrafana();
 
@@ -80,11 +80,13 @@ class GrafanaDashboardSettingsServiceTest {
                 .extracting(
                         GrafanaDashboardPanelRecord::dashboardUid,
                         GrafanaDashboardPanelRecord::panelId,
-                        GrafanaDashboardPanelRecord::panelTitle)
+                        GrafanaDashboardPanelRecord::panelTitle,
+                        GrafanaDashboardPanelRecord::panelQuery,
+                        GrafanaDashboardPanelRecord::panelThreshold)
                 .contains(
-                        tuple("uid1", 10, "Throughput"),
-                        tuple("uid1", 11, "Latency"),
-                        tuple("uid2", 1, "Errors"));
+                        tuple("uid1", 10, "Throughput", "sum(rate(x[1m]))", 300d),
+                        tuple("uid1", 11, "Latency", "histogram_quantile(0.95, ...)", null),
+                        tuple("uid2", 1, "Errors", "sum(rate(errors[5m]))", 1d));
     }
 
     @Test
@@ -94,7 +96,7 @@ class GrafanaDashboardSettingsServiceTest {
                 "uid1",
                 "slug1",
                 "Cached",
-                List.of(new GrafanaDashboardPanelRecord("uid1", "slug1", "Cached", 10, "Throughput")));
+                List.of(new GrafanaDashboardPanelRecord("uid1", "slug1", "Cached", 10, "Throughput", "up", 0.0)));
 
         List<GrafanaDashboardDetailsDto> dashboards = service.listDashboards();
 

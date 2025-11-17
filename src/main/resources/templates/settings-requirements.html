@@ -148,23 +148,9 @@
                     </li>
                     <li>
                         <a class="dropdown-item"
-                           th:href="@{/settings/requirements}"
-                           th:classappend="${activeSettingsSection} == 'requirements' ? ' active' : ''">
-                            Нефункциональные требования
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item"
-                           th:href="@{/settings/victoria-metrics}"
-                           th:classappend="${activeSettingsSection} == 'victoria-metrics' ? ' active' : ''">
-                            Запросы в Victoria Metrics
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item"
                            th:href="@{/settings/grafana-dashboards}"
                            th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
-                            Дашборды Grafana
+                            Графики, запросы, требования
                         </a>
                     </li>
                 </ul>
