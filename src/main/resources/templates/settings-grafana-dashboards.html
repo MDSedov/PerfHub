@@ -341,16 +341,20 @@
         return row;
     }
 
-    async function loadDashboards() {
-        setDashboardsStatus('Запрашиваем данные из Grafana…');
+    async function loadDashboards(endpoint, pendingMessage, successMessage) {
+        setDashboardsStatus(pendingMessage);
         try {
-            const response = await fetch('/api/settings/grafana-dashboards/discover');
+            const response = await fetch(endpoint);
             if (!response.ok) {
                 throw new Error('Ответ сервера: ' + response.status);
             }
             const data = await response.json();
             renderDashboards(data);
-            setDashboardsStatus('Данные по дашбордам обновлены.', 'success');
+            if (successMessage) {
+                setDashboardsStatus(successMessage, 'success');
+            } else {
+                clearDashboardsStatus();
+            }
         } catch (error) {
             setDashboardsStatus('Не удалось получить дашборды: ' + error.message, 'danger');
         }
@@ -395,7 +399,23 @@
         }
     }
 
-    fetchDashboardsButton.addEventListener('click', loadDashboards);
+    async function loadCachedDashboards() {
+        await loadDashboards(
+                '/api/settings/grafana-dashboards',
+                'Загружаем сохраненные дашборды…',
+                '');
+    }
+
+    async function refreshDashboardsFromGrafana() {
+        await loadDashboards(
+                '/api/settings/grafana-dashboards/discover',
+                'Запрашиваем данные из Grafana…',
+                'Данные по дашбордам обновлены.');
+    }
+
+    fetchDashboardsButton.addEventListener('click', refreshDashboardsFromGrafana);
+
+    loadCachedDashboards();
 </script>
 </body>
 </html>

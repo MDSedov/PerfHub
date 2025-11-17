@@ -8,7 +8,6 @@ import com.example.chronicler.model.GrafanaDashboard;
 import com.example.chronicler.service.GrafanaDashboardSettingsService;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,10 +31,8 @@ public class GrafanaDashboardSettingsController {
     }
 
     @GetMapping
-    public List<GrafanaDashboardDto> listDashboards() {
-        return service.listDashboards().stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+    public List<GrafanaDashboardDetailsDto> listDashboards() {
+        return service.listDashboards();
     }
 
     @GetMapping("/discover")

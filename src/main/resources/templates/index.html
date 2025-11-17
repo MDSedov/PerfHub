@@ -237,6 +237,11 @@
             border-radius: 8px;
             border: 1px solid rgba(0, 152, 70, 0.2);
         }
+        
+        .grafana-progress .progress {
+            height: 10px;
+            min-width: 160px;
+        }
 
         .test-details section + section {
             margin-top: 2rem;
@@ -384,9 +389,7 @@
                 <span>Соответствие</span>
                 <span class="text-end">Детали</span>
             </div>
-            <div id="testsList" class="list-group tests-list">
-                <div class="text-muted">Загружаем тесты из базы данных…</div>
-            </div>
+            <div id="testsList" class="list-group tests-list"></div>
         </div>
     </div>
 </main>
@@ -738,7 +741,66 @@
         return panels;
     }
 
-    function createGrafanaPanelElement(panel) {
+    function createGrafanaProgress(message = 'Загружаем графики…') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'grafana-progress d-flex align-items-center gap-3 mb-2';
+
+        const label = document.createElement('div');
+        label.className = 'text-muted small mb-0 flex-shrink-0';
+        label.textContent = message;
+
+        const progress = document.createElement('div');
+        progress.className = 'progress flex-grow-1';
+        const bar = document.createElement('div');
+        bar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+        bar.setAttribute('role', 'progressbar');
+        bar.setAttribute('aria-valuemin', '0');
+        bar.setAttribute('aria-valuemax', '0');
+        bar.setAttribute('aria-valuenow', '0');
+        bar.style.width = '0%';
+        progress.appendChild(bar);
+
+        wrapper.appendChild(label);
+        wrapper.appendChild(progress);
+        return { wrapper, bar, label };
+    }
+
+    function updateGrafanaProgress(progress, loaded, total) {
+        if (!progress?.bar) {
+            return;
+        }
+        const safeTotal = Math.max(total, 0);
+        const safeLoaded = Math.min(Math.max(loaded, 0), safeTotal || loaded);
+        const percent = safeTotal === 0 ? 0 : Math.round((safeLoaded / safeTotal) * 100);
+        progress.bar.style.width = `${percent}%`;
+        progress.bar.setAttribute('aria-valuenow', safeLoaded.toString());
+        progress.bar.setAttribute('aria-valuemax', safeTotal.toString());
+        progress.bar.textContent = safeTotal > 0 ? `${safeLoaded} из ${safeTotal}` : '0 из 0';
+        if (progress.label) {
+            progress.label.textContent = safeTotal > 0
+                    ? `${safeLoaded >= safeTotal ? 'Графики загружены' : 'Загружаем графики'}: ${safeLoaded} из ${safeTotal}`
+                    : 'Для этого теста нет графиков';
+        }
+    }
+
+    function completeGrafanaProgress(progress) {
+        if (!progress?.wrapper) {
+            return;
+        }
+        const { wrapper, bar } = progress;
+        if (bar) {
+            const total = bar.getAttribute('aria-valuemax') ?? '0';
+            bar.style.width = '100%';
+            bar.setAttribute('aria-valuenow', total === '0' ? '0' : total);
+            bar.textContent = total === '0' ? '0 из 0' : `${total} из ${total}`;
+            if (progress.label && total !== '0') {
+                progress.label.textContent = `Графики загружены: ${total} из ${total}`;
+            }
+        }
+        setTimeout(() => wrapper.classList.add('d-none'), 200);
+    }
+
+    function createGrafanaPanelElement(panel, onReady) {
         const wrapper = document.createElement('div');
         wrapper.className = 'grafana-panel';
 
@@ -759,12 +821,24 @@
             image.className = 'grafana-panel-image';
             image.src = `data:image/png;base64,${panel.imageBase64}`;
             image.alt = panel?.title ? `График ${panel.title}` : 'График';
+            const completeHandler = () => {
+                image.removeEventListener('load', completeHandler);
+                image.removeEventListener('error', completeHandler);
+                if (typeof onReady === 'function') {
+                    onReady();
+                }
+            };
+            image.addEventListener('load', completeHandler);
+            image.addEventListener('error', completeHandler);
             wrapper.appendChild(image);
         } else {
             const placeholder = document.createElement('div');
             placeholder.className = 'text-muted small';
             placeholder.textContent = 'Изображение недоступно.';
             wrapper.appendChild(placeholder);
+            if (typeof onReady === 'function') {
+                onReady();
+            }
         }
 
         return wrapper;
@@ -839,7 +913,7 @@
         container.appendChild(tableWrapper);
     }
 
-    function renderGrafanaPanels(container, panels) {
+    function renderGrafanaPanels(container, panels, onPanelReady) {
         container.innerHTML = '';
         if (!panels || panels.length === 0) {
             container.innerHTML = '<div class="text-muted small">Для этого теста нет графиков.</div>';
@@ -850,9 +924,9 @@
         for (let i = 0; i < panels.length; i += 2) {
             const row = document.createElement('div');
             row.className = 'grafana-grid-row';
-            row.appendChild(createGrafanaPanelElement(panels[i]));
+            row.appendChild(createGrafanaPanelElement(panels[i], onPanelReady));
             if (panels[i + 1]) {
-                row.appendChild(createGrafanaPanelElement(panels[i + 1]));
+                row.appendChild(createGrafanaPanelElement(panels[i + 1], onPanelReady));
             }
             grid.appendChild(row);
         }
@@ -878,9 +952,15 @@
         const grafanaTitle = document.createElement('h6');
         grafanaTitle.className = 'mb-3';
         grafanaTitle.textContent = 'Графики';
+        const grafanaProgress = createGrafanaProgress();
+        updateGrafanaProgress(grafanaProgress, 0, 0);
+        let grafanaPanelsTotal = 0;
+        let grafanaPanelsLoaded = 0;
+        let grafanaProgressCompleted = false;
         const grafanaBox = document.createElement('div');
         grafanaBox.innerHTML = '<div class="text-muted small">Загружаем графики…</div>';
         grafanaSection.appendChild(grafanaTitle);
+        grafanaSection.appendChild(grafanaProgress.wrapper);
         grafanaSection.appendChild(grafanaBox);
 
         wrapper.appendChild(requirementsSection);
@@ -899,9 +979,26 @@
 
         try {
             const panels = await ensureGrafanaPanels(testId);
-            renderGrafanaPanels(grafanaBox, panels);
+            grafanaPanelsTotal = panels.length;
+            updateGrafanaProgress(grafanaProgress, grafanaPanelsLoaded, grafanaPanelsTotal);
+            if (grafanaPanelsTotal === 0) {
+                completeGrafanaProgress(grafanaProgress);
+                grafanaProgressCompleted = true;
+            }
+            renderGrafanaPanels(grafanaBox, panels, () => {
+                grafanaPanelsLoaded += 1;
+                updateGrafanaProgress(grafanaProgress, grafanaPanelsLoaded, grafanaPanelsTotal);
+                if (!grafanaProgressCompleted && grafanaPanelsLoaded >= grafanaPanelsTotal) {
+                    completeGrafanaProgress(grafanaProgress);
+                    grafanaProgressCompleted = true;
+                }
+            });
         } catch (error) {
             grafanaBox.innerHTML = `<div class="text-danger small">Не удалось загрузить графики: ${error.message}</div>`;
+        } finally {
+            if (!grafanaProgressCompleted) {
+                completeGrafanaProgress(grafanaProgress);
+            }
         }
 
         container.dataset.loading = 'false';
