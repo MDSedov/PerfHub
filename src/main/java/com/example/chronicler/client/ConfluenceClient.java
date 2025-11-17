@@ -210,6 +210,28 @@ public class ConfluenceClient {
         }
     }
 
+    public String checkConnection(ConfluenceCredentials credentials) {
+        Assert.notNull(credentials, "credentials must not be null");
+
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
+                .pathSegment("rest", "api", "space")
+                .queryParam("limit", 1)
+                .build(true)
+                .toUri();
+
+        HttpHeaders headers = authorizationHeaders(credentials);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON, MediaType.ALL));
+
+        logConfluenceRequest("GET", uri, headers, "limit=1");
+        try {
+            ResponseEntity<String> response =
+                    restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+            return response.getStatusCode().toString();
+        } catch (RestClientException ex) {
+            throw new ConfluenceClientException("Failed to check Confluence connection", ex);
+        }
+    }
+
     private HttpHeaders authorizationHeaders(ConfluenceCredentials credentials) {
         if (!StringUtils.hasText(credentials.accessToken())) {
             throw new ConfluenceClientException("Confluence credentials must contain access token");

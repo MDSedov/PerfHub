@@ -131,6 +131,35 @@ public class GrafanaClient {
     }
 
     /**
+     * Выполняет проверку доступности Grafana через эндпоинт /api/health.
+     */
+    public String checkHealth() {
+        URI uri = UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
+                .pathSegment("api", "health")
+                .build(true)
+                .toUri();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON, MediaType.ALL));
+        headers.setBearerAuth(required(API_KEY_KEY));
+
+        try {
+            ResponseEntity<GrafanaHealthResponse> response = restTemplate.exchange(
+                    uri, HttpMethod.GET, new HttpEntity<>(null, headers), GrafanaHealthResponse.class);
+            GrafanaHealthResponse body = response.getBody();
+            if (body == null) {
+                throw new GrafanaClientException("Grafana health response was empty", null);
+            }
+            if (body.database() != null && !body.database().isBlank()) {
+                return body.database();
+            }
+            return "status unknown";
+        } catch (RestClientException ex) {
+            throw new GrafanaClientException("Failed to check Grafana health", ex);
+        }
+    }
+
+    /**
      * Гарантирует наличие завершающего слэша в пути к API рендеринга.
      */
     private String ensurePathEndsWithSlash(String path) {
@@ -168,4 +197,7 @@ public class GrafanaClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaDashboardPanel(Integer id, String title, String description) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaHealthResponse(String database, String message) {}
 }

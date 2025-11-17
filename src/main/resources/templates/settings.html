@@ -236,6 +236,7 @@
     const settingsCount = document.getElementById('settingsCount');
 
     const settingsChanges = new Map();
+    const connectionStatuses = new Map();
     let settingsCache = [];
     let isSettingsSaving = false;
 
@@ -255,6 +256,48 @@
 
     function toggleSaveSettingsButton() {
         saveSettingsButton.disabled = settingsChanges.size === 0 || isSettingsSaving;
+    }
+
+    function applyStoredConnectionStatus(service, element) {
+        const stored = connectionStatuses.get(service);
+        if (!stored) {
+            element.textContent = '';
+            element.className = 'small text-muted';
+            return;
+        }
+        element.textContent = stored.text;
+        element.className = stored.className;
+    }
+
+    function rememberConnectionStatus(service, text, isSuccess) {
+        const className = isSuccess ? 'small text-success' : 'small text-danger';
+        connectionStatuses.set(service, {text, className});
+        return className;
+    }
+
+    async function checkConnection(service, button, statusElement) {
+        statusElement.className = 'small text-muted';
+        statusElement.textContent = 'Проверяем...';
+        button.disabled = true;
+        try {
+            const response = await fetch(`/api/chronicler/connections/${encodeURIComponent(service)}/test`, {
+                method: 'POST'
+            });
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            const result = await response.json();
+            const success = Boolean(result.success);
+            const message = result.message || (success ? 'Соединение успешно' : 'Соединение не установлено');
+            statusElement.className = rememberConnectionStatus(service, message, success);
+            statusElement.textContent = message;
+        } catch (error) {
+            const message = 'Ошибка проверки: ' + error.message;
+            statusElement.className = rememberConnectionStatus(service, message, false);
+            statusElement.textContent = message;
+        } finally {
+            button.disabled = false;
+        }
     }
 
     function renderSettings(items) {
@@ -287,10 +330,32 @@
             const wrapper = document.createElement('div');
             wrapper.className = 'settings-group';
 
+            const header = document.createElement('div');
+            header.className = 'd-flex flex-wrap justify-content-between align-items-center mb-2 gap-2';
+
             const title = document.createElement('div');
-            title.className = 'settings-service-title';
+            title.className = 'settings-service-title mb-0';
             title.textContent = service;
-            wrapper.appendChild(title);
+
+            const actions = document.createElement('div');
+            actions.className = 'd-flex align-items-center gap-2 flex-wrap';
+
+            const testButton = document.createElement('button');
+            testButton.type = 'button';
+            testButton.className = 'btn btn-outline-success btn-sm';
+            testButton.textContent = 'Проверить соединение';
+
+            const status = document.createElement('div');
+            status.className = 'small text-muted';
+            applyStoredConnectionStatus(service, status);
+
+            testButton.addEventListener('click', () => checkConnection(service, testButton, status));
+
+            actions.appendChild(testButton);
+            actions.appendChild(status);
+            header.appendChild(title);
+            header.appendChild(actions);
+            wrapper.appendChild(header);
 
             groupItems.forEach(item => {
                 const entry = document.createElement('div');
