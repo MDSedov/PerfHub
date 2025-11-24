@@ -456,11 +456,17 @@
             reportAlert.classList.remove('d-none');
         };
 
-        const loadTests = async () => {
-            testsLoading.classList.remove('d-none');
-            testsError.classList.add('d-none');
-            testsTableWrapper.classList.add('d-none');
-            testsEmpty.classList.add('d-none');
+        const AUTO_REFRESH_MS = 60_000;
+        let autoRefreshTimer = null;
+        let autoRefreshInProgress = false;
+
+        const loadTests = async (showLoading = true) => {
+            if (showLoading) {
+                testsLoading.classList.remove('d-none');
+                testsError.classList.add('d-none');
+                testsTableWrapper.classList.add('d-none');
+                testsEmpty.classList.add('d-none');
+            }
             try {
                 const response = await fetch('/api/tests');
                 if (!response.ok) {
@@ -472,12 +478,32 @@
                 testsError.textContent = error.message;
                 testsError.classList.remove('d-none');
             } finally {
-                testsLoading.classList.add('d-none');
+                if (showLoading) {
+                    testsLoading.classList.add('d-none');
+                }
                 updateSelectionState();
             }
         };
 
+        const startAutoRefresh = () => {
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+            }
+            autoRefreshTimer = setInterval(async () => {
+                if (autoRefreshInProgress) {
+                    return;
+                }
+                autoRefreshInProgress = true;
+                try {
+                    await loadTests(false);
+                } finally {
+                    autoRefreshInProgress = false;
+                }
+            }, AUTO_REFRESH_MS);
+        };
+
         loadTests();
+        startAutoRefresh();
     });
 </script>
 </body>

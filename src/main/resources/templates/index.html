@@ -419,6 +419,7 @@
     };
 
     const NO_CONFIG_MESSAGE = 'Конфигурация DroApp для данного теста отсутствует';
+    const AUTO_REFRESH_MS = 60_000;
 
     const REQUIREMENT_STATUS_LABELS = {
         PASS: 'Соответствует',
@@ -445,6 +446,8 @@
     const testConfigurationRequests = new Map();
     const activeStatusControllers = new Map();
     const testStatusElements = new Map();
+    let autoRefreshTimer = null;
+    let autoRefreshInProgress = false;
 
     function formatInMoscow(date) {
         return MOSCOW_FORMATTER.format(date);
@@ -579,10 +582,12 @@
             clearTestsStatus();
             return true;
         } catch (error) {
-        setTestsStatus('Не удалось получить список тестов: ' + error.message, 'danger');
-        updateEvaluateButtonState();
-        return false;
-    }
+            if (showLoading) {
+                setTestsStatus('Не удалось получить список тестов: ' + error.message, 'danger');
+            }
+            updateEvaluateButtonState();
+            return false;
+        }
     }
 
     function setTestStatusView(element, state) {
@@ -1306,12 +1311,35 @@
         });
     }
 
+    async function autoRefresh() {
+        if (autoRefreshInProgress || isRefreshing || isEvaluationInProgress) {
+            return;
+        }
+        autoRefreshInProgress = true;
+        try {
+            const loaded = await loadTests(false);
+            if (loaded) {
+                await evaluateAllTests();
+            }
+        } finally {
+            autoRefreshInProgress = false;
+        }
+    }
+
+    function startAutoRefresh() {
+        if (autoRefreshTimer) {
+            clearInterval(autoRefreshTimer);
+        }
+        autoRefreshTimer = setInterval(autoRefresh, AUTO_REFRESH_MS);
+    }
+
     (async function init() {
         updateEvaluateButtonState();
         const loaded = await loadTests();
         if (loaded) {
             await evaluateAllTests();
         }
+        startAutoRefresh();
     })();
 </script>
 </body>
