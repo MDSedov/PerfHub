@@ -11,6 +11,7 @@ import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.dto.grafana.GrafanaRenderedDashboard;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceOperationException;
+import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.LoadTestRepository;
@@ -37,6 +38,7 @@ public class ConfluenceService {
     private final GrafanaService grafanaService;
     private final TemplateLoader templateLoader;
     private final LoadTestRepository loadTestRepository;
+    private final KubernetesConfigurationService kubernetesConfigurationService;
 
     /**
      * Создаёт сервис для работы с Confluence, кешем рендеров Grafana и загрузкой шаблонов.
@@ -45,11 +47,13 @@ public class ConfluenceService {
             ConfluenceClient confluenceClient,
             GrafanaService grafanaService,
             TemplateLoader templateLoader,
-            LoadTestRepository loadTestRepository) {
+            LoadTestRepository loadTestRepository,
+            KubernetesConfigurationService kubernetesConfigurationService) {
         this.confluenceClient = confluenceClient;
         this.grafanaService = grafanaService;
         this.templateLoader = templateLoader;
         this.loadTestRepository = loadTestRepository;
+        this.kubernetesConfigurationService = kubernetesConfigurationService;
     }
 
     private static final String OVERVIEW_TEMPLATE_NAME = "overall-report";
@@ -155,6 +159,7 @@ public class ConfluenceService {
         }
 
         List<String> attachmentNames = new ArrayList<>();
+        appendConfigurationSection(updatedBody, testUuid);
         if (!panels.isEmpty()) {
             updatedBody.append("<h2>Данные мониторинга</h2>\n");
         }
@@ -266,6 +271,41 @@ public class ConfluenceService {
                 .append("<p><ac:image><ri:attachment ri:filename=\"")
                 .append(HtmlUtils.htmlEscape(attachmentName))
                 .append("\" /></ac:image></p>");
+    }
+
+    private void appendConfigurationSection(StringBuilder bodyBuilder, UUID testUuid) {
+        List<KubernetesConfiguration> configurations = kubernetesConfigurationService.getConfigurations(testUuid);
+        bodyBuilder.append("<h2>Конфигурация DropApp и версии сервисов</h2>\n");
+        if (configurations.isEmpty()) {
+            bodyBuilder.append("<p>Конфигурация DropApp для данного теста отсутствует.</p>\n");
+            return;
+        }
+        bodyBuilder.append("<table>\n")
+                .append("<tr>")
+                .append("<th>POD</th>")
+                .append("<th>Контейнер</th>")
+                .append("<th>Версия</th>")
+                .append("<th>Request CPU</th>")
+                .append("<th>Limit CPU</th>")
+                .append("<th>Request RAM</th>")
+                .append("<th>Limit RAM</th>")
+                .append("</tr>\n");
+        for (KubernetesConfiguration config : configurations) {
+            bodyBuilder.append("<tr>")
+                    .append("<td>").append(escape(config.podName())).append("</td>")
+                    .append("<td>").append(escape(config.containerName())).append("</td>")
+                    .append("<td>").append(escape(config.version())).append("</td>")
+                    .append("<td>").append(escape(config.requestCpu())).append("</td>")
+                    .append("<td>").append(escape(config.limitCpu())).append("</td>")
+                    .append("<td>").append(escape(config.requestRam())).append("</td>")
+                    .append("<td>").append(escape(config.limitRam())).append("</td>")
+                    .append("</tr>\n");
+        }
+        bodyBuilder.append("</table>\n");
+    }
+
+    private String escape(String value) {
+        return HtmlUtils.htmlEscape(value == null ? "" : value);
     }
 
     /**

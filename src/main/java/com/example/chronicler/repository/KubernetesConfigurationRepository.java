@@ -1,0 +1,96 @@
+package com.example.chronicler.repository;
+
+import com.example.chronicler.model.KubernetesConfiguration;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.stereotype.Repository;
+import org.springframework.util.CollectionUtils;
+
+@Repository
+public class KubernetesConfigurationRepository {
+
+    private static final String SELECT_BY_TEST_SQL = """
+            SELECT id, test_uuid, namespace, service_name, pod_name, container_name, version,
+                   request_cpu, limit_cpu, request_ram, limit_ram, captured_at
+            FROM kubernetes_configurations
+            WHERE test_uuid = ?
+            ORDER BY namespace NULLS FIRST, pod_name NULLS FIRST, container_name NULLS FIRST
+            """;
+
+    private static final String EXISTS_SQL =
+            "SELECT 1 FROM kubernetes_configurations WHERE test_uuid = ? LIMIT 1";
+
+    private static final String INSERT_SQL = """
+            INSERT INTO kubernetes_configurations
+                (test_uuid, namespace, service_name, pod_name, container_name, version,
+                 request_cpu, limit_cpu, request_ram, limit_ram, captured_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """;
+
+    private final JdbcTemplate jdbcTemplate;
+    private final RowMapper<KubernetesConfiguration> rowMapper = KubernetesConfigurationRepository::mapRow;
+
+    public KubernetesConfigurationRepository(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    public List<KubernetesConfiguration> findByTest(UUID testUuid) {
+        return jdbcTemplate.query(SELECT_BY_TEST_SQL, ps -> ps.setObject(1, testUuid), rowMapper);
+    }
+
+    public boolean existsForTest(UUID testUuid) {
+        List<Integer> result = jdbcTemplate.query(EXISTS_SQL, ps -> ps.setObject(1, testUuid), (rs, rowNum) -> 1);
+        return !result.isEmpty();
+    }
+
+    public void saveAll(UUID testUuid, List<KubernetesConfiguration> configurations) {
+        if (CollectionUtils.isEmpty(configurations)) {
+            return;
+        }
+        jdbcTemplate.batchUpdate(
+                INSERT_SQL,
+                configurations,
+                configurations.size(),
+                (ps, config) -> {
+                    ps.setObject(1, testUuid);
+                    ps.setString(2, config.namespace());
+                    ps.setString(3, config.serviceName());
+                    ps.setString(4, config.podName());
+                    ps.setString(5, config.containerName());
+                    ps.setString(6, config.version());
+                    ps.setString(7, config.requestCpu());
+                    ps.setString(8, config.limitCpu());
+                    ps.setString(9, config.requestRam());
+                    ps.setString(10, config.limitRam());
+                    ps.setTimestamp(11, toTimestamp(config.capturedAt()));
+                });
+    }
+
+    private static Timestamp toTimestamp(Instant instant) {
+        return instant != null ? Timestamp.from(instant) : null;
+    }
+
+    private static KubernetesConfiguration mapRow(ResultSet rs, int rowNum) throws SQLException {
+        Timestamp captured = rs.getTimestamp("captured_at");
+        Instant capturedAt = captured != null ? captured.toInstant() : null;
+        return new KubernetesConfiguration(
+                rs.getObject("id", Long.class),
+                rs.getObject("test_uuid", UUID.class),
+                rs.getString("namespace"),
+                rs.getString("service_name"),
+                rs.getString("pod_name"),
+                rs.getString("container_name"),
+                rs.getString("version"),
+                rs.getString("request_cpu"),
+                rs.getString("limit_cpu"),
+                rs.getString("request_ram"),
+                rs.getString("limit_ram"),
+                capturedAt);
+    }
+}

@@ -127,19 +127,9 @@ public class VictoriaMetricsService {
 
     /** Метод анализирует интенсивность нагрузки и формирует список нагрузочных тестов. */
     public String detectLoadTests(String start, String end) {
-        String payload = fetchMetrics(List.of(new VictoriaMetricsRequest(INTENSITY_TYPE, start, end)));
-        JsonNode aggregated = readAggregated(payload);
-        JsonNode intensityNode = findIntensityNode(aggregated.path("results"));
-        NavigableMap<Instant, Double> samples = extractSamples(intensityNode);
-        List<TestInterval> intervals = detectTests(samples);
-        List<LoadTest> persistedTests = new ArrayList<>(intervals.size());
-        for (TestInterval interval : intervals) {
-            NavigableMap<Instant, Double> intervalSamples =
-                    samples.subMap(interval.start(), true, interval.end(), true);
-            LoadTestType type = classifyTest(intervalSamples, interval.start(), interval.end());
-            LoadTest persisted = loadTestRepository.saveOrUpdate(interval.start(), interval.end(), type);
-            persistedTests.add(persisted);
-        }
+        Instant startInstant = parseInstant(start, "start");
+        Instant endInstant = parseInstant(end, "end");
+        List<LoadTest> persistedTests = detectAndPersistTests(startInstant, endInstant, true);
 
         ArrayNode testsNode = objectMapper.createArrayNode();
         for (LoadTest test : persistedTests) {
@@ -157,6 +147,50 @@ public class VictoriaMetricsService {
         String response = writeAggregated(responseNode);
         testsCache.store(response);
         return response;
+    }
+
+    /** Метод анализирует интенсивность нагрузки и сохраняет найденные тесты без формирования ответа. */
+    public List<LoadTest> detectAndPersistTests(Instant start, Instant end) {
+        return detectAndPersistTests(start, end, false);
+    }
+
+    private List<LoadTest> detectAndPersistTests(Instant start, Instant end, boolean cacheResponse) {
+        Objects.requireNonNull(start, "start must not be null");
+        Objects.requireNonNull(end, "end must not be null");
+        if (!end.isAfter(start)) {
+            throw new InvalidTimeRangeException("End time must be after start time");
+        }
+        NavigableMap<Instant, Double> samples = loadIntensitySamples(start, end, cacheResponse);
+        return persistDetectedTests(samples);
+    }
+
+    private NavigableMap<Instant, Double> loadIntensitySamples(
+            Instant start, Instant end, boolean cacheResponse) {
+        if (cacheResponse) {
+            String startStr = formatInstant(start);
+            String endStr = formatInstant(end);
+            String payload = fetchMetrics(List.of(new VictoriaMetricsRequest(INTENSITY_TYPE, startStr, endStr)));
+            JsonNode aggregated = readAggregated(payload);
+            JsonNode intensityNode = findIntensityNode(aggregated.path("results"));
+            return extractSamples(intensityNode);
+        }
+        String query = resolveQuery(INTENSITY_TYPE);
+        String response = client.queryRange(query, start, end);
+        JsonNode intensityNode = createResultNode(INTENSITY_TYPE, response);
+        return extractSamples(intensityNode);
+    }
+
+    private List<LoadTest> persistDetectedTests(NavigableMap<Instant, Double> samples) {
+        List<TestInterval> intervals = detectTests(samples);
+        List<LoadTest> persistedTests = new ArrayList<>(intervals.size());
+        for (TestInterval interval : intervals) {
+            NavigableMap<Instant, Double> intervalSamples =
+                    samples.subMap(interval.start(), true, interval.end(), true);
+            LoadTestType type = classifyTest(intervalSamples, interval.start(), interval.end());
+            LoadTest persisted = loadTestRepository.saveOrUpdate(interval.start(), interval.end(), type);
+            persistedTests.add(persisted);
+        }
+        return persistedTests;
     }
 
     private String resolveQuery(String type) {

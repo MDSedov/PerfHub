@@ -52,12 +52,16 @@ class ConfluenceServiceTest {
     @Mock
     private LoadTestRepository loadTestRepository;
 
+    @Mock
+    private KubernetesConfigurationService kubernetesConfigurationService;
+
     private ConfluenceService confluenceService;
 
     @BeforeEach
     void setUp() {
         confluenceService = new ConfluenceService(
-                confluenceClient, grafanaService, templateLoader, loadTestRepository);
+                confluenceClient, grafanaService, templateLoader, loadTestRepository, kubernetesConfigurationService);
+        when(kubernetesConfigurationService.getConfigurations(any(UUID.class))).thenReturn(List.of());
     }
 
     @Test

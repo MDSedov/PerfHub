@@ -418,6 +418,8 @@
         unknown: 'UNKNOWN'
     };
 
+    const NO_CONFIG_MESSAGE = 'Конфигурация DroApp для данного теста отсутствует';
+
     const REQUIREMENT_STATUS_LABELS = {
         PASS: 'Соответствует',
         FAIL: 'Не соответствует',
@@ -439,6 +441,8 @@
     const evaluationRequests = new Map();
     const grafanaPanelsCache = new Map();
     const grafanaPanelRequests = new Map();
+    const testConfigurationCache = new Map();
+    const testConfigurationRequests = new Map();
     const activeStatusControllers = new Map();
     const testStatusElements = new Map();
 
@@ -656,6 +660,33 @@
             evaluationRequests.set(requestKey, request);
         }
         return evaluationRequests.get(requestKey);
+    }
+
+    async function fetchTestConfiguration(testId) {
+        const response = await fetch(`/api/tests/${testId}/configuration`);
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        return await response.json();
+    }
+
+    function ensureTestConfiguration(testId) {
+        if (testConfigurationCache.has(testId)) {
+            return Promise.resolve(testConfigurationCache.get(testId));
+        }
+        if (!testConfigurationRequests.has(testId)) {
+            const request = fetchTestConfiguration(testId)
+                    .then(payload => {
+                        const items = Array.isArray(payload) ? payload : [];
+                        testConfigurationCache.set(testId, items);
+                        return items;
+                    })
+                    .finally(() => {
+                        testConfigurationRequests.delete(testId);
+                    });
+            testConfigurationRequests.set(testId, request);
+        }
+        return testConfigurationRequests.get(testId);
     }
 
     async function evaluateTestStatus(testId, statusElement, mode = 'cached') {
@@ -913,6 +944,50 @@
         container.appendChild(grid);
     }
 
+    function renderConfiguration(container, items) {
+        if (!container) {
+            return;
+        }
+        if (!Array.isArray(items) || items.length === 0) {
+            container.innerHTML = `<div class="text-muted small">${NO_CONFIG_MESSAGE}</div>`;
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'table table-sm align-middle mb-0';
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        ['POD', 'Контейнер', 'Версия', 'Request CPU', 'Limit CPU', 'Request RAM', 'Limit RAM']
+                .forEach(title => {
+                    const th = document.createElement('th');
+                    th.scope = 'col';
+                    th.textContent = title;
+                    headerRow.appendChild(th);
+                });
+        thead.appendChild(headerRow);
+        const tbody = document.createElement('tbody');
+        items.forEach(item => {
+            const row = document.createElement('tr');
+            appendConfigCell(row, item?.podName);
+            appendConfigCell(row, item?.containerName);
+            appendConfigCell(row, item?.version);
+            appendConfigCell(row, item?.requestCpu);
+            appendConfigCell(row, item?.limitCpu);
+            appendConfigCell(row, item?.requestRam);
+            appendConfigCell(row, item?.limitRam);
+            tbody.appendChild(row);
+        });
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        container.innerHTML = '';
+        container.appendChild(table);
+    }
+
+    function appendConfigCell(row, value) {
+        const cell = document.createElement('td');
+        cell.textContent = value ?? '';
+        row.appendChild(cell);
+    }
+
     async function loadTestDetails(testId, container) {
         container.dataset.loading = 'true';
         container.innerHTML = '';
@@ -927,6 +1002,15 @@
         requirementsBox.innerHTML = '<div class="text-muted small">Загружаем результаты проверок…</div>';
         requirementsSection.appendChild(requirementsTitle);
         requirementsSection.appendChild(requirementsBox);
+
+        const configurationSection = document.createElement('section');
+        const configurationTitle = document.createElement('h6');
+        configurationTitle.className = 'mb-3';
+        configurationTitle.textContent = 'Конфигурация DropApp';
+        const configurationBox = document.createElement('div');
+        configurationBox.innerHTML = '<div class="text-muted small">Загружаем конфигурацию…</div>';
+        configurationSection.appendChild(configurationTitle);
+        configurationSection.appendChild(configurationBox);
 
         const grafanaSection = document.createElement('section');
         const grafanaTitle = document.createElement('h6');
@@ -944,6 +1028,7 @@
         grafanaSection.appendChild(grafanaBox);
 
         wrapper.appendChild(requirementsSection);
+        wrapper.appendChild(configurationSection);
         wrapper.appendChild(grafanaSection);
 
         if (!evaluationsAllowed) {
@@ -955,6 +1040,13 @@
             } catch (error) {
                 requirementsBox.innerHTML = `<div class="text-danger small">Не удалось получить результаты проверок: ${error.message}</div>`;
             }
+        }
+
+        try {
+            const configuration = await ensureTestConfiguration(testId);
+            renderConfiguration(configurationBox, configuration);
+        } catch (error) {
+            configurationBox.innerHTML = `<div class="text-danger small">Не удалось загрузить конфигурацию: ${error.message}</div>`;
         }
 
         try {
@@ -1008,6 +1100,8 @@
         evaluationRequests.clear();
         grafanaPanelsCache.clear();
         grafanaPanelRequests.clear();
+        testConfigurationCache.clear();
+        testConfigurationRequests.clear();
 
         if (tests.length === 0) {
             const empty = document.createElement('div');
