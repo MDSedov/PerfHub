@@ -8,6 +8,7 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
@@ -31,6 +32,7 @@ public class DropAppClient {
     private static final String SERVICE = "dropapp";
     private static final String TOKEN_KEY = "token";
     private static final String BASE_URL_KEY = "base-url";
+    private static final Set<String> SENSITIVE_HEADERS = Set.of(HttpHeaders.AUTHORIZATION);
 
     private final RestTemplate restTemplate;
     private final ConfigurationProvider configurationProvider;
@@ -44,6 +46,7 @@ public class DropAppClient {
     public List<DropAppPodConfiguration> fetchConfiguration(List<String> namespaces) {
         Assert.notEmpty(namespaces, "Список namespace DropApp не должен быть пустым");
         URI requestUri = buildConfigurationUri(namespaces);
+        HttpMethod method = HttpMethod.GET;
 
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
@@ -52,10 +55,15 @@ public class DropAppClient {
         HttpEntity<Void> request = new HttpEntity<>(headers);
         if (log.isDebugEnabled()) {
             log.debug("Запрос конфигурации DropApp по адресу {} для namespace {}", requestUri, namespaces);
+            log.debug(
+                    "DropApp request details: {} {} with headers {}",
+                    method,
+                    requestUri,
+                    headersForLogging(headers));
         }
         try {
             ResponseEntity<DropAppConfigurationResponse> response = restTemplate.exchange(
-                    requestUri, HttpMethod.GET, request, DropAppConfigurationResponse.class);
+                    requestUri, method, request, DropAppConfigurationResponse.class);
             DropAppConfigurationResponse body = response.getBody();
             if (body == null || body.items() == null) {
                 return Collections.emptyList();
@@ -63,16 +71,26 @@ public class DropAppClient {
             return body.items();
         } catch (RestClientResponseException ex) {
             log.error(
-                    "Запрос к DropApp завершился ошибкой {} {}. Тело ответа: {}",
+                    "Запрос к DropApp завершился ошибкой {} {}. Запрос: {} {}. Заголовки запроса: {}. "
+                            + "Заголовки ответа: {}. Тело ответа: {}",
                     ex.getRawStatusCode(),
                     ex.getStatusText(),
+                    method,
+                    requestUri,
+                    headersForLogging(headers),
+                    headersForLogging(ex.getResponseHeaders()),
                     ex.getResponseBodyAsString());
             throw new DropAppClientException(
                     "Не удалось получить конфигурацию DropApp: статус %s %s".formatted(
                             ex.getRawStatusCode(), ex.getStatusText()),
                     ex);
         } catch (RestClientException ex) {
-            log.error("Ошибка HTTP-клиента при обращении к DropApp", ex);
+            log.error(
+                    "Ошибка HTTP-клиента при обращении к DropApp. Запрос: {} {}. Заголовки запроса: {}",
+                    method,
+                    requestUri,
+                    headersForLogging(headers),
+                    ex);
             throw new DropAppClientException("Не удалось получить конфигурацию DropApp: " + ex.getMessage(), ex);
         }
     }
@@ -90,5 +108,27 @@ public class DropAppClient {
             throw new DropAppClientException(
                     "Некорректный базовый URL DropApp: " + Objects.toString(baseUrl, "<null>"), ex);
         }
+    }
+
+    private String headersForLogging(HttpHeaders headers) {
+        if (headers == null || headers.isEmpty()) {
+            return "<empty>";
+        }
+        HttpHeaders sanitized = new HttpHeaders();
+        headers.forEach((name, values) -> {
+            if (isSensitiveHeader(name)) {
+                sanitized.put(name, List.of("<masked>"));
+            } else {
+                sanitized.put(name, values);
+            }
+        });
+        return sanitized.toString();
+    }
+
+    private boolean isSensitiveHeader(String headerName) {
+        if (headerName == null) {
+            return false;
+        }
+        return SENSITIVE_HEADERS.stream().anyMatch(sensitive -> sensitive.equalsIgnoreCase(headerName));
     }
 }

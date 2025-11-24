@@ -168,6 +168,10 @@ SELECT 'confluence', 'base-url', 'http://95.163.220.93:8090', 'Базовый UR
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'confluence' AND "key" = 'base-url');
 
 INSERT INTO configurations (service, "key", config_value, description)
+SELECT 'confluence', 'api-path', '/rest/api', 'Путь до API Confluence (например /rest/api или /wiki/rest/api)'
+WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'confluence' AND "key" = 'api-path');
+
+INSERT INTO configurations (service, "key", config_value, description)
 SELECT 'confluence', 'personal-access-token', 'MDAxNTA0MjY1MzI2Ot9WllQZDPt7+VDKPR2HieuP9owM', 'Токен доступа к Confluence'
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'confluence' AND "key" = 'personal-access-token');
 

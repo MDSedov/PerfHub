@@ -30,6 +30,7 @@ public class ConfluenceClient {
     private static final Logger log = LoggerFactory.getLogger(ConfluenceClient.class);
     private static final String SERVICE = "confluence";
     private static final String BASE_URL_KEY = "base-url";
+    private static final String API_PATH_KEY = "api-path";
 
     private final RestTemplate restTemplate;
     private final ConfigurationProvider configurationProvider;
@@ -43,8 +44,8 @@ public class ConfluenceClient {
         Assert.notNull(credentials, "credentials must not be null");
         Assert.hasText(pageId, "pageId must not be empty");
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
-                .pathSegment("rest", "api", "content", pageId)
+        URI uri = apiUriBuilder()
+                .pathSegment("content", pageId)
                 .queryParam("expand", "body.storage,version,space")
                 .build(true)
                 .toUri();
@@ -91,10 +92,7 @@ public class ConfluenceClient {
         Assert.hasText(title, "title must not be empty");
         Assert.notNull(body, "body must not be null");
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
-                .pathSegment("rest", "api", "content")
-                .build(true)
-                .toUri();
+        URI uri = apiUriBuilder().pathSegment("content").build(true).toUri();
 
         HttpHeaders headers = authorizationHeaders(credentials);
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -139,10 +137,7 @@ public class ConfluenceClient {
         Assert.hasText(fileName, "fileName must not be empty");
         Assert.notNull(fileContents, "fileContents must not be null");
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
-                .pathSegment("rest", "api", "content", pageId, "child", "attachment")
-                .build(true)
-                .toUri();
+        URI uri = apiUriBuilder().pathSegment("content", pageId, "child", "attachment").build(true).toUri();
 
         HttpHeaders headers = authorizationHeaders(credentials);
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -187,10 +182,7 @@ public class ConfluenceClient {
         Assert.notNull(page, "page must not be null");
         Assert.notNull(updatedBody, "updatedBody must not be null");
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
-                .pathSegment("rest", "api", "content", page.id())
-                .build(true)
-                .toUri();
+        URI uri = apiUriBuilder().pathSegment("content", page.id()).build(true).toUri();
 
         HttpHeaders headers = authorizationHeaders(credentials);
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -213,11 +205,7 @@ public class ConfluenceClient {
     public String checkConnection(ConfluenceCredentials credentials) {
         Assert.notNull(credentials, "credentials must not be null");
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
-                .pathSegment("rest", "api", "space")
-                .queryParam("limit", 1)
-                .build(true)
-                .toUri();
+        URI uri = apiUriBuilder().pathSegment("space").queryParam("limit", 1).build(true).toUri();
 
         HttpHeaders headers = authorizationHeaders(credentials);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON, MediaType.ALL));
@@ -244,7 +232,29 @@ public class ConfluenceClient {
     }
 
     private String baseUrl() {
-        return configurationProvider.getRequiredValue(SERVICE, BASE_URL_KEY);
+        String url = configurationProvider.getRequiredValue(SERVICE, BASE_URL_KEY).trim();
+        while (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        return url;
+    }
+
+    private UriComponentsBuilder apiUriBuilder() {
+        return UriComponentsBuilder.fromHttpUrl(baseUrl()).path(apiPath());
+    }
+
+    private String apiPath() {
+        String configured = configurationProvider.findValue(SERVICE, API_PATH_KEY)
+                .map(StringUtils::trimWhitespace)
+                .filter(StringUtils::hasText)
+                .orElse("/rest/api");
+        if (!configured.startsWith("/")) {
+            configured = "/" + configured;
+        }
+        while (configured.endsWith("/") && configured.length() > 1) {
+            configured = configured.substring(0, configured.length() - 1);
+        }
+        return configured;
     }
 
     private record ContentResponse(String id, String type, String title, Version version, Body body, Space space) {}
