@@ -192,14 +192,12 @@
                 <table class="table table-hover" id="dropappConfigTable">
                     <thead>
                     <tr>
-                        <th scope="col">namespace</th>
-                        <th scope="col">service name</th>
-                        <th scope="col">pod name</th>
-                        <th scope="col">container name</th>
-                        <th scope="col">request cpu</th>
-                        <th scope="col">limit cpu</th>
-                        <th scope="col">request ram</th>
-                        <th scope="col">limit ram</th>
+                        <th scope="col">Название POD</th>
+                        <th scope="col">Контейнер в POD</th>
+                        <th scope="col">Request CPU</th>
+                        <th scope="col">Limit CPU</th>
+                        <th scope="col">Request RAM</th>
+                        <th scope="col">Limit RAM</th>
                     </tr>
                     </thead>
                     <tbody></tbody>
@@ -236,8 +234,6 @@
             items.forEach(item => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${item.namespace ?? ''}</td>
-                    <td>${item.serviceName ?? ''}</td>
                     <td>${item.podName ?? ''}</td>
                     <td>${item.containerName ?? ''}</td>
                     <td>${item.requestCpu ?? ''}</td>
