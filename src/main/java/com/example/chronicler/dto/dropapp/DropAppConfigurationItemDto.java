@@ -6,6 +6,7 @@ public record DropAppConfigurationItemDto(
         String serviceName,
         String podName,
         String containerName,
+        String version,
         String requestCpu,
         String limitCpu,
         String requestRam,

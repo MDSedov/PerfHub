@@ -194,6 +194,7 @@
                     <tr>
                         <th scope="col">Название POD</th>
                         <th scope="col">Контейнер в POD</th>
+                        <th scope="col">Версия</th>
                         <th scope="col">Request CPU</th>
                         <th scope="col">Limit CPU</th>
                         <th scope="col">Request RAM</th>
@@ -236,6 +237,7 @@
                 row.innerHTML = `
                     <td>${item.podName ?? ''}</td>
                     <td>${item.containerName ?? ''}</td>
+                    <td>${item.version ?? ''}</td>
                     <td>${item.requestCpu ?? ''}</td>
                     <td>${item.limitCpu ?? ''}</td>
                     <td>${item.requestRam ?? ''}</td>

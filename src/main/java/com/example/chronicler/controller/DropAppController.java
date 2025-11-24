@@ -36,6 +36,7 @@ public class DropAppController {
                 configuration.serviceName(),
                 configuration.podName(),
                 configuration.containerName(),
+                configuration.version(),
                 configuration.requestCpu(),
                 configuration.limitCpu(),
                 configuration.requestRam(),

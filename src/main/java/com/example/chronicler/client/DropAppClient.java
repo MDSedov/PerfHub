@@ -2,17 +2,22 @@ package com.example.chronicler.client;
 
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.dto.kubernetes.KubernetesContainer;
+import com.example.chronicler.dto.kubernetes.KubernetesDeployment;
+import com.example.chronicler.dto.kubernetes.KubernetesDeploymentListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesPod;
 import com.example.chronicler.dto.kubernetes.KubernetesPodListResponse;
+import com.example.chronicler.dto.kubernetes.KubernetesPodMetadata;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +81,23 @@ public class DropAppClient {
         }
     }
 
+    /** Формирует полный URI запроса списка Deployment для namespace. */
+    private URI buildDeploymentsUri(String namespace) {
+        String baseUrl = configurationProvider.getRequiredValue(SERVICE, BASE_URL_KEY);
+        try {
+            return UriComponentsBuilder.fromUriString(baseUrl)
+                    .path("/apis/apps/v1/namespaces/{namespace}/deployments")
+                    .buildAndExpand(namespace)
+                    .encode()
+                    .toUri();
+        } catch (IllegalArgumentException ex) {
+            throw new DropAppClientException(
+                    "Некорректный базовый URL DropApp: " + Objects.toString(baseUrl, "<null>"), ex);
+        }
+    }
+
     private List<DropAppPodConfiguration> fetchNamespacePods(String namespace, HttpMethod method, HttpHeaders headers) {
+        List<DeploymentDescriptor> deployments = fetchDeploymentDescriptors(namespace, method, headers);
         URI requestUri = buildPodsUri(namespace);
         HttpEntity<Void> request = new HttpEntity<>(headers);
         if (log.isDebugEnabled()) {
@@ -92,7 +113,12 @@ public class DropAppClient {
             }
             List<DropAppPodConfiguration> result = new ArrayList<>();
             for (KubernetesPod pod : body.items()) {
-                String podName = pod.metadata() != null ? pod.metadata().name() : null;
+                KubernetesPodMetadata metadata = pod.metadata();
+                String podName = metadata != null ? metadata.name() : null;
+                Map<String, String> podLabels = metadata != null && metadata.labels() != null
+                        ? metadata.labels()
+                        : Collections.emptyMap();
+                String version = resolveVersion(podLabels, deployments);
                 if (pod.spec() == null || pod.spec().containers() == null) {
                     continue;
                 }
@@ -102,6 +128,7 @@ public class DropAppClient {
                             null,
                             podName,
                             container.name(),
+                            version,
                             extractValue(container, KubernetesContainer::requestCpu),
                             extractValue(container, KubernetesContainer::limitCpu),
                             extractValue(container, KubernetesContainer::requestRam),
@@ -135,6 +162,94 @@ public class DropAppClient {
         }
     }
 
+    private List<DeploymentDescriptor> fetchDeploymentDescriptors(
+            String namespace, HttpMethod method, HttpHeaders headers) {
+        URI requestUri = buildDeploymentsUri(namespace);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        if (log.isDebugEnabled()) {
+            log.debug("Запрос deployments Kubernetes по адресу {} для namespace {}", requestUri, namespace);
+            log.debug("Kubernetes request details: {} {} with headers {}", method, requestUri, headersForLogging(headers));
+        }
+        try {
+            ResponseEntity<KubernetesDeploymentListResponse> response = restTemplate.exchange(
+                    requestUri, method, request, KubernetesDeploymentListResponse.class);
+            KubernetesDeploymentListResponse body = response.getBody();
+            if (body == null || body.items() == null) {
+                return Collections.emptyList();
+            }
+            List<DeploymentDescriptor> descriptors = new ArrayList<>();
+            for (KubernetesDeployment deployment : body.items()) {
+                KubernetesPodMetadata metadata = deployment.metadata();
+                String version = extractVersion(metadata);
+                Map<String, String> selector = extractSelectorLabels(deployment);
+                if (selector.isEmpty()) {
+                    continue;
+                }
+                descriptors.add(new DeploymentDescriptor(selector, version));
+            }
+            return descriptors;
+        } catch (RestClientResponseException ex) {
+            log.error(
+                    "Запрос к Kubernetes API (deployments) завершился ошибкой {} {}. Запрос: {} {}. Заголовки запроса: {}. "
+                            + "Заголовки ответа: {}. Тело ответа: {}",
+                    ex.getRawStatusCode(),
+                    ex.getStatusText(),
+                    method,
+                    requestUri,
+                    headersForLogging(headers),
+                    headersForLogging(ex.getResponseHeaders()),
+                    ex.getResponseBodyAsString());
+            throw new DropAppClientException(
+                    "Не удалось получить список deployments Kubernetes: статус %s %s".formatted(
+                            ex.getRawStatusCode(), ex.getStatusText()),
+                    ex);
+        } catch (RestClientException ex) {
+            log.error(
+                    "Ошибка HTTP-клиента при обращении к Kubernetes API (deployments). Запрос: {} {}. Заголовки запроса: {}",
+                    method,
+                    requestUri,
+                    headersForLogging(headers),
+                    ex);
+            throw new DropAppClientException("Не удалось получить список deployments Kubernetes: " + ex.getMessage(), ex);
+        }
+    }
+
+    private String resolveVersion(Map<String, String> podLabels, List<DeploymentDescriptor> deployments) {
+        if (podLabels == null || podLabels.isEmpty() || deployments.isEmpty()) {
+            return "";
+        }
+        for (DeploymentDescriptor descriptor : deployments) {
+            if (matchesAll(podLabels, descriptor.selector())) {
+                return descriptor.version();
+            }
+        }
+        return "";
+    }
+
+    private boolean matchesAll(Map<String, String> podLabels, Map<String, String> selector) {
+        for (Map.Entry<String, String> entry : selector.entrySet()) {
+            if (!Objects.equals(podLabels.get(entry.getKey()), entry.getValue())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Map<String, String> extractSelectorLabels(KubernetesDeployment deployment) {
+        if (deployment == null || deployment.spec() == null || deployment.spec().selector() == null) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> matchLabels = deployment.spec().selector().matchLabels();
+        return matchLabels != null ? new HashMap<>(matchLabels) : Collections.emptyMap();
+    }
+
+    private String extractVersion(KubernetesPodMetadata metadata) {
+        if (metadata == null || metadata.labels() == null) {
+            return "";
+        }
+        return metadata.labels().getOrDefault("helpers.app.kubernetes.io/version", "");
+    }
+
     private String extractValue(KubernetesContainer container, Function<KubernetesContainer, String> extractor) {
         if (container == null) {
             return "";
@@ -142,6 +257,8 @@ public class DropAppClient {
         String value = extractor.apply(container);
         return value != null ? value : "";
     }
+
+    private record DeploymentDescriptor(Map<String, String> selector, String version) {}
 
     private String headersForLogging(HttpHeaders headers) {
         if (headers == null || headers.isEmpty()) {
