@@ -123,6 +123,18 @@
             font-size: 0.82rem;
             font-weight: 600;
         }
+
+        .selected-tests-list li + li {
+            margin-top: 0.35rem;
+        }
+
+        .selected-tests-list a {
+            text-decoration: none;
+        }
+
+        .selected-tests-list a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -199,15 +211,11 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Выбранные тесты</label>
-                            <div class="d-flex align-items-center gap-2">
+                            <div class="d-flex align-items-center gap-2 mb-2">
                                 <span id="selectedCounter" class="badge text-bg-success-subtle text-success-emphasis">0</span>
                                 <span class="text-muted small">шт.</span>
                             </div>
-                        </div>
-                        <div class="report-form-hint mb-3">
-                            1. Выберите один или несколько тестов в таблице справа.<br>
-                            2. Укажите родительскую страницу Confluence.<br>
-                            3. Нажмите «Создать отчеты по тестам».
+                            <div id="selectedTestsList" class="small text-muted">Тесты не выбраны</div>
                         </div>
                         <div id="reportAlert" class="alert d-none" role="alert"></div>
                         <button type="submit" class="btn btn-success w-100" id="createReportsButton" disabled>
@@ -276,9 +284,54 @@
         const createReportsButton = document.getElementById('createReportsButton');
         const reportAlert = document.getElementById('reportAlert');
         const reportForm = document.getElementById('reportForm');
+        const selectedTestsList = document.getElementById('selectedTestsList');
 
         let tests = [];
         const selectedTestIds = new Set();
+        const testsById = new Map();
+        const reportLinks = new Map();
+        let confluenceBaseUrl = '';
+        let confluenceBaseUrlLoaded = false;
+        let confluenceBaseUrlPromise = null;
+
+        const normalizeTestId = (id) => (id !== undefined && id !== null ? String(id) : null);
+        const normalizeTestType = (type) => (type || 'unknown').toUpperCase();
+
+        const loadConfluenceBaseUrl = async () => {
+            if (confluenceBaseUrlLoaded) {
+                return confluenceBaseUrl;
+            }
+            if (!confluenceBaseUrlPromise) {
+                confluenceBaseUrlPromise = fetch('/api/chronicler/properties/')
+                    .then(async (response) => {
+                        if (!response.ok) {
+                            throw new Error('Ответ сервера: ' + response.status);
+                        }
+                        const payload = await response.json();
+                        const confluenceEntry = (Array.isArray(payload) ? payload : []).find(
+                            (item) => item.service === 'confluence' && item.key === 'base-url'
+                        );
+                        confluenceBaseUrl = (confluenceEntry?.value || '').trim();
+                        return confluenceBaseUrl;
+                    })
+                    .catch(() => '')
+                    .finally(() => {
+                        confluenceBaseUrlLoaded = true;
+                    });
+            }
+            return confluenceBaseUrlPromise;
+        };
+
+        const buildConfluencePageUrl = (pageId) => {
+            if (!pageId) {
+                return null;
+            }
+            const base = (confluenceBaseUrl || '').replace(/\/+$/, '');
+            if (!base) {
+                return null;
+            }
+            return `${base}/pages/viewpage.action?pageId=${pageId}`;
+        };
 
         const formatDuration = (seconds) => {
             if (!Number.isFinite(seconds) || seconds <= 0) {
@@ -305,8 +358,73 @@
             return `<span class="status-pill ${badgeClass}">${label}</span>`;
         };
 
+        const buildSelectedTestLabel = (test) => {
+            const type = normalizeTestType(test?.type);
+            const start = test?.start ?? '—';
+            return `${type} ${start}`;
+        };
+
+        const renderSelectedTestsList = () => {
+            if (!selectedTestsList) {
+                return;
+            }
+            selectedTestsList.innerHTML = '';
+            if (selectedTestIds.size === 0) {
+                selectedTestsList.classList.add('text-muted');
+                selectedTestsList.textContent = 'Тесты не выбраны';
+                return;
+            }
+            selectedTestsList.classList.remove('text-muted');
+            const list = document.createElement('ul');
+            list.className = 'list-unstyled mb-0 selected-tests-list';
+            selectedTestIds.forEach((testId) => {
+                const item = document.createElement('li');
+                const test = testsById.get(testId);
+                const label = buildSelectedTestLabel(test);
+                const link = reportLinks.get(testId);
+                if (link) {
+                    const anchor = document.createElement('a');
+                    anchor.href = link;
+                    anchor.target = '_blank';
+                    anchor.rel = 'noopener noreferrer';
+                    anchor.textContent = label;
+                    item.appendChild(anchor);
+                } else {
+                    item.textContent = label;
+                }
+                list.appendChild(item);
+            });
+            selectedTestsList.appendChild(list);
+        };
+
+        const refreshTestsMap = () => {
+            testsById.clear();
+            (Array.isArray(tests) ? tests : []).forEach((test) => {
+                const testId = normalizeTestId(test.id);
+                if (testId) {
+                    testsById.set(testId, test);
+                }
+            });
+        };
+
+        const cleanupSelection = () => {
+            let removed = false;
+            selectedTestIds.forEach((id) => {
+                if (!testsById.has(id)) {
+                    selectedTestIds.delete(id);
+                    reportLinks.delete(id);
+                    removed = true;
+                }
+            });
+            if (removed) {
+                renderSelectedTestsList();
+            }
+        };
+
         const renderTests = () => {
             testsTableBody.innerHTML = '';
+            refreshTestsMap();
+            cleanupSelection();
             if (tests.length === 0) {
                 testsTableWrapper.classList.add('d-none');
                 testsEmpty.classList.remove('d-none');
@@ -318,13 +436,14 @@
 
             tests.forEach((test) => {
                 const row = document.createElement('tr');
+                const testId = normalizeTestId(test.id);
                 row.innerHTML = `
                     <td>
                         <input class="form-check-input test-checkbox" type="checkbox"
-                               data-test-id="${test.id}" ${selectedTestIds.has(test.id) ? 'checked' : ''}>
+                               data-test-id="${testId ?? ''}" ${testId && selectedTestIds.has(testId) ? 'checked' : ''} ${testId ? '' : 'disabled'}>
                     </td>
                     <td>
-                        <span class="badge text-bg-light text-success badge-test-type">${(test.type || 'unknown').toUpperCase()}</span>
+                        <span class="badge text-bg-light text-success badge-test-type">${normalizeTestType(test.type)}</span>
                     </td>
                     <td class="text-nowrap">${test.start ?? '—'}</td>
                     <td class="text-nowrap">${test.end ?? '—'}</td>
@@ -337,6 +456,10 @@
             document.querySelectorAll('.test-checkbox').forEach((checkbox) => {
                 checkbox.addEventListener('change', (event) => {
                     const testId = event.target.dataset.testId;
+                    if (!testId) {
+                        event.target.checked = false;
+                        return;
+                    }
                     if (event.target.checked) {
                         selectedTestIds.add(testId);
                     } else {
@@ -349,7 +472,8 @@
         };
 
         const syncSelectAll = () => {
-            if (tests.length === 0) {
+            const selectableTestsCount = testsById.size;
+            if (selectableTestsCount === 0) {
                 selectAllCheckbox.checked = false;
                 selectAllCheckbox.indeterminate = false;
                 return;
@@ -358,7 +482,7 @@
             if (selectedCount === 0) {
                 selectAllCheckbox.checked = false;
                 selectAllCheckbox.indeterminate = false;
-            } else if (selectedCount === tests.length) {
+            } else if (selectedCount === selectableTestsCount) {
                 selectAllCheckbox.checked = true;
                 selectAllCheckbox.indeterminate = false;
             } else {
@@ -370,6 +494,7 @@
             selectedCounter.textContent = selectedTestIds.size;
             syncSelectAll();
             updateSubmitState();
+            renderSelectedTestsList();
         };
 
         const updateSubmitState = () => {
@@ -378,14 +503,18 @@
         };
 
         selectAllCheckbox.addEventListener('change', (event) => {
-            if (tests.length === 0) {
+            if (testsById.size === 0) {
                 event.target.checked = false;
                 return;
             }
             const shouldSelectAll = event.target.checked && !event.target.indeterminate;
             document.querySelectorAll('.test-checkbox').forEach((checkbox) => {
-                checkbox.checked = shouldSelectAll;
                 const testId = checkbox.dataset.testId;
+                if (!testId) {
+                    checkbox.checked = false;
+                    return;
+                }
+                checkbox.checked = shouldSelectAll;
                 if (shouldSelectAll) {
                     selectedTestIds.add(testId);
                 } else {
@@ -422,7 +551,7 @@
                     throw new Error(errorText || 'Не удалось создать отчеты');
                 }
                 const data = await response.json();
-                handleSuccessResponse(data);
+                await handleSuccessResponse(data);
             } catch (error) {
                 toggleReportAlert('danger', `Ошибка при создании отчетов: ${error.message}`);
             } finally {
@@ -431,23 +560,24 @@
             }
         });
 
-        const handleSuccessResponse = (response) => {
-            if (response && Array.isArray(response.reports) && response.reports.length > 0) {
-                const listItems = response.reports
-                    .map((report) => `<li>Тест <code>${report.testUuid}</code> → страница <code>${report.pageId}</code></li>`)
-                    .join('');
-                toggleReportAlert('success', `
-                    Отчеты успешно созданы:
-                    <ul class="mb-0 mt-2">${listItems}</ul>
-                `);
-            } else {
-                toggleReportAlert('success', 'Confluence вернул ответ без созданных страниц, проверьте журнал сервиса.');
+        const handleSuccessResponse = async (response) => {
+            const reports = Array.isArray(response?.reports) ? response.reports : [];
+            if (reports.length > 0) {
+                await loadConfluenceBaseUrl();
+                reports.forEach((report) => {
+                    const testId = normalizeTestId(report?.testUuid);
+                    const pageId = report?.pageId;
+                    if (!testId) {
+                        return;
+                    }
+                    const pageUrl = buildConfluencePageUrl(pageId);
+                    if (pageUrl) {
+                        reportLinks.set(testId, pageUrl);
+                    }
+                });
+                renderSelectedTestsList();
             }
-            selectedTestIds.clear();
-            document.querySelectorAll('.test-checkbox').forEach((checkbox) => {
-                checkbox.checked = false;
-            });
-            updateSelectionState();
+            toggleReportAlert('info', 'Отчеты успешно созданы');
         };
 
         const toggleReportAlert = (type, message) => {
@@ -472,7 +602,8 @@
                 if (!response.ok) {
                     throw new Error('Не удалось загрузить список тестов');
                 }
-                tests = await response.json();
+                const payload = await response.json();
+                tests = Array.isArray(payload) ? payload : [];
                 renderTests();
             } catch (error) {
                 testsError.textContent = error.message;
@@ -502,6 +633,7 @@
             }, AUTO_REFRESH_MS);
         };
 
+        loadConfluenceBaseUrl().catch(() => {});
         loadTests();
         startAutoRefresh();
     });
