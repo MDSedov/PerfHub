@@ -45,8 +45,6 @@ class VictoriaMetricsServiceTest {
     private VictoriaMetricsTestsCache testsCache;
 
     private StubLoadTestRepository loadTestRepository;
-    private Map<String, String> configurationValues;
-    private ConfigurationProvider configurationProvider;
 
     private ObjectMapper objectMapper;
     private VictoriaMetricsService service;
@@ -59,16 +57,13 @@ class VictoriaMetricsServiceTest {
         vmDataCache = new VmDataCache();
         testsCache = new VictoriaMetricsTestsCache();
         loadTestRepository = new StubLoadTestRepository();
-        configurationValues = new HashMap<>();
-        configurationProvider = new InMemoryConfigurationProvider(configurationValues);
         service = new VictoriaMetricsService(
                 panelRepository,
                 client,
                 vmDataCache,
                 testsCache,
                 loadTestRepository,
-                objectMapper,
-                configurationProvider);
+                objectMapper);
     }
 
     @Test
@@ -177,25 +172,13 @@ class VictoriaMetricsServiceTest {
     }
 
     @Test
-    void detectLoadTestsUsesConfiguredQueryWhenPanelMissing() throws Exception {
+    void detectLoadTestsThrowsWhenTestQueryPanelMissing() {
         String start = "2024-01-06 12:00:00";
         String end = "2024-01-06 12:10:00";
-        Instant intervalStart = toInstant(start);
 
-        configurationValues.put(key("test-query"), "configured_intensity_expr");
-        client.setResponse(intensityPayload(
-                intervalStart, new double[] {0, 4, 4, 4, 4, 4, 4, 0}, 60));
-
-        UUID testId = UUID.fromString("00000000-0000-0000-0000-000000000002");
-        loadTestRepository.setIdToReturn(testId);
-
-        String response = service.detectLoadTests(start, end);
-
-        JsonNode root = objectMapper.readTree(response);
-        assertThat(root.path("tests")).hasSize(1);
-        JsonNode testNode = root.path("tests").get(0);
-        assertThat(testNode.path("id").asText()).isEqualTo(testId.toString());
-        assertThat(client.recordedQuery()).isEqualTo("configured_intensity_expr");
+        assertThatThrownBy(() -> service.detectLoadTests(start, end))
+                .isInstanceOf(VmQueryNotFoundException.class);
+        assertThat(client.invocationCount()).isZero();
     }
 
     private Instant toInstant(String value) {

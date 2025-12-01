@@ -128,10 +128,6 @@ SELECT 'victoria-metrics', 'default-step-seconds', '15', 'Шаг агрегац�
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'victoria-metrics' AND "key" = 'default-step-seconds');
 
 INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'victoria-metrics', 'test-query', '', 'PromQL для определения интенсивности нагрузочных тестов'
-WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'victoria-metrics' AND "key" = 'test-query');
-
-INSERT INTO configurations (service, "key", config_value, description)
 SELECT 'gigachat', 'oauth-url', 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth', 'Endpoint получения OAuth-токена GigaChat'
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'oauth-url');
 
