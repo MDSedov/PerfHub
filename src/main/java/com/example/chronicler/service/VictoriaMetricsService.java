@@ -38,7 +38,9 @@ public class VictoriaMetricsService {
     private static final ZoneId MOSCOW_ZONE = ZoneId.of("Europe/Moscow");
     private static final DateTimeFormatter DASHBOARD_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final String VM_SERVICE = "victoria-metrics";
     private static final String INTENSITY_TYPE = "intensity";
+    private static final String TEST_QUERY_KEY = "test-query";
     private static final Duration TEST_GAP_THRESHOLD = Duration.ofMinutes(3);
     private static final Duration MIN_TEST_DURATION = Duration.ofMinutes(5);
     private static final Duration SOAK_THRESHOLD = Duration.ofHours(3);
@@ -62,6 +64,7 @@ public class VictoriaMetricsService {
     private final VictoriaMetricsTestsCache testsCache;
     private final LoadTestRepository loadTestRepository;
     private final ObjectMapper objectMapper;
+    private final ConfigurationProvider configurationProvider;
 
     /** Конструктор подготавливает зависимости сервиса VictoriaMetrics. */
     VictoriaMetricsService(
@@ -70,13 +73,15 @@ public class VictoriaMetricsService {
             VmDataCache vmDataCache,
             VictoriaMetricsTestsCache testsCache,
             LoadTestRepository loadTestRepository,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ConfigurationProvider configurationProvider) {
         this.grafanaPanelRepository = grafanaPanelRepository;
         this.client = client;
         this.vmDataCache = vmDataCache;
         this.testsCache = testsCache;
         this.loadTestRepository = loadTestRepository;
         this.objectMapper = objectMapper;
+        this.configurationProvider = configurationProvider;
     }
 
     /** Метод собирает данные VictoriaMetrics по списку запросов и кеширует результат. */
@@ -195,10 +200,13 @@ public class VictoriaMetricsService {
 
     private String resolveQuery(String type) {
         if (INTENSITY_TYPE.equals(type)) {
-            Optional<GrafanaDashboardPanelRecord> selected = grafanaPanelRepository.findTestQueryPanel();
-            return selected.map(GrafanaDashboardPanelRecord::panelQuery)
-                    .filter(StringUtils::hasText)
-                    .orElseThrow(() -> new VmQueryNotFoundException("test-query"));
+            Optional<String> query = grafanaPanelRepository.findTestQueryPanel()
+                    .map(GrafanaDashboardPanelRecord::panelQuery)
+                    .filter(StringUtils::hasText);
+            if (query.isEmpty()) {
+                query = configurationProvider.findValue(VM_SERVICE, TEST_QUERY_KEY).filter(StringUtils::hasText);
+            }
+            return query.orElseThrow(() -> new VmQueryNotFoundException("test-query"));
         }
 
         Optional<GrafanaDashboardPanelRecord> panel = resolvePanel(type);

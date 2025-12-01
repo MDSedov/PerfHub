@@ -1688,10 +1688,19 @@
                 },
                 body: JSON.stringify({ start, end })
             });
+            const responseText = await response.text();
             if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
+                let message = 'Ответ сервера: ' + response.status;
+                try {
+                    const parsed = responseText ? JSON.parse(responseText) : null;
+                    if (parsed?.message) {
+                        message += ' — ' + parsed.message;
+                    }
+                } catch (parseError) {
+                    // ignore JSON parsing errors for error payloads
+                }
+                throw new Error(message);
             }
-            await response.json();
         } catch (error) {
             console.error('Не удалось запросить Victoria Metrics', { url, start, end, error });
             throw error;
