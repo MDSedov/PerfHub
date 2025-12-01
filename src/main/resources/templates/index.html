@@ -89,39 +89,153 @@
             }
         }
 
-        .tests-card {
-            border: none;
-            border-radius: 20px;
-            box-shadow: 0 16px 50px rgba(3, 76, 45, 0.08);
-            width: 100%;
-        }
-
-        .tests-header,
-        .test-row {
-            display: grid;
-            grid-template-columns: 1fr 1.2fr 1.2fr 0.9fr 1fr auto;
-            gap: 1rem;
+        .tests-toolbar {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
             align-items: center;
         }
 
-        .tests-header {
-            text-transform: uppercase;
-            font-size: 0.78rem;
-            color: #6a7c73;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid rgba(0, 152, 70, 0.15);
-            padding-bottom: 0.5rem;
-            margin-bottom: 0.75rem;
+        .tests-layout {
+            align-items: flex-start;
         }
 
-        .tests-list .list-group-item {
+        .tests-sidebar {
+            position: sticky;
+            top: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .sidebar-card {
+            background: #ffffff;
             border: none;
-            border-bottom: 1px solid rgba(0, 152, 70, 0.07);
-            padding: 1rem 0;
+            border-radius: 18px;
+            padding: 1.25rem;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
         }
 
-        .tests-list .list-group-item:last-child {
-            border-bottom: none;
+        .sidebar-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #1f2b24;
+        }
+
+        .tests-content {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .toast-container {
+            position: fixed;
+            right: 1.25rem;
+            bottom: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            z-index: 1080;
+            max-width: 360px;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+
+        .toast-item {
+            background: #ffffff;
+            border: 1px solid #e5efe8;
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            pointer-events: auto;
+            width: 100%;
+        }
+
+        .toast-item .toast-body {
+            margin: 0;
+            color: #1f2b24;
+        }
+
+        .toast-close {
+            border: none;
+            background: transparent;
+            color: #6a7c73;
+            padding: 0.25rem;
+            line-height: 1;
+            cursor: pointer;
+            margin-left: auto;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toast-item.success {
+            border-color: #b7e3c9;
+            background: #f4fbf7;
+        }
+
+        .toast-item.danger {
+            border-color: #f3c1b8;
+            background: #fff4f2;
+        }
+
+        .toast-item.info {
+            border-color: #c2d7ff;
+            background: #f3f7ff;
+        }
+
+        .tests-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .tests-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            height: 28px;
+            padding: 0 10px;
+            border: 1px solid #e5efe8;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #0f1f16;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .tests-table-wrapper {
+            border-top: 1px solid #e5efe8;
+        }
+
+        .tests-table {
+            width: 100%;
+            margin: 0;
+            border-collapse: collapse;
+            color: #1c231f;
+        }
+
+        .tests-table thead th {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6a7c73;
+            border-color: #e5efe8;
+            white-space: nowrap;
+        }
+
+        .tests-table tbody td {
+            border-color: #e5efe8;
+            vertical-align: middle;
+        }
+
+        .tests-table tbody tr.test-summary-row:hover {
+            background-color: rgba(0, 152, 70, 0.04);
         }
 
         .test-type {
@@ -136,12 +250,96 @@
         }
 
         .test-duration {
-            color: #4b5d54;
+            font-variant-numeric: tabular-nums;
+            color: #26332c;
             font-weight: 600;
         }
 
-        .test-status {
-            font-weight: 600;
+        .status-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 1px solid #e5efe8;
+            font-size: 0.9rem;
+            line-height: 1;
+            color: #3d4742;
+            background: #f4f6f4;
+        }
+
+        .status-icon.success {
+            background: #e8f6ec;
+            color: #0f7b39;
+            border-color: #18a34a;
+        }
+
+        .status-icon.fail {
+            background: #fdecea;
+            color: #b42318;
+            border-color: #d64a3a;
+        }
+
+        .status-icon.loading {
+            background: #eef2ef;
+            color: #6a7c73;
+        }
+
+        .status-icon.error {
+            background: #fff4d6;
+            color: #8a6100;
+            border-color: #e2a11b;
+        }
+
+        .details-toggle {
+            border: 1px solid #e5efe8;
+            background: #f3f7f4;
+            color: #2f3a35;
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            padding: 0;
+            transition: background-color 0.15s ease, transform 0.15s ease;
+        }
+
+        .details-toggle:hover,
+        .details-toggle:focus-visible {
+            background: #e6ebe6;
+        }
+
+        .details-icon {
+            transition: transform 0.2s ease;
+            display: inline-block;
+        }
+
+        .details-toggle[aria-expanded="true"] .details-icon {
+            transform: rotate(90deg);
+        }
+
+        .details-row {
+            display: none;
+        }
+
+        .details-row.show {
+            display: table-row;
+        }
+
+        .details-row > td {
+            padding: 0;
+            background: #f9fbf9;
+            border-color: #e5efe8;
+        }
+
+        .test-details {
+            padding: 1.25rem 1.25rem 1.5rem;
+            border-top: 1px solid #e5efe8;
+            max-height: 440px;
+            overflow: auto;
         }
 
         .progress {
@@ -151,45 +349,6 @@
 
         .progress-bar {
             background-color: #00b960;
-        }
-
-        .test-expand-toggle {
-            border: none;
-            background-color: rgba(0, 152, 70, 0.12);
-            color: #009846;
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s ease, transform 0.2s ease;
-        }
-
-        .test-expand-toggle:hover,
-        .test-expand-toggle:focus-visible {
-            background-color: rgba(0, 152, 70, 0.2);
-            outline: none;
-        }
-
-        .test-expand-icon {
-            font-size: 1.1rem;
-            transition: transform 0.2s ease;
-        }
-
-        .test-expand-toggle[aria-expanded="true"] .test-expand-icon {
-            transform: rotate(90deg);
-        }
-
-        .test-details {
-            display: none;
-            margin-top: 1rem;
-            border-top: 1px solid rgba(0, 152, 70, 0.1);
-            padding-top: 1.25rem;
-        }
-
-        .test-details.show {
-            display: block;
         }
 
         .requirement-code {
@@ -204,7 +363,7 @@
 
         .grafana-panel {
             border: 1px solid rgba(0, 152, 70, 0.15);
-            border-radius: 14px;
+            border-radius: 8px;
             padding: 0.9rem;
             margin-bottom: 0;
             background-color: #ffffff;
@@ -234,7 +393,7 @@
 
         .grafana-panel-image {
             width: 100%;
-            border-radius: 8px;
+            border-radius: 4px;
             border: 1px solid rgba(0, 152, 70, 0.2);
         }
         
@@ -263,11 +422,6 @@
         }
 
         @media (max-width: 992px) {
-            .tests-header,
-            .test-row {
-                grid-template-columns: 1fr 1fr;
-            }
-
             .grafana-grid-row {
                 grid-template-columns: 1fr;
             }
@@ -276,9 +430,9 @@
                 grid-column: span 1;
             }
 
-            .test-row span:last-child,
-            .tests-header span:last-child {
-                justify-self: end;
+            .tests-sidebar {
+                position: static;
+                width: 100%;
             }
         }
     </style>
@@ -338,65 +492,102 @@
     </div>
 </nav>
 
-<main class="container-fluid py-5 px-3 px-lg-5">
-    <div class="mb-4">
-        <p class="lead mb-2">Данные по всем нагрузочным тестам за последние 30 дней.</p>
-        <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
-            <button type="button" class="btn btn-success" id="refreshTestsButton">Запросить данные из Victoria Metrics</button>
-            <button type="button" class="btn btn-success" id="evaluateTestsButton">Проверить тесты на требования</button>
+<main class="container-fluid py-5 px-4 px-lg-5">
+    <div class="row g-4 tests-layout">
+        <div class="col-12 col-lg-4">
+            <aside class="tests-sidebar">
+                <div class="sidebar-card">
+                    <h6 class="sidebar-title">Данные</h6>
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success" id="refreshTestsButton">Запросить данные по тестам</button>
+                        <button type="button" class="btn btn-outline-success" id="evaluateTestsButton">Перепроверить тесты на требования</button>
+                    </div>
+                </div>
+                <div class="sidebar-card">
+                    <h6 class="sidebar-title">Фильтры</h6>
+                    <div class="mb-3">
+                        <label for="releaseFilter" class="form-label small text-muted mb-1">Релиз</label>
+                        <select id="releaseFilter" class="form-select" multiple size="4"></select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-lg-6">
+                            <label for="periodStart" class="form-label small text-muted mb-1">Начало периода (МСК)</label>
+                            <input type="datetime-local" id="periodStart" class="form-control" step="1" placeholder="Выберите дату и время">
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label for="periodEnd" class="form-label small text-muted mb-1">Конец периода (МСК)</label>
+                            <input type="datetime-local" id="periodEnd" class="form-control" step="1" placeholder="Выберите дату и время">
+                        </div>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" value="" id="compliantFilter">
+                        <label class="form-check-label" for="compliantFilter">Тест соответствует требованиям</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="configFilter">
+                        <label class="form-check-label" for="configFilter">Получена конфигурация DropApp</label>
+                    </div>
+                    <div class="d-grid gap-2 mt-3">
+                        <button type="button" class="btn btn-outline-secondary" id="resetFiltersButton">Сбросить фильтры</button>
+                    </div>
+                </div>
+            </aside>
         </div>
-        <div id="progressContainer" class="mb-3 d-none">
-            <p class="text-muted mb-3" id="progressDescription"></p>
-            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="30">
-                <div class="progress-bar" id="refreshProgressBar" style="width: 0%" aria-valuenow="0"></div>
-            </div>
-        </div>
-        <div id="evaluationProgressContainer" class="mb-3 d-none">
-            <p class="text-muted mb-3" id="evaluationProgressDescription"></p>
-            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="0">
-                <div class="progress-bar" id="evaluationProgressBar" style="width: 0%" aria-valuenow="0"></div>
-            </div>
-        </div>
-        <div id="refreshStatus" class="alert d-none mb-0 py-2 px-3" role="alert"></div>
-    </div>
 
-    <div class="card tests-card">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="card-title mb-0">Нагрузочные тесты</h5>
-                <span id="testsCount" class="badge bg-secondary">0</span>
-            </div>
-            <div id="testsStatus" class="alert alert-info d-none" role="alert"></div>
-            <div class="tests-header">
-                <span>Тип</span>
-                <span>Начало</span>
-                <span>Конец</span>
-                <span>Длительность</span>
-                <span>Соответствие</span>
-                <span class="text-end">Детали</span>
-            </div>
-            <div id="testsList" class="list-group tests-list"></div>
+        <div class="col-12 col-lg-8">
+            <section class="tests-content flex-grow-1">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="tests-meta">
+                                <h5 class="mb-0">Нагрузочные тесты</h5>
+                                <span id="testsCount" class="tests-count">0</span>
+                            </div>
+                        </div>
+                        <div id="testsStatus" class="alert alert-info d-none" role="alert"></div>
+                        <div class="tests-table-wrapper table-responsive">
+                            <table class="table align-middle tests-table">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Релиз</th>
+                                    <th scope="col">Тип теста</th>
+                                    <th scope="col">Длительность</th>
+                                    <th scope="col">Начало</th>
+                                    <th scope="col">Конец</th>
+                                    <th scope="col" class="text-center">Соответствие требованиям</th>
+                                    <th scope="col" class="text-center">Конфигурация</th>
+                                    <th scope="col" class="text-center">Детали</th>
+                                </tr>
+                                </thead>
+                                <tbody id="testsTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
 </main>
+
+<div id="toastContainer" class="toast-container"></div>
 
 <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
         crossorigin="anonymous"></script>
 <script>
-    const testsList = document.getElementById('testsList');
+    const testsTableBody = document.getElementById('testsTableBody');
     const testsStatus = document.getElementById('testsStatus');
     const testsCount = document.getElementById('testsCount');
     const refreshButton = document.getElementById('refreshTestsButton');
     const evaluateTestsButton = document.getElementById('evaluateTestsButton');
-    const refreshStatus = document.getElementById('refreshStatus');
-    const refreshProgressBar = document.getElementById('refreshProgressBar');
-    const progressDescription = document.getElementById('progressDescription');
-    const progressContainer = document.getElementById('progressContainer');
-    const evaluationProgressContainer = document.getElementById('evaluationProgressContainer');
-    const evaluationProgressDescription = document.getElementById('evaluationProgressDescription');
-    const evaluationProgressBar = document.getElementById('evaluationProgressBar');
+    const releaseFilter = document.getElementById('releaseFilter');
+    const periodStartInput = document.getElementById('periodStart');
+    const periodEndInput = document.getElementById('periodEnd');
+    const resetFiltersButton = document.getElementById('resetFiltersButton');
+    const compliantFilterCheckbox = document.getElementById('compliantFilter');
+    const configFilterCheckbox = document.getElementById('configFilter');
+    const toastContainer = document.getElementById('toastContainer');
 
     const MOSCOW_TZ = 'Europe/Moscow';
     const DAYS_TO_FETCH = 30;
@@ -419,6 +610,9 @@
     };
 
     const NO_CONFIG_MESSAGE = 'Конфигурация DroApp для данного теста отсутствует';
+    const DEFAULT_RELEASE_VERSION = '2.6.0';
+    const ANY_RELEASE_VALUE = '__any__';
+    const MISSING_RELEASE_VALUE = '__missing__';
     const AUTO_REFRESH_MS = 60_000;
 
     const REQUIREMENT_STATUS_LABELS = {
@@ -444,8 +638,19 @@
     const grafanaPanelRequests = new Map();
     const testConfigurationCache = new Map();
     const testConfigurationRequests = new Map();
+    const testConfigurationStatusElements = new Map();
+    const complianceStatusByTest = new Map();
+    const configStatusByTest = new Map();
     const activeStatusControllers = new Map();
     const testStatusElements = new Map();
+    let allTests = [];
+    let filterState = {
+        releases: [],
+        periodStart: '',
+        periodEnd: '',
+        compliantOnly: false,
+        configOnly: false
+    };
     let autoRefreshTimer = null;
     let autoRefreshInProgress = false;
 
@@ -463,11 +668,54 @@
         testsStatus.classList.add('d-none');
     }
 
+    function resetFilters() {
+        filterState.releases = [];
+        filterState.periodStart = '';
+        filterState.periodEnd = '';
+        filterState.compliantOnly = false;
+        filterState.configOnly = false;
+
+        if (releaseFilter) {
+            Array.from(releaseFilter.options).forEach(option => {
+                option.selected = option.value === ANY_RELEASE_VALUE;
+            });
+        }
+        if (periodStartInput) {
+            periodStartInput.value = '';
+        }
+        if (periodEndInput) {
+            periodEndInput.value = '';
+        }
+        if (compliantFilterCheckbox) {
+            compliantFilterCheckbox.checked = false;
+        }
+        if (configFilterCheckbox) {
+            configFilterCheckbox.checked = false;
+        }
+        if (testsStatus && testsStatus.classList.contains('alert-warning')) {
+            clearTestsStatus();
+        }
+        applyFilters(true);
+    }
+
     function parseMoscowDate(value) {
         if (!value) {
             return null;
         }
         return new Date(value.replace(' ', 'T') + '+03:00');
+    }
+
+    function parseDateTimeInput(value) {
+        if (!value) {
+            return null;
+        }
+        const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+        const withSeconds = normalized.length === 16 ? `${normalized}:00` : normalized;
+        return new Date(withSeconds + '+03:00');
+    }
+
+    function getTestDateTime(test) {
+        return parseMoscowDate(test?.start) ?? parseMoscowDate(test?.end);
     }
 
     function formatDuration(start, end) {
@@ -486,72 +734,109 @@
         return `${hours} ч ${minutes.toString().padStart(2, '0')} мин`;
     }
 
-    function setProgress(completed) {
-        const percent = Math.min(100, Math.round((completed / DAYS_TO_FETCH) * 100));
-        refreshProgressBar.style.width = `${percent}%`;
-        refreshProgressBar.setAttribute('aria-valuenow', completed.toString());
+    function showToast(message, type = 'info', durationMs = 15000) {
+        if (!toastContainer) {
+            return null;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast-item ${type}`;
+        const body = document.createElement('p');
+        body.className = 'toast-body';
+        body.textContent = message;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Закрыть уведомление');
+        close.innerHTML = '&times;';
+        close.addEventListener('click', () => removeToast(toast));
+        const content = document.createElement('div');
+        content.className = 'flex-grow-1';
+        content.appendChild(body);
+        toast.appendChild(content);
+        toast.appendChild(close);
+        toastContainer.appendChild(toast);
+        const timer = setTimeout(() => removeToast(toast), durationMs);
+        toast.dataset.timerId = timer.toString();
+        return toast;
     }
 
-    function updateProgressMessage(completed) {
-        progressDescription.textContent =
-                `Запрашиваем данные по тестам из Victoria Metrics. Получены данные за ${completed} из ${DAYS_TO_FETCH} дней.`;
-    }
-
-    function showProgressUI() {
-        if (!progressContainer) {
+    function removeToast(toast) {
+        if (!toast) {
             return;
         }
-        progressContainer.classList.remove('d-none');
-        setProgress(0);
-        updateProgressMessage(0);
+        const timerId = toast.dataset.timerId;
+        if (timerId) {
+            clearTimeout(Number(timerId));
+        }
+        toast.remove();
     }
 
-    function hideProgressUI() {
-        if (!progressContainer) {
+    if (toastContainer) {
+        toastContainer.addEventListener('click', event => {
+            const closeButton = event.target.closest('.toast-close');
+            if (!closeButton) {
+                return;
+            }
+            const toast = closeButton.closest('.toast-item');
+            removeToast(toast);
+        });
+    }
+
+    function getReleaseValue(test) {
+        if (!test) {
+            return null;
+        }
+        const value = test.release ?? test.version;
+        if (value === undefined || value === null || value === '') {
+            return null;
+        }
+        return String(value);
+    }
+
+    function updateReleaseOptions(tests) {
+        if (!releaseFilter) {
             return;
         }
-        progressContainer.classList.add('d-none');
-    }
+        const uniqueReleases = Array.from(
+                new Set((tests ?? []).map(getReleaseValue).filter(Boolean))).sort();
+        const hasMissingRelease = (tests ?? []).some(test => !getReleaseValue(test));
+        releaseFilter.innerHTML = '';
+        const anyOption = document.createElement('option');
+        anyOption.value = ANY_RELEASE_VALUE;
+        anyOption.textContent = 'Любой';
+        anyOption.selected = filterState.releases.length === 0;
+        releaseFilter.appendChild(anyOption);
 
-    function showEvaluationProgress(total) {
-        if (!evaluationProgressContainer) {
-            return;
+        const allowedValues = new Set(uniqueReleases);
+        if (hasMissingRelease) {
+            allowedValues.add(MISSING_RELEASE_VALUE);
         }
-        evaluationProgressContainer.classList.remove('d-none');
-        evaluationProgressBar.setAttribute('aria-valuemax', total.toString());
-        evaluationProgressBar.setAttribute('aria-valuemin', '0');
-        evaluationProgressBar.style.width = '0%';
-        evaluationProgressBar.setAttribute('aria-valuenow', '0');
-        evaluationProgressDescription.textContent =
-                `Перепроверяем тесты на соответствие нефункциональным требованиям. Проверено 0 из ${total} тестов.`;
-    }
 
-    function updateEvaluationProgress(current, total) {
-        if (!evaluationProgressContainer) {
-            return;
+        filterState.releases = filterState.releases.filter(value => allowedValues.has(value));
+
+        if (hasMissingRelease) {
+            const missingOption = document.createElement('option');
+            missingOption.value = MISSING_RELEASE_VALUE;
+            missingOption.textContent = 'Не указан';
+            missingOption.selected = filterState.releases.includes(MISSING_RELEASE_VALUE);
+            releaseFilter.appendChild(missingOption);
         }
-        const percent = total === 0 ? 0 : Math.round((current / total) * 100);
-        evaluationProgressBar.style.width = `${percent}%`;
-        evaluationProgressBar.setAttribute('aria-valuenow', current.toString());
-        evaluationProgressDescription.textContent =
-                `Перепроверяем тесты на соответствие нефункциональным требованиям. Проверено ${current} из ${total} тестов.`;
-    }
 
-    function hideEvaluationProgress() {
-        if (!evaluationProgressContainer) {
-            return;
+        uniqueReleases.forEach(value => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            option.selected = filterState.releases.includes(value);
+            releaseFilter.appendChild(option);
+        });
+
+        if (!hasMissingRelease && uniqueReleases.length === 0 && filterState.releases.length === 0) {
+            const option = document.createElement('option');
+            option.value = DEFAULT_RELEASE_VERSION;
+            option.textContent = DEFAULT_RELEASE_VERSION;
+            option.selected = false;
+            releaseFilter.appendChild(option);
         }
-        evaluationProgressContainer.classList.add('d-none');
-    }
-
-    function setRefreshStatus(message, type = 'info') {
-        refreshStatus.textContent = message;
-        refreshStatus.className = `alert alert-${type} mb-0 py-2 px-3`;
-        refreshStatus.classList.remove('d-none');
-    }
-
-    function clearRefreshStatus() {
-        refreshStatus.classList.add('d-none');
     }
 
     function resetTestStatusRequests() {
@@ -578,7 +863,7 @@
                 throw new Error('Ответ сервера: ' + response.status);
             }
             const tests = await response.json();
-            renderTests(Array.isArray(tests) ? tests : []);
+            setAllTests(Array.isArray(tests) ? tests : []);
             clearTestsStatus();
             return true;
         } catch (error) {
@@ -590,47 +875,97 @@
         }
     }
 
-    function setTestStatusView(element, state) {
-        element.className = 'test-status';
-        switch (state) {
-            case 'loading':
-                element.textContent = 'Проверка…';
-                element.classList.add('text-muted');
-                break;
-            case 'pass':
-                element.textContent = 'Соответствует';
-                element.classList.add('text-success');
-                break;
-            case 'fail':
-                element.textContent = 'Не соответствует';
-                element.classList.add('text-danger');
-                break;
-            case 'missing':
-                element.textContent = 'Нет данных';
-                element.classList.add('text-muted');
-                break;
-            default:
-                element.textContent = 'Ошибка';
-                element.classList.add('text-warning');
+    function setStatusIcon(element, state, label) {
+        if (!element) {
+            return;
+        }
+        const STATES = {
+            success: { className: 'status-icon success', text: '✔' },
+            fail: { className: 'status-icon fail', text: '✖' },
+            loading: { className: 'status-icon loading', text: '…' },
+            pending: { className: 'status-icon', text: '—' },
+            error: { className: 'status-icon error', text: '!' }
+        };
+        const config = STATES[state] || STATES.pending;
+        element.className = config.className;
+        element.textContent = config.text;
+        if (label) {
+            element.setAttribute('title', label);
+            element.setAttribute('aria-label', label);
+        } else {
+            element.removeAttribute('title');
+            element.removeAttribute('aria-label');
         }
     }
 
-    function setPendingStatus(element) {
-        element.className = 'test-status text-muted';
-        element.textContent = 'Ожидает обновления';
+    function setComplianceStatus(element, state, testId) {
+        const labels = {
+            loading: 'Проверяем соответствие требованиям',
+            success: 'Тест соответствует требованиям',
+            fail: 'Тест не соответствует требованиям',
+            pending: 'Ожидает проверки',
+            missing: 'Нет данных для проверки',
+            error: 'Ошибка при проверке требований'
+        };
+        const mappedState = state === 'pass' ? 'success' : state === 'missing' ? 'pending' : state;
+        const labelKey = labels[state] ? state : mappedState;
+        setStatusIcon(element, mappedState, labels[labelKey] ?? labels.pending);
+        if (testId) {
+            complianceStatusByTest.set(testId, mappedState);
+        }
     }
 
-    function setCheckingStatus(element) {
-        element.className = 'test-status text-muted';
-        element.textContent = 'Проверка…';
+    function setConfigurationStatus(element, state) {
+        const labels = {
+            loading: 'Загружаем конфигурацию',
+            success: 'Конфигурация получена',
+            fail: 'Конфигурация не получена',
+            pending: 'Конфигурация не загружена',
+            error: 'Ошибка загрузки конфигурации'
+        };
+        setStatusIcon(element, state, labels[state] ?? labels.pending);
+    }
+
+    function updateConfigurationStatusIcon(testId, items, error = false) {
+        const icon = testConfigurationStatusElements.get(testId);
+        if (!icon) {
+            return;
+        }
+        if (error) {
+            setConfigurationStatus(icon, 'error');
+            configStatusByTest.set(testId, 'error');
+            return;
+        }
+        const hasConfig = Array.isArray(items) && items.length > 0;
+        const state = hasConfig ? 'success' : 'fail';
+        setConfigurationStatus(icon, state);
+        configStatusByTest.set(testId, state);
+        if (filterState.configOnly) {
+            applyFilters();
+        }
+    }
+
+    function setTestStatusView(element, state, testId) {
+        const resolvedId = testId ?? element?.dataset?.testId;
+        setComplianceStatus(element, state, resolvedId);
+    }
+
+    function setPendingStatus(element, testId) {
+        const resolvedId = testId ?? element?.dataset?.testId;
+        setComplianceStatus(element, 'pending', resolvedId);
+    }
+
+    function setCheckingStatus(element, testId) {
+        const resolvedId = testId ?? element?.dataset?.testId;
+        setComplianceStatus(element, 'loading', resolvedId);
     }
 
     function markStatusesChecking() {
-        testStatusElements.forEach(setCheckingStatus);
+        testStatusElements.forEach((element, testId) => setComplianceStatus(element, 'loading', testId));
     }
 
     function markAllStatusesPending() {
-        testStatusElements.forEach(setPendingStatus);
+        testStatusElements.forEach((element, testId) => setComplianceStatus(element, 'pending', testId));
     }
 
     async function fetchEvaluation(testId, mode = 'cached') {
@@ -699,18 +1034,18 @@
             activeStatusControllers.get(testId)?.abort();
             const controller = new AbortController();
             activeStatusControllers.set(testId, controller);
-            setTestStatusView(statusElement, 'loading');
+            setTestStatusView(statusElement, 'loading', testId);
             const evaluation = await ensureEvaluation(testId, mode);
             if (controller.signal.aborted) {
                 return;
             }
             const compliant = Boolean(evaluation?.compliant);
-            setTestStatusView(statusElement, compliant ? 'pass' : 'fail');
+            setTestStatusView(statusElement, compliant ? 'pass' : 'fail', testId);
         } catch (error) {
             if (error.name === 'AbortError') {
                 return;
             }
-            setTestStatusView(statusElement, 'error');
+            setTestStatusView(statusElement, 'error', testId);
         } finally {
             activeStatusControllers.delete(testId);
         }
@@ -801,7 +1136,7 @@
         if (progress.label) {
             progress.label.textContent = safeTotal > 0
                     ? `${safeLoaded >= safeTotal ? 'Графики загружены' : 'Загружаем графики'}: ${safeLoaded} из ${safeTotal}`
-                    : 'Для этого теста нет графиков';
+                    : 'Загружаем графики…';
         }
     }
 
@@ -815,8 +1150,9 @@
             bar.style.width = '100%';
             bar.setAttribute('aria-valuenow', total === '0' ? '0' : total);
             bar.textContent = total === '0' ? '0 из 0' : `${total} из ${total}`;
-            if (progress.label && total !== '0') {
-                progress.label.textContent = `Графики загружены: ${total} из ${total}`;
+            if (progress.label) {
+                progress.label.textContent =
+                        total === '0' ? 'Нет доступных графиков' : `Графики загружены: ${total} из ${total}`;
             }
         }
         setTimeout(() => wrapper.classList.add('d-none'), 200);
@@ -932,7 +1268,6 @@
     function renderGrafanaPanels(container, panels, onPanelReady) {
         container.innerHTML = '';
         if (!panels || panels.length === 0) {
-            container.innerHTML = '<div class="text-muted small">Для этого теста нет графиков.</div>';
             return;
         }
         const grid = document.createElement('div');
@@ -1027,7 +1362,7 @@
         let grafanaPanelsLoaded = 0;
         let grafanaProgressCompleted = false;
         const grafanaBox = document.createElement('div');
-        grafanaBox.innerHTML = '<div class="text-muted small">Загружаем графики…</div>';
+        grafanaBox.innerHTML = '';
         grafanaSection.appendChild(grafanaTitle);
         grafanaSection.appendChild(grafanaProgress.wrapper);
         grafanaSection.appendChild(grafanaBox);
@@ -1049,8 +1384,10 @@
 
         try {
             const configuration = await ensureTestConfiguration(testId);
+            updateConfigurationStatusIcon(testId, configuration);
             renderConfiguration(configurationBox, configuration);
         } catch (error) {
+            updateConfigurationStatusIcon(testId, null, true);
             configurationBox.innerHTML = `<div class="text-danger small">Не удалось загрузить конфигурацию: ${error.message}</div>`;
         }
 
@@ -1071,7 +1408,8 @@
                 }
             });
         } catch (error) {
-            grafanaBox.innerHTML = `<div class="text-danger small">Не удалось загрузить графики: ${error.message}</div>`;
+            const reason = error?.message ? `: ${error.message}` : '';
+            grafanaBox.innerHTML = `<div class="text-danger small">Графики загрузить не удалось${reason}</div>`;
         } finally {
             if (!grafanaProgressCompleted) {
                 completeGrafanaProgress(grafanaProgress);
@@ -1082,150 +1420,251 @@
         container.dataset.loaded = evaluationsAllowed ? 'true' : 'false';
     }
 
-    function toggleDetails(testId, button, container) {
+    function toggleDetails(testId, button, detailsRow, container) {
         const isExpanded = button.getAttribute('aria-expanded') === 'true';
         if (isExpanded) {
             button.setAttribute('aria-expanded', 'false');
-            container.classList.remove('show');
+            detailsRow.classList.remove('show');
             return;
         }
         button.setAttribute('aria-expanded', 'true');
-        container.classList.add('show');
+        detailsRow.classList.add('show');
         if (container.dataset.loaded === 'true' || container.dataset.loading === 'true') {
             return;
         }
         loadTestDetails(testId, container);
     }
 
-    function renderTests(tests) {
-        testsList.innerHTML = '';
+    function setAllTests(tests) {
+        allTests = Array.isArray(tests) ? tests.slice() : [];
+        updateReleaseOptions(allTests);
+        filterState.periodStart = periodStartInput?.value ?? '';
+        filterState.periodEnd = periodEndInput?.value ?? '';
+        applyFilters(true);
+    }
+
+    function applyFilters(resetCaches = false) {
+        const selectedReleases = filterState.releases ?? [];
+        const periodStart = parseDateTimeInput(filterState.periodStart);
+        const periodEnd = parseDateTimeInput(filterState.periodEnd);
+        const hasStart = periodStart instanceof Date && !Number.isNaN(periodStart);
+        const hasEnd = periodEnd instanceof Date && !Number.isNaN(periodEnd);
+        if (hasStart && hasEnd && periodEnd < periodStart) {
+            setTestsStatus('Дата начала периода позже даты окончания. Исправьте границы.', 'warning');
+            renderTests([], resetCaches);
+            return;
+        }
+        if (testsStatus.classList.contains('alert-warning')) {
+            clearTestsStatus();
+        }
+
+        const filtered = allTests.filter(test => {
+            const release = getReleaseValue(test);
+            if (selectedReleases.length > 0) {
+                const normalizedRelease = release ?? MISSING_RELEASE_VALUE;
+                if (!selectedReleases.includes(normalizedRelease)) {
+                    return false;
+                }
+            }
+            const testDate = getTestDateTime(test);
+            if (hasStart) {
+                if (!testDate || testDate < periodStart) {
+                    return false;
+                }
+            }
+            if (hasEnd) {
+                if (!testDate || testDate > periodEnd) {
+                    return false;
+                }
+            }
+            if (filterState.compliantOnly) {
+                const status = complianceStatusByTest.get(test.id);
+                if (status && status !== 'success') {
+                    return false;
+                }
+            }
+            if (filterState.configOnly) {
+                const cfgState = configStatusByTest.get(test.id);
+                if (cfgState && cfgState !== 'success') {
+                    return false;
+                }
+            }
+            return true;
+        });
+        renderTests(filtered, resetCaches);
+    }
+
+    function renderTests(tests, resetCaches = false) {
+        testsTableBody.innerHTML = '';
         testsCount.textContent = tests.length.toString();
         resetTestStatusRequests();
-        evaluationCache.clear();
-        evaluationRequests.clear();
-        grafanaPanelsCache.clear();
-        grafanaPanelRequests.clear();
-        testConfigurationCache.clear();
-        testConfigurationRequests.clear();
+        testConfigurationStatusElements.clear();
+        testStatusElements.clear();
+        if (resetCaches) {
+            evaluationCache.clear();
+            evaluationRequests.clear();
+            grafanaPanelsCache.clear();
+            grafanaPanelRequests.clear();
+            testConfigurationCache.clear();
+            testConfigurationRequests.clear();
+            complianceStatusByTest.clear();
+            configStatusByTest.clear();
+        }
 
         if (tests.length === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'text-muted';
-            empty.textContent = 'Тесты отсутствуют. Нажмите «Обновить данные», чтобы получить последние результаты.';
-            testsList.appendChild(empty);
+            const emptyRow = document.createElement('tr');
+            const emptyCell = document.createElement('td');
+            emptyCell.colSpan = 8;
+            emptyCell.className = 'text-muted py-4';
+            emptyCell.textContent =
+                    'Тесты отсутствуют. Нажмите «Запросить данные по тестам», чтобы получить последние результаты.';
+            emptyRow.appendChild(emptyCell);
+            testsTableBody.appendChild(emptyRow);
             updateEvaluateButtonState();
             return;
         }
 
-        testStatusElements.clear();
-
         tests.forEach(test => {
-            const item = document.createElement('div');
-            item.className = 'list-group-item';
+            const summaryRow = document.createElement('tr');
+            summaryRow.className = 'test-summary-row';
 
-            const row = document.createElement('div');
-            row.className = 'test-row';
+            const releaseCell = document.createElement('td');
+            const releaseValue = getReleaseValue(test);
+            releaseCell.textContent = releaseValue ?? '—';
 
-            const type = document.createElement('span');
-            type.className = 'test-type';
+            const typeCell = document.createElement('td');
+            typeCell.className = 'test-type';
             const normalizedType = (test.type ?? 'unknown').toLowerCase();
-            type.textContent = TYPE_LABELS[normalizedType] ?? normalizedType;
+            typeCell.textContent = TYPE_LABELS[normalizedType] ?? normalizedType;
 
-            const start = document.createElement('span');
-            start.className = 'test-time';
-            start.textContent = test.start ?? '—';
+            const durationCell = document.createElement('td');
+            durationCell.className = 'test-duration';
+            durationCell.textContent = formatDuration(test.start, test.end);
 
-            const end = document.createElement('span');
-            end.className = 'test-time';
-            end.textContent = test.end ?? '—';
+            const startCell = document.createElement('td');
+            startCell.className = 'test-time';
+            startCell.textContent = test.start ?? '—';
 
-            const duration = document.createElement('span');
-            duration.className = 'test-duration';
-            duration.textContent = formatDuration(test.start, test.end);
+            const endCell = document.createElement('td');
+            endCell.className = 'test-time';
+            endCell.textContent = test.end ?? '—';
 
-            const status = document.createElement('span');
-            status.className = 'test-status text-muted';
-            status.textContent = '—';
-            setPendingStatus(status);
-            testStatusElements.set(test.id, status);
+            const complianceCell = document.createElement('td');
+            complianceCell.className = 'text-center';
+            const complianceIcon = document.createElement('span');
+            complianceIcon.dataset.testId = test.id;
+            setPendingStatus(complianceIcon);
+            testStatusElements.set(test.id, complianceIcon);
+            if (test?.requirementCompliance?.evaluated) {
+                const compliant = Boolean(test?.requirementCompliance?.compliant);
+                setTestStatusView(complianceIcon, compliant ? 'pass' : 'fail', test.id);
+            } else {
+                complianceStatusByTest.set(test.id, 'pending');
+            }
+            complianceCell.appendChild(complianceIcon);
 
-            const detailsWrapper = document.createElement('div');
-            detailsWrapper.className = 'text-end';
+            const configurationCell = document.createElement('td');
+            configurationCell.className = 'text-center';
+            const configurationIcon = document.createElement('span');
+            const knownConfigState = configStatusByTest.get(test.id);
+            if (knownConfigState) {
+                setConfigurationStatus(configurationIcon, knownConfigState);
+            } else {
+                setConfigurationStatus(configurationIcon, 'loading');
+                configStatusByTest.set(test.id, 'loading');
+            }
+            configurationCell.appendChild(configurationIcon);
+            testConfigurationStatusElements.set(test.id, configurationIcon);
+            ensureTestConfiguration(test.id)
+                    .then(items => updateConfigurationStatusIcon(test.id, items))
+                    .catch(() => updateConfigurationStatusIcon(test.id, null, true));
+
+            const detailsCell = document.createElement('td');
+            detailsCell.className = 'text-center';
             const toggleButton = document.createElement('button');
             toggleButton.type = 'button';
-            toggleButton.className = 'test-expand-toggle';
+            toggleButton.className = 'details-toggle';
             toggleButton.setAttribute('aria-expanded', 'false');
-            toggleButton.innerHTML = '<span class="test-expand-icon">&rsaquo;</span>';
-            detailsWrapper.appendChild(toggleButton);
+            toggleButton.setAttribute('aria-label', 'Раскрыть детали теста');
+            toggleButton.innerHTML = '<span class="details-icon">▸</span>';
+            detailsCell.appendChild(toggleButton);
 
-            row.appendChild(type);
-            row.appendChild(start);
-            row.appendChild(end);
-            row.appendChild(duration);
-            row.appendChild(status);
-            row.appendChild(detailsWrapper);
+            summaryRow.appendChild(releaseCell);
+            summaryRow.appendChild(typeCell);
+            summaryRow.appendChild(durationCell);
+            summaryRow.appendChild(startCell);
+            summaryRow.appendChild(endCell);
+            summaryRow.appendChild(complianceCell);
+            summaryRow.appendChild(configurationCell);
+            summaryRow.appendChild(detailsCell);
 
+            const detailsRow = document.createElement('tr');
+            detailsRow.className = 'details-row';
+            const detailsWrapper = document.createElement('td');
+            detailsWrapper.colSpan = 8;
             const detailsContainer = document.createElement('div');
             detailsContainer.className = 'test-details';
             detailsContainer.dataset.loaded = 'false';
-            detailsContainer.innerHTML = '<div class="text-muted small">Раскройте, чтобы увидеть проверки и графики.</div>';
+            detailsContainer.innerHTML =
+                    '<div class="text-muted small">Раскройте, чтобы увидеть проверки, конфигурацию и графики.</div>';
+            detailsWrapper.appendChild(detailsContainer);
+            detailsRow.appendChild(detailsWrapper);
 
-            toggleButton.addEventListener('click', () => toggleDetails(test.id, toggleButton, detailsContainer));
+            toggleButton.addEventListener('click', () =>
+                    toggleDetails(test.id, toggleButton, detailsRow, detailsContainer));
 
-            item.appendChild(row);
-            item.appendChild(detailsContainer);
-            testsList.appendChild(item);
+            testsTableBody.appendChild(summaryRow);
+            testsTableBody.appendChild(detailsRow);
         });
 
         updateEvaluateButtonState();
     }
 
-    async function evaluateAllTests(showProgress = false) {
+    async function evaluateAllTests(showNotification = false) {
         if (!evaluationsAllowed || testStatusElements.size === 0 || isEvaluationInProgress) {
             return;
         }
         isEvaluationInProgress = true;
         updateEvaluateButtonState();
         resetTestStatusRequests();
-        const evaluationMode = showProgress ? 'fresh' : 'cached';
-        if (showProgress) {
+        const evaluationMode = showNotification ? 'fresh' : 'cached';
+        if (showNotification) {
             markStatusesChecking();
         }
         let completed = 0;
         let refreshPreviouslyDisabled = refreshButton ? refreshButton.disabled : true;
-        if (showProgress && refreshButton) {
+        if (showNotification && refreshButton) {
             refreshButton.disabled = true;
         }
 
-        if (showProgress) {
-            showEvaluationProgress(testStatusElements.size);
-            refreshStatus.classList.add('d-none');
+        const testEntries = Array.from(testStatusElements.entries());
+        let progressToast = null;
+        if (showNotification) {
+            progressToast = showToast('Перепроверяем тесты на требования…', 'info');
         }
 
-        const testEntries = Array.from(testStatusElements.entries());
         try {
             for (const [testId, statusElement] of testEntries) {
                 await evaluateTestStatus(testId, statusElement, evaluationMode);
                 completed += 1;
-                if (showProgress) {
-                    updateEvaluationProgress(completed, testEntries.length);
-                }
             }
-            if (showProgress) {
-                setRefreshStatus('Проверка тестов на соответствие НФТ завершена.', 'success');
+            if (showNotification) {
+                removeToast(progressToast);
+                showToast('Проверка тестов завершена.', 'success');
             }
         } catch (error) {
-            if (showProgress) {
-                setRefreshStatus('Не удалось завершить проверку: ' + error.message, 'danger');
+            if (showNotification) {
+                removeToast(progressToast);
+                showToast('Не удалось завершить проверку: ' + error.message, 'danger');
             }
         } finally {
-            if (showProgress) {
-                hideEvaluationProgress();
-            }
-            if (showProgress && refreshButton && !refreshPreviouslyDisabled && !isRefreshing) {
+            if (showNotification && refreshButton && !refreshPreviouslyDisabled && !isRefreshing) {
                 refreshButton.disabled = false;
             }
             isEvaluationInProgress = false;
+            if (filterState.compliantOnly) {
+                applyFilters();
+            }
             updateEvaluateButtonState();
         }
     }
@@ -1262,18 +1701,12 @@
         updateEvaluateButtonState();
         markAllStatusesPending();
         refreshButton.disabled = true;
-        clearRefreshStatus();
-        showProgressUI();
-        let completed = 0;
-        let evaluatedAfterRefresh = false;
+        const progressToast = showToast('Запрашиваем данные по тестам за последние 30 дней из Victoria Metrics…', 'info');
         try {
             for (let dayOffset = 0; dayOffset < DAYS_TO_FETCH; dayOffset++) {
                 const { start, end, label } = getDayRange(dayOffset);
                 try {
                     await fetchVictoriaMetricsRange(start, end);
-                    completed += 1;
-                    updateProgressMessage(completed);
-                    setProgress(completed);
                 } catch (error) {
                     throw new Error(`День ${label}: ${error.message}`);
                 }
@@ -1285,18 +1718,16 @@
             evaluationsAllowed = true;
             updateEvaluateButtonState();
             await evaluateAllTests();
-            evaluatedAfterRefresh = true;
-            setRefreshStatus('Данные успешно обновлены.', 'success');
+            removeToast(progressToast);
+            showToast('Данные успешно обновлены.', 'success');
         } catch (error) {
-            setRefreshStatus(error.message, 'danger');
+            removeToast(progressToast);
+            showToast(error.message, 'danger');
         } finally {
             isRefreshing = false;
             refreshButton.disabled = false;
-            hideProgressUI();
-            if (!evaluatedAfterRefresh) {
-                evaluationsAllowed = true;
-                await evaluateAllTests();
-            }
+            evaluationsAllowed = true;
+            await evaluateAllTests();
             updateEvaluateButtonState();
         }
     }
@@ -1309,6 +1740,65 @@
                 evaluateAllTests(true);
             }
         });
+    }
+
+    if (releaseFilter) {
+        releaseFilter.addEventListener('change', () => {
+            const selected = Array.from(releaseFilter.selectedOptions).map(option => option.value);
+            if (selected.includes(ANY_RELEASE_VALUE)) {
+                const withoutAny = selected.filter(value => value !== ANY_RELEASE_VALUE);
+                if (withoutAny.length > 0) {
+                    filterState.releases = withoutAny;
+                    Array.from(releaseFilter.options).forEach(option => {
+                        if (option.value === ANY_RELEASE_VALUE) {
+                            option.selected = false;
+                        } else if (filterState.releases.includes(option.value)) {
+                            option.selected = true;
+                        }
+                    });
+                } else {
+                    filterState.releases = [];
+                    Array.from(releaseFilter.options).forEach(option => {
+                        option.selected = option.value === ANY_RELEASE_VALUE;
+                    });
+                }
+            } else {
+                filterState.releases = selected;
+            }
+            applyFilters();
+        });
+    }
+
+    if (periodStartInput) {
+        periodStartInput.addEventListener('change', () => {
+            filterState.periodStart = periodStartInput.value;
+            applyFilters();
+        });
+    }
+
+    if (periodEndInput) {
+        periodEndInput.addEventListener('change', () => {
+            filterState.periodEnd = periodEndInput.value;
+            applyFilters();
+        });
+    }
+
+    if (compliantFilterCheckbox) {
+        compliantFilterCheckbox.addEventListener('change', () => {
+            filterState.compliantOnly = compliantFilterCheckbox.checked;
+            applyFilters();
+        });
+    }
+
+    if (configFilterCheckbox) {
+        configFilterCheckbox.addEventListener('change', () => {
+            filterState.configOnly = configFilterCheckbox.checked;
+            applyFilters();
+        });
+    }
+
+    if (resetFiltersButton) {
+        resetFiltersButton.addEventListener('click', () => resetFilters());
     }
 
     async function autoRefresh() {
