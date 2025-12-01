@@ -275,7 +275,7 @@ public class ConfluenceService {
 
     private void appendConfigurationSection(StringBuilder bodyBuilder, UUID testUuid) {
         List<KubernetesConfiguration> configurations = kubernetesConfigurationService.getConfigurations(testUuid);
-        bodyBuilder.append("<h2>Конфигурация DropApp и версии сервисов</h2>\n");
+        bodyBuilder.append("<h2>Конфигурация DropApp</h2>\n");
         if (configurations.isEmpty()) {
             bodyBuilder.append("<p>Конфигурация DropApp для данного теста отсутствует.</p>\n");
             return;
