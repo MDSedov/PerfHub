@@ -39,8 +39,8 @@ public class VictoriaMetricsClient {
         String queryRangePath = required(QUERY_RANGE_PATH_KEY);
         Duration defaultStep = resolveDuration(DEFAULT_STEP_SECONDS_KEY);
 
+        URI uri = buildQueryRangeUri(baseUrl, queryRangePath, query, start, end, defaultStep);
         try {
-            URI uri = buildQueryRangeUri(baseUrl, queryRangePath, query, start, end, defaultStep);
             log.info(
                     "Querying VictoriaMetrics with expression '{}' from {} to {} via {}",
                     query,
@@ -50,7 +50,14 @@ public class VictoriaMetricsClient {
             ResponseEntity<String> response = restTemplate.getForEntity(uri, String.class);
             return response.getBody() != null ? response.getBody() : "";
         } catch (RestClientException ex) {
-            throw new VictoriaMetricsClientException("Failed to query VictoriaMetrics", ex);
+            log.error(
+                    "VictoriaMetrics request failed via {} (query='{}', start={}, end={})",
+                    uri,
+                    query,
+                    start,
+                    end,
+                    ex);
+            throw new VictoriaMetricsClientException("Failed to query VictoriaMetrics via " + uri, ex);
         }
     }
 
