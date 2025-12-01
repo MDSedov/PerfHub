@@ -29,12 +29,15 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
 public class VictoriaMetricsService {
 
+    private static final Logger log = LoggerFactory.getLogger(VictoriaMetricsService.class);
     private static final ZoneId MOSCOW_ZONE = ZoneId.of("Europe/Moscow");
     private static final DateTimeFormatter DASHBOARD_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -115,6 +118,7 @@ public class VictoriaMetricsService {
             String type = request.type();
             String query = resolveQuery(type);
 
+            log.info("VictoriaMetrics query resolved for type '{}': {}", type, query);
             String response = client.queryRange(query, start, end);
             types.add(type);
             resultsArray.add(createResultNode(type, response));
