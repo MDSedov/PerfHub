@@ -1679,17 +1679,23 @@
     }
 
     async function fetchVictoriaMetricsRange(start, end) {
-        const response = await fetch('/api/victoriametrics/tests/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ start, end })
-        });
-        if (!response.ok) {
-            throw new Error('Ответ сервера: ' + response.status);
+        const url = '/api/victoriametrics/tests/';
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ start, end })
+            });
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            await response.json();
+        } catch (error) {
+            console.error('Не удалось запросить Victoria Metrics', { url, start, end, error });
+            throw error;
         }
-        await response.json();
     }
 
     async function refreshLastMonth() {

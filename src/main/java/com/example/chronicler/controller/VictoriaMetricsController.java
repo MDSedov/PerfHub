@@ -6,6 +6,8 @@ import com.example.chronicler.service.VictoriaMetricsService;
 import jakarta.validation.Valid;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping(path = "/api/victoriametrics", produces = MediaType.APPLICATION_JSON_VALUE)
 public class VictoriaMetricsController {
+
+    private static final Logger log = LoggerFactory.getLogger(VictoriaMetricsController.class);
 
     private final VictoriaMetricsService victoriaMetricsService;
 
@@ -33,6 +37,10 @@ public class VictoriaMetricsController {
 
     @PostMapping(path = "/tests/", consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<String> fetchTests(@Valid @RequestBody VictoriaMetricsTestsRequest request) {
+        log.info(
+                "Received request to detect load tests in VictoriaMetrics for range {} - {}",
+                request.start(),
+                request.end());
         String body = victoriaMetricsService.detectLoadTests(request.start(), request.end());
         return ResponseEntity.ok(body);
     }
