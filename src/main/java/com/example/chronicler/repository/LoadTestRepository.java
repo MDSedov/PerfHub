@@ -17,7 +17,7 @@ import org.springframework.stereotype.Repository;
 public class LoadTestRepository {
 
     private static final String BASE_SELECT =
-            "SELECT t.test_uuid, t.start_time, t.end_time, tt.test_type AS test_type "
+            "SELECT t.test_uuid, t.start_time, t.end_time, tt.test_type AS test_type, t.comment "
                     + "FROM tests t "
                     + "LEFT JOIN test_types tt ON t.test_type_id = tt.id ";
     private static final String SELECT_OVERLAP_SQL =
@@ -28,9 +28,10 @@ public class LoadTestRepository {
     private static final String SELECT_ALL_ORDERED_SQL =
             BASE_SELECT + "ORDER BY t.start_time DESC";
     private static final String INSERT_SQL =
-            "INSERT INTO tests (test_uuid, start_time, end_time, test_type_id) VALUES (?, ?, ?, ?)";
+            "INSERT INTO tests (test_uuid, start_time, end_time, test_type_id, comment) VALUES (?, ?, ?, ?, ?)";
     private static final String UPDATE_SQL =
             "UPDATE tests SET start_time = ?, end_time = ?, test_type_id = ? WHERE test_uuid = ?";
+    private static final String UPDATE_COMMENT_SQL = "UPDATE tests SET comment = ? WHERE test_uuid = ?";
 
     private final JdbcTemplate jdbcTemplate;
     private final TestTypeRepository testTypeRepository;
@@ -39,7 +40,8 @@ public class LoadTestRepository {
                     rs.getObject("test_uuid", UUID.class),
                     rs.getTimestamp("start_time").toInstant(),
                     rs.getTimestamp("end_time").toInstant(),
-                    LoadTestType.fromDatabaseValue(rs.getString("test_type")));
+                    LoadTestType.fromDatabaseValue(rs.getString("test_type")),
+                    rs.getString("comment"));
 
     public LoadTestRepository(JdbcTemplate jdbcTemplate, TestTypeRepository testTypeRepository) {
         this.jdbcTemplate = jdbcTemplate;
@@ -72,6 +74,15 @@ public class LoadTestRepository {
                     } else {
                         ps.setInt(4, testTypeId);
                     }
+                    ps.setObject(1, testId);
+                    ps.setTimestamp(2, Timestamp.from(start));
+                    ps.setTimestamp(3, Timestamp.from(end));
+                    if (testTypeId == null) {
+                        ps.setNull(4, Types.INTEGER);
+                    } else {
+                        ps.setInt(4, testTypeId);
+                    }
+                    ps.setNull(5, Types.CLOB);
                 });
         return findById(testId)
                 .orElseThrow(() -> new IllegalStateException("Failed to load inserted test " + testId));
@@ -101,6 +112,23 @@ public class LoadTestRepository {
                             }
                             ps.setObject(4, id);
                         });
+        if (updated == 0) {
+            throw new IncorrectResultSizeDataAccessException("Expected to update one row", 1, 0);
+        }
+        return findById(id).orElseThrow(() -> new IllegalStateException("Failed to load updated test " + id));
+    }
+
+    public LoadTest updateComment(UUID id, String comment) {
+        int updated = jdbcTemplate.update(
+                UPDATE_COMMENT_SQL,
+                ps -> {
+                    if (comment == null) {
+                        ps.setNull(1, Types.CLOB);
+                    } else {
+                        ps.setString(1, comment);
+                    }
+                    ps.setObject(2, id);
+                });
         if (updated == 0) {
             throw new IncorrectResultSizeDataAccessException("Expected to update one row", 1, 0);
         }

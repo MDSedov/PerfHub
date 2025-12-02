@@ -14,7 +14,8 @@ public record LoadTestView(
         String end,
         String type,
         long durationSeconds,
-        RequirementComplianceView requirementCompliance) {
+        RequirementComplianceView requirementCompliance,
+        String comment) {
 
     private static final ZoneId MOSCOW_ZONE = ZoneId.of("Europe/Moscow");
     private static final DateTimeFormatter FORMATTER =
@@ -28,7 +29,8 @@ public record LoadTestView(
                 formatInstant(loadTest.end()),
                 type.value(),
                 calculateDurationSeconds(loadTest.start(), loadTest.end()),
-                compliance);
+                compliance,
+                loadTest.comment());
     }
 
     private static long calculateDurationSeconds(Instant start, Instant end) {

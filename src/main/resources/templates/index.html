@@ -373,17 +373,7 @@
         .grafana-grid {
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
-        }
-
-        .grafana-grid-row {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 1rem;
-        }
-
-        .grafana-grid-row > .grafana-panel:only-child {
-            grid-column: span 2;
+            gap: 1.25rem;
         }
 
         .grafana-panel-title {
@@ -422,14 +412,6 @@
         }
 
         @media (max-width: 992px) {
-            .grafana-grid-row {
-                grid-template-columns: 1fr;
-            }
-
-            .grafana-grid-row > .grafana-panel:only-child {
-                grid-column: span 1;
-            }
-
             .tests-sidebar {
                 position: static;
                 width: 100%;
@@ -643,6 +625,10 @@
     const configStatusByTest = new Map();
     const activeStatusControllers = new Map();
     const testStatusElements = new Map();
+    const knownTestIds = new Set();
+    const pendingConfigRequests = new Set();
+    const expandedTests = new Set();
+    let testsInitialized = false;
     let allTests = [];
     let filterState = {
         releases: [],
@@ -863,6 +849,7 @@
                 throw new Error('Ответ сервера: ' + response.status);
             }
             const tests = await response.json();
+            handleNewTests(tests);
             setAllTests(Array.isArray(tests) ? tests : []);
             clearTestsStatus();
             return true;
@@ -928,18 +915,27 @@
 
     function updateConfigurationStatusIcon(testId, items, error = false) {
         const icon = testConfigurationStatusElements.get(testId);
+        const previousState = configStatusByTest.get(testId);
         if (!icon) {
             return;
         }
         if (error) {
             setConfigurationStatus(icon, 'error');
             configStatusByTest.set(testId, 'error');
+            if (pendingConfigRequests.has(testId)) {
+                showToast('Не удалось получить конфигурацию DropApp для активного теста', 'danger');
+                pendingConfigRequests.delete(testId);
+            }
             return;
         }
         const hasConfig = Array.isArray(items) && items.length > 0;
         const state = hasConfig ? 'success' : 'fail';
         setConfigurationStatus(icon, state);
         configStatusByTest.set(testId, state);
+        if (pendingConfigRequests.has(testId) && state === 'success' && previousState !== 'success') {
+            showToast('Получена конфигурация DropApp для активного теста', 'success');
+            pendingConfigRequests.delete(testId);
+        }
         if (filterState.configOnly) {
             applyFilters();
         }
@@ -1029,6 +1025,17 @@
         return testConfigurationRequests.get(testId);
     }
 
+    async function captureConfiguration(testId) {
+        const response = await fetch(`/api/tests/${testId}/configuration/capture`, { method: 'POST' });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        const payload = await response.json();
+        const items = Array.isArray(payload) ? payload : [];
+        testConfigurationCache.set(testId, items);
+        return items;
+    }
+
     async function evaluateTestStatus(testId, statusElement, mode = 'cached') {
         try {
             activeStatusControllers.get(testId)?.abort();
@@ -1100,62 +1107,9 @@
 
     function createGrafanaProgress(message = 'Загружаем графики…') {
         const wrapper = document.createElement('div');
-        wrapper.className = 'grafana-progress d-flex align-items-center gap-3 mb-2';
-
-        const label = document.createElement('div');
-        label.className = 'text-muted small mb-0 flex-shrink-0';
-        label.textContent = message;
-
-        const progress = document.createElement('div');
-        progress.className = 'progress flex-grow-1';
-        const bar = document.createElement('div');
-        bar.className = 'progress-bar progress-bar-striped progress-bar-animated';
-        bar.setAttribute('role', 'progressbar');
-        bar.setAttribute('aria-valuemin', '0');
-        bar.setAttribute('aria-valuemax', '0');
-        bar.setAttribute('aria-valuenow', '0');
-        bar.style.width = '0%';
-        progress.appendChild(bar);
-
-        wrapper.appendChild(label);
-        wrapper.appendChild(progress);
-        return { wrapper, bar, label };
-    }
-
-    function updateGrafanaProgress(progress, loaded, total) {
-        if (!progress?.bar) {
-            return;
-        }
-        const safeTotal = Math.max(total, 0);
-        const safeLoaded = Math.min(Math.max(loaded, 0), safeTotal || loaded);
-        const percent = safeTotal === 0 ? 0 : Math.round((safeLoaded / safeTotal) * 100);
-        progress.bar.style.width = `${percent}%`;
-        progress.bar.setAttribute('aria-valuenow', safeLoaded.toString());
-        progress.bar.setAttribute('aria-valuemax', safeTotal.toString());
-        progress.bar.textContent = safeTotal > 0 ? `${safeLoaded} из ${safeTotal}` : '0 из 0';
-        if (progress.label) {
-            progress.label.textContent = safeTotal > 0
-                    ? `${safeLoaded >= safeTotal ? 'Графики загружены' : 'Загружаем графики'}: ${safeLoaded} из ${safeTotal}`
-                    : 'Загружаем графики…';
-        }
-    }
-
-    function completeGrafanaProgress(progress) {
-        if (!progress?.wrapper) {
-            return;
-        }
-        const { wrapper, bar } = progress;
-        if (bar) {
-            const total = bar.getAttribute('aria-valuemax') ?? '0';
-            bar.style.width = '100%';
-            bar.setAttribute('aria-valuenow', total === '0' ? '0' : total);
-            bar.textContent = total === '0' ? '0 из 0' : `${total} из ${total}`;
-            if (progress.label) {
-                progress.label.textContent =
-                        total === '0' ? 'Нет доступных графиков' : `Графики загружены: ${total} из ${total}`;
-            }
-        }
-        setTimeout(() => wrapper.classList.add('d-none'), 200);
+        wrapper.className = 'text-muted small mb-2';
+        wrapper.textContent = message;
+        return { wrapper };
     }
 
     function createGrafanaPanelElement(panel, onReady) {
@@ -1272,24 +1226,44 @@
         }
         const grid = document.createElement('div');
         grid.className = 'grafana-grid';
-        for (let i = 0; i < panels.length; i += 2) {
-            const row = document.createElement('div');
-            row.className = 'grafana-grid-row';
-            row.appendChild(createGrafanaPanelElement(panels[i], onPanelReady));
-            if (panels[i + 1]) {
-                row.appendChild(createGrafanaPanelElement(panels[i + 1], onPanelReady));
-            }
-            grid.appendChild(row);
-        }
+        panels.forEach(panel => {
+            grid.appendChild(createGrafanaPanelElement(panel, onPanelReady));
+        });
         container.appendChild(grid);
     }
 
-    function renderConfiguration(container, items) {
+    function renderConfiguration(container, items, testId) {
         if (!container) {
             return;
         }
         if (!Array.isArray(items) || items.length === 0) {
-            container.innerHTML = `<div class="text-muted small">${NO_CONFIG_MESSAGE}</div>`;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'd-flex flex-column align-items-start gap-2';
+
+            if (testId) {
+                const requestButton = document.createElement('button');
+                requestButton.type = 'button';
+                requestButton.className = 'btn btn-outline-success btn-sm';
+                requestButton.textContent = 'Запросить текущую конфигурацию DropApp для данного теста';
+                requestButton.addEventListener('click', async () => {
+                    requestButton.disabled = true;
+                    requestButton.textContent = 'Запрашиваем…';
+                    try {
+                        const captured = await captureConfiguration(testId);
+                        updateConfigurationStatusIcon(testId, captured);
+                        renderConfiguration(container, captured, testId);
+                        showToast('Получена конфигурация DropApp для теста', 'success');
+                    } catch (error) {
+                        showToast('Не удалось получить конфигурацию DropApp для теста', 'danger');
+                        requestButton.disabled = false;
+                        requestButton.textContent = 'Запросить текущую конфигурацию DropApp для данного теста';
+                    }
+                });
+                wrapper.appendChild(requestButton);
+            }
+
+            container.innerHTML = '';
+            container.appendChild(wrapper);
             return;
         }
         const table = document.createElement('table');
@@ -1329,16 +1303,99 @@
         row.appendChild(cell);
     }
 
+    async function saveTestComment(testId, comment) {
+        const response = await fetch(`/api/tests/${testId}/comment`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ comment })
+        });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        return await response.json();
+    }
+
+    function handleNewTests(tests) {
+        const incomingIds = new Set();
+        const newTests = [];
+        (Array.isArray(tests) ? tests : []).forEach(test => {
+            if (test?.id) {
+                incomingIds.add(test.id);
+                if (testsInitialized && !knownTestIds.has(test.id)) {
+                    newTests.push(test.id);
+                }
+            }
+        });
+
+        if (testsInitialized && newTests.length > 0) {
+            newTests.forEach(() => showToast('Найден новый активный тест', 'info'));
+            newTests.forEach(id => pendingConfigRequests.add(id));
+        }
+
+        knownTestIds.clear();
+        incomingIds.forEach(id => knownTestIds.add(id));
+        if (!testsInitialized) {
+            testsInitialized = true;
+        }
+    }
+
+    function findTestById(testId) {
+        return allTests.find(test => test?.id === testId);
+    }
+
+    function updateCachedTestComment(testId, comment) {
+        const test = findTestById(testId);
+        if (test) {
+            test.comment = comment;
+        }
+    }
+
     async function loadTestDetails(testId, container) {
         container.dataset.loading = 'true';
         container.innerHTML = '';
         const wrapper = document.createElement('div');
         container.appendChild(wrapper);
 
+        const notesSection = document.createElement('section');
+        const notesTitle = document.createElement('h6');
+        notesTitle.className = 'mb-3';
+        notesTitle.textContent = 'Заметки';
+        const notesBox = document.createElement('div');
+        notesBox.className = 'mb-2';
+        const notesArea = document.createElement('textarea');
+        notesArea.className = 'form-control';
+        notesArea.rows = 3;
+        notesArea.value = findTestById(testId)?.comment ?? '';
+        const notesButton = document.createElement('button');
+        notesButton.type = 'button';
+        notesButton.className = 'btn btn-success btn-sm mt-2';
+        notesButton.textContent = 'Сохранить';
+        notesButton.addEventListener('click', async () => {
+            notesButton.disabled = true;
+            notesButton.textContent = 'Сохраняем…';
+            try {
+                const updated = await saveTestComment(testId, notesArea.value);
+                notesArea.value = updated?.comment ?? notesArea.value;
+                updateCachedTestComment(testId, updated?.comment ?? notesArea.value);
+                showToast('Заметка сохранена', 'success');
+            } catch (error) {
+                showToast('Не удалось сохранить заметку', 'danger');
+            } finally {
+                notesButton.disabled = false;
+                notesButton.textContent = 'Сохранить';
+            }
+        });
+        notesBox.appendChild(notesArea);
+        notesBox.appendChild(notesButton);
+        notesSection.appendChild(notesTitle);
+        notesSection.appendChild(notesBox);
+
         const requirementsSection = document.createElement('section');
         const requirementsTitle = document.createElement('h6');
         requirementsTitle.className = 'mb-3';
-        requirementsTitle.textContent = 'Проверки требований';
+        requirementsTitle.textContent = 'Проверка на соответствие нефункциональным требованиям';
         const requirementsBox = document.createElement('div');
         requirementsBox.innerHTML = '<div class="text-muted small">Загружаем результаты проверок…</div>';
         requirementsSection.appendChild(requirementsTitle);
@@ -1357,17 +1414,47 @@
         const grafanaTitle = document.createElement('h6');
         grafanaTitle.className = 'mb-3';
         grafanaTitle.textContent = 'Графики';
-        const grafanaProgress = createGrafanaProgress();
-        updateGrafanaProgress(grafanaProgress, 0, 0);
-        let grafanaPanelsTotal = 0;
-        let grafanaPanelsLoaded = 0;
-        let grafanaProgressCompleted = false;
+        const grafanaPlaceholder = document.createElement('div');
+        grafanaPlaceholder.className = 'text-muted small mb-2';
+        grafanaPlaceholder.textContent = '';
+
         const grafanaBox = document.createElement('div');
         grafanaBox.innerHTML = '';
+
+        const grafanaLoadButton = document.createElement('button');
+        grafanaLoadButton.type = 'button';
+        grafanaLoadButton.className = 'btn btn-outline-success btn-sm';
+        grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
+
+        grafanaLoadButton.addEventListener('click', async () => {
+            grafanaLoadButton.disabled = true;
+            grafanaLoadButton.textContent = 'Загружаем…';
+            grafanaPlaceholder.textContent = 'Загружаем графики…';
+            try {
+                const panels = await ensureGrafanaPanels(testId);
+                if (!panels || panels.length === 0) {
+                    grafanaPlaceholder.textContent = '';
+                    grafanaBox.innerHTML = '';
+                } else {
+                    grafanaPlaceholder.textContent = '';
+                    renderGrafanaPanels(grafanaBox, panels, () => {});
+                }
+            } catch (error) {
+                const reason = error?.message ? `: ${error.message}` : '';
+                grafanaPlaceholder.textContent = `Графики загрузить не удалось${reason}`;
+                grafanaBox.innerHTML = '';
+            } finally {
+                grafanaLoadButton.disabled = false;
+                grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
+            }
+        });
+
         grafanaSection.appendChild(grafanaTitle);
-        grafanaSection.appendChild(grafanaProgress.wrapper);
+        grafanaSection.appendChild(grafanaPlaceholder);
+        grafanaSection.appendChild(grafanaLoadButton);
         grafanaSection.appendChild(grafanaBox);
 
+        wrapper.appendChild(notesSection);
         wrapper.appendChild(requirementsSection);
         wrapper.appendChild(configurationSection);
         wrapper.appendChild(grafanaSection);
@@ -1386,35 +1473,10 @@
         try {
             const configuration = await ensureTestConfiguration(testId);
             updateConfigurationStatusIcon(testId, configuration);
-            renderConfiguration(configurationBox, configuration);
+            renderConfiguration(configurationBox, configuration, testId);
         } catch (error) {
             updateConfigurationStatusIcon(testId, null, true);
             configurationBox.innerHTML = `<div class="text-danger small">Не удалось загрузить конфигурацию: ${error.message}</div>`;
-        }
-
-        try {
-            const panels = await ensureGrafanaPanels(testId);
-            grafanaPanelsTotal = panels.length;
-            updateGrafanaProgress(grafanaProgress, grafanaPanelsLoaded, grafanaPanelsTotal);
-            if (grafanaPanelsTotal === 0) {
-                completeGrafanaProgress(grafanaProgress);
-                grafanaProgressCompleted = true;
-            }
-            renderGrafanaPanels(grafanaBox, panels, () => {
-                grafanaPanelsLoaded += 1;
-                updateGrafanaProgress(grafanaProgress, grafanaPanelsLoaded, grafanaPanelsTotal);
-                if (!grafanaProgressCompleted && grafanaPanelsLoaded >= grafanaPanelsTotal) {
-                    completeGrafanaProgress(grafanaProgress);
-                    grafanaProgressCompleted = true;
-                }
-            });
-        } catch (error) {
-            const reason = error?.message ? `: ${error.message}` : '';
-            grafanaBox.innerHTML = `<div class="text-danger small">Графики загрузить не удалось${reason}</div>`;
-        } finally {
-            if (!grafanaProgressCompleted) {
-                completeGrafanaProgress(grafanaProgress);
-            }
         }
 
         container.dataset.loading = 'false';
@@ -1426,10 +1488,12 @@
         if (isExpanded) {
             button.setAttribute('aria-expanded', 'false');
             detailsRow.classList.remove('show');
+            expandedTests.delete(testId);
             return;
         }
         button.setAttribute('aria-expanded', 'true');
         detailsRow.classList.add('show');
+        expandedTests.add(testId);
         if (container.dataset.loaded === 'true' || container.dataset.loading === 'true') {
             return;
         }
@@ -1613,6 +1677,12 @@
 
             toggleButton.addEventListener('click', () =>
                     toggleDetails(test.id, toggleButton, detailsRow, detailsContainer));
+
+            if (expandedTests.has(test.id)) {
+                toggleButton.setAttribute('aria-expanded', 'true');
+                detailsRow.classList.add('show');
+                loadTestDetails(test.id, detailsContainer);
+            }
 
             testsTableBody.appendChild(summaryRow);
             testsTableBody.appendChild(detailsRow);
@@ -1826,6 +1896,7 @@
             const loaded = await loadTests(false);
             if (loaded) {
                 await evaluateAllTests();
+                await requestConfigurationsForPendingTests();
             }
         } finally {
             autoRefreshInProgress = false;
@@ -1837,6 +1908,28 @@
             clearInterval(autoRefreshTimer);
         }
         autoRefreshTimer = setInterval(autoRefresh, AUTO_REFRESH_MS);
+    }
+
+    async function requestConfigurationsForPendingTests() {
+        if (pendingConfigRequests.size === 0) {
+            return;
+        }
+        const queue = Array.from(pendingConfigRequests);
+        for (const testId of queue) {
+            const cached = testConfigurationCache.get(testId);
+            if (Array.isArray(cached) && cached.length > 0) {
+                pendingConfigRequests.delete(testId);
+                continue;
+            }
+            try {
+                const captured = await captureConfiguration(testId);
+                updateConfigurationStatusIcon(testId, captured);
+                pendingConfigRequests.delete(testId);
+            } catch (error) {
+                updateConfigurationStatusIcon(testId, null, true);
+                pendingConfigRequests.delete(testId);
+            }
+        }
     }
 
     (async function init() {

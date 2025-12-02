@@ -1,7 +1,11 @@
 package com.example.chronicler.service;
 
+import com.example.chronicler.model.LoadTest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,9 +18,12 @@ public class LoadTestMonitoringScheduler {
     private static final Duration POLL_RANGE = Duration.ofMinutes(15);
 
     private final VictoriaMetricsService victoriaMetricsService;
+    private final KubernetesConfigurationService kubernetesConfigurationService;
 
-    public LoadTestMonitoringScheduler(VictoriaMetricsService victoriaMetricsService) {
+    public LoadTestMonitoringScheduler(
+            VictoriaMetricsService victoriaMetricsService, KubernetesConfigurationService kubernetesConfigurationService) {
         this.victoriaMetricsService = victoriaMetricsService;
+        this.kubernetesConfigurationService = kubernetesConfigurationService;
     }
 
     @Scheduled(
@@ -26,7 +33,11 @@ public class LoadTestMonitoringScheduler {
         Instant end = Instant.now();
         Instant start = end.minus(POLL_RANGE);
         try {
-            victoriaMetricsService.detectAndPersistTests(start, end);
+            List<LoadTest> detected = victoriaMetricsService.detectAndPersistTests(start, end);
+            List<UUID> testIds = detected.stream()
+                    .map(LoadTest::id)
+                    .collect(Collectors.toList());
+            kubernetesConfigurationService.captureConfigurationsIfMissing(testIds);
         } catch (Exception ex) {
             log.error("Не удалось обновить информацию о текущих нагрузочных тестах", ex);
         }

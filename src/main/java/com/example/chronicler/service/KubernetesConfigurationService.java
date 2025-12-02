@@ -2,9 +2,11 @@ package com.example.chronicler.service;
 
 import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
+import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.repository.KubernetesConfigurationRepository;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -31,6 +33,29 @@ public class KubernetesConfigurationService {
         return repository.findByTest(testUuid).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Запрашивает актуальную конфигурацию DropApp и сохраняет её для теста, если записи отсутствуют.
+     * Возвращает сохранённые (или уже существующие) элементы в формате DTO.
+     */
+    public List<DropAppConfigurationItemDto> captureAndGetConfiguration(UUID testUuid) {
+        if (testUuid == null) {
+            throw new DropAppClientException("testUuid must not be null");
+        }
+        if (repository.existsForTest(testUuid)) {
+            return getConfigurationItems(testUuid);
+        }
+        List<DropAppPodConfiguration> currentConfig = dropAppService.loadCurrentConfiguration();
+        if (currentConfig == null || currentConfig.isEmpty()) {
+            throw new DropAppClientException("Конфигурация DropApp пуста");
+        }
+        Instant now = Instant.now();
+        List<KubernetesConfiguration> records = currentConfig.stream()
+                .map(item -> toRecord(testUuid, item, now))
+                .toList();
+        repository.saveAll(testUuid, records);
+        return records.stream().map(this::toDto).toList();
     }
 
     /** Возвращает сохраненную конфигурацию Kubernetes по идентификатору теста. */
@@ -60,6 +85,20 @@ public class KubernetesConfigurationService {
                 .toList();
         repository.saveAll(testUuid, records);
         log.info("Зафиксирована конфигурация Kubernetes для теста {} ({} записей)", testUuid, records.size());
+    }
+
+    /** Пытается сохранить конфигурацию для каждого теста, у которого она отсутствует. */
+    public void captureConfigurationsIfMissing(Collection<UUID> testUuids) {
+        if (testUuids == null || testUuids.isEmpty()) {
+            return;
+        }
+        for (UUID testUuid : testUuids) {
+            try {
+                captureCurrentConfigurationIfAbsent(testUuid);
+            } catch (Exception ex) {
+                log.warn("Не удалось сохранить конфигурацию DropApp для теста {}", testUuid, ex);
+            }
+        }
     }
 
     private KubernetesConfiguration toRecord(UUID testUuid, DropAppPodConfiguration item, Instant capturedAt) {

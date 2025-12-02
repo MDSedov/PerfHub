@@ -356,7 +356,7 @@ class VictoriaMetricsServiceTest {
             lastStart = start;
             lastEnd = end;
             lastType = type;
-            return new LoadTest(idToReturn, start, end, type);
+            return new LoadTest(idToReturn, start, end, type, null);
         }
 
         @Override

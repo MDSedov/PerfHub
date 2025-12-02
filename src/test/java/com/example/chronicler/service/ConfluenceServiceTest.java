@@ -76,9 +76,9 @@ class ConfluenceServiceTest {
         Instant secondStart = Instant.parse("2024-01-02T00:00:00Z");
         Instant secondEnd = Instant.parse("2024-01-02T05:00:00Z");
         when(loadTestRepository.findById(firstTestUuid))
-                .thenReturn(Optional.of(new LoadTest(firstTestUuid, firstStart, firstEnd, LoadTestType.MAX)));
+                .thenReturn(Optional.of(new LoadTest(firstTestUuid, firstStart, firstEnd, LoadTestType.MAX, null)));
         when(loadTestRepository.findById(secondTestUuid))
-                .thenReturn(Optional.of(new LoadTest(secondTestUuid, secondStart, secondEnd, LoadTestType.SOAK)));
+                .thenReturn(Optional.of(new LoadTest(secondTestUuid, secondStart, secondEnd, LoadTestType.SOAK, null)));
 
         byte[] firstImage = new byte[] {1, 2, 3};
         byte[] secondImage = new byte[] {4, 5, 6};
@@ -161,7 +161,7 @@ class ConfluenceServiceTest {
         Instant start = Instant.parse("2024-01-03T00:00:00Z");
         Instant end = Instant.parse("2024-01-03T05:00:00Z");
         when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.SOAK)));
+                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.SOAK, null)));
 
         GrafanaRenderResponse renderResponse = new GrafanaRenderResponse("from", "to", List.of());
         when(grafanaService.renderPanels(any(GrafanaRenderRequest.class))).thenReturn(renderResponse);
@@ -182,7 +182,7 @@ class ConfluenceServiceTest {
         Instant start = Instant.parse("2024-01-04T00:00:00Z");
         Instant end = Instant.parse("2024-01-04T01:00:00Z");
         when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.CONFIRM)));
+                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.CONFIRM, null)));
 
         byte[] imageBytes = new byte[] {9, 8, 7};
         String encodedImage = Base64.getEncoder().encodeToString(imageBytes);

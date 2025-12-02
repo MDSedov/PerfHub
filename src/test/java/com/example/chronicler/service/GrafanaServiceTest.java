@@ -51,7 +51,7 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
         grafanaDashboardRepository.setDashboards(
                 List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2), true)));
         grafanaClient.setRenderedPanel(1, new byte[] {1, 2});
@@ -94,7 +94,7 @@ class GrafanaServiceTest {
         UUID testUuid = UUID.randomUUID();
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
         grafanaDashboardRepository.setDashboards(List.of());
 
         assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
@@ -108,7 +108,7 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T02:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
         grafanaDashboardRepository.setDashboards(List.of(new GrafanaDashboard("uid", "slug", List.of(1), true)));
 
         assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
@@ -122,7 +122,7 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
         grafanaDashboardRepository.setDashboards(List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2), false)));
 
         assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
