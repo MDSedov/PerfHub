@@ -7,6 +7,7 @@ public record DropAppConfigurationItemDto(
         String podName,
         String containerName,
         String version,
+        String release,
         String requestCpu,
         String limitCpu,
         String requestRam,

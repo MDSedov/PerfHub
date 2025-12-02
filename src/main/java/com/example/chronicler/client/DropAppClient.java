@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Locale;
 import java.util.function.Function;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -119,6 +120,7 @@ public class DropAppClient {
                         ? metadata.labels()
                         : Collections.emptyMap();
                 String version = resolveVersion(podLabels, deployments);
+                String release = extractRelease(podLabels);
                 if (pod.spec() == null || pod.spec().containers() == null) {
                     continue;
                 }
@@ -129,6 +131,7 @@ public class DropAppClient {
                             podName,
                             container.name(),
                             version,
+                            release,
                             extractValue(container, KubernetesContainer::requestCpu),
                             extractValue(container, KubernetesContainer::limitCpu),
                             extractValue(container, KubernetesContainer::requestRam),
@@ -248,6 +251,27 @@ public class DropAppClient {
             return "";
         }
         return metadata.labels().getOrDefault("helpers.app.kubernetes.io/version", "");
+    }
+
+    private String extractRelease(Map<String, String> podLabels) {
+        if (podLabels == null || podLabels.isEmpty()) {
+            return "";
+        }
+        String branch = podLabels.get("helperrs.app.kubernetes.io/config-branch");
+        if (branch == null || branch.isBlank()) {
+            branch = podLabels.get("helpers.app.kubernetes.io/config-branch");
+        }
+        if (branch == null || branch.isBlank()) {
+            return "";
+        }
+
+        String value = branch.trim();
+        if (value.toLowerCase(Locale.ROOT).startsWith("release")) {
+            value = value.substring("release".length());
+            value = value.replaceFirst("^[._\\-/]+", "");
+        }
+        value = value.replace('_', '.');
+        return value;
     }
 
     private String extractValue(KubernetesContainer container, Function<KubernetesContainer, String> extractor) {

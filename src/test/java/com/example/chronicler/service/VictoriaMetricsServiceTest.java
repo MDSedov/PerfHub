@@ -40,6 +40,8 @@ class VictoriaMetricsServiceTest {
 
     private StubVictoriaMetricsClient client;
 
+    private InMemoryConfigurationProvider configurationProvider;
+
     private VmDataCache vmDataCache;
 
     private VictoriaMetricsTestsCache testsCache;
@@ -54,6 +56,7 @@ class VictoriaMetricsServiceTest {
         objectMapper = new ObjectMapper();
         panelRepository = new StubGrafanaDashboardPanelRepository();
         client = new StubVictoriaMetricsClient();
+        configurationProvider = new InMemoryConfigurationProvider(new HashMap<>());
         vmDataCache = new VmDataCache();
         testsCache = new VictoriaMetricsTestsCache();
         loadTestRepository = new StubLoadTestRepository();
@@ -63,6 +66,7 @@ class VictoriaMetricsServiceTest {
                 vmDataCache,
                 testsCache,
                 loadTestRepository,
+                configurationProvider,
                 objectMapper);
     }
 
@@ -138,8 +142,7 @@ class VictoriaMetricsServiceTest {
         Instant intervalStart = toInstant(start);
         Instant intervalEnd = toInstant(end);
 
-        panelRepository.register(new GrafanaDashboardPanelRecord(
-                "uid", "slug", "title", 1, "Intensity", "intensity_expr", null, true));
+        configurationProvider.put(key("tests-search-query"), "intensity_expr");
         client.setResponse(intensityPayload(intervalStart, new double[] {0, 5, 5, 5, 5, 5, 5, 0}, 60));
 
         UUID testId = UUID.fromString("00000000-0000-0000-0000-000000000001");
@@ -172,7 +175,7 @@ class VictoriaMetricsServiceTest {
     }
 
     @Test
-    void detectLoadTestsThrowsWhenTestQueryPanelMissing() {
+    void detectLoadTestsThrowsWhenSearchQueryMissing() {
         String start = "2024-01-06 12:00:00";
         String end = "2024-01-06 12:10:00";
 
@@ -303,6 +306,10 @@ class VictoriaMetricsServiceTest {
 
         private InMemoryConfigurationProvider(Map<String, String> values) {
             this.values = values;
+        }
+
+        void put(String key, String value) {
+            values.put(key, value);
         }
 
         @Override

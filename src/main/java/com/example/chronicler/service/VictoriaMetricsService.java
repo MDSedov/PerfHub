@@ -37,6 +37,8 @@ import org.springframework.util.StringUtils;
 public class VictoriaMetricsService {
 
     private static final Logger log = LoggerFactory.getLogger(VictoriaMetricsService.class);
+    private static final String VM_SERVICE = "victoria-metrics";
+    private static final String TEST_SEARCH_QUERY_KEY = "tests-search-query";
     private static final ZoneId MOSCOW_ZONE = ZoneId.of("Europe/Moscow");
     private static final DateTimeFormatter DASHBOARD_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -63,6 +65,7 @@ public class VictoriaMetricsService {
     private final VmDataCache vmDataCache;
     private final VictoriaMetricsTestsCache testsCache;
     private final LoadTestRepository loadTestRepository;
+    private final ConfigurationProvider configurationProvider;
     private final ObjectMapper objectMapper;
 
     /** Конструктор подготавливает зависимости сервиса VictoriaMetrics. */
@@ -72,12 +75,14 @@ public class VictoriaMetricsService {
             VmDataCache vmDataCache,
             VictoriaMetricsTestsCache testsCache,
             LoadTestRepository loadTestRepository,
+            ConfigurationProvider configurationProvider,
             ObjectMapper objectMapper) {
         this.grafanaPanelRepository = grafanaPanelRepository;
         this.client = client;
         this.vmDataCache = vmDataCache;
         this.testsCache = testsCache;
         this.loadTestRepository = loadTestRepository;
+        this.configurationProvider = configurationProvider;
         this.objectMapper = objectMapper;
     }
 
@@ -198,8 +203,8 @@ public class VictoriaMetricsService {
 
     private String resolveQuery(String type) {
         if (INTENSITY_TYPE.equals(type)) {
-            return grafanaPanelRepository.findTestQueryPanel()
-                    .map(GrafanaDashboardPanelRecord::panelQuery)
+            return configurationProvider.findValue(VM_SERVICE, TEST_SEARCH_QUERY_KEY)
+                    .map(StringUtils::trimWhitespace)
                     .filter(StringUtils::hasText)
                     .orElseThrow(() -> new VmQueryNotFoundException(INTENSITY_TYPE));
         }

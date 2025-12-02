@@ -1296,7 +1296,7 @@
         table.className = 'table table-sm align-middle mb-0';
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
-        ['POD', 'Контейнер', 'Версия', 'Request CPU', 'Limit CPU', 'Request RAM', 'Limit RAM']
+        ['POD', 'Контейнер', 'Версия', 'Релиз', 'Request CPU', 'Limit CPU', 'Request RAM', 'Limit RAM']
                 .forEach(title => {
                     const th = document.createElement('th');
                     th.scope = 'col';
@@ -1310,6 +1310,7 @@
             appendConfigCell(row, item?.podName);
             appendConfigCell(row, item?.containerName);
             appendConfigCell(row, item?.version);
+            appendConfigCell(row, item?.release);
             appendConfigCell(row, item?.requestCpu);
             appendConfigCell(row, item?.limitCpu);
             appendConfigCell(row, item?.requestRam);

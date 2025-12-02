@@ -265,7 +265,6 @@
                 'Добавлять график в отчет',
                 'Название графика',
                 '№ графика в дашборде',
-                'Запрос для поиска тестов',
                 'Запрос к источнику данных',
                 'Нефункциональное требование'
             ].forEach(text => {
@@ -292,7 +291,7 @@
         footer.className = 'd-flex flex-wrap justify-content-between align-items-center gap-3 mt-3';
         const hint = document.createElement('div');
         hint.className = 'text-muted small';
-        hint.textContent = 'Отмеченные графики будут попадать в отчеты и детали теста. Один график можно отметить как источник запроса для поиска тестов.';
+        hint.textContent = 'Отмеченные графики будут попадать в отчеты и детали теста.';
         const saveButton = document.createElement('button');
         saveButton.type = 'button';
         saveButton.className = 'btn btn-success btn-sm';
@@ -329,15 +328,6 @@
         const idCell = document.createElement('td');
         idCell.textContent = panel.panelId ?? '—';
 
-        const testQueryCell = document.createElement('td');
-        testQueryCell.className = 'text-center';
-        const testQueryInput = document.createElement('input');
-        testQueryInput.type = 'radio';
-        testQueryInput.name = `test-query-${dashboardUid}`;
-        testQueryInput.className = 'form-check-input panel-test-query';
-        testQueryInput.checked = Boolean(panel.testQuery);
-        testQueryCell.appendChild(testQueryInput);
-
         const queryCell = document.createElement('td');
         queryCell.className = 'small text-break';
         const queryInput = document.createElement('textarea');
@@ -360,7 +350,6 @@
         row.appendChild(selectCell);
         row.appendChild(nameCell);
         row.appendChild(idCell);
-        row.appendChild(testQueryCell);
         row.appendChild(queryCell);
         row.appendChild(thresholdCell);
         return row;
@@ -398,8 +387,7 @@
                 ? null
                 : Number.parseFloat(thresholdRaw);
             const threshold = Number.isFinite(parsedThreshold) ? parsedThreshold : null;
-            const testQuery = row.querySelector('.panel-test-query')?.checked ?? false;
-            return { panelId, selected, query, threshold, testQuery };
+            return { panelId, selected, query, threshold };
         });
         const panels = panelSettings
                 .filter(panel => panel.selected)

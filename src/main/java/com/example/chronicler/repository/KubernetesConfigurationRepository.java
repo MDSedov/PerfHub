@@ -16,7 +16,7 @@ import org.springframework.util.CollectionUtils;
 public class KubernetesConfigurationRepository {
 
     private static final String SELECT_BY_TEST_SQL = """
-            SELECT id, test_uuid, namespace, service_name, pod_name, container_name, version,
+            SELECT id, test_uuid, namespace, service_name, pod_name, container_name, version, release,
                    request_cpu, limit_cpu, request_ram, limit_ram, captured_at
             FROM kubernetes_configurations
             WHERE test_uuid = ?
@@ -28,9 +28,9 @@ public class KubernetesConfigurationRepository {
 
     private static final String INSERT_SQL = """
             INSERT INTO kubernetes_configurations
-                (test_uuid, namespace, service_name, pod_name, container_name, version,
+                (test_uuid, namespace, service_name, pod_name, container_name, version, release,
                  request_cpu, limit_cpu, request_ram, limit_ram, captured_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -64,11 +64,12 @@ public class KubernetesConfigurationRepository {
                     ps.setString(4, config.podName());
                     ps.setString(5, config.containerName());
                     ps.setString(6, config.version());
-                    ps.setString(7, config.requestCpu());
-                    ps.setString(8, config.limitCpu());
-                    ps.setString(9, config.requestRam());
-                    ps.setString(10, config.limitRam());
-                    ps.setTimestamp(11, toTimestamp(config.capturedAt()));
+                    ps.setString(7, config.release());
+                    ps.setString(8, config.requestCpu());
+                    ps.setString(9, config.limitCpu());
+                    ps.setString(10, config.requestRam());
+                    ps.setString(11, config.limitRam());
+                    ps.setTimestamp(12, toTimestamp(config.capturedAt()));
                 });
     }
 
@@ -87,6 +88,7 @@ public class KubernetesConfigurationRepository {
                 rs.getString("pod_name"),
                 rs.getString("container_name"),
                 rs.getString("version"),
+                rs.getString("release"),
                 rs.getString("request_cpu"),
                 rs.getString("limit_cpu"),
                 rs.getString("request_ram"),
