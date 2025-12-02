@@ -722,6 +722,30 @@
         return new Date(withSeconds + '+03:00');
     }
 
+    function parseGrafanaTimestamp(value) {
+        if (!value) {
+            return null;
+        }
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    function isGrafanaCacheValid(cacheEntry, test) {
+        if (!cacheEntry || !test) {
+            return false;
+        }
+        const cacheStart = parseGrafanaTimestamp(cacheEntry.start);
+        const cacheEnd = parseGrafanaTimestamp(cacheEntry.end);
+        const testStart = parseMoscowDate(test.start);
+        const testEnd = parseMoscowDate(test.end);
+        if (!cacheStart || !cacheEnd || !testStart || !testEnd) {
+            return false;
+        }
+        const toleranceMs = 1000;
+        return Math.abs(cacheStart.getTime() - testStart.getTime()) <= toleranceMs
+                && Math.abs(cacheEnd.getTime() - testEnd.getTime()) <= toleranceMs;
+    }
+
     function getTestDateTime(test) {
         return parseMoscowDate(test?.start) ?? parseMoscowDate(test?.end);
     }
@@ -1092,9 +1116,9 @@
             throw new Error('Ответ сервера: ' + response.status);
         }
         const payload = await response.json();
-        const panels = flattenGrafanaPanels(payload);
-        grafanaPanelsCache.set(testId, panels);
-        return panels;
+        const normalized = normalizeGrafanaPanels(payload);
+        grafanaPanelsCache.set(testId, normalized);
+        return normalized;
     }
 
     function ensureGrafanaPanels(testId) {
@@ -1109,22 +1133,26 @@
         return grafanaPanelRequests.get(testId);
     }
 
-    function flattenGrafanaPanels(response) {
+    function normalizeGrafanaPanels(response) {
+        const normalized = {
+            panels: [],
+            start: response?.start ?? null,
+            end: response?.end ?? null
+        };
         if (!response || !Array.isArray(response.dashboards)) {
-            return [];
+            return normalized;
         }
-        const panels = [];
         response.dashboards.forEach(dashboard => {
             if (!dashboard || !Array.isArray(dashboard.panels)) {
                 return;
             }
             dashboard.panels.forEach(panel => {
                 if (panel) {
-                    panels.push(panel);
+                    normalized.panels.push(panel);
                 }
             });
         });
-        return panels;
+        return normalized;
     }
 
     function createGrafanaProgress(message = 'Загружаем графики…') {
@@ -1363,6 +1391,22 @@
         }
     }
 
+    function pruneGrafanaCache(tests) {
+        const testsById = new Map();
+        (Array.isArray(tests) ? tests : []).forEach(test => {
+            if (test?.id) {
+                testsById.set(test.id, test);
+            }
+        });
+        grafanaPanelsCache.forEach((entry, testId) => {
+            const currentTest = testsById.get(testId);
+            if (!currentTest || !isGrafanaCacheValid(entry, currentTest)) {
+                grafanaPanelsCache.delete(testId);
+                grafanaPanelRequests.delete(testId);
+            }
+        });
+    }
+
     function findTestById(testId) {
         return allTests.find(test => test?.id === testId);
     }
@@ -1448,13 +1492,29 @@
         grafanaLoadButton.className = 'btn btn-outline-success btn-sm';
         grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
 
+        const cachedPanels = grafanaPanelsCache.get(testId);
+        const currentTest = findTestById(testId);
+        if (isGrafanaCacheValid(cachedPanels, currentTest)) {
+            const panels = Array.isArray(cachedPanels.panels) ? cachedPanels.panels : [];
+            if (panels.length > 0) {
+                grafanaPlaceholder.textContent = '';
+                renderGrafanaPanels(grafanaBox, panels, () => {});
+            } else {
+                grafanaPlaceholder.textContent = '';
+            }
+            grafanaLoadButton.textContent = 'Обновить графики из Grafana для данного теста';
+        } else if (cachedPanels) {
+            grafanaPanelsCache.delete(testId);
+        }
+
         grafanaLoadButton.addEventListener('click', async () => {
             grafanaLoadButton.disabled = true;
             grafanaLoadButton.textContent = 'Загружаем…';
             grafanaPlaceholder.textContent = 'Загружаем графики…';
             showToast('Загружаем графики…', 'info', 6000);
             try {
-                const panels = await ensureGrafanaPanels(testId);
+                const panelsData = await ensureGrafanaPanels(testId);
+                const panels = Array.isArray(panelsData?.panels) ? panelsData.panels : [];
                 if (!panels || panels.length === 0) {
                     grafanaPlaceholder.textContent = '';
                     grafanaBox.innerHTML = '';
@@ -1527,6 +1587,7 @@
     }
 
     function setAllTests(tests) {
+        pruneGrafanaCache(tests);
         allTests = Array.isArray(tests) ? tests.slice() : [];
         updateReleaseOptions(allTests);
         filterState.periodStart = periodStartInput?.value ?? '';
@@ -1594,8 +1655,6 @@
         if (resetCaches) {
             evaluationCache.clear();
             evaluationRequests.clear();
-            grafanaPanelsCache.clear();
-            grafanaPanelRequests.clear();
             testConfigurationCache.clear();
             testConfigurationRequests.clear();
             complianceStatusByTest.clear();
