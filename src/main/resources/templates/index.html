@@ -338,7 +338,7 @@
         .test-details {
             padding: 1.25rem 1.25rem 1.5rem;
             border-top: 1px solid #e5efe8;
-            max-height: 440px;
+            max-height: 640px;
             overflow: auto;
         }
 
@@ -1415,7 +1415,7 @@
         grafanaTitle.className = 'mb-3';
         grafanaTitle.textContent = 'Графики';
         const grafanaPlaceholder = document.createElement('div');
-        grafanaPlaceholder.className = 'text-muted small mb-2';
+        grafanaPlaceholder.className = 'text-muted small mb-2 visually-hidden';
         grafanaPlaceholder.textContent = '';
 
         const grafanaBox = document.createElement('div');
@@ -1430,19 +1430,23 @@
             grafanaLoadButton.disabled = true;
             grafanaLoadButton.textContent = 'Загружаем…';
             grafanaPlaceholder.textContent = 'Загружаем графики…';
+            showToast('Загружаем графики…', 'info', 6000);
             try {
                 const panels = await ensureGrafanaPanels(testId);
                 if (!panels || panels.length === 0) {
                     grafanaPlaceholder.textContent = '';
                     grafanaBox.innerHTML = '';
+                    showToast('Графиков не найдено для этого теста.', 'warning', 6000);
                 } else {
                     grafanaPlaceholder.textContent = '';
                     renderGrafanaPanels(grafanaBox, panels, () => {});
+                    showToast('Графики загружены.', 'success', 6000);
                 }
             } catch (error) {
                 const reason = error?.message ? `: ${error.message}` : '';
                 grafanaPlaceholder.textContent = `Графики загрузить не удалось${reason}`;
                 grafanaBox.innerHTML = '';
+                showToast(`Графики загрузить не удалось${reason}`, 'danger', 12000);
             } finally {
                 grafanaLoadButton.disabled = false;
                 grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';

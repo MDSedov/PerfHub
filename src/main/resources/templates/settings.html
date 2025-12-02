@@ -130,6 +130,75 @@
         .integration-card .btn {
             white-space: nowrap;
         }
+
+        .toast-container {
+            position: fixed;
+            right: 1.25rem;
+            bottom: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            z-index: 1080;
+            max-width: min(640px, calc(100vw - 2.5rem));
+            width: auto;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+
+        .toast-item {
+            background: #ffffff;
+            border: 1px solid #e5efe8;
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            pointer-events: auto;
+            width: auto;
+            max-width: 100%;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .toast-item .toast-body {
+            margin: 0;
+            color: #1f2b24;
+        }
+
+        .toast-close {
+            border: none;
+            background: transparent;
+            color: #6a7c73;
+            padding: 0.25rem;
+            line-height: 1;
+            cursor: pointer;
+            margin-left: auto;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toast-item.success {
+            border-color: #b7e3c9;
+            background: #f4fbf7;
+        }
+
+        .toast-item.danger {
+            border-color: #f3c1b8;
+            background: #fff4f2;
+        }
+
+        .toast-item.info {
+            border-color: #c2d7ff;
+            background: #f3f7ff;
+        }
+
+        .toast-item.warning {
+            border-color: #ffe0a3;
+            background: #fff8e6;
+        }
     </style>
 </head>
 <body>
@@ -204,6 +273,8 @@
     <div id="settingsEmpty" class="text-muted d-none">Настройки не найдены.</div>
 </main>
 
+<div id="toastContainer" class="toast-container"></div>
+
 <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
@@ -214,6 +285,7 @@
     const settingsStatus = document.getElementById('settingsStatus');
     const settingsEmpty = document.getElementById('settingsEmpty');
     const settingsCount = document.getElementById('settingsCount');
+    const toastContainer = document.getElementById('toastContainer');
 
     const SERVICE_ORDER = [
         'Victoria Metrics',
@@ -229,6 +301,54 @@
     const serviceCards = new Map();
     const serviceSaving = new Set();
     let settingsCache = [];
+
+    const removeToast = (toast) => {
+        if (!toast) {
+            return;
+        }
+        const timerId = toast.dataset.timerId;
+        if (timerId) {
+            clearTimeout(Number(timerId));
+        }
+        toast.remove();
+    };
+
+    const showToast = (message, type = 'info', durationMs = 12000) => {
+        if (!toastContainer) {
+            return null;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast-item ${type}`;
+        const body = document.createElement('p');
+        body.className = 'toast-body';
+        body.textContent = message;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Закрыть уведомление');
+        close.innerHTML = '&times;';
+        close.addEventListener('click', () => removeToast(toast));
+        const content = document.createElement('div');
+        content.className = 'flex-grow-1';
+        content.appendChild(body);
+        toast.appendChild(content);
+        toast.appendChild(close);
+        toastContainer.appendChild(toast);
+        const timer = setTimeout(() => removeToast(toast), durationMs);
+        toast.dataset.timerId = timer.toString();
+        return toast;
+    };
+
+    if (toastContainer) {
+        toastContainer.addEventListener('click', event => {
+            const closeButton = event.target.closest('.toast-close');
+            if (!closeButton) {
+                return;
+            }
+            const toast = closeButton.closest('.toast-item');
+            removeToast(toast);
+        });
+    }
 
     function compareServices(a, b) {
         const priorityA = servicePriority.has(a) ? servicePriority.get(a) : SERVICE_ORDER.length;
@@ -257,7 +377,7 @@
         const stored = connectionStatuses.get(service);
         if (!stored) {
             element.textContent = '';
-            element.className = 'small text-muted';
+            element.className = 'small text-muted visually-hidden';
             return;
         }
         element.textContent = stored.text;
@@ -265,7 +385,7 @@
     }
 
     function rememberConnectionStatus(service, text, isSuccess) {
-        const className = isSuccess ? 'small text-success' : 'small text-danger';
+        const className = isSuccess ? 'small text-success visually-hidden' : 'small text-danger visually-hidden';
         connectionStatuses.set(service, {text, className});
         return className;
     }
@@ -296,13 +416,16 @@
         }
         const hasChanges = getServiceChanges(service).length > 0;
         const isSaving = serviceSaving.has(service);
-        card.saveButton.disabled = !hasChanges || isSaving;
+        card.saveTestButton.disabled = isSaving;
         card.resetButton.disabled = !hasChanges || isSaving;
     }
 
-    async function checkConnection(service, button, statusElement) {
-        statusElement.className = 'small text-muted';
-        statusElement.textContent = 'Проверяем...';
+    async function checkConnection(service, button, statusElement, {showToastOnResult = false, showToastOnStart = false} = {}) {
+        statusElement.className = 'small text-muted visually-hidden';
+        statusElement.textContent = 'Проверяем соединение…';
+        if (showToastOnStart) {
+            showToast('Проверяем соединение…', 'info', 6000);
+        }
         button.disabled = true;
         try {
             const response = await fetch(`/api/chronicler/connections/${encodeURIComponent(service)}/test`, {
@@ -316,10 +439,18 @@
             const message = result.message || (success ? 'Соединение успешно' : 'Соединение не установлено');
             statusElement.className = rememberConnectionStatus(service, message, success);
             statusElement.textContent = message;
+            if (showToastOnResult) {
+                showToast(message, success ? 'success' : 'danger');
+            }
+            return {success, message};
         } catch (error) {
             const message = 'Ошибка проверки: ' + error.message;
             statusElement.className = rememberConnectionStatus(service, message, false);
             statusElement.textContent = message;
+            if (showToastOnResult) {
+                showToast(message, 'danger');
+            }
+            return {success: false, message};
         } finally {
             button.disabled = false;
         }
@@ -341,7 +472,8 @@
             input.dataset.originalValue = originalValue;
             settingsChanges.delete(getCompoundKey(service, input.dataset.key));
         });
-        setServiceMessage(service, 'Изменения отменены.', 'muted');
+        setServiceMessage(service, '', 'muted');
+        showToast('Изменения отменены.', 'info');
         refreshServiceActions(service);
     }
 
@@ -356,7 +488,7 @@
     async function saveService(service) {
         const changes = getServiceChanges(service);
         if (!changes.length) {
-            return;
+            return true;
         }
         serviceSaving.add(service);
         refreshServiceActions(service);
@@ -390,12 +522,36 @@
             updateSettingsCount();
             rebuildServiceCard(service);
             setServiceMessage(service, 'Настройки сохранены.', 'success');
+            return true;
         } catch (error) {
             setServiceMessage(service, 'Не удалось сохранить: ' + error.message, 'danger');
+            showToast('Не удалось сохранить: ' + error.message, 'danger');
+            return false;
         } finally {
             serviceSaving.delete(service);
             refreshServiceActions(service);
         }
+    }
+
+    async function saveAndTest(service) {
+        const card = serviceCards.get(service);
+        if (!card) {
+            return;
+        }
+        const hasChanges = getServiceChanges(service).length > 0;
+        if (hasChanges) {
+            const saved = await saveService(service);
+            if (!saved) {
+                return;
+            }
+        }
+        const latestCard = serviceCards.get(service) || card;
+        await checkConnection(
+            service,
+            latestCard.saveTestButton,
+            latestCard.connectionStatus,
+            {showToastOnResult: true, showToastOnStart: true}
+        );
     }
 
     function createServiceCard(service, groupItems) {
@@ -426,24 +582,17 @@
         resetButton.className = 'btn btn-outline-secondary btn-sm';
         resetButton.textContent = 'Сбросить';
 
-        const saveButton = document.createElement('button');
-        saveButton.type = 'button';
-        saveButton.className = 'btn btn-success btn-sm';
-        saveButton.textContent = 'Сохранить';
-        saveButton.disabled = true;
-
-        const testButton = document.createElement('button');
-        testButton.type = 'button';
-        testButton.className = 'btn btn-outline-success btn-sm';
-        testButton.textContent = 'Проверить соединение';
+        const saveTestButton = document.createElement('button');
+        saveTestButton.type = 'button';
+        saveTestButton.className = 'btn btn-success btn-sm';
+        saveTestButton.textContent = 'Сохранить и проверить';
 
         const connectionStatus = document.createElement('div');
         connectionStatus.className = 'small text-muted';
         applyStoredConnectionStatus(service, connectionStatus);
 
         actions.appendChild(resetButton);
-        actions.appendChild(saveButton);
-        actions.appendChild(testButton);
+        actions.appendChild(saveTestButton);
         actions.appendChild(connectionStatus);
 
         header.appendChild(titleBox);
@@ -457,9 +606,8 @@
 
         const cardState = {
             element: card,
-            saveButton,
+            saveTestButton,
             resetButton,
-            testButton,
             status,
             connectionStatus,
             inputs: []
@@ -512,8 +660,7 @@
         });
 
         resetButton.addEventListener('click', () => resetService(service));
-        saveButton.addEventListener('click', () => saveService(service));
-        testButton.addEventListener('click', () => checkConnection(service, testButton, connectionStatus));
+        saveTestButton.addEventListener('click', () => saveAndTest(service));
 
         body.appendChild(header);
         body.appendChild(status);
