@@ -218,6 +218,7 @@
             margin: 0;
             border-collapse: collapse;
             color: #1c231f;
+            font-size: 0.94rem;
         }
 
         .tests-table thead th {
@@ -232,6 +233,8 @@
         .tests-table tbody td {
             border-color: #e5efe8;
             vertical-align: middle;
+            padding: 0.5rem 0.75rem;
+            color: #1f2b24;
         }
 
         .tests-table tbody tr.test-summary-row:hover {
@@ -239,9 +242,11 @@
         }
 
         .test-type {
-            font-weight: 600;
+            font-weight: 700;
             color: #0b6b3c;
             text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 0.9rem;
         }
 
         .test-time {
@@ -253,6 +258,23 @@
             font-variant-numeric: tabular-nums;
             color: #26332c;
             font-weight: 600;
+        }
+
+        .test-type-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.22rem 0.72rem;
+            border-radius: 999px;
+            background-color: #e9f7f0;
+            border: 1px solid #d3e8db;
+            color: #0b7c64;
+            font-weight: 600;
+            font-size: 0.75rem;
+            letter-spacing: 0.04em;
+            min-width: 68px;
+            text-align: center;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
         }
 
         .status-icon {
@@ -1602,9 +1624,11 @@
             releaseCell.textContent = releaseValue ?? '—';
 
             const typeCell = document.createElement('td');
-            typeCell.className = 'test-type';
             const normalizedType = (test.type ?? 'unknown').toLowerCase();
-            typeCell.textContent = TYPE_LABELS[normalizedType] ?? normalizedType;
+            const typePill = document.createElement('span');
+            typePill.className = 'test-type-pill';
+            typePill.textContent = TYPE_LABELS[normalizedType] ?? normalizedType;
+            typeCell.appendChild(typePill);
 
             const durationCell = document.createElement('td');
             durationCell.className = 'test-duration';
