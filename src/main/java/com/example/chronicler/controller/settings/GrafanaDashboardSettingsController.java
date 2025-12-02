@@ -52,7 +52,12 @@ public class GrafanaDashboardSettingsController {
             @PathVariable String uid,
             @Valid @RequestBody GrafanaDashboardUpdateRequest request) {
         GrafanaDashboard dashboard = service.update(
-                uid, request.slug(), request.panels(), request.enabled(), request.panelSettings());
+                uid,
+                request.slug(),
+                request.panels(),
+                request.enabled(),
+                request.panelSettings(),
+                request.variables());
         return toDto(dashboard);
     }
 

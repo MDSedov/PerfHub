@@ -6,4 +6,5 @@ public record GrafanaDashboardDefinition(
         String uid,
         String slug,
         String title,
-        List<GrafanaPanelDefinition> panels) {}
+        List<GrafanaPanelDefinition> panels,
+        List<GrafanaVariableDefinition> variables) {}

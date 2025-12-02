@@ -39,6 +39,7 @@ public class RequirementEvaluationService {
     private final GrafanaDashboardRepository grafanaDashboardRepository;
     private final GrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
     private final VictoriaMetricsClient victoriaMetricsClient;
+    private final GrafanaVariableService grafanaVariableService;
     private final ObjectMapper objectMapper;
 
     public RequirementEvaluationService(
@@ -47,12 +48,14 @@ public class RequirementEvaluationService {
             GrafanaDashboardRepository grafanaDashboardRepository,
             GrafanaDashboardPanelRepository grafanaDashboardPanelRepository,
             VictoriaMetricsClient victoriaMetricsClient,
+            GrafanaVariableService grafanaVariableService,
             ObjectMapper objectMapper) {
         this.evaluationRepository = evaluationRepository;
         this.loadTestRepository = loadTestRepository;
         this.grafanaDashboardRepository = grafanaDashboardRepository;
         this.grafanaDashboardPanelRepository = grafanaDashboardPanelRepository;
         this.victoriaMetricsClient = victoriaMetricsClient;
+        this.grafanaVariableService = grafanaVariableService;
         this.objectMapper = objectMapper;
     }
 
@@ -251,7 +254,7 @@ public class RequirementEvaluationService {
                         panel.dashboardUid(),
                         panel.panelId(),
                         panel.panelTitle(),
-                        panel.panelQuery(),
+                        grafanaVariableService.applyVariables(panel.panelQuery(), panel.dashboardUid()),
                         panel.panelThreshold(),
                         Boolean.TRUE.equals(panel.testQuery())))
                 .orElse(null);

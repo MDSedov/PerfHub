@@ -109,6 +109,21 @@ CREATE INDEX IF NOT EXISTS idx_grafana_dashboard_panels_uid
 ALTER TABLE grafana_dashboard_panels ADD COLUMN IF NOT EXISTS panel_query CLOB;
 ALTER TABLE grafana_dashboard_panels ADD COLUMN IF NOT EXISTS panel_threshold DOUBLE;
 ALTER TABLE grafana_dashboard_panels ADD COLUMN IF NOT EXISTS is_test_query BOOLEAN DEFAULT FALSE;
+CREATE TABLE IF NOT EXISTS grafana_dashboard_variables (
+    dashboard_uid  VARCHAR(64)  NOT NULL,
+    name           VARCHAR(128) NOT NULL,
+    label          VARCHAR(256),
+    type           VARCHAR(64),
+    default_value  VARCHAR(512),
+    current_value  VARCHAR(512),
+    options_json   CLOB,
+    PRIMARY KEY (dashboard_uid, name)
+);
+CREATE INDEX IF NOT EXISTS idx_grafana_dashboard_variables_uid
+    ON grafana_dashboard_variables (dashboard_uid);
+ALTER TABLE grafana_dashboard_variables ADD COLUMN IF NOT EXISTS default_value VARCHAR(512);
+ALTER TABLE grafana_dashboard_variables ADD COLUMN IF NOT EXISTS current_value VARCHAR(512);
+ALTER TABLE grafana_dashboard_variables ADD COLUMN IF NOT EXISTS options_json CLOB;
 ALTER TABLE kubernetes_configurations ADD COLUMN IF NOT EXISTS release VARCHAR(64);
 
 CREATE TABLE IF NOT EXISTS configurations (

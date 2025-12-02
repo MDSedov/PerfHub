@@ -8,4 +8,5 @@ public record GrafanaDashboardUpdateRequest(
         @NotBlank String slug,
         @NotNull List<Integer> panels,
         @NotNull Boolean enabled,
-        List<GrafanaDashboardPanelUpdateRequest> panelSettings) {}
+        List<GrafanaDashboardPanelUpdateRequest> panelSettings,
+        List<GrafanaDashboardVariableUpdateRequest> variables) {}

@@ -2,6 +2,8 @@ package com.example.chronicler.client;
 
 import com.example.chronicler.dto.grafana.GrafanaDashboardDefinition;
 import com.example.chronicler.dto.grafana.GrafanaPanelDefinition;
+import com.example.chronicler.dto.grafana.GrafanaVariableDefinition;
+import com.example.chronicler.dto.grafana.GrafanaVariableOption;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.service.ConfigurationProvider;
@@ -13,6 +15,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,12 +80,8 @@ public class GrafanaClient {
                     continue;
                 }
                 String slug = extractSlug(item.url());
-                List<GrafanaPanelDefinition> panels = fetchPanels(headers, item.uid());
-                result.add(new GrafanaDashboardDefinition(
-                        item.uid(),
-                        slug,
-                        item.title(),
-                        panels));
+                GrafanaDashboardDefinition definition = fetchDashboardDefinition(headers, item.uid(), slug, item.title());
+                result.add(definition);
             }
             return List.copyOf(result);
         } catch (RestClientException ex) {
@@ -206,7 +206,8 @@ public class GrafanaClient {
         }
     }
 
-    private List<GrafanaPanelDefinition> fetchPanels(HttpHeaders headers, String dashboardUid) {
+    private GrafanaDashboardDefinition fetchDashboardDefinition(
+            HttpHeaders headers, String dashboardUid, String slug, String fallbackTitle) {
         URI uri = UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
                 .pathSegment("api", "dashboards", "uid", dashboardUid)
                 .build(true)
@@ -216,30 +217,115 @@ public class GrafanaClient {
             ResponseEntity<GrafanaDashboardResponse> response = restTemplate.exchange(
                     uri, HttpMethod.GET, new HttpEntity<>(null, headers), GrafanaDashboardResponse.class);
             GrafanaDashboardResponse body = response.getBody();
-            if (body == null || body.dashboard() == null || body.dashboard().panels() == null) {
-                return List.of();
+            if (body == null || body.dashboard() == null) {
+                return new GrafanaDashboardDefinition(
+                        dashboardUid, slug, fallbackTitle, List.of(), List.of());
             }
 
-            Map<Integer, GrafanaPanelDefinition> panelsById = new LinkedHashMap<>();
-            for (GrafanaDashboardPanel panel : body.dashboard().panels()) {
-                if (panel == null || panel.id() == null || panel.id() <= 0) {
-                    continue;
-                }
-                String title = panel.title();
-                if (!StringUtils.hasText(title)) {
-                    title = "Панель " + panel.id();
-                }
-                String query = extractFirstQuery(panel.targets());
-                Double threshold = extractFirstThreshold(panel.fieldConfig());
-                panelsById.put(panel.id(), new GrafanaPanelDefinition(panel.id(), title, query, threshold));
-            }
+            String title = resolveDashboardTitle(body.dashboard().title(), fallbackTitle, slug);
+            List<GrafanaPanelDefinition> panels = extractPanels(body.dashboard());
+            List<GrafanaVariableDefinition> variables = extractVariables(body.dashboard());
 
-            return panelsById.entrySet().stream()
-                    .map(Map.Entry::getValue)
-                    .toList();
+            return new GrafanaDashboardDefinition(
+                    dashboardUid,
+                    slug,
+                    title,
+                    panels,
+                    variables);
         } catch (RestClientException ex) {
             throw new GrafanaClientException("Failed to load Grafana dashboard " + dashboardUid, ex);
         }
+    }
+
+    private String resolveDashboardTitle(String title, String fallbackTitle, String slug) {
+        if (StringUtils.hasText(title)) {
+            return title;
+        }
+        if (StringUtils.hasText(fallbackTitle)) {
+            return fallbackTitle;
+        }
+        return slug;
+    }
+
+    private List<GrafanaPanelDefinition> extractPanels(GrafanaDashboard dashboard) {
+        if (dashboard.panels() == null) {
+            return List.of();
+        }
+        Map<Integer, GrafanaPanelDefinition> panelsById = new LinkedHashMap<>();
+        for (GrafanaDashboardPanel panel : dashboard.panels()) {
+            if (panel == null || panel.id() == null || panel.id() <= 0) {
+                continue;
+            }
+            String title = panel.title();
+            if (!StringUtils.hasText(title)) {
+                title = "Панель " + panel.id();
+            }
+            String query = extractFirstQuery(panel.targets());
+            Double threshold = extractFirstThreshold(panel.fieldConfig());
+            panelsById.put(panel.id(), new GrafanaPanelDefinition(panel.id(), title, query, threshold));
+        }
+        return panelsById.values().stream().toList();
+    }
+
+    private List<GrafanaVariableDefinition> extractVariables(GrafanaDashboard dashboard) {
+        GrafanaTemplating templating = dashboard.templating();
+        if (templating == null || templating.list() == null || templating.list().isEmpty()) {
+            return List.of();
+        }
+        List<GrafanaVariableDefinition> variables = new ArrayList<>();
+        for (GrafanaVariable variable : templating.list()) {
+            if (variable == null || !StringUtils.hasText(variable.name())) {
+                continue;
+            }
+            List<GrafanaVariableOption> options = extractVariableOptions(variable);
+            String currentValue = normalizeValue(variable.current() != null ? variable.current().value() : null);
+            String defaultValue = StringUtils.hasText(currentValue)
+                    ? currentValue
+                    : findSelectedOption(options);
+            variables.add(new GrafanaVariableDefinition(
+                    variable.name(),
+                    StringUtils.hasText(variable.label()) ? variable.label() : variable.name(),
+                    variable.type(),
+                    defaultValue,
+                    currentValue,
+                    options));
+        }
+        return List.copyOf(variables);
+    }
+
+    private List<GrafanaVariableOption> extractVariableOptions(GrafanaVariable variable) {
+        if (variable.options() == null || variable.options().isEmpty()) {
+            return List.of();
+        }
+        return variable.options().stream()
+                .filter(Objects::nonNull)
+                .map(option -> new GrafanaVariableOption(
+                        normalizeValue(option.value()),
+                        option.text(),
+                        Boolean.TRUE.equals(option.selected())))
+                .toList();
+    }
+
+    private String normalizeValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof List<?> list) {
+            return list.stream()
+                    .map(this::normalizeValue)
+                    .filter(StringUtils::hasText)
+                    .collect(Collectors.joining(","));
+        }
+        return String.valueOf(value);
+    }
+
+    private String findSelectedOption(List<GrafanaVariableOption> options) {
+        return options.stream()
+                .filter(GrafanaVariableOption::selected)
+                .map(GrafanaVariableOption::value)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
     }
 
     private String extractFirstQuery(List<GrafanaTarget> targets) {
@@ -315,7 +401,8 @@ public class GrafanaClient {
     private record GrafanaDashboardResponse(GrafanaDashboard dashboard) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record GrafanaDashboard(List<GrafanaDashboardPanel> panels) {
+    private record GrafanaDashboard(
+            String title, GrafanaTemplating templating, List<GrafanaDashboardPanel> panels) {
         Optional<GrafanaDashboardPanel> panelById(int panelId) {
             if (panels == null) {
                 return Optional.empty();
@@ -351,6 +438,23 @@ public class GrafanaClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaSearchItem(String uid, String url, String title) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaTemplating(List<GrafanaVariable> list) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaVariable(
+            String name,
+            String label,
+            String type,
+            GrafanaVariableCurrent current,
+            List<GrafanaVariableOptionResponse> options) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaVariableCurrent(Object value) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaVariableOptionResponse(String text, Object value, Boolean selected) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaHealthResponse(String database, String message) {}

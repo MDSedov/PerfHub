@@ -65,6 +65,7 @@ public class VictoriaMetricsService {
     private final VmDataCache vmDataCache;
     private final VictoriaMetricsTestsCache testsCache;
     private final LoadTestRepository loadTestRepository;
+    private final GrafanaVariableService grafanaVariableService;
     private final ConfigurationProvider configurationProvider;
     private final ObjectMapper objectMapper;
 
@@ -75,6 +76,7 @@ public class VictoriaMetricsService {
             VmDataCache vmDataCache,
             VictoriaMetricsTestsCache testsCache,
             LoadTestRepository loadTestRepository,
+            GrafanaVariableService grafanaVariableService,
             ConfigurationProvider configurationProvider,
             ObjectMapper objectMapper) {
         this.grafanaPanelRepository = grafanaPanelRepository;
@@ -82,6 +84,7 @@ public class VictoriaMetricsService {
         this.vmDataCache = vmDataCache;
         this.testsCache = testsCache;
         this.loadTestRepository = loadTestRepository;
+        this.grafanaVariableService = grafanaVariableService;
         this.configurationProvider = configurationProvider;
         this.objectMapper = objectMapper;
     }
@@ -210,7 +213,7 @@ public class VictoriaMetricsService {
         }
 
         Optional<GrafanaDashboardPanelRecord> panel = resolvePanel(type);
-        return panel.map(GrafanaDashboardPanelRecord::panelQuery)
+        return panel.map(record -> grafanaVariableService.applyVariables(record.panelQuery(), record.dashboardUid()))
                 .filter(StringUtils::hasText)
                 .orElseThrow(() -> new VmQueryNotFoundException(type));
     }

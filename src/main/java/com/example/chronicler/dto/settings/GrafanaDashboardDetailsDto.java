@@ -7,4 +7,5 @@ public record GrafanaDashboardDetailsDto(
         String slug,
         String title,
         boolean enabled,
-        List<GrafanaDashboardPanelDto> panels) {}
+        List<GrafanaDashboardPanelDto> panels,
+        List<GrafanaDashboardVariableDto> variables) {}
