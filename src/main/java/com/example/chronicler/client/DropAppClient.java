@@ -257,6 +257,10 @@ public class DropAppClient {
         if (podLabels == null || podLabels.isEmpty()) {
             return "";
         }
+        String versionLabel = podLabels.get("helpers.app.kubernetes.io/version");
+        if (versionLabel != null && !versionLabel.isBlank()) {
+            return versionLabel.trim();
+        }
         String branch = podLabels.get("helperrs.app.kubernetes.io/config-branch");
         if (branch == null || branch.isBlank()) {
             branch = podLabels.get("helpers.app.kubernetes.io/config-branch");

@@ -648,6 +648,7 @@
     const configStatusByTest = new Map();
     const activeStatusControllers = new Map();
     const testStatusElements = new Map();
+    const releaseCells = new Map();
     const knownTestIds = new Set();
     const pendingConfigRequests = new Set();
     const expandedTests = new Set();
@@ -815,15 +816,59 @@
         });
     }
 
+    function normalizeReleaseValue(value) {
+        if (value === undefined || value === null) {
+            return null;
+        }
+        const text = String(value).trim();
+        return text === '' ? null : text;
+    }
+
     function getReleaseValue(test) {
         if (!test) {
             return null;
         }
-        const value = test.release ?? test.version;
-        if (value === undefined || value === null || value === '') {
+        return normalizeReleaseValue(test.release ?? test.version);
+    }
+
+    function deriveReleaseFromConfiguration(items) {
+        if (!Array.isArray(items)) {
             return null;
         }
-        return String(value);
+        for (const item of items) {
+            const release = normalizeReleaseValue(item?.release ?? item?.version);
+            if (release) {
+                return release;
+            }
+        }
+        return null;
+    }
+
+    function setTestRelease(testId, release) {
+        const normalized = normalizeReleaseValue(release);
+        if (!normalized) {
+            return;
+        }
+        const test = findTestById(testId);
+        if (!test || test.release === normalized) {
+            return;
+        }
+        test.release = normalized;
+        const cell = releaseCells.get(testId);
+        if (cell) {
+            cell.textContent = normalized;
+        }
+        updateReleaseOptions(allTests);
+        if ((filterState.releases ?? []).length > 0) {
+            applyFilters();
+        }
+    }
+
+    function updateTestReleaseFromConfiguration(testId, items) {
+        const release = deriveReleaseFromConfiguration(items);
+        if (release) {
+            setTestRelease(testId, release);
+        }
     }
 
     function updateReleaseOptions(tests) {
@@ -1302,6 +1347,7 @@
                     try {
                         const captured = await captureConfiguration(testId);
                         updateConfigurationStatusIcon(testId, captured);
+                        updateTestReleaseFromConfiguration(testId, captured);
                         renderConfiguration(container, captured, testId);
                         showToast('Получена конфигурация DropApp для теста', 'success');
                     } catch (error) {
@@ -1560,6 +1606,7 @@
         try {
             const configuration = await ensureTestConfiguration(testId);
             updateConfigurationStatusIcon(testId, configuration);
+            updateTestReleaseFromConfiguration(testId, configuration);
             renderConfiguration(configurationBox, configuration, testId);
         } catch (error) {
             updateConfigurationStatusIcon(testId, null, true);
@@ -1653,6 +1700,7 @@
         resetTestStatusRequests();
         testConfigurationStatusElements.clear();
         testStatusElements.clear();
+        releaseCells.clear();
         if (resetCaches) {
             evaluationCache.clear();
             evaluationRequests.clear();
@@ -1682,6 +1730,9 @@
             const releaseCell = document.createElement('td');
             const releaseValue = getReleaseValue(test);
             releaseCell.textContent = releaseValue ?? '—';
+            if (test?.id) {
+                releaseCells.set(test.id, releaseCell);
+            }
 
             const typeCell = document.createElement('td');
             const normalizedType = (test.type ?? 'unknown').toLowerCase();
@@ -1729,7 +1780,10 @@
             configurationCell.appendChild(configurationIcon);
             testConfigurationStatusElements.set(test.id, configurationIcon);
             ensureTestConfiguration(test.id)
-                    .then(items => updateConfigurationStatusIcon(test.id, items))
+                    .then(items => {
+                        updateConfigurationStatusIcon(test.id, items);
+                        updateTestReleaseFromConfiguration(test.id, items);
+                    })
                     .catch(() => updateConfigurationStatusIcon(test.id, null, true));
 
             const detailsCell = document.createElement('td');
@@ -2006,12 +2060,14 @@
         for (const testId of queue) {
             const cached = testConfigurationCache.get(testId);
             if (Array.isArray(cached) && cached.length > 0) {
+                updateTestReleaseFromConfiguration(testId, cached);
                 pendingConfigRequests.delete(testId);
                 continue;
             }
             try {
                 const captured = await captureConfiguration(testId);
                 updateConfigurationStatusIcon(testId, captured);
+                updateTestReleaseFromConfiguration(testId, captured);
                 pendingConfigRequests.delete(testId);
             } catch (error) {
                 updateConfigurationStatusIcon(testId, null, true);

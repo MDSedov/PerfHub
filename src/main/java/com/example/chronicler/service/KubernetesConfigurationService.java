@@ -8,6 +8,7 @@ import com.example.chronicler.repository.KubernetesConfigurationRepository;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -33,6 +34,14 @@ public class KubernetesConfigurationService {
         return repository.findByTest(testUuid).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+    }
+
+    public Map<UUID, String> findReleases(Collection<UUID> testUuids) {
+        return repository.findLatestReleases(testUuids);
+    }
+
+    public String findRelease(UUID testUuid) {
+        return repository.findLatestRelease(testUuid);
     }
 
     /**

@@ -5,7 +5,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -47,6 +51,50 @@ public class KubernetesConfigurationRepository {
     public boolean existsForTest(UUID testUuid) {
         List<Integer> result = jdbcTemplate.query(EXISTS_SQL, ps -> ps.setObject(1, testUuid), (rs, rowNum) -> 1);
         return !result.isEmpty();
+    }
+
+    public Map<UUID, String> findLatestReleases(Collection<UUID> testUuids) {
+        if (CollectionUtils.isEmpty(testUuids)) {
+            return Collections.emptyMap();
+        }
+        String placeholders = String.join(",", Collections.nCopies(testUuids.size(), "?"));
+        String sql = """
+                SELECT test_uuid, release
+                FROM kubernetes_configurations
+                WHERE test_uuid IN (%s) AND release IS NOT NULL AND release <> ''
+                ORDER BY captured_at DESC, id DESC
+                """.formatted(placeholders);
+        Map<UUID, String> result = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                sql,
+                testUuids.toArray(),
+                rs -> {
+                    UUID testUuid = rs.getObject("test_uuid", UUID.class);
+                    if (!result.containsKey(testUuid)) {
+                        result.put(testUuid, rs.getString("release"));
+                    }
+                });
+        return result;
+    }
+
+    public String findLatestRelease(UUID testUuid) {
+        if (testUuid == null) {
+            return null;
+        }
+        List<String> releases = jdbcTemplate.query(
+                """
+                        SELECT release
+                        FROM kubernetes_configurations
+                        WHERE test_uuid = ? AND release IS NOT NULL AND release <> ''
+                        ORDER BY captured_at DESC, id DESC
+                        LIMIT 1
+                        """,
+                ps -> ps.setObject(1, testUuid),
+                (rs, rowNum) -> rs.getString("release"));
+        if (releases.isEmpty()) {
+            return null;
+        }
+        return releases.get(0);
     }
 
     public void saveAll(UUID testUuid, List<KubernetesConfiguration> configurations) {

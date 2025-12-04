@@ -13,6 +13,7 @@ public record LoadTestView(
         String start,
         String end,
         String type,
+        String release,
         long durationSeconds,
         RequirementComplianceView requirementCompliance,
         String comment) {
@@ -22,12 +23,17 @@ public record LoadTestView(
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(MOSCOW_ZONE);
 
     public static LoadTestView fromModel(LoadTest loadTest, RequirementComplianceView compliance) {
+        return fromModel(loadTest, compliance, null);
+    }
+
+    public static LoadTestView fromModel(LoadTest loadTest, RequirementComplianceView compliance, String release) {
         LoadTestType type = loadTest.type() == null ? LoadTestType.UNKNOWN : loadTest.type();
         return new LoadTestView(
                 loadTest.id().toString(),
                 formatInstant(loadTest.start()),
                 formatInstant(loadTest.end()),
                 type.value(),
+                normalizeRelease(release),
                 calculateDurationSeconds(loadTest.start(), loadTest.end()),
                 compliance,
                 loadTest.comment());
@@ -46,5 +52,13 @@ public record LoadTestView(
             return null;
         }
         return FORMATTER.format(instant);
+    }
+
+    private static String normalizeRelease(String release) {
+        if (release == null) {
+            return null;
+        }
+        String trimmed = release.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

@@ -13,6 +13,7 @@ import com.example.chronicler.service.KubernetesConfigurationService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.http.MediaType;
@@ -43,8 +44,12 @@ public class LoadTestController {
 
     @GetMapping
     public List<LoadTestView> listTests() {
-        return loadTestRepository.findAllOrderByStartDesc().stream()
-                .map(loadTest -> LoadTestView.fromModel(loadTest, buildComplianceView(loadTest.id())))
+        List<LoadTest> tests = loadTestRepository.findAllOrderByStartDesc();
+        Map<UUID, String> releases = kubernetesConfigurationService.findReleases(
+                tests.stream().map(LoadTest::id).collect(Collectors.toList()));
+        return tests.stream()
+                .map(loadTest -> LoadTestView.fromModel(
+                        loadTest, buildComplianceView(loadTest.id()), releases.get(loadTest.id())))
                 .collect(Collectors.toList());
     }
 
@@ -67,7 +72,8 @@ public class LoadTestController {
             @PathVariable("testUuid") UUID testUuid, @RequestBody SaveTestCommentRequest request) {
         Objects.requireNonNull(testUuid, "testUuid must not be null");
         LoadTest updated = loadTestRepository.updateComment(testUuid, request != null ? request.comment() : null);
-        return LoadTestView.fromModel(updated, buildComplianceView(updated.id()));
+        return LoadTestView.fromModel(
+                updated, buildComplianceView(updated.id()), kubernetesConfigurationService.findRelease(testUuid));
     }
 
     private RequirementComplianceView buildComplianceView(UUID testUuid) {
