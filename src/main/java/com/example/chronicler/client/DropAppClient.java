@@ -257,25 +257,33 @@ public class DropAppClient {
         if (podLabels == null || podLabels.isEmpty()) {
             return "";
         }
+        String branch = podLabels.get("helpers.app.kubernetes.io/config-branch");
+        if (branch == null || branch.isBlank()) {
+            branch = podLabels.get("helperrs.app.kubernetes.io/config-branch");
+        }
+        String normalized = normalizeRelease(branch);
+        if (!normalized.isBlank()) {
+            return normalized;
+        }
         String versionLabel = podLabels.get("helpers.app.kubernetes.io/version");
-        if (versionLabel != null && !versionLabel.isBlank()) {
-            return versionLabel.trim();
-        }
-        String branch = podLabels.get("helperrs.app.kubernetes.io/config-branch");
-        if (branch == null || branch.isBlank()) {
-            branch = podLabels.get("helpers.app.kubernetes.io/config-branch");
-        }
-        if (branch == null || branch.isBlank()) {
+        return normalizeRelease(versionLabel);
+    }
+
+    private String normalizeRelease(String value) {
+        if (value == null) {
             return "";
         }
-
-        String value = branch.trim();
-        if (value.toLowerCase(Locale.ROOT).startsWith("release")) {
-            value = value.substring("release".length());
-            value = value.replaceFirst("^[._\\-/]+", "");
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            return "";
         }
-        value = value.replace('_', '.');
-        return value;
+        if (normalized.toLowerCase(Locale.ROOT).startsWith("release")) {
+            normalized = normalized.substring("release".length());
+        }
+        normalized = normalized.replaceFirst("^[._\\-/]+", "");
+        normalized = normalized.replace('_', '.');
+        normalized = normalized.replaceAll("\\s+", "");
+        return normalized;
     }
 
     private String extractValue(KubernetesContainer container, Function<KubernetesContainer, String> extractor) {
