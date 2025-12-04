@@ -19,11 +19,15 @@ public class LoadTestMonitoringScheduler {
 
     private final VictoriaMetricsService victoriaMetricsService;
     private final KubernetesConfigurationService kubernetesConfigurationService;
+    private final BackgroundErrorService backgroundErrorService;
 
     public LoadTestMonitoringScheduler(
-            VictoriaMetricsService victoriaMetricsService, KubernetesConfigurationService kubernetesConfigurationService) {
+            VictoriaMetricsService victoriaMetricsService,
+            KubernetesConfigurationService kubernetesConfigurationService,
+            BackgroundErrorService backgroundErrorService) {
         this.victoriaMetricsService = victoriaMetricsService;
         this.kubernetesConfigurationService = kubernetesConfigurationService;
+        this.backgroundErrorService = backgroundErrorService;
     }
 
     @Scheduled(
@@ -39,7 +43,9 @@ public class LoadTestMonitoringScheduler {
                     .collect(Collectors.toList());
             kubernetesConfigurationService.captureConfigurationsIfMissing(testIds);
         } catch (Exception ex) {
-            log.error("Не удалось обновить информацию о текущих нагрузочных тестах", ex);
+            String message = "Не удалось обновить информацию о текущих нагрузочных тестах";
+            log.error(message, ex);
+            backgroundErrorService.publish(message + ": " + ex.getMessage());
         }
     }
 }
