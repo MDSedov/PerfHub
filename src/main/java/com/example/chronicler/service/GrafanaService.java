@@ -66,23 +66,19 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        List<GrafanaDashboard> dashboardConfigs = grafanaDashboardRepository.findAll().stream()
-                .filter(GrafanaDashboard::enabled)
+        List<GrafanaDashboard> dashboardConfigs = grafanaDashboardRepository.findAll();
+        List<GrafanaDashboard> dashboardsWithPanels = dashboardConfigs.stream()
+                .filter(config -> config.panels() != null && !config.panels().isEmpty())
                 .toList();
-        if (dashboardConfigs.isEmpty()) {
-            throw new GrafanaRenderingException("No enabled Grafana dashboards configured");
+        if (dashboardsWithPanels.isEmpty()) {
+            throw new GrafanaRenderingException("No Grafana panels selected for export");
         }
 
         List<GrafanaRenderedDashboard> dashboards = new ArrayList<>();
-        for (GrafanaDashboard dashboardConfig : dashboardConfigs) {
+        for (GrafanaDashboard dashboardConfig : dashboardsWithPanels) {
             String uid = requireText(dashboardConfig.uid(), "uid");
             String slug = requireText(dashboardConfig.slug(), "slug");
             List<Integer> panels = dashboardConfig.panels();
-
-            if (panels == null || panels.isEmpty()) {
-                throw new GrafanaRenderingException(
-                        "Dashboard '" + slug + "' must contain at least one panel identifier");
-            }
 
             List<GrafanaRenderedPanel> renderedPanels = new ArrayList<>(panels.size());
             for (Integer panelId : panels) {

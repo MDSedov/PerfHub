@@ -8,4 +8,4 @@ public record GrafanaDashboardCreateRequest(
         @NotBlank String uid,
         @NotBlank String slug,
         @NotNull List<Integer> panels,
-        @NotNull Boolean enabled) {}
+        Boolean enabled) {}

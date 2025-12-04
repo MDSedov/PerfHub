@@ -22,9 +22,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
-import java.util.UUID;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -238,9 +239,14 @@ public class RequirementEvaluationService {
         Map<String, List<GrafanaDashboardPanelRecord>> panelsByUid =
                 grafanaDashboardPanelRepository.findAllGroupedByUid();
         return grafanaDashboardRepository.findAll().stream()
-                .filter(GrafanaDashboard::enabled)
-                .flatMap(dashboard -> dashboard.panels().stream()
-                        .map(panelId -> findPanel(panelsByUid, dashboard.uid(), panelId)))
+                .flatMap(dashboard -> {
+                    List<Integer> panels = dashboard.panels();
+                    if (panels == null || panels.isEmpty()) {
+                        return Stream.empty();
+                    }
+                    return panels.stream()
+                            .map(panelId -> findPanel(panelsByUid, dashboard.uid(), panelId));
+                })
                 .filter(Objects::nonNull)
                 .toList();
     }

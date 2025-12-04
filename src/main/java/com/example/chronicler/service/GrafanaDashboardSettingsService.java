@@ -92,12 +92,12 @@ public class GrafanaDashboardSettingsService {
         return discovered;
     }
 
-    public GrafanaDashboard create(String uid, String slug, List<Integer> panels, boolean enabled) {
+    public GrafanaDashboard create(String uid, String slug, List<Integer> panels, Boolean enabled) {
         return repository.upsert(new GrafanaDashboard(
                 normalizeUid(uid),
                 normalizeSlug(slug),
                 normalizePanels(panels),
-                enabled));
+                resolveEnabled(enabled)));
     }
 
     @Transactional
@@ -105,7 +105,7 @@ public class GrafanaDashboardSettingsService {
             String uid,
             String slug,
             List<Integer> panels,
-            boolean enabled,
+            Boolean enabled,
             List<GrafanaDashboardPanelUpdateRequest> panelSettings,
             List<GrafanaDashboardVariableUpdateRequest> variables) {
         String normalizedUid = normalizeUid(uid);
@@ -219,7 +219,7 @@ public class GrafanaDashboardSettingsService {
                 normalizedUid,
                 normalizedSlug,
                 normalizePanels(selectedPanels),
-                enabled));
+                resolveEnabled(enabled)));
     }
 
     public void delete(String uid) {
@@ -242,7 +242,7 @@ public class GrafanaDashboardSettingsService {
                 : savedDashboard.panels().stream()
                         .filter(availablePanels::contains)
                         .collect(Collectors.toSet());
-        boolean enabled = savedDashboard != null && savedDashboard.enabled();
+        boolean enabled = resolveEnabled(savedDashboard != null ? savedDashboard.enabled() : null);
 
         repository.upsert(new GrafanaDashboard(
                 normalizedUid,
@@ -378,7 +378,7 @@ public class GrafanaDashboardSettingsService {
                 normalizedUid,
                 savedDashboard.slug(),
                 title,
-                savedDashboard.enabled(),
+                resolveEnabled(savedDashboard.enabled()),
                 panels,
                 variables);
     }
@@ -422,6 +422,10 @@ public class GrafanaDashboardSettingsService {
 
     private String resolveTitle(GrafanaDashboardDefinition discovered) {
         return StringUtils.hasText(discovered.title()) ? discovered.title() : discovered.slug();
+    }
+
+    private boolean resolveEnabled(Boolean enabled) {
+        return true;
     }
 
     private String normalizeSlug(String slug) {

@@ -96,10 +96,6 @@
             width: 100%;
         }
 
-        .dashboard-card.offline {
-            opacity: 0.8;
-        }
-
         .dashboard-meta {
             color: #6c757d;
             font-size: 0.9rem;
@@ -348,23 +344,7 @@
         title.appendChild(heading);
         title.appendChild(meta);
 
-        const toggleWrapper = document.createElement('div');
-        toggleWrapper.className = 'form-check form-switch';
-        const toggle = document.createElement('input');
-        toggle.type = 'checkbox';
-        toggle.className = 'form-check-input dashboard-toggle';
-        toggle.role = 'switch';
-        toggle.checked = Boolean(item?.enabled);
-        toggle.addEventListener('change', () => card.classList.toggle('offline', !toggle.checked));
-        const toggleLabel = document.createElement('label');
-        toggleLabel.className = 'form-check-label';
-        toggleLabel.textContent = 'Выгружать графики';
-
-        toggleWrapper.appendChild(toggle);
-        toggleWrapper.appendChild(toggleLabel);
-
         header.appendChild(title);
-        header.appendChild(toggleWrapper);
         body.appendChild(header);
 
         if (item?.variables?.length) {
@@ -417,7 +397,6 @@
         footer.appendChild(saveButton);
         body.appendChild(footer);
 
-        card.classList.toggle('offline', !toggle.checked);
         card.appendChild(body);
         return card;
     }
@@ -569,7 +548,6 @@
     function collectDashboardPayload(card) {
         const uid = card.dataset.dashboardUid;
         const slug = card.dataset.dashboardSlug;
-        const enabled = card.querySelector('.dashboard-toggle')?.checked ?? false;
         const panelSettings = Array.from(card.querySelectorAll('tr[data-panel-id]')).map(row => {
             const panelId = Number.parseInt(row.dataset.panelId, 10);
             const selected = row.querySelector('.panel-select')?.checked ?? false;
@@ -591,7 +569,7 @@
                 .filter(panel => panel.selected)
                 .map(panel => panel.panelId)
                 .filter(Number.isFinite);
-        return { uid, slug, enabled, panels, panelSettings, variables };
+        return { uid, slug, panels, panelSettings, variables };
     }
 
     async function saveDashboard(card) {
@@ -600,9 +578,6 @@
             if (!payload.uid || !payload.slug) {
                 throw new Error('Нет данных о дашборде.');
             }
-            if (payload.enabled && (!payload.panels || payload.panels.length === 0)) {
-                throw new Error('Выберите хотя бы один график или выключите дашборд.');
-            }
 
             const response = await fetch(`/api/settings/grafana-dashboards/${payload.uid}`, {
                 method: 'PUT',
@@ -610,7 +585,6 @@
                 body: JSON.stringify({
                     slug: payload.slug,
                     panels: payload.panels,
-                    enabled: payload.enabled,
                     panelSettings: payload.panelSettings,
                     variables: payload.variables
                 })
