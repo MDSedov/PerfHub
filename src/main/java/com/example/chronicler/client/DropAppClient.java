@@ -261,12 +261,7 @@ public class DropAppClient {
         if (branch == null || branch.isBlank()) {
             branch = podLabels.get("helperrs.app.kubernetes.io/config-branch");
         }
-        String normalized = normalizeRelease(branch);
-        if (!normalized.isBlank()) {
-            return normalized;
-        }
-        String versionLabel = podLabels.get("helpers.app.kubernetes.io/version");
-        return normalizeRelease(versionLabel);
+        return normalizeRelease(branch);
     }
 
     private String normalizeRelease(String value) {

@@ -356,19 +356,27 @@
             }
         };
 
+        const valueOrDash = (value) => {
+            if (value === undefined || value === null) {
+                return '—';
+            }
+            const text = String(value).trim();
+            return text === '' ? '—' : text;
+        };
+
         const renderRows = (items) => {
             tableBody.innerHTML = '';
             items.forEach(item => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${item.podName ?? ''}</td>
-                    <td>${item.containerName ?? ''}</td>
-                    <td>${item.version ?? ''}</td>
-                    <td>${item.release ?? ''}</td>
-                    <td>${item.requestCpu ?? ''}</td>
-                    <td>${item.limitCpu ?? ''}</td>
-                    <td>${item.requestRam ?? ''}</td>
-                    <td>${item.limitRam ?? ''}</td>`;
+                    <td>${valueOrDash(item.podName)}</td>
+                    <td>${valueOrDash(item.containerName)}</td>
+                    <td>${valueOrDash(item.version)}</td>
+                    <td>${valueOrDash(item.release)}</td>
+                    <td>${valueOrDash(item.requestCpu)}</td>
+                    <td>${valueOrDash(item.limitCpu)}</td>
+                    <td>${valueOrDash(item.requestRam)}</td>
+                    <td>${valueOrDash(item.limitRam)}</td>`;
                 tableBody.appendChild(row);
             });
         };

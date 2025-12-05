@@ -828,7 +828,7 @@
         if (!test) {
             return null;
         }
-        return normalizeReleaseValue(test.release ?? test.version);
+        return normalizeReleaseValue(test.release);
     }
 
     function deriveReleaseFromConfiguration(items) {
@@ -836,7 +836,7 @@
             return null;
         }
         for (const item of items) {
-            const release = normalizeReleaseValue(item?.release ?? item?.version);
+            const release = normalizeReleaseValue(item?.release);
             if (release) {
                 return release;
             }
@@ -1396,7 +1396,10 @@
 
     function appendConfigCell(row, value) {
         const cell = document.createElement('td');
-        cell.textContent = value ?? '';
+        cell.textContent = normalizeReleaseValue(value) ?? (value ?? '');
+        if (!cell.textContent || cell.textContent.trim() === '') {
+            cell.textContent = '—';
+        }
         row.appendChild(cell);
     }
 
