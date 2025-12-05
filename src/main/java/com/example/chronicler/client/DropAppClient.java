@@ -120,7 +120,7 @@ public class DropAppClient {
                         ? metadata.labels()
                         : Collections.emptyMap();
                 String version = resolveVersion(podLabels, deployments);
-                String release = extractRelease(podLabels);
+                String release = resolveRelease(podLabels, deployments);
                 if (pod.spec() == null || pod.spec().containers() == null) {
                     continue;
                 }
@@ -188,7 +188,7 @@ public class DropAppClient {
                 if (selector.isEmpty()) {
                     continue;
                 }
-                descriptors.add(new DeploymentDescriptor(selector, version));
+                descriptors.add(new DeploymentDescriptor(selector, version, extractReleaseFromLabels(metadata.labels())));
             }
             return descriptors;
         } catch (RestClientResponseException ex) {
@@ -253,13 +253,28 @@ public class DropAppClient {
         return metadata.labels().getOrDefault("helpers.app.kubernetes.io/version", "");
     }
 
-    private String extractRelease(Map<String, String> podLabels) {
-        if (podLabels == null || podLabels.isEmpty()) {
+    private String resolveRelease(Map<String, String> podLabels, List<DeploymentDescriptor> deployments) {
+        String release = extractReleaseFromLabels(podLabels);
+        if (!release.isBlank()) {
+            return release;
+        }
+        if (deployments != null) {
+            for (DeploymentDescriptor descriptor : deployments) {
+                if (matchesAll(podLabels, descriptor.selector()) && !descriptor.release().isBlank()) {
+                    return descriptor.release();
+                }
+            }
+        }
+        return "";
+    }
+
+    private String extractReleaseFromLabels(Map<String, String> labels) {
+        if (labels == null || labels.isEmpty()) {
             return "";
         }
-        String branch = podLabels.get("helpers.app.kubernetes.io/config-branch");
+        String branch = labels.get("helpers.app.kubernetes.io/config-branch");
         if (branch == null || branch.isBlank()) {
-            branch = podLabels.get("helperrs.app.kubernetes.io/config-branch");
+            branch = labels.get("helperrs.app.kubernetes.io/config-branch");
         }
         return normalizeRelease(branch);
     }
@@ -289,7 +304,7 @@ public class DropAppClient {
         return value != null ? value : "";
     }
 
-    private record DeploymentDescriptor(Map<String, String> selector, String version) {}
+    private record DeploymentDescriptor(Map<String, String> selector, String version, String release) {}
 
     private String headersForLogging(HttpHeaders headers) {
         if (headers == null || headers.isEmpty()) {
