@@ -30,6 +30,17 @@
                     <span>Тесты и отчеты</span>
                 </span>
             </a>
+            <div class="sidebar-submenu" style="margin-bottom: 0.5rem;">
+                <a class="sidebar-sublink"
+                   id="reportsSubLink"
+                   th:href="@{/reports}"
+                   th:classappend="${activePage} == 'reports' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-journal-text"></i></span>
+                        <span>Генерация отчётов</span>
+                    </span>
+                </a>
+            </div>
             <a class="sidebar-link" th:href="@{/settings/grafana-dashboards}"
                th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
                 <span class="sidebar-item">
@@ -81,52 +92,22 @@
         </div>
     </aside>
 
-    <div class="page-content">
-<main class="container-fluid py-5 px-4 px-lg-5">
-    <div class="row g-4 tests-layout">
-        <div class="col-12 col-lg-4">
-            <aside class="tests-sidebar">
-                <div class="sidebar-card">
-                    <h6 class="sidebar-title">Данные</h6>
-                    <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-success" id="refreshTestsButton">Запросить данные по тестам</button>
-                        <button type="button" class="btn btn-outline-success" id="evaluateTestsButton">Перепроверить тесты на требования</button>
-                    </div>
-                </div>
-                <div class="sidebar-card">
-                    <h6 class="sidebar-title">Фильтры</h6>
-                    <div class="mb-3">
-                        <label for="releaseFilter" class="form-label small text-muted mb-1">Релиз</label>
-                        <select id="releaseFilter" class="form-select" multiple size="4"></select>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-12 col-lg-6">
-                            <label for="periodStart" class="form-label small text-muted mb-1">Начало периода (МСК)</label>
-                            <input type="datetime-local" id="periodStart" class="form-control" step="1" placeholder="Выберите дату и время">
-                        </div>
-                        <div class="col-12 col-lg-6">
-                            <label for="periodEnd" class="form-label small text-muted mb-1">Конец периода (МСК)</label>
-                            <input type="datetime-local" id="periodEnd" class="form-control" step="1" placeholder="Выберите дату и время">
+    <div class="page-content" style="background: #ffffff; min-height: 100vh;">
+        <main class="container-fluid py-5 px-4 px-lg-5">
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-lg-4">
+                    <div class="sidebar-card h-100">
+                        <h6 class="sidebar-title">Данные</h6>
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-success" id="refreshTestsButton">Запросить данные по тестам</button>
+                            <button type="button" class="btn btn-outline-success" id="evaluateTestsButton">Перепроверить тесты на требования</button>
                         </div>
                     </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" value="" id="compliantFilter">
-                        <label class="form-check-label" for="compliantFilter">Тест соответствует требованиям</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" value="" id="configFilter">
-                        <label class="form-check-label" for="configFilter">Получена конфигурация DropApp</label>
-                    </div>
-                    <div class="d-grid gap-2 mt-3">
-                        <button type="button" class="btn btn-outline-secondary" id="resetFiltersButton">Сбросить фильтры</button>
-                    </div>
                 </div>
-            </aside>
-        </div>
+            </div>
 
-        <div class="col-12 col-lg-8">
             <section class="tests-content flex-grow-1">
-                <div class="card border-0 shadow-sm">
+                <div class="card border-0">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <div class="tests-meta">
@@ -135,6 +116,81 @@
                             </div>
                         </div>
                         <div id="testsStatus" class="alert alert-info d-none" role="alert"></div>
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                            <div class="filters-bar">
+                                <div class="dropdown" data-bs-auto-close="outside">
+                                    <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-tags"></i> Релиз
+                                    </a>
+                                    <div class="dropdown-menu filter-dropdown">
+                                        <p class="form-label small text-muted mb-2">Релизы</p>
+                                        <div id="releaseFilterList" class="filter-list"></div>
+                                    </div>
+                                </div>
+                                <div class="dropdown" data-bs-auto-close="outside">
+                                    <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-list-check"></i> Тип теста
+                                    </a>
+                                    <div class="dropdown-menu filter-dropdown">
+                                        <p class="form-label small text-muted mb-2">Типы</p>
+                                        <div id="typeFilterList" class="filter-list"></div>
+                                    </div>
+                                </div>
+                                <div class="dropdown" data-bs-auto-close="outside">
+                                    <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-hourglass-split"></i> Длительность
+                                    </a>
+                                    <div class="dropdown-menu filter-dropdown">
+                                        <label class="form-label small text-muted mb-2">Длительность (мин)</label>
+                                        <div class="d-flex gap-2">
+                                            <input type="number" class="form-control form-control-sm" id="durationFrom" placeholder="От" min="0">
+                                            <input type="number" class="form-control form-control-sm" id="durationTo" placeholder="До" min="0">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="dropdown" data-bs-auto-close="outside">
+                                    <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-calendar-event"></i> Период
+                                    </a>
+                                    <div class="dropdown-menu filter-dropdown">
+                                        <label class="form-label small text-muted mb-2" for="periodStart">Начало</label>
+                                        <input type="datetime-local" class="form-control form-control-sm mb-2" id="periodStart">
+                                        <label class="form-label small text-muted mb-2" for="periodEnd">Конец</label>
+                                        <input type="datetime-local" class="form-control form-control-sm" id="periodEnd">
+                                    </div>
+                                </div>
+                                <div class="dropdown" data-bs-auto-close="outside">
+                                    <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-shield-check"></i> Соответствие
+                                    </a>
+                                    <div class="dropdown-menu filter-dropdown">
+                                        <label class="form-label small text-muted mb-2" for="complianceFilter">Соответствие требованиям</label>
+                                        <select id="complianceFilter" class="form-select form-select-sm">
+                                            <option value="">Любое</option>
+                                            <option value="success">Соответствует</option>
+                                            <option value="fail">Не соответствует</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="dropdown" data-bs-auto-close="outside">
+                                    <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-hdd-network"></i> Конфигурация
+                                    </a>
+                                    <div class="dropdown-menu filter-dropdown">
+                                        <label class="form-label small text-muted mb-2" for="configFilter">Конфигурация DropApp</label>
+                                        <select id="configFilter" class="form-select form-select-sm">
+                                            <option value="">Любая</option>
+                                            <option value="has">Есть конфигурация</option>
+                                            <option value="missing">Нет конфигурации</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-link px-2 reset-filters-btn" id="resetFiltersButton">
+                                <i class="bi bi-x-lg"></i>
+                                <span>Сбросить фильтры</span>
+                            </button>
+                        </div>
                         <div class="tests-table-wrapper table-responsive">
                             <table class="table align-middle tests-table">
                                 <thead>
@@ -155,12 +211,9 @@
                     </div>
                 </div>
             </section>
-        </div>
-    </div>
-</main>
+        </main>
 
-<div id="toastContainer" class="toast-container"></div>
-
+        <div id="toastContainer" class="toast-container"></div>
     </div>
 </div>
 
@@ -175,13 +228,17 @@
     const testsCount = document.getElementById('testsCount');
     const refreshButton = document.getElementById('refreshTestsButton');
     const evaluateTestsButton = document.getElementById('evaluateTestsButton');
-    const releaseFilter = document.getElementById('releaseFilter');
+    const releaseFilterList = document.getElementById('releaseFilterList');
+    const typeFilterList = document.getElementById('typeFilterList');
+    const durationFromInput = document.getElementById('durationFrom');
+    const durationToInput = document.getElementById('durationTo');
     const periodStartInput = document.getElementById('periodStart');
     const periodEndInput = document.getElementById('periodEnd');
+    const complianceFilter = document.getElementById('complianceFilter');
+    const configFilter = document.getElementById('configFilter');
     const resetFiltersButton = document.getElementById('resetFiltersButton');
-    const compliantFilterCheckbox = document.getElementById('compliantFilter');
-    const configFilterCheckbox = document.getElementById('configFilter');
     const toastContainer = document.getElementById('toastContainer');
+    let filterDropdownsInitialized = false;
 
     const MOSCOW_TZ = 'Europe/Moscow';
     const DAYS_TO_FETCH = 30;
@@ -203,9 +260,81 @@
         unknown: 'UNKNOWN'
     };
 
+    function normalizeTestType(type) {
+        const normalized = (type ?? '').toString().toLowerCase();
+        if (normalized && TYPE_LABELS[normalized]) {
+            return TYPE_LABELS[normalized];
+        }
+        if (normalized) {
+            return normalized.toUpperCase();
+        }
+        return TYPE_LABELS.unknown;
+    }
+
+    function initFilterDropdowns() {
+        if (filterDropdownsInitialized) {
+            return;
+        }
+        const dropdowns = Array.from(document.querySelectorAll('.filters-bar .dropdown'));
+        if (dropdowns.length === 0) {
+            return;
+        }
+
+        if (window.bootstrap?.Dropdown) {
+            dropdowns.forEach(dropdown => {
+                const toggle = dropdown.querySelector('[data-bs-toggle="dropdown"]');
+                if (toggle) {
+                    new bootstrap.Dropdown(toggle, { autoClose: 'outside' });
+                }
+            });
+            filterDropdownsInitialized = true;
+            return;
+        }
+
+        const closeAll = (except = null) => {
+            dropdowns.forEach(dropdown => {
+                if (dropdown === except) {
+                    return;
+                }
+                const toggle = dropdown.querySelector('[data-bs-toggle="dropdown"]');
+                const menu = dropdown.querySelector('.dropdown-menu');
+                if (toggle) {
+                    toggle.setAttribute('aria-expanded', 'false');
+                }
+                if (menu) {
+                    menu.classList.remove('show');
+                }
+            });
+        };
+
+        dropdowns.forEach(dropdown => {
+            const toggle = dropdown.querySelector('[data-bs-toggle="dropdown"]');
+            const menu = dropdown.querySelector('.dropdown-menu');
+            if (!toggle || !menu) {
+                return;
+            }
+            toggle.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                const isOpen = menu.classList.contains('show');
+                closeAll(isOpen ? null : dropdown);
+                if (!isOpen) {
+                    menu.classList.add('show');
+                    toggle.setAttribute('aria-expanded', 'true');
+                }
+            });
+        });
+
+        document.addEventListener('click', event => {
+            if (!event.target.closest('.filters-bar .dropdown')) {
+                closeAll();
+            }
+        });
+
+        filterDropdownsInitialized = true;
+    }
+
     const NO_CONFIG_MESSAGE = 'Конфигурация DropApp для данного теста отсутствует';
-    const DEFAULT_RELEASE_VERSION = '2.6.0';
-    const ANY_RELEASE_VALUE = '__any__';
     const MISSING_RELEASE_VALUE = '__missing__';
     const AUTO_REFRESH_MS = 60_000;
 
@@ -245,10 +374,13 @@
     let allTests = [];
     let filterState = {
         releases: [],
+        types: [],
+        durationFrom: '',
+        durationTo: '',
         periodStart: '',
         periodEnd: '',
-        compliantOnly: false,
-        configOnly: false
+        compliance: '',
+        config: ''
     };
     let autoRefreshTimer = null;
     let autoRefreshInProgress = false;
@@ -269,15 +401,29 @@
 
     function resetFilters() {
         filterState.releases = [];
+        filterState.types = [];
+        filterState.durationFrom = '';
+        filterState.durationTo = '';
         filterState.periodStart = '';
         filterState.periodEnd = '';
-        filterState.compliantOnly = false;
-        filterState.configOnly = false;
+        filterState.compliance = '';
+        filterState.config = '';
 
-        if (releaseFilter) {
-            Array.from(releaseFilter.options).forEach(option => {
-                option.selected = option.value === ANY_RELEASE_VALUE;
+        if (releaseFilterList) {
+            releaseFilterList.querySelectorAll('input[type="checkbox"]').forEach(input => {
+                input.checked = false;
             });
+        }
+        if (typeFilterList) {
+            typeFilterList.querySelectorAll('input[type="checkbox"]').forEach(input => {
+                input.checked = false;
+            });
+        }
+        if (durationFromInput) {
+            durationFromInput.value = '';
+        }
+        if (durationToInput) {
+            durationToInput.value = '';
         }
         if (periodStartInput) {
             periodStartInput.value = '';
@@ -285,11 +431,11 @@
         if (periodEndInput) {
             periodEndInput.value = '';
         }
-        if (compliantFilterCheckbox) {
-            compliantFilterCheckbox.checked = false;
+        if (complianceFilter) {
+            complianceFilter.value = '';
         }
-        if (configFilterCheckbox) {
-            configFilterCheckbox.checked = false;
+        if (configFilter) {
+            configFilter.value = '';
         }
         if (testsStatus && testsStatus.classList.contains('alert-warning')) {
             clearTestsStatus();
@@ -460,50 +606,117 @@
         }
     }
 
-    function updateReleaseOptions(tests) {
-        if (!releaseFilter) {
+    function renderCheckboxList(container, values, selectedValues, namePrefix = '', labelFormatter = value => value) {
+        if (!container) {
             return;
         }
-        const uniqueReleases = Array.from(
-                new Set((tests ?? []).map(getReleaseValue).filter(Boolean))).sort();
-        const hasMissingRelease = (tests ?? []).some(test => !getReleaseValue(test));
-        releaseFilter.innerHTML = '';
-        const anyOption = document.createElement('option');
-        anyOption.value = ANY_RELEASE_VALUE;
-        anyOption.textContent = 'Любой';
-        anyOption.selected = filterState.releases.length === 0;
-        releaseFilter.appendChild(anyOption);
-
-        const allowedValues = new Set(uniqueReleases);
-        if (hasMissingRelease) {
-            allowedValues.add(MISSING_RELEASE_VALUE);
-        }
-
-        filterState.releases = filterState.releases.filter(value => allowedValues.has(value));
-
-        if (hasMissingRelease) {
-            const missingOption = document.createElement('option');
-            missingOption.value = MISSING_RELEASE_VALUE;
-            missingOption.textContent = 'Не указан';
-            missingOption.selected = filterState.releases.includes(MISSING_RELEASE_VALUE);
-            releaseFilter.appendChild(missingOption);
-        }
-
-        uniqueReleases.forEach(value => {
-            const option = document.createElement('option');
-            option.value = value;
-            option.textContent = value;
-            option.selected = filterState.releases.includes(value);
-            releaseFilter.appendChild(option);
+        container.innerHTML = '';
+        values.forEach((value, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'form-check';
+            const id = `${namePrefix}-${index}`;
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.className = 'form-check-input';
+            input.id = id;
+            input.value = value;
+            input.checked = selectedValues.includes(value);
+            input.dataset.filterValue = value;
+            const label = document.createElement('label');
+            label.className = 'form-check-label';
+            label.setAttribute('for', id);
+            const text = typeof labelFormatter === 'function'
+                    ? labelFormatter(value)
+                    : value;
+            label.textContent = text === MISSING_RELEASE_VALUE ? 'Не указан' : text;
+            wrapper.appendChild(input);
+            wrapper.appendChild(label);
+            container.appendChild(wrapper);
         });
+    }
 
-        if (!hasMissingRelease && uniqueReleases.length === 0 && filterState.releases.length === 0) {
-            const option = document.createElement('option');
-            option.value = DEFAULT_RELEASE_VERSION;
-            option.textContent = DEFAULT_RELEASE_VERSION;
-            option.selected = false;
-            releaseFilter.appendChild(option);
+    function collectCheckedValues(container) {
+        if (!container) {
+            return [];
         }
+        return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(input => input.value);
+    }
+
+    function bindReleaseCheckboxes() {
+        if (!releaseFilterList) {
+            return;
+        }
+        releaseFilterList.querySelectorAll('input[type="checkbox"]').forEach(input => {
+            input.addEventListener('change', () => {
+                filterState.releases = collectCheckedValues(releaseFilterList);
+                applyFilters();
+            });
+        });
+    }
+
+    function bindTypeCheckboxes() {
+        if (!typeFilterList) {
+            return;
+        }
+        typeFilterList.querySelectorAll('input[type="checkbox"]').forEach(input => {
+            input.addEventListener('change', () => {
+                filterState.types = collectCheckedValues(typeFilterList);
+                applyFilters();
+            });
+        });
+    }
+
+    function updateReleaseOptions(tests) {
+        if (!releaseFilterList) {
+            return;
+        }
+        const releases = new Set();
+        (tests ?? []).forEach(test => {
+            const value = getReleaseValue(test);
+            if (value === undefined || value === null || value === '') {
+                releases.add(MISSING_RELEASE_VALUE);
+            } else {
+                releases.add(value);
+            }
+        });
+        filterState.releases = (filterState.releases ?? []).filter(value => releases.has(value));
+        const sorted = Array.from(releases).sort((a, b) => {
+            if (a === MISSING_RELEASE_VALUE) return 1;
+            if (b === MISSING_RELEASE_VALUE) return -1;
+            return a.localeCompare(b, 'ru');
+        });
+        renderCheckboxList(
+                releaseFilterList,
+                sorted,
+                filterState.releases,
+                'release-filter',
+                value => (value === MISSING_RELEASE_VALUE ? 'Не указан' : value)
+        );
+        bindReleaseCheckboxes();
+    }
+
+    function updateTypeOptions(tests) {
+        if (!typeFilterList) {
+            return;
+        }
+        const types = new Set();
+        (tests ?? []).forEach(test => {
+            const value = (test.type ?? '').toString().toLowerCase();
+            if (value) {
+                types.add(value);
+            }
+        });
+        filterState.types = (filterState.types ?? []).filter(value => types.has(value));
+        const sorted = Array.from(types).sort((a, b) => a.localeCompare(b, 'ru'));
+        renderCheckboxList(
+                typeFilterList,
+                sorted,
+                filterState.types,
+                'type-filter',
+                normalizeTestType
+        );
+        bindTypeCheckboxes();
     }
 
     function resetTestStatusRequests() {
@@ -613,11 +826,12 @@
         const state = hasConfig ? 'success' : 'fail';
         setConfigurationStatus(icon, state);
         configStatusByTest.set(testId, state);
-        if (pendingConfigRequests.has(testId) && state === 'success' && previousState !== 'success') {
+        const stateChanged = previousState !== state;
+        if (pendingConfigRequests.has(testId) && state === 'success' && stateChanged) {
             showToast('Получена конфигурация DropApp для активного теста', 'success');
             pendingConfigRequests.delete(testId);
         }
-        if (filterState.configOnly) {
+        if (filterState.config && stateChanged) {
             applyFilters();
         }
     }
@@ -1230,6 +1444,7 @@
         pruneGrafanaCache(tests);
         allTests = Array.isArray(tests) ? tests.slice() : [];
         updateReleaseOptions(allTests);
+        updateTypeOptions(allTests);
         filterState.periodStart = periodStartInput?.value ?? '';
         filterState.periodEnd = periodEndInput?.value ?? '';
         applyFilters(true);
@@ -1237,8 +1452,15 @@
 
     function applyFilters(resetCaches = false) {
         const selectedReleases = filterState.releases ?? [];
+        const selectedTypes = filterState.types ?? [];
         const periodStart = parseDateTimeInput(filterState.periodStart);
         const periodEnd = parseDateTimeInput(filterState.periodEnd);
+        const durationFromRaw = (filterState.durationFrom ?? '').toString().trim();
+        const durationToRaw = (filterState.durationTo ?? '').toString().trim();
+        const hasDurationFrom = durationFromRaw !== '' && Number.isFinite(Number(durationFromRaw));
+        const hasDurationTo = durationToRaw !== '' && Number.isFinite(Number(durationToRaw));
+        const durationFrom = hasDurationFrom ? Number(durationFromRaw) : null;
+        const durationTo = hasDurationTo ? Number(durationToRaw) : null;
         const hasStart = periodStart instanceof Date && !Number.isNaN(periodStart);
         const hasEnd = periodEnd instanceof Date && !Number.isNaN(periodEnd);
         if (hasStart && hasEnd && periodEnd < periodStart) {
@@ -1258,6 +1480,26 @@
                     return false;
                 }
             }
+            if (selectedTypes.length > 0) {
+                const normalizedType = (test.type ?? '').toString().toLowerCase();
+                if (!selectedTypes.includes(normalizedType)) {
+                    return false;
+                }
+            }
+            if (hasDurationFrom || hasDurationTo) {
+                const durationMinutes = Number.isFinite(test.durationSeconds)
+                    ? Math.round(test.durationSeconds / 60)
+                    : null;
+                if (durationMinutes === null) {
+                    return false;
+                }
+                if (hasDurationFrom && durationMinutes < durationFrom) {
+                    return false;
+                }
+                if (hasDurationTo && durationMinutes > durationTo) {
+                    return false;
+                }
+            }
             const testDate = getTestDateTime(test);
             if (hasStart) {
                 if (!testDate || testDate < periodStart) {
@@ -1269,15 +1511,26 @@
                     return false;
                 }
             }
-            if (filterState.compliantOnly) {
-                const status = complianceStatusByTest.get(test.id);
-                if (status && status !== 'success') {
+            if (filterState.compliance) {
+                const desired = filterState.compliance === 'passed'
+                        ? 'success'
+                        : filterState.compliance === 'failed'
+                                ? 'fail'
+                                : filterState.compliance;
+                const status = (complianceStatusByTest.get(test.id) || '').toLowerCase();
+                if (desired === 'success' && status !== 'success') {
+                    return false;
+                }
+                if (desired === 'fail' && status !== 'fail') {
                     return false;
                 }
             }
-            if (filterState.configOnly) {
-                const cfgState = configStatusByTest.get(test.id);
-                if (cfgState && cfgState !== 'success') {
+            if (filterState.config) {
+                const cfgState = (configStatusByTest.get(test.id) || '').toLowerCase();
+                if (filterState.config === 'has' && cfgState !== 'success') {
+                    return false;
+                }
+                if (filterState.config === 'missing' && cfgState === 'success') {
                     return false;
                 }
             }
@@ -1328,10 +1581,7 @@
 
             const typeCell = document.createElement('td');
             const normalizedType = (test.type ?? 'unknown').toLowerCase();
-            const typePill = document.createElement('span');
-            typePill.className = 'test-type-pill';
-            typePill.textContent = TYPE_LABELS[normalizedType] ?? normalizedType;
-            typeCell.appendChild(typePill);
+            typeCell.textContent = TYPE_LABELS[normalizedType] ?? normalizedType.toUpperCase();
 
             const durationCell = document.createElement('td');
             durationCell.className = 'test-duration';
@@ -1349,14 +1599,17 @@
             complianceCell.className = 'text-center';
             const complianceIcon = document.createElement('span');
             complianceIcon.dataset.testId = test.id;
-            setPendingStatus(complianceIcon);
-            testStatusElements.set(test.id, complianceIcon);
-            if (test?.requirementCompliance?.evaluated) {
+            const knownCompliance = complianceStatusByTest.get(test.id);
+            if (knownCompliance) {
+                setComplianceStatus(complianceIcon, knownCompliance, test.id);
+            } else if (test?.requirementCompliance?.evaluated) {
                 const compliant = Boolean(test?.requirementCompliance?.compliant);
                 setTestStatusView(complianceIcon, compliant ? 'pass' : 'fail', test.id);
             } else {
                 complianceStatusByTest.set(test.id, 'pending');
+                setPendingStatus(complianceIcon);
             }
+            testStatusElements.set(test.id, complianceIcon);
             complianceCell.appendChild(complianceIcon);
 
             const configurationCell = document.createElement('td');
@@ -1467,7 +1720,7 @@
                 refreshButton.disabled = false;
             }
             isEvaluationInProgress = false;
-            if (filterState.compliantOnly) {
+            if (filterState.compliance) {
                 applyFilters();
             }
             updateEvaluateButtonState();
@@ -1562,29 +1815,16 @@
         });
     }
 
-    if (releaseFilter) {
-        releaseFilter.addEventListener('change', () => {
-            const selected = Array.from(releaseFilter.selectedOptions).map(option => option.value);
-            if (selected.includes(ANY_RELEASE_VALUE)) {
-                const withoutAny = selected.filter(value => value !== ANY_RELEASE_VALUE);
-                if (withoutAny.length > 0) {
-                    filterState.releases = withoutAny;
-                    Array.from(releaseFilter.options).forEach(option => {
-                        if (option.value === ANY_RELEASE_VALUE) {
-                            option.selected = false;
-                        } else if (filterState.releases.includes(option.value)) {
-                            option.selected = true;
-                        }
-                    });
-                } else {
-                    filterState.releases = [];
-                    Array.from(releaseFilter.options).forEach(option => {
-                        option.selected = option.value === ANY_RELEASE_VALUE;
-                    });
-                }
-            } else {
-                filterState.releases = selected;
-            }
+    if (durationFromInput) {
+        durationFromInput.addEventListener('change', () => {
+            filterState.durationFrom = durationFromInput.value;
+            applyFilters();
+        });
+    }
+
+    if (durationToInput) {
+        durationToInput.addEventListener('change', () => {
+            filterState.durationTo = durationToInput.value;
             applyFilters();
         });
     }
@@ -1603,22 +1843,22 @@
         });
     }
 
-    if (compliantFilterCheckbox) {
-        compliantFilterCheckbox.addEventListener('change', () => {
-            filterState.compliantOnly = compliantFilterCheckbox.checked;
+    if (complianceFilter) {
+        complianceFilter.addEventListener('change', () => {
+            filterState.compliance = complianceFilter.value;
             applyFilters();
         });
     }
 
-    if (configFilterCheckbox) {
-        configFilterCheckbox.addEventListener('change', () => {
-            filterState.configOnly = configFilterCheckbox.checked;
+    if (configFilter) {
+        configFilter.addEventListener('change', () => {
+            filterState.config = configFilter.value;
             applyFilters();
         });
     }
 
     if (resetFiltersButton) {
-        resetFiltersButton.addEventListener('click', () => resetFilters());
+        resetFiltersButton.addEventListener('click', resetFilters);
     }
 
     async function autoRefresh() {
@@ -1669,6 +1909,7 @@
     }
 
     (async function init() {
+        initFilterDropdowns();
         updateEvaluateButtonState();
         const loaded = await loadTests();
         if (loaded) {

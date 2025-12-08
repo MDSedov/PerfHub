@@ -30,6 +30,17 @@
                     <span>Тесты и отчеты</span>
                 </span>
             </a>
+            <div class="sidebar-submenu" style="margin-bottom: 0.5rem;">
+                <a class="sidebar-sublink"
+                   id="reportsSubLink"
+                   th:href="@{/reports}"
+                   th:classappend="${activePage} == 'reports' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-journal-text"></i></span>
+                        <span>Генерация отчётов</span>
+                    </span>
+                </a>
+            </div>
             <a class="sidebar-link" th:href="@{/settings/grafana-dashboards}"
                th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
                 <span class="sidebar-item">
