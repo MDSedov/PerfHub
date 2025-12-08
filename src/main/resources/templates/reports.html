@@ -10,188 +10,78 @@
             rel="stylesheet"
             integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
             crossorigin="anonymous">
-    <style>
-        body {
-            background-color: #f5fff9;
-            font-family: "SF Pro Display", "Roboto", "Segoe UI", sans-serif;
-        }
-
-        .navbar-sber {
-            background: linear-gradient(90deg, #009846, #2cd67b);
-            color: #ffffff;
-            box-shadow: 0 4px 18px rgba(0, 132, 82, 0.3);
-        }
-
-        .navbar-brand {
-            font-weight: 600;
-            letter-spacing: 0.03em;
-            color: #ffffff !important;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.55rem;
-        }
-
-        .brand-logo {
-            height: 42px;
-            width: auto;
-            border-radius: 14px;
-            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
-        }
-
-        .main-menu .nav-link {
-            color: rgba(255, 255, 255, 0.85);
-            font-weight: 500;
-            border-radius: 999px;
-            transition: background-color 0.2s ease, color 0.2s ease;
-        }
-
-        .main-menu .nav-link.active,
-        .main-menu .nav-link:hover,
-        .main-menu .nav-link:focus-visible {
-            background-color: #ffffff;
-            color: #009846;
-        }
-
-        .main-menu .dropdown-toggle::after {
-            margin-left: 0.35rem;
-        }
-
-        .dropdown-menu {
-            background-color: #ffffff;
-            border: none;
-            border-radius: 16px;
-            box-shadow: 0 20px 40px rgba(0, 152, 70, 0.25);
-            padding: 0.5rem;
-            min-width: 16rem;
-            max-width: min(22rem, calc(100vw - 1.5rem));
-            left: auto;
-            right: 0;
-        }
-
-        .dropdown-item {
-            border-radius: 12px;
-            padding: 0.5rem 0.9rem;
-            font-weight: 500;
-            color: #0b6b3c;
-        }
-
-        .dropdown-item.active,
-        .dropdown-item:focus,
-        .dropdown-item:hover {
-            background-color: rgba(0, 152, 70, 0.12);
-            color: #009846;
-        }
-
-        @media (min-width: 992px) {
-            .nav-item.dropdown:hover .dropdown-menu {
-                display: block;
-                margin-top: 0;
-            }
-        }
-
-        .card {
-            border-radius: 18px;
-        }
-
-        .badge-test-type {
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .report-form-hint {
-            background-color: rgba(0, 152, 70, 0.08);
-            border: 1px dashed rgba(0, 152, 70, 0.4);
-            border-radius: 14px;
-            padding: 0.85rem 1rem;
-            font-size: 0.9rem;
-        }
-
-        .table thead th {
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-            color: #6a7c73;
-        }
-
-        .tests-loader {
-            padding: 1.5rem 0;
-        }
-
-        .status-pill {
-            border-radius: 999px;
-            padding: 0.35rem 0.9rem;
-            font-size: 0.82rem;
-            font-weight: 600;
-        }
-
-        .selected-tests-list li + li {
-            margin-top: 0.35rem;
-        }
-
-        .selected-tests-list a {
-            text-decoration: none;
-        }
-
-        .selected-tests-list a:hover {
-            text-decoration: underline;
-        }
-    </style>
+    <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<nav class="navbar navbar-expand navbar-sber">
-    <div class="container-fluid align-items-center">
-        <a class="navbar-brand text-decoration-none" th:href="@{/tests}">
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="sidebar-brand" th:href="@{/tests}">
             <img src="/img/chronicler-logo.png" alt="Летописец" class="brand-logo" loading="lazy">
             <span>Летописец</span>
         </a>
-        <ul class="nav main-menu ms-3">
-            <li class="nav-item">
-                <a class="nav-link" th:href="@{/tests}" th:classappend="${activePage} == 'tests' ? ' active' : ''">Тесты</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" th:href="@{/reports}" th:classappend="${activePage} == 'reports' ? ' active' : ''">Отчеты</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" th:href="@{/configuration}" th:classappend="${activePage} == 'configuration' ? ' active' : ''">Конфигурация</a>
-            </li>
-            <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle"
-                   href="#"
-                   id="settingsMenu"
-                   role="button"
-                   data-bs-toggle="dropdown"
-                   aria-expanded="false"
-                   th:classappend="${activePage} == 'settings' ? ' active' : ''">
-                    Настройки
+        <div class="sidebar-menu">
+            <a class="sidebar-link" th:href="@{/tests}"
+               th:classappend="${activePage} == 'tests' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-activity"></i></span>
+                    <span>Тесты</span>
+                </span>
+            </a>
+            <a class="sidebar-link" th:href="@{/reports}"
+               th:classappend="${activePage} == 'reports' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-journal-text"></i></span>
+                    <span>Отчеты</span>
+                </span>
+            </a>
+            <a class="sidebar-link" th:href="@{/configuration}"
+               th:classappend="${activePage} == 'configuration' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-gear"></i></span>
+                    <span>Конфигурация</span>
+                </span>
+            </a>
+            <a class="sidebar-link"
+               th:href="@{/settings/connections}"
+               th:classappend="${activePage} == 'settings' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-sliders"></i></span>
+                    <span>Настройки</span>
+                </span>
+            </a>
+            <div class="sidebar-submenu">
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/connections}"
+                   th:classappend="${activeSettingsSection} == 'connections' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-plug"></i></span>
+                        <span>Подключения</span>
+                    </span>
                 </a>
-                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="settingsMenu">
-                    <li>
-                        <a class="dropdown-item"
-                           th:href="@{/settings/connections}"
-                           th:classappend="${activeSettingsSection} == 'connections' ? ' active' : ''">
-                            Подключения
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item"
-                           th:href="@{/settings/templates}"
-                           th:classappend="${activeSettingsSection} == 'templates' ? ' active' : ''">
-                            Шаблоны отчетов
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item"
-                           th:href="@{/settings/grafana-dashboards}"
-                           th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
-                            Графики и нефункциональные требования
-                        </a>
-                    </li>
-                </ul>
-            </li>
-        </ul>
-    </div>
-</nav>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/templates}"
+                   th:classappend="${activeSettingsSection} == 'templates' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-file-earmark-text"></i></span>
+                        <span>Шаблоны отчетов</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/grafana-dashboards}"
+                   th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                        <span>Графики и нефункциональные требования</span>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </aside>
 
+    <div class="page-content">
 <main class="container-fluid py-5 px-4 px-lg-5">
     <div class="row g-4">
         <div class="col-12 col-lg-4">
@@ -265,6 +155,9 @@
         </div>
     </div>
 </main>
+
+    </div>
+</div>
 
 <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
