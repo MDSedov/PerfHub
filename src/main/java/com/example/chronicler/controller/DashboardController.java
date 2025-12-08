@@ -17,10 +17,15 @@ public class DashboardController {
         return null;
     }
 
-    @GetMapping({"/", "/tests"})
+    @GetMapping("/")
+    public String index() {
+        return "index";
+    }
+
+    @GetMapping("/tests")
     public String tests(Model model) {
         model.addAttribute("activePage", "tests");
-        return "index";
+        return "tests";
     }
 
     @GetMapping("/reports")

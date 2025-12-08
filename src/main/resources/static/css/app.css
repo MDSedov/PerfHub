@@ -29,7 +29,7 @@ body {
         .sidebar-brand {
             font-weight: 700;
             letter-spacing: 0.01em;
-            color: #2c2c2b;
+            color: #5f5e5b;
             display: inline-flex;
             align-items: center;
             gap: 0.55rem;
@@ -59,10 +59,10 @@ body {
             width: 100%;
             padding: 0.65rem 0.9rem;
             border-radius: 10px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             background: transparent;
             border: none;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -71,13 +71,13 @@ body {
         .sidebar-link:hover,
         .sidebar-toggle:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-link.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
@@ -93,7 +93,7 @@ body {
 
         .chevron {
             font-size: 0.9rem;
-            color: #2c2c2b;
+            color: #5f5e5b;
             transition: transform 0.2s ease;
         }
 
@@ -111,7 +111,7 @@ body {
             display: block;
             padding: 0.45rem 0.85rem;
             border-radius: 8px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -120,14 +120,85 @@ body {
 
         .sidebar-sublink:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-sublink.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
+        }
+
+        .home-wrapper {
+            padding: 3rem 2.5rem;
+        }
+
+        .home-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(260px, 1fr));
+            grid-auto-rows: 1fr;
+            gap: 1.5rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .home-card {
+            background: #ffffff;
+            border: 1px solid #ededed;
+            border-radius: 14px;
+            box-shadow: 0 22px 60px rgba(0, 0, 0, 0.04);
+            padding: 2.2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.65rem;
+            text-align: center;
+            transition: border-color 0.12s ease;
+            font-size: 15px;
+        }
+
+        .home-card:hover {
+            border-color: #e5e5e5;
+            }
+
+        .home-card.wide {
+            grid-column: 1 / -1;
+        }
+
+        .home-card-icon {
+            font-size: 30px;
+            color: #a19e99;
+        }
+
+        .home-card-title {
+            font-weight: 700;
+            font-size: 15px;
+            color: #a19e99;
+            margin: 0;
+        }
+
+        .home-card-text {
+            margin: 0;
+            color: #a19e99;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .home-card-link {
+            margin-top: 0.35rem;
+            font-weight: 500;
+            color: #2783de;
+            text-decoration: none;
+            font-size: 15px;
+            padding: 9px 15px;
+            border-radius: 0;
+        }
+
+        .home-card-link:hover {
+            background-color: #f3f4f6;
+            color: #2783de;
+            border-radius: 6px;
         }
 
         .page-content {
@@ -146,7 +217,7 @@ body {
             align-items: center;
             justify-content: center;
             width: 20px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             font-size: 16px;
         }
 
@@ -179,7 +250,7 @@ body {
 
         .sidebar-title {
             font-size: 0.95rem;
-            font-weight: 600;
+            font-weight: 500;
             margin-bottom: 0.75rem;
             color: #1f2b24;
         }
@@ -266,7 +337,7 @@ body {
             border-radius: 6px;
             background: #ffffff;
             color: #0f1f16;
-            font-weight: 600;
+            font-weight: 500;
             font-variant-numeric: tabular-nums;
         }
 
@@ -318,7 +389,7 @@ body {
         .test-duration {
             font-variant-numeric: tabular-nums;
             color: #26332c;
-            font-weight: 600;
+            font-weight: 500;
         }
 
         .test-type-pill {
@@ -330,7 +401,7 @@ body {
             background-color: #e9f7f0;
             border: 1px solid #d3e8db;
             color: #0b7c64;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 0.75rem;
             letter-spacing: 0.04em;
             min-width: 68px;
@@ -435,7 +506,7 @@ body {
         }
 
         .requirement-code {
-            font-weight: 600;
+            font-weight: 500;
             color: #0b6b3c;
         }
 
@@ -460,7 +531,7 @@ body {
         }
 
         .grafana-panel-title {
-            font-weight: 600;
+            font-weight: 500;
             margin-bottom: 0.35rem;
         }
 
@@ -549,7 +620,7 @@ body {
         .sidebar-brand {
             font-weight: 700;
             letter-spacing: 0.01em;
-            color: #2c2c2b;
+            color: #5f5e5b;
             display: inline-flex;
             align-items: center;
             gap: 0.55rem;
@@ -579,10 +650,10 @@ body {
             width: 100%;
             padding: 0.65rem 0.9rem;
             border-radius: 10px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             background: transparent;
             border: none;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -591,13 +662,13 @@ body {
         .sidebar-link:hover,
         .sidebar-toggle:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-link.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
@@ -613,7 +684,7 @@ body {
 
         .chevron {
             font-size: 0.9rem;
-            color: #2c2c2b;
+            color: #5f5e5b;
             transition: transform 0.2s ease;
         }
 
@@ -631,7 +702,7 @@ body {
             display: block;
             padding: 0.45rem 0.85rem;
             border-radius: 8px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -640,14 +711,14 @@ body {
 
         .sidebar-sublink:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-sublink.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
-            border-radius: 0;
+            color: #5f5e5b;
+            border-radius: 6px;
         }
 
         .page-content {
@@ -666,7 +737,7 @@ body {
             align-items: center;
             justify-content: center;
             width: 20px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             font-size: 16px;
         }
 
@@ -702,7 +773,7 @@ body {
             border-radius: 999px;
             padding: 0.35rem 0.9rem;
             font-size: 0.82rem;
-            font-weight: 600;
+            font-weight: 500;
         }
 
         .selected-tests-list li + li {
@@ -767,7 +838,7 @@ body {
         .sidebar-brand {
             font-weight: 700;
             letter-spacing: 0.01em;
-            color: #2c2c2b;
+            color: #5f5e5b;
             display: inline-flex;
             align-items: center;
             gap: 0.55rem;
@@ -797,10 +868,10 @@ body {
             width: 100%;
             padding: 0.65rem 0.9rem;
             border-radius: 10px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             background: transparent;
             border: none;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -809,13 +880,13 @@ body {
         .sidebar-link:hover,
         .sidebar-toggle:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-link.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
@@ -831,7 +902,7 @@ body {
 
         .chevron {
             font-size: 0.9rem;
-            color: #2c2c2b;
+            color: #5f5e5b;
             transition: transform 0.2s ease;
         }
 
@@ -849,7 +920,7 @@ body {
             display: block;
             padding: 0.45rem 0.85rem;
             border-radius: 8px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -858,14 +929,14 @@ body {
 
         .sidebar-sublink:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-sublink.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
-            border-radius: 0;
+            color: #5f5e5b;
+            border-radius: 6px;
         }
 
         .page-content {
@@ -884,7 +955,7 @@ body {
             align-items: center;
             justify-content: center;
             width: 20px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             font-size: 16px;
         }
 
@@ -911,7 +982,7 @@ body {
         .btn-refresh {
             background: linear-gradient(135deg, #00b960, #2cd67b);
             border: none;
-            font-weight: 600;
+            font-weight: 500;
         }
 
         .btn-refresh:disabled {
@@ -1033,7 +1104,7 @@ body {
         .sidebar-brand {
             font-weight: 700;
             letter-spacing: 0.01em;
-            color: #2c2c2b;
+            color: #5f5e5b;
             display: inline-flex;
             align-items: center;
             gap: 0.55rem;
@@ -1063,10 +1134,10 @@ body {
             width: 100%;
             padding: 0.65rem 0.9rem;
             border-radius: 10px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             background: transparent;
             border: none;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -1075,13 +1146,13 @@ body {
         .sidebar-link:hover,
         .sidebar-toggle:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-link.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
@@ -1097,7 +1168,7 @@ body {
 
         .chevron {
             font-size: 0.9rem;
-            color: #2c2c2b;
+            color: #5f5e5b;
             transition: transform 0.2s ease;
         }
 
@@ -1115,7 +1186,7 @@ body {
             display: block;
             padding: 0.45rem 0.85rem;
             border-radius: 8px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -1124,14 +1195,14 @@ body {
 
         .sidebar-sublink:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-sublink.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
-            border-radius: 0;
+            color: #5f5e5b;
+            border-radius: 6px;
         }
 
         .page-content {
@@ -1150,7 +1221,7 @@ body {
             align-items: center;
             justify-content: center;
             width: 20px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             font-size: 16px;
         }
 
@@ -1168,7 +1239,7 @@ body {
 
         .settings-service-title {
             font-size: 0.95rem;
-            font-weight: 600;
+            font-weight: 500;
             text-transform: uppercase;
             color: #0b6b3c;
             margin-bottom: 0.75rem;
@@ -1188,7 +1259,7 @@ body {
         }
 
         .settings-description {
-            font-weight: 600;
+            font-weight: 500;
             color: #1d2822;
         }
 
@@ -1315,7 +1386,7 @@ body {
         .sidebar-brand {
             font-weight: 700;
             letter-spacing: 0.01em;
-            color: #2c2c2b;
+            color: #5f5e5b;
             display: inline-flex;
             align-items: center;
             gap: 0.55rem;
@@ -1345,10 +1416,10 @@ body {
             width: 100%;
             padding: 0.65rem 0.9rem;
             border-radius: 10px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             background: transparent;
             border: none;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -1357,13 +1428,13 @@ body {
         .sidebar-link:hover,
         .sidebar-toggle:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-link.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
@@ -1379,7 +1450,7 @@ body {
 
         .chevron {
             font-size: 0.9rem;
-            color: #2c2c2b;
+            color: #5f5e5b;
             transition: transform 0.2s ease;
         }
 
@@ -1397,7 +1468,7 @@ body {
             display: block;
             padding: 0.45rem 0.85rem;
             border-radius: 8px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -1406,14 +1477,14 @@ body {
 
         .sidebar-sublink:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-sublink.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
-            border-radius: 0;
+            color: #5f5e5b;
+            border-radius: 6px;
         }
 
         .page-content {
@@ -1432,7 +1503,7 @@ body {
             align-items: center;
             justify-content: center;
             width: 20px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             font-size: 16px;
         }
 
@@ -1566,7 +1637,7 @@ body {
         .sidebar-brand {
             font-weight: 700;
             letter-spacing: 0.01em;
-            color: #2c2c2b;
+            color: #5f5e5b;
             display: inline-flex;
             align-items: center;
             gap: 0.55rem;
@@ -1596,10 +1667,10 @@ body {
             width: 100%;
             padding: 0.65rem 0.9rem;
             border-radius: 10px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             background: transparent;
             border: none;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -1608,13 +1679,13 @@ body {
         .sidebar-link:hover,
         .sidebar-toggle:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-link.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
@@ -1630,7 +1701,7 @@ body {
 
         .chevron {
             font-size: 0.9rem;
-            color: #2c2c2b;
+            color: #5f5e5b;
             transition: transform 0.2s ease;
         }
 
@@ -1648,7 +1719,7 @@ body {
             display: block;
             padding: 0.45rem 0.85rem;
             border-radius: 8px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -1657,14 +1728,14 @@ body {
 
         .sidebar-sublink:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-sublink.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
-            border-radius: 0;
+            color: #5f5e5b;
+            border-radius: 6px;
         }
 
         .page-content {
@@ -1683,7 +1754,7 @@ body {
             align-items: center;
             justify-content: center;
             width: 20px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             font-size: 16px;
         }
 
@@ -1701,7 +1772,7 @@ body {
 
         .panel-table th {
             color: #6c757d;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 0.9rem;
         }
 
@@ -1819,7 +1890,7 @@ body {
         .sidebar-brand {
             font-weight: 700;
             letter-spacing: 0.01em;
-            color: #2c2c2b;
+            color: #5f5e5b;
             display: inline-flex;
             align-items: center;
             gap: 0.55rem;
@@ -1849,10 +1920,10 @@ body {
             width: 100%;
             padding: 0.65rem 0.9rem;
             border-radius: 10px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             background: transparent;
             border: none;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -1861,13 +1932,13 @@ body {
         .sidebar-link:hover,
         .sidebar-toggle:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-link.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
@@ -1883,7 +1954,7 @@ body {
 
         .chevron {
             font-size: 0.9rem;
-            color: #2c2c2b;
+            color: #5f5e5b;
             transition: transform 0.2s ease;
         }
 
@@ -1901,7 +1972,7 @@ body {
             display: block;
             padding: 0.45rem 0.85rem;
             border-radius: 8px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -1910,14 +1981,14 @@ body {
 
         .sidebar-sublink:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-sublink.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
-            border-radius: 0;
+            color: #5f5e5b;
+            border-radius: 6px;
         }
 
         .page-content {
@@ -1936,7 +2007,7 @@ body {
             align-items: center;
             justify-content: center;
             width: 20px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             font-size: 16px;
         }
 
@@ -2004,7 +2075,7 @@ body {
         .sidebar-brand {
             font-weight: 700;
             letter-spacing: 0.01em;
-            color: #2c2c2b;
+            color: #5f5e5b;
             display: inline-flex;
             align-items: center;
             gap: 0.55rem;
@@ -2034,10 +2105,10 @@ body {
             width: 100%;
             padding: 0.65rem 0.9rem;
             border-radius: 10px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             background: transparent;
             border: none;
-            font-weight: 600;
+            font-weight: 500;
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -2046,13 +2117,13 @@ body {
         .sidebar-link:hover,
         .sidebar-toggle:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-link.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
@@ -2068,7 +2139,7 @@ body {
 
         .chevron {
             font-size: 0.9rem;
-            color: #2c2c2b;
+            color: #5f5e5b;
             transition: transform 0.2s ease;
         }
 
@@ -2086,7 +2157,7 @@ body {
             display: block;
             padding: 0.45rem 0.85rem;
             border-radius: 8px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
@@ -2095,14 +2166,14 @@ body {
 
         .sidebar-sublink:hover {
             background-color: #f3f4f6;
-            color: #2c2c2b;
+            color: #5f5e5b;
             border-radius: 0;
         }
 
         .sidebar-sublink.active {
             background-color: #f3f4f6;
-            color: #2c2c2b;
-            border-radius: 0;
+            color: #5f5e5b;
+            border-radius: 6px;
         }
 
         .page-content {
@@ -2121,7 +2192,7 @@ body {
             align-items: center;
             justify-content: center;
             width: 20px;
-            color: #2c2c2b;
+            color: #5f5e5b;
             font-size: 16px;
         }
 

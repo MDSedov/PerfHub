@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Летописец — Нагрузочные тесты</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            crossorigin="anonymous">
+    <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="sidebar-brand" th:href="@{/}">
+            <img src="/img/chronicler-logo.png" alt="Летописец" class="brand-logo" loading="lazy">
+            <span>Летописец</span>
+        </a>
+        <div class="sidebar-menu">
+            <a class="sidebar-link" th:href="@{/tests}"
+               th:classappend="${activePage} == 'tests' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-activity"></i></span>
+                    <span>Тесты и отчеты</span>
+                </span>
+            </a>
+            <a class="sidebar-link" th:href="@{/settings/grafana-dashboards}"
+               th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                    <span>Графики из Grafana</span>
+                </span>
+            </a>
+            <a class="sidebar-link" th:href="@{/configuration}"
+               th:classappend="${activePage} == 'configuration' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-gear"></i></span>
+                    <span>Конфигурация DropApp</span>
+                </span>
+            </a>
+            <a class="sidebar-link"
+               th:href="@{/settings/connections}"
+               th:classappend="${activePage} == 'settings' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-sliders"></i></span>
+                    <span>Настройки</span>
+                </span>
+            </a>
+            <div class="sidebar-submenu">
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/connections}"
+                   th:classappend="${activeSettingsSection} == 'connections' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-plug"></i></span>
+                        <span>Подключения</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/templates}"
+                   th:classappend="${activeSettingsSection} == 'templates' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-file-earmark-text"></i></span>
+                        <span>Шаблоны отчетов</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/grafana-dashboards}"
+                   th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                        <span>Графики и нефункциональные требования</span>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <div class="page-content">
+<main class="container-fluid py-5 px-4 px-lg-5">
+    <div class="row g-4 tests-layout">
+        <div class="col-12 col-lg-4">
+            <aside class="tests-sidebar">
+                <div class="sidebar-card">
+                    <h6 class="sidebar-title">Данные</h6>
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success" id="refreshTestsButton">Запросить данные по тестам</button>
+                        <button type="button" class="btn btn-outline-success" id="evaluateTestsButton">Перепроверить тесты на требования</button>
+                    </div>
+                </div>
+                <div class="sidebar-card">
+                    <h6 class="sidebar-title">Фильтры</h6>
+                    <div class="mb-3">
+                        <label for="releaseFilter" class="form-label small text-muted mb-1">Релиз</label>
+                        <select id="releaseFilter" class="form-select" multiple size="4"></select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-lg-6">
+                            <label for="periodStart" class="form-label small text-muted mb-1">Начало периода (МСК)</label>
+                            <input type="datetime-local" id="periodStart" class="form-control" step="1" placeholder="Выберите дату и время">
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label for="periodEnd" class="form-label small text-muted mb-1">Конец периода (МСК)</label>
+                            <input type="datetime-local" id="periodEnd" class="form-control" step="1" placeholder="Выберите дату и время">
+                        </div>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" value="" id="compliantFilter">
+                        <label class="form-check-label" for="compliantFilter">Тест соответствует требованиям</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="configFilter">
+                        <label class="form-check-label" for="configFilter">Получена конфигурация DropApp</label>
+                    </div>
+                    <div class="d-grid gap-2 mt-3">
+                        <button type="button" class="btn btn-outline-secondary" id="resetFiltersButton">Сбросить фильтры</button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <div class="col-12 col-lg-8">
+            <section class="tests-content flex-grow-1">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="tests-meta">
+                                <h5 class="mb-0">Нагрузочные тесты</h5>
+                                <span id="testsCount" class="tests-count">0</span>
+                            </div>
+                        </div>
+                        <div id="testsStatus" class="alert alert-info d-none" role="alert"></div>
+                        <div class="tests-table-wrapper table-responsive">
+                            <table class="table align-middle tests-table">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Релиз</th>
+                                    <th scope="col">Тип теста</th>
+                                    <th scope="col">Длительность</th>
+                                    <th scope="col">Начало</th>
+                                    <th scope="col">Конец</th>
+                                    <th scope="col" class="text-center">Соответствие требованиям</th>
+                                    <th scope="col" class="text-center">Конфигурация</th>
+                                    <th scope="col" class="text-center">Детали</th>
+                                </tr>
+                                </thead>
+                                <tbody id="testsTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</main>
+
+<div id="toastContainer" class="toast-container"></div>
+
+    </div>
+</div>
+
+<script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
+        crossorigin="anonymous"></script>
+<script src="/js/background-errors.js"></script>
+<script>
+    const testsTableBody = document.getElementById('testsTableBody');
+    const testsStatus = document.getElementById('testsStatus');
+    const testsCount = document.getElementById('testsCount');
+    const refreshButton = document.getElementById('refreshTestsButton');
+    const evaluateTestsButton = document.getElementById('evaluateTestsButton');
+    const releaseFilter = document.getElementById('releaseFilter');
+    const periodStartInput = document.getElementById('periodStart');
+    const periodEndInput = document.getElementById('periodEnd');
+    const resetFiltersButton = document.getElementById('resetFiltersButton');
+    const compliantFilterCheckbox = document.getElementById('compliantFilter');
+    const configFilterCheckbox = document.getElementById('configFilter');
+    const toastContainer = document.getElementById('toastContainer');
+
+    const MOSCOW_TZ = 'Europe/Moscow';
+    const DAYS_TO_FETCH = 30;
+    const MS_IN_DAY = 24 * 60 * 60 * 1000;
+    const MOSCOW_FORMATTER = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: MOSCOW_TZ,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+
+    const TYPE_LABELS = {
+        max: 'MAX',
+        confirm: 'CONFIRM',
+        soak: 'SOAK',
+        unknown: 'UNKNOWN'
+    };
+
+    const NO_CONFIG_MESSAGE = 'Конфигурация DropApp для данного теста отсутствует';
+    const DEFAULT_RELEASE_VERSION = '2.6.0';
+    const ANY_RELEASE_VALUE = '__any__';
+    const MISSING_RELEASE_VALUE = '__missing__';
+    const AUTO_REFRESH_MS = 60_000;
+
+    const REQUIREMENT_STATUS_LABELS = {
+        PASS: 'Соответствует',
+        FAIL: 'Не соответствует',
+        NOT_APPLICABLE: 'Н/Д',
+        ERROR: 'Ошибка'
+    };
+
+    const REQUIREMENT_STATUS_CLASS = {
+        PASS: 'badge bg-success',
+        FAIL: 'badge bg-danger',
+        NOT_APPLICABLE: 'badge bg-secondary',
+        ERROR: 'badge bg-warning text-dark'
+    };
+
+    let isRefreshing = false;
+    let evaluationsAllowed = true;
+    let isEvaluationInProgress = false;
+    const evaluationCache = new Map();
+    const evaluationRequests = new Map();
+    const grafanaPanelsCache = new Map();
+    const grafanaPanelRequests = new Map();
+    const testConfigurationCache = new Map();
+    const testConfigurationRequests = new Map();
+    const testConfigurationStatusElements = new Map();
+    const complianceStatusByTest = new Map();
+    const configStatusByTest = new Map();
+    const activeStatusControllers = new Map();
+    const testStatusElements = new Map();
+    const releaseCells = new Map();
+    const knownTestIds = new Set();
+    const pendingConfigRequests = new Set();
+    const expandedTests = new Set();
+    let testsInitialized = false;
+    let allTests = [];
+    let filterState = {
+        releases: [],
+        periodStart: '',
+        periodEnd: '',
+        compliantOnly: false,
+        configOnly: false
+    };
+    let autoRefreshTimer = null;
+    let autoRefreshInProgress = false;
+
+    function formatInMoscow(date) {
+        return MOSCOW_FORMATTER.format(date);
+    }
+
+    function setTestsStatus(message, type = 'info') {
+        testsStatus.textContent = message;
+        testsStatus.className = `alert alert-${type}`;
+        testsStatus.classList.remove('d-none');
+    }
+
+    function clearTestsStatus() {
+        testsStatus.classList.add('d-none');
+    }
+
+    function resetFilters() {
+        filterState.releases = [];
+        filterState.periodStart = '';
+        filterState.periodEnd = '';
+        filterState.compliantOnly = false;
+        filterState.configOnly = false;
+
+        if (releaseFilter) {
+            Array.from(releaseFilter.options).forEach(option => {
+                option.selected = option.value === ANY_RELEASE_VALUE;
+            });
+        }
+        if (periodStartInput) {
+            periodStartInput.value = '';
+        }
+        if (periodEndInput) {
+            periodEndInput.value = '';
+        }
+        if (compliantFilterCheckbox) {
+            compliantFilterCheckbox.checked = false;
+        }
+        if (configFilterCheckbox) {
+            configFilterCheckbox.checked = false;
+        }
+        if (testsStatus && testsStatus.classList.contains('alert-warning')) {
+            clearTestsStatus();
+        }
+        applyFilters(true);
+    }
+
+    function parseMoscowDate(value) {
+        if (!value) {
+            return null;
+        }
+        return new Date(value.replace(' ', 'T') + '+03:00');
+    }
+
+    function parseDateTimeInput(value) {
+        if (!value) {
+            return null;
+        }
+        const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+        const withSeconds = normalized.length === 16 ? `${normalized}:00` : normalized;
+        return new Date(withSeconds + '+03:00');
+    }
+
+    function parseGrafanaTimestamp(value) {
+        if (!value) {
+            return null;
+        }
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    function isGrafanaCacheValid(cacheEntry, test) {
+        if (!cacheEntry || !test) {
+            return false;
+        }
+        const cacheStart = parseGrafanaTimestamp(cacheEntry.start);
+        const cacheEnd = parseGrafanaTimestamp(cacheEntry.end);
+        const testStart = parseMoscowDate(test.start);
+        const testEnd = parseMoscowDate(test.end);
+        if (!cacheStart || !cacheEnd || !testStart || !testEnd) {
+            return false;
+        }
+        const toleranceMs = 1000;
+        return Math.abs(cacheStart.getTime() - testStart.getTime()) <= toleranceMs
+                && Math.abs(cacheEnd.getTime() - testEnd.getTime()) <= toleranceMs;
+    }
+
+    function getTestDateTime(test) {
+        return parseMoscowDate(test?.start) ?? parseMoscowDate(test?.end);
+    }
+
+    function formatDuration(start, end) {
+        const startDate = parseMoscowDate(start);
+        const endDate = parseMoscowDate(end);
+        if (!startDate || !endDate || endDate <= startDate) {
+            return '—';
+        }
+        const diffMs = endDate - startDate;
+        const totalMinutes = Math.floor(diffMs / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        if (hours === 0) {
+            return `${minutes} мин`;
+        }
+        return `${hours} ч ${minutes.toString().padStart(2, '0')} мин`;
+    }
+
+    function showToast(message, type = 'info', durationMs = 15000) {
+        if (!toastContainer) {
+            return null;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast-item ${type}`;
+        const body = document.createElement('p');
+        body.className = 'toast-body';
+        body.textContent = message;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Закрыть уведомление');
+        close.innerHTML = '&times;';
+        close.addEventListener('click', () => removeToast(toast));
+        const content = document.createElement('div');
+        content.className = 'flex-grow-1';
+        content.appendChild(body);
+        toast.appendChild(content);
+        toast.appendChild(close);
+        toastContainer.appendChild(toast);
+        const timer = setTimeout(() => removeToast(toast), durationMs);
+        toast.dataset.timerId = timer.toString();
+        return toast;
+    }
+
+    function removeToast(toast) {
+        if (!toast) {
+            return;
+        }
+        const timerId = toast.dataset.timerId;
+        if (timerId) {
+            clearTimeout(Number(timerId));
+        }
+        toast.remove();
+    }
+
+    if (toastContainer) {
+        toastContainer.addEventListener('click', event => {
+            const closeButton = event.target.closest('.toast-close');
+            if (!closeButton) {
+                return;
+            }
+            const toast = closeButton.closest('.toast-item');
+            removeToast(toast);
+        });
+    }
+
+    function normalizeReleaseValue(value) {
+        if (value === undefined || value === null) {
+            return null;
+        }
+        const text = String(value).trim();
+        return text === '' ? null : text;
+    }
+
+    function getReleaseValue(test) {
+        if (!test) {
+            return null;
+        }
+        return normalizeReleaseValue(test.release);
+    }
+
+    function deriveReleaseFromConfiguration(items) {
+        if (!Array.isArray(items)) {
+            return null;
+        }
+        for (const item of items) {
+            const release = normalizeReleaseValue(item?.release);
+            if (release) {
+                return release;
+            }
+        }
+        return null;
+    }
+
+    function setTestRelease(testId, release) {
+        const normalized = normalizeReleaseValue(release);
+        if (!normalized) {
+            return;
+        }
+        const test = findTestById(testId);
+        if (!test || test.release === normalized) {
+            return;
+        }
+        test.release = normalized;
+        const cell = releaseCells.get(testId);
+        if (cell) {
+            cell.textContent = normalized;
+        }
+        updateReleaseOptions(allTests);
+        if ((filterState.releases ?? []).length > 0) {
+            applyFilters();
+        }
+    }
+
+    function updateTestReleaseFromConfiguration(testId, items) {
+        const release = deriveReleaseFromConfiguration(items);
+        if (release) {
+            setTestRelease(testId, release);
+        }
+    }
+
+    function updateReleaseOptions(tests) {
+        if (!releaseFilter) {
+            return;
+        }
+        const uniqueReleases = Array.from(
+                new Set((tests ?? []).map(getReleaseValue).filter(Boolean))).sort();
+        const hasMissingRelease = (tests ?? []).some(test => !getReleaseValue(test));
+        releaseFilter.innerHTML = '';
+        const anyOption = document.createElement('option');
+        anyOption.value = ANY_RELEASE_VALUE;
+        anyOption.textContent = 'Любой';
+        anyOption.selected = filterState.releases.length === 0;
+        releaseFilter.appendChild(anyOption);
+
+        const allowedValues = new Set(uniqueReleases);
+        if (hasMissingRelease) {
+            allowedValues.add(MISSING_RELEASE_VALUE);
+        }
+
+        filterState.releases = filterState.releases.filter(value => allowedValues.has(value));
+
+        if (hasMissingRelease) {
+            const missingOption = document.createElement('option');
+            missingOption.value = MISSING_RELEASE_VALUE;
+            missingOption.textContent = 'Не указан';
+            missingOption.selected = filterState.releases.includes(MISSING_RELEASE_VALUE);
+            releaseFilter.appendChild(missingOption);
+        }
+
+        uniqueReleases.forEach(value => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            option.selected = filterState.releases.includes(value);
+            releaseFilter.appendChild(option);
+        });
+
+        if (!hasMissingRelease && uniqueReleases.length === 0 && filterState.releases.length === 0) {
+            const option = document.createElement('option');
+            option.value = DEFAULT_RELEASE_VERSION;
+            option.textContent = DEFAULT_RELEASE_VERSION;
+            option.selected = false;
+            releaseFilter.appendChild(option);
+        }
+    }
+
+    function resetTestStatusRequests() {
+        activeStatusControllers.forEach(controller => controller.abort());
+        activeStatusControllers.clear();
+    }
+
+    function updateEvaluateButtonState() {
+        if (!evaluateTestsButton) {
+            return;
+        }
+        const hasTests = testStatusElements.size > 0;
+        evaluateTestsButton.disabled =
+                isRefreshing || !evaluationsAllowed || !hasTests || isEvaluationInProgress;
+    }
+
+    async function loadTests(showLoading = true) {
+        if (showLoading) {
+            setTestsStatus('Загружаем тесты…', 'info');
+        }
+        try {
+            const response = await fetch('/api/tests');
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            const tests = await response.json();
+            handleNewTests(tests);
+            setAllTests(Array.isArray(tests) ? tests : []);
+            clearTestsStatus();
+            return true;
+        } catch (error) {
+            if (showLoading) {
+                setTestsStatus('Не удалось получить список тестов: ' + error.message, 'danger');
+            }
+            updateEvaluateButtonState();
+            return false;
+        }
+    }
+
+    function setStatusIcon(element, state, label) {
+        if (!element) {
+            return;
+        }
+        const STATES = {
+            success: { className: 'status-icon success', text: '✔' },
+            fail: { className: 'status-icon fail', text: '✖' },
+            loading: { className: 'status-icon loading', text: '…' },
+            pending: { className: 'status-icon', text: '—' },
+            error: { className: 'status-icon error', text: '!' }
+        };
+        const config = STATES[state] || STATES.pending;
+        element.className = config.className;
+        element.textContent = config.text;
+        if (label) {
+            element.setAttribute('title', label);
+            element.setAttribute('aria-label', label);
+        } else {
+            element.removeAttribute('title');
+            element.removeAttribute('aria-label');
+        }
+    }
+
+    function setComplianceStatus(element, state, testId) {
+        const labels = {
+            loading: 'Проверяем соответствие требованиям',
+            success: 'Тест соответствует требованиям',
+            fail: 'Тест не соответствует требованиям',
+            pending: 'Ожидает проверки',
+            missing: 'Нет данных для проверки',
+            error: 'Ошибка при проверке требований'
+        };
+        const mappedState = state === 'pass' ? 'success' : state === 'missing' ? 'pending' : state;
+        const labelKey = labels[state] ? state : mappedState;
+        setStatusIcon(element, mappedState, labels[labelKey] ?? labels.pending);
+        if (testId) {
+            complianceStatusByTest.set(testId, mappedState);
+        }
+    }
+
+    function setConfigurationStatus(element, state) {
+        const labels = {
+            loading: 'Загружаем конфигурацию',
+            success: 'Конфигурация получена',
+            fail: 'Конфигурация не получена',
+            pending: 'Конфигурация не загружена',
+            error: 'Ошибка загрузки конфигурации'
+        };
+        setStatusIcon(element, state, labels[state] ?? labels.pending);
+    }
+
+    function updateConfigurationStatusIcon(testId, items, error = false) {
+        const icon = testConfigurationStatusElements.get(testId);
+        const previousState = configStatusByTest.get(testId);
+        if (!icon) {
+            return;
+        }
+        if (error) {
+            setConfigurationStatus(icon, 'error');
+            configStatusByTest.set(testId, 'error');
+            if (pendingConfigRequests.has(testId)) {
+                showToast('Не удалось получить конфигурацию DropApp для активного теста', 'danger');
+                pendingConfigRequests.delete(testId);
+            }
+            return;
+        }
+        const hasConfig = Array.isArray(items) && items.length > 0;
+        const state = hasConfig ? 'success' : 'fail';
+        setConfigurationStatus(icon, state);
+        configStatusByTest.set(testId, state);
+        if (pendingConfigRequests.has(testId) && state === 'success' && previousState !== 'success') {
+            showToast('Получена конфигурация DropApp для активного теста', 'success');
+            pendingConfigRequests.delete(testId);
+        }
+        if (filterState.configOnly) {
+            applyFilters();
+        }
+    }
+
+    function setTestStatusView(element, state, testId) {
+        const resolvedId = testId ?? element?.dataset?.testId;
+        setComplianceStatus(element, state, resolvedId);
+    }
+
+    function setPendingStatus(element, testId) {
+        const resolvedId = testId ?? element?.dataset?.testId;
+        setComplianceStatus(element, 'pending', resolvedId);
+    }
+
+    function setCheckingStatus(element, testId) {
+        const resolvedId = testId ?? element?.dataset?.testId;
+        setComplianceStatus(element, 'loading', resolvedId);
+    }
+
+    function markStatusesChecking() {
+        testStatusElements.forEach((element, testId) => setComplianceStatus(element, 'loading', testId));
+    }
+
+    function markAllStatusesPending() {
+        testStatusElements.forEach((element, testId) => setComplianceStatus(element, 'pending', testId));
+    }
+
+    async function fetchEvaluation(testId, mode = 'cached') {
+        const endpoint = mode === 'fresh' ? '/api/requirements/evaluate' : '/api/requirements/status';
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ testUuid: testId })
+        });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        return await response.json();
+    }
+
+    function ensureEvaluation(testId, mode = 'cached') {
+        if (mode === 'cached' && evaluationCache.has(testId)) {
+            return Promise.resolve(evaluationCache.get(testId));
+        }
+        const requestKey = `${testId}:${mode}`;
+        if (!evaluationRequests.has(requestKey)) {
+            const request = fetchEvaluation(testId, mode)
+                    .then(payload => {
+                        evaluationCache.set(testId, payload);
+                        return payload;
+                    })
+                    .finally(() => {
+                        evaluationRequests.delete(requestKey);
+                    });
+            evaluationRequests.set(requestKey, request);
+        }
+        return evaluationRequests.get(requestKey);
+    }
+
+    async function fetchTestConfiguration(testId) {
+        const response = await fetch(`/api/tests/${testId}/configuration`);
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        return await response.json();
+    }
+
+    function ensureTestConfiguration(testId) {
+        if (testConfigurationCache.has(testId)) {
+            return Promise.resolve(testConfigurationCache.get(testId));
+        }
+        if (!testConfigurationRequests.has(testId)) {
+            const request = fetchTestConfiguration(testId)
+                    .then(payload => {
+                        const items = Array.isArray(payload) ? payload : [];
+                        testConfigurationCache.set(testId, items);
+                        return items;
+                    })
+                    .finally(() => {
+                        testConfigurationRequests.delete(testId);
+                    });
+            testConfigurationRequests.set(testId, request);
+        }
+        return testConfigurationRequests.get(testId);
+    }
+
+    async function captureConfiguration(testId) {
+        const response = await fetch(`/api/tests/${testId}/configuration/capture`, { method: 'POST' });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        const payload = await response.json();
+        const items = Array.isArray(payload) ? payload : [];
+        testConfigurationCache.set(testId, items);
+        return items;
+    }
+
+    async function evaluateTestStatus(testId, statusElement, mode = 'cached') {
+        try {
+            activeStatusControllers.get(testId)?.abort();
+            const controller = new AbortController();
+            activeStatusControllers.set(testId, controller);
+            setTestStatusView(statusElement, 'loading', testId);
+            const evaluation = await ensureEvaluation(testId, mode);
+            if (controller.signal.aborted) {
+                return;
+            }
+            const compliant = Boolean(evaluation?.compliant);
+            setTestStatusView(statusElement, compliant ? 'pass' : 'fail', testId);
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+            setTestStatusView(statusElement, 'error', testId);
+        } finally {
+            activeStatusControllers.delete(testId);
+        }
+    }
+
+    async function fetchGrafanaPanels(testId) {
+        const response = await fetch('/api/grafana/panels/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ testUuid: testId })
+        });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        const payload = await response.json();
+        const normalized = normalizeGrafanaPanels(payload);
+        grafanaPanelsCache.set(testId, normalized);
+        return normalized;
+    }
+
+    function ensureGrafanaPanels(testId) {
+        if (grafanaPanelsCache.has(testId)) {
+            return Promise.resolve(grafanaPanelsCache.get(testId));
+        }
+        if (!grafanaPanelRequests.has(testId)) {
+            grafanaPanelRequests.set(testId, fetchGrafanaPanels(testId).finally(() => {
+                grafanaPanelRequests.delete(testId);
+            }));
+        }
+        return grafanaPanelRequests.get(testId);
+    }
+
+    function normalizeGrafanaPanels(response) {
+        const normalized = {
+            panels: [],
+            start: response?.start ?? null,
+            end: response?.end ?? null
+        };
+        if (!response || !Array.isArray(response.dashboards)) {
+            return normalized;
+        }
+        response.dashboards.forEach(dashboard => {
+            if (!dashboard || !Array.isArray(dashboard.panels)) {
+                return;
+            }
+            dashboard.panels.forEach(panel => {
+                if (panel) {
+                    normalized.panels.push(panel);
+                }
+            });
+        });
+        return normalized;
+    }
+
+    function createGrafanaProgress(message = 'Загружаем графики…') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'text-muted small mb-2';
+        wrapper.textContent = message;
+        return { wrapper };
+    }
+
+    function createGrafanaPanelElement(panel, onReady) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'grafana-panel';
+
+        const title = document.createElement('div');
+        title.className = 'grafana-panel-title';
+        title.textContent = panel?.title ?? 'Без названия';
+        wrapper.appendChild(title);
+
+        if (panel?.description) {
+            const description = document.createElement('div');
+            description.className = 'grafana-panel-description text-muted small mb-2';
+            description.textContent = panel.description;
+            wrapper.appendChild(description);
+        }
+
+        if (panel?.imageBase64) {
+            const image = document.createElement('img');
+            image.className = 'grafana-panel-image';
+            image.src = `data:image/png;base64,${panel.imageBase64}`;
+            image.alt = panel?.title ? `График ${panel.title}` : 'График';
+            const completeHandler = () => {
+                image.removeEventListener('load', completeHandler);
+                image.removeEventListener('error', completeHandler);
+                if (typeof onReady === 'function') {
+                    onReady();
+                }
+            };
+            image.addEventListener('load', completeHandler);
+            image.addEventListener('error', completeHandler);
+            wrapper.appendChild(image);
+        } else {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'text-muted small';
+            placeholder.textContent = 'Изображение недоступно.';
+            wrapper.appendChild(placeholder);
+            if (typeof onReady === 'function') {
+                onReady();
+            }
+        }
+
+        return wrapper;
+    }
+
+    function renderRequirementResults(container, evaluation) {
+        container.innerHTML = '';
+        const requirements = evaluation?.requirements ?? [];
+        if (!requirements.length) {
+            container.innerHTML = '<div class="text-muted small">Нет проведённых проверок.</div>';
+            return;
+        }
+
+        const tableWrapper = document.createElement('div');
+        tableWrapper.className = 'requirements-table table-responsive';
+        const table = document.createElement('table');
+        table.className = 'table table-sm align-middle mb-0';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th scope="col">Название графика</th>
+                    <th scope="col">Порог</th>
+                    <th scope="col">Факт</th>
+                    <th scope="col">Статус</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+
+        requirements.forEach(requirement => {
+            const row = document.createElement('tr');
+
+            const titleCell = document.createElement('td');
+            titleCell.className = 'requirement-meta requirement-desc';
+            titleCell.textContent = requirement?.title ?? '—';
+
+            const thresholdCell = document.createElement('td');
+            const thresholdValue = requirement?.thresholdValue ?? '—';
+            const thresholdUnit = requirement?.thresholdUnit ?? '';
+            thresholdCell.textContent = `${thresholdValue} ${thresholdUnit}`.trim();
+
+            const measuredCell = document.createElement('td');
+            if (typeof requirement?.measuredValue === 'number') {
+                const measuredUnit = requirement?.measuredUnit ?? '';
+                measuredCell.textContent = `${requirement.measuredValue} ${measuredUnit}`.trim();
+            } else {
+                measuredCell.textContent = '—';
+            }
+
+            const statusCell = document.createElement('td');
+            const statusKey = requirement?.status ?? 'ERROR';
+            const badge = document.createElement('span');
+            badge.className = REQUIREMENT_STATUS_CLASS[statusKey] ?? 'badge bg-secondary';
+            badge.textContent = REQUIREMENT_STATUS_LABELS[statusKey] ?? statusKey;
+            statusCell.appendChild(badge);
+
+            row.appendChild(titleCell);
+            row.appendChild(thresholdCell);
+            row.appendChild(measuredCell);
+            row.appendChild(statusCell);
+            tbody.appendChild(row);
+        });
+
+        tableWrapper.appendChild(table);
+        container.appendChild(tableWrapper);
+    }
+
+    function renderGrafanaPanels(container, panels, onPanelReady) {
+        container.innerHTML = '';
+        if (!panels || panels.length === 0) {
+            return;
+        }
+        const grid = document.createElement('div');
+        grid.className = 'grafana-grid';
+        panels.forEach(panel => {
+            grid.appendChild(createGrafanaPanelElement(panel, onPanelReady));
+        });
+        container.appendChild(grid);
+    }
+
+    function renderConfiguration(container, items, testId) {
+        if (!container) {
+            return;
+        }
+        if (!Array.isArray(items) || items.length === 0) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'd-flex flex-column align-items-start gap-2';
+
+            if (testId) {
+                const requestButton = document.createElement('button');
+                requestButton.type = 'button';
+                requestButton.className = 'btn btn-outline-success btn-sm';
+                requestButton.textContent = 'Запросить текущую конфигурацию DropApp для данного теста';
+                requestButton.addEventListener('click', async () => {
+                    requestButton.disabled = true;
+                    requestButton.textContent = 'Запрашиваем…';
+                    try {
+                        const captured = await captureConfiguration(testId);
+                        updateConfigurationStatusIcon(testId, captured);
+                        updateTestReleaseFromConfiguration(testId, captured);
+                        renderConfiguration(container, captured, testId);
+                        showToast('Получена конфигурация DropApp для теста', 'success');
+                    } catch (error) {
+                        showToast('Не удалось получить конфигурацию DropApp для теста', 'danger');
+                        requestButton.disabled = false;
+                        requestButton.textContent = 'Запросить текущую конфигурацию DropApp для данного теста';
+                    }
+                });
+                wrapper.appendChild(requestButton);
+            }
+
+            container.innerHTML = '';
+            container.appendChild(wrapper);
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'table table-sm align-middle mb-0';
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        ['POD', 'Контейнер', 'Версия', 'Релиз', 'Request CPU', 'Limit CPU', 'Request RAM', 'Limit RAM']
+                .forEach(title => {
+                    const th = document.createElement('th');
+                    th.scope = 'col';
+                    th.textContent = title;
+                    headerRow.appendChild(th);
+                });
+        thead.appendChild(headerRow);
+        const tbody = document.createElement('tbody');
+        items.forEach(item => {
+            const row = document.createElement('tr');
+            appendConfigCell(row, item?.podName);
+            appendConfigCell(row, item?.containerName);
+            appendConfigCell(row, item?.version);
+            appendConfigCell(row, item?.release);
+            appendConfigCell(row, item?.requestCpu);
+            appendConfigCell(row, item?.limitCpu);
+            appendConfigCell(row, item?.requestRam);
+            appendConfigCell(row, item?.limitRam);
+            tbody.appendChild(row);
+        });
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        container.innerHTML = '';
+        container.appendChild(table);
+    }
+
+    function appendConfigCell(row, value) {
+        const cell = document.createElement('td');
+        cell.textContent = normalizeReleaseValue(value) ?? (value ?? '');
+        if (!cell.textContent || cell.textContent.trim() === '') {
+            cell.textContent = '—';
+        }
+        row.appendChild(cell);
+    }
+
+    async function saveTestComment(testId, comment) {
+        const response = await fetch(`/api/tests/${testId}/comment`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ comment })
+        });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        return await response.json();
+    }
+
+    function handleNewTests(tests) {
+        const incomingIds = new Set();
+        const newTests = [];
+        (Array.isArray(tests) ? tests : []).forEach(test => {
+            if (test?.id) {
+                incomingIds.add(test.id);
+                if (testsInitialized && !knownTestIds.has(test.id)) {
+                    newTests.push(test.id);
+                }
+            }
+        });
+
+        if (testsInitialized && newTests.length > 0) {
+            newTests.forEach(() => showToast('Найден новый активный тест', 'info'));
+            newTests.forEach(id => pendingConfigRequests.add(id));
+        }
+
+        knownTestIds.clear();
+        incomingIds.forEach(id => knownTestIds.add(id));
+        if (!testsInitialized) {
+            testsInitialized = true;
+        }
+    }
+
+    function pruneGrafanaCache(tests) {
+        const testsById = new Map();
+        (Array.isArray(tests) ? tests : []).forEach(test => {
+            if (test?.id) {
+                testsById.set(test.id, test);
+            }
+        });
+        grafanaPanelsCache.forEach((entry, testId) => {
+            const currentTest = testsById.get(testId);
+            if (!currentTest || !isGrafanaCacheValid(entry, currentTest)) {
+                grafanaPanelsCache.delete(testId);
+                grafanaPanelRequests.delete(testId);
+            }
+        });
+    }
+
+    function findTestById(testId) {
+        return allTests.find(test => test?.id === testId);
+    }
+
+    function updateCachedTestComment(testId, comment) {
+        const test = findTestById(testId);
+        if (test) {
+            test.comment = comment;
+        }
+    }
+
+    async function loadTestDetails(testId, container) {
+        container.dataset.loading = 'true';
+        container.innerHTML = '';
+        const wrapper = document.createElement('div');
+        container.appendChild(wrapper);
+
+        const notesSection = document.createElement('section');
+        const notesTitle = document.createElement('h6');
+        notesTitle.className = 'mb-3';
+        notesTitle.textContent = 'Заметки';
+        const notesBox = document.createElement('div');
+        notesBox.className = 'mb-2';
+        const notesArea = document.createElement('textarea');
+        notesArea.className = 'form-control';
+        notesArea.rows = 3;
+        notesArea.value = findTestById(testId)?.comment ?? '';
+        const notesButton = document.createElement('button');
+        notesButton.type = 'button';
+        notesButton.className = 'btn btn-success btn-sm mt-2';
+        notesButton.textContent = 'Сохранить';
+        notesButton.addEventListener('click', async () => {
+            notesButton.disabled = true;
+            notesButton.textContent = 'Сохраняем…';
+            try {
+                const updated = await saveTestComment(testId, notesArea.value);
+                notesArea.value = updated?.comment ?? notesArea.value;
+                updateCachedTestComment(testId, updated?.comment ?? notesArea.value);
+                showToast('Заметка сохранена', 'success');
+            } catch (error) {
+                showToast('Не удалось сохранить заметку', 'danger');
+            } finally {
+                notesButton.disabled = false;
+                notesButton.textContent = 'Сохранить';
+            }
+        });
+        notesBox.appendChild(notesArea);
+        notesBox.appendChild(notesButton);
+        notesSection.appendChild(notesTitle);
+        notesSection.appendChild(notesBox);
+
+        const requirementsSection = document.createElement('section');
+        const requirementsTitle = document.createElement('h6');
+        requirementsTitle.className = 'mb-3';
+        requirementsTitle.textContent = 'Проверка на соответствие нефункциональным требованиям';
+        const requirementsBox = document.createElement('div');
+        requirementsBox.innerHTML = '<div class="text-muted small">Загружаем результаты проверок…</div>';
+        requirementsSection.appendChild(requirementsTitle);
+        requirementsSection.appendChild(requirementsBox);
+
+        const configurationSection = document.createElement('section');
+        const configurationTitle = document.createElement('h6');
+        configurationTitle.className = 'mb-3';
+        configurationTitle.textContent = 'Конфигурация DropApp';
+        const configurationBox = document.createElement('div');
+        configurationBox.innerHTML = '<div class="text-muted small">Загружаем конфигурацию…</div>';
+        configurationSection.appendChild(configurationTitle);
+        configurationSection.appendChild(configurationBox);
+
+        const grafanaSection = document.createElement('section');
+        const grafanaTitle = document.createElement('h6');
+        grafanaTitle.className = 'mb-3';
+        grafanaTitle.textContent = 'Графики';
+        const grafanaPlaceholder = document.createElement('div');
+        grafanaPlaceholder.className = 'text-muted small mb-2 visually-hidden';
+        grafanaPlaceholder.textContent = '';
+
+        const grafanaBox = document.createElement('div');
+        grafanaBox.innerHTML = '';
+
+        const grafanaLoadButton = document.createElement('button');
+        grafanaLoadButton.type = 'button';
+        grafanaLoadButton.className = 'btn btn-outline-success btn-sm';
+        grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
+
+        const cachedPanels = grafanaPanelsCache.get(testId);
+        const currentTest = findTestById(testId);
+        if (isGrafanaCacheValid(cachedPanels, currentTest)) {
+            const panels = Array.isArray(cachedPanels.panels) ? cachedPanels.panels : [];
+            if (panels.length > 0) {
+                grafanaPlaceholder.textContent = '';
+                renderGrafanaPanels(grafanaBox, panels, () => {});
+            } else {
+                grafanaPlaceholder.textContent = '';
+            }
+            grafanaLoadButton.textContent = 'Обновить графики из Grafana для данного теста';
+        } else if (cachedPanels) {
+            grafanaPanelsCache.delete(testId);
+        }
+
+        grafanaLoadButton.addEventListener('click', async () => {
+            grafanaLoadButton.disabled = true;
+            grafanaLoadButton.textContent = 'Загружаем…';
+            grafanaPlaceholder.textContent = 'Загружаем графики…';
+            showToast('Загружаем графики…', 'info', 6000);
+            try {
+                const panelsData = await ensureGrafanaPanels(testId);
+                const panels = Array.isArray(panelsData?.panels) ? panelsData.panels : [];
+                if (!panels || panels.length === 0) {
+                    grafanaPlaceholder.textContent = '';
+                    grafanaBox.innerHTML = '';
+                    showToast('Графиков не найдено для этого теста.', 'warning', 6000);
+                } else {
+                    grafanaPlaceholder.textContent = '';
+                    renderGrafanaPanels(grafanaBox, panels, () => {});
+                    showToast('Графики загружены.', 'success', 6000);
+                }
+            } catch (error) {
+                const reason = error?.message ? `: ${error.message}` : '';
+                grafanaPlaceholder.textContent = `Графики загрузить не удалось${reason}`;
+                grafanaBox.innerHTML = '';
+                showToast(`Графики загрузить не удалось${reason}`, 'danger', 12000);
+            } finally {
+                grafanaLoadButton.disabled = false;
+                grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
+            }
+        });
+
+        grafanaSection.appendChild(grafanaTitle);
+        grafanaSection.appendChild(grafanaPlaceholder);
+        grafanaSection.appendChild(grafanaLoadButton);
+        grafanaSection.appendChild(grafanaBox);
+
+        wrapper.appendChild(notesSection);
+        wrapper.appendChild(requirementsSection);
+        wrapper.appendChild(configurationSection);
+        wrapper.appendChild(grafanaSection);
+
+        if (!evaluationsAllowed) {
+            requirementsBox.innerHTML = '<div class="text-muted small">Проверки станут доступны после завершения обновления данных.</div>';
+        } else {
+            try {
+                const evaluation = await ensureEvaluation(testId);
+                renderRequirementResults(requirementsBox, evaluation);
+            } catch (error) {
+                requirementsBox.innerHTML = `<div class="text-danger small">Не удалось получить результаты проверок: ${error.message}</div>`;
+            }
+        }
+
+        try {
+            const configuration = await ensureTestConfiguration(testId);
+            updateConfigurationStatusIcon(testId, configuration);
+            updateTestReleaseFromConfiguration(testId, configuration);
+            renderConfiguration(configurationBox, configuration, testId);
+        } catch (error) {
+            updateConfigurationStatusIcon(testId, null, true);
+            configurationBox.innerHTML = `<div class="text-danger small">Не удалось загрузить конфигурацию: ${error.message}</div>`;
+        }
+
+        container.dataset.loading = 'false';
+        container.dataset.loaded = evaluationsAllowed ? 'true' : 'false';
+    }
+
+    function toggleDetails(testId, button, detailsRow, container) {
+        const isExpanded = button.getAttribute('aria-expanded') === 'true';
+        if (isExpanded) {
+            button.setAttribute('aria-expanded', 'false');
+            detailsRow.classList.remove('show');
+            expandedTests.delete(testId);
+            return;
+        }
+        button.setAttribute('aria-expanded', 'true');
+        detailsRow.classList.add('show');
+        expandedTests.add(testId);
+        if (container.dataset.loaded === 'true' || container.dataset.loading === 'true') {
+            return;
+        }
+        loadTestDetails(testId, container);
+    }
+
+    function setAllTests(tests) {
+        pruneGrafanaCache(tests);
+        allTests = Array.isArray(tests) ? tests.slice() : [];
+        updateReleaseOptions(allTests);
+        filterState.periodStart = periodStartInput?.value ?? '';
+        filterState.periodEnd = periodEndInput?.value ?? '';
+        applyFilters(true);
+    }
+
+    function applyFilters(resetCaches = false) {
+        const selectedReleases = filterState.releases ?? [];
+        const periodStart = parseDateTimeInput(filterState.periodStart);
+        const periodEnd = parseDateTimeInput(filterState.periodEnd);
+        const hasStart = periodStart instanceof Date && !Number.isNaN(periodStart);
+        const hasEnd = periodEnd instanceof Date && !Number.isNaN(periodEnd);
+        if (hasStart && hasEnd && periodEnd < periodStart) {
+            setTestsStatus('Дата начала периода позже даты окончания. Исправьте границы.', 'warning');
+            renderTests([], resetCaches);
+            return;
+        }
+        if (testsStatus.classList.contains('alert-warning')) {
+            clearTestsStatus();
+        }
+
+        const filtered = allTests.filter(test => {
+            const release = getReleaseValue(test);
+            if (selectedReleases.length > 0) {
+                const normalizedRelease = release ?? MISSING_RELEASE_VALUE;
+                if (!selectedReleases.includes(normalizedRelease)) {
+                    return false;
+                }
+            }
+            const testDate = getTestDateTime(test);
+            if (hasStart) {
+                if (!testDate || testDate < periodStart) {
+                    return false;
+                }
+            }
+            if (hasEnd) {
+                if (!testDate || testDate > periodEnd) {
+                    return false;
+                }
+            }
+            if (filterState.compliantOnly) {
+                const status = complianceStatusByTest.get(test.id);
+                if (status && status !== 'success') {
+                    return false;
+                }
+            }
+            if (filterState.configOnly) {
+                const cfgState = configStatusByTest.get(test.id);
+                if (cfgState && cfgState !== 'success') {
+                    return false;
+                }
+            }
+            return true;
+        });
+        renderTests(filtered, resetCaches);
+    }
+
+    function renderTests(tests, resetCaches = false) {
+        testsTableBody.innerHTML = '';
+        testsCount.textContent = tests.length.toString();
+        resetTestStatusRequests();
+        testConfigurationStatusElements.clear();
+        testStatusElements.clear();
+        releaseCells.clear();
+        if (resetCaches) {
+            evaluationCache.clear();
+            evaluationRequests.clear();
+            testConfigurationCache.clear();
+            testConfigurationRequests.clear();
+            complianceStatusByTest.clear();
+            configStatusByTest.clear();
+        }
+
+        if (tests.length === 0) {
+            const emptyRow = document.createElement('tr');
+            const emptyCell = document.createElement('td');
+            emptyCell.colSpan = 8;
+            emptyCell.className = 'text-muted py-4';
+            emptyCell.textContent =
+                    'Тесты отсутствуют. Нажмите «Запросить данные по тестам», чтобы получить последние результаты.';
+            emptyRow.appendChild(emptyCell);
+            testsTableBody.appendChild(emptyRow);
+            updateEvaluateButtonState();
+            return;
+        }
+
+        tests.forEach(test => {
+            const summaryRow = document.createElement('tr');
+            summaryRow.className = 'test-summary-row';
+
+            const releaseCell = document.createElement('td');
+            const releaseValue = getReleaseValue(test);
+            releaseCell.textContent = releaseValue ?? '—';
+            if (test?.id) {
+                releaseCells.set(test.id, releaseCell);
+            }
+
+            const typeCell = document.createElement('td');
+            const normalizedType = (test.type ?? 'unknown').toLowerCase();
+            const typePill = document.createElement('span');
+            typePill.className = 'test-type-pill';
+            typePill.textContent = TYPE_LABELS[normalizedType] ?? normalizedType;
+            typeCell.appendChild(typePill);
+
+            const durationCell = document.createElement('td');
+            durationCell.className = 'test-duration';
+            durationCell.textContent = formatDuration(test.start, test.end);
+
+            const startCell = document.createElement('td');
+            startCell.className = 'test-time';
+            startCell.textContent = test.start ?? '—';
+
+            const endCell = document.createElement('td');
+            endCell.className = 'test-time';
+            endCell.textContent = test.end ?? '—';
+
+            const complianceCell = document.createElement('td');
+            complianceCell.className = 'text-center';
+            const complianceIcon = document.createElement('span');
+            complianceIcon.dataset.testId = test.id;
+            setPendingStatus(complianceIcon);
+            testStatusElements.set(test.id, complianceIcon);
+            if (test?.requirementCompliance?.evaluated) {
+                const compliant = Boolean(test?.requirementCompliance?.compliant);
+                setTestStatusView(complianceIcon, compliant ? 'pass' : 'fail', test.id);
+            } else {
+                complianceStatusByTest.set(test.id, 'pending');
+            }
+            complianceCell.appendChild(complianceIcon);
+
+            const configurationCell = document.createElement('td');
+            configurationCell.className = 'text-center';
+            const configurationIcon = document.createElement('span');
+            const knownConfigState = configStatusByTest.get(test.id);
+            if (knownConfigState) {
+                setConfigurationStatus(configurationIcon, knownConfigState);
+            } else {
+                setConfigurationStatus(configurationIcon, 'loading');
+                configStatusByTest.set(test.id, 'loading');
+            }
+            configurationCell.appendChild(configurationIcon);
+            testConfigurationStatusElements.set(test.id, configurationIcon);
+            ensureTestConfiguration(test.id)
+                    .then(items => {
+                        updateConfigurationStatusIcon(test.id, items);
+                        updateTestReleaseFromConfiguration(test.id, items);
+                    })
+                    .catch(() => updateConfigurationStatusIcon(test.id, null, true));
+
+            const detailsCell = document.createElement('td');
+            detailsCell.className = 'text-center';
+            const toggleButton = document.createElement('button');
+            toggleButton.type = 'button';
+            toggleButton.className = 'details-toggle';
+            toggleButton.setAttribute('aria-expanded', 'false');
+            toggleButton.setAttribute('aria-label', 'Раскрыть детали теста');
+            toggleButton.innerHTML = '<span class="details-icon">▸</span>';
+            detailsCell.appendChild(toggleButton);
+
+            summaryRow.appendChild(releaseCell);
+            summaryRow.appendChild(typeCell);
+            summaryRow.appendChild(durationCell);
+            summaryRow.appendChild(startCell);
+            summaryRow.appendChild(endCell);
+            summaryRow.appendChild(complianceCell);
+            summaryRow.appendChild(configurationCell);
+            summaryRow.appendChild(detailsCell);
+
+            const detailsRow = document.createElement('tr');
+            detailsRow.className = 'details-row';
+            const detailsWrapper = document.createElement('td');
+            detailsWrapper.colSpan = 8;
+            const detailsContainer = document.createElement('div');
+            detailsContainer.className = 'test-details';
+            detailsContainer.dataset.loaded = 'false';
+            detailsContainer.innerHTML =
+                    '<div class="text-muted small">Раскройте, чтобы увидеть проверки, конфигурацию и графики.</div>';
+            detailsWrapper.appendChild(detailsContainer);
+            detailsRow.appendChild(detailsWrapper);
+
+            toggleButton.addEventListener('click', () =>
+                    toggleDetails(test.id, toggleButton, detailsRow, detailsContainer));
+
+            if (expandedTests.has(test.id)) {
+                toggleButton.setAttribute('aria-expanded', 'true');
+                detailsRow.classList.add('show');
+                loadTestDetails(test.id, detailsContainer);
+            }
+
+            testsTableBody.appendChild(summaryRow);
+            testsTableBody.appendChild(detailsRow);
+        });
+
+        updateEvaluateButtonState();
+    }
+
+    async function evaluateAllTests(showNotification = false) {
+        if (!evaluationsAllowed || testStatusElements.size === 0 || isEvaluationInProgress) {
+            return;
+        }
+        isEvaluationInProgress = true;
+        updateEvaluateButtonState();
+        resetTestStatusRequests();
+        const evaluationMode = showNotification ? 'fresh' : 'cached';
+        if (showNotification) {
+            markStatusesChecking();
+        }
+        let completed = 0;
+        let refreshPreviouslyDisabled = refreshButton ? refreshButton.disabled : true;
+        if (showNotification && refreshButton) {
+            refreshButton.disabled = true;
+        }
+
+        const testEntries = Array.from(testStatusElements.entries());
+        let progressToast = null;
+        if (showNotification) {
+            progressToast = showToast('Перепроверяем тесты на требования…', 'info');
+        }
+
+        try {
+            for (const [testId, statusElement] of testEntries) {
+                await evaluateTestStatus(testId, statusElement, evaluationMode);
+                completed += 1;
+            }
+            if (showNotification) {
+                removeToast(progressToast);
+                showToast('Проверка тестов завершена.', 'success');
+            }
+        } catch (error) {
+            if (showNotification) {
+                removeToast(progressToast);
+                showToast('Не удалось завершить проверку: ' + error.message, 'danger');
+            }
+        } finally {
+            if (showNotification && refreshButton && !refreshPreviouslyDisabled && !isRefreshing) {
+                refreshButton.disabled = false;
+            }
+            isEvaluationInProgress = false;
+            if (filterState.compliantOnly) {
+                applyFilters();
+            }
+            updateEvaluateButtonState();
+        }
+    }
+
+    function getDayRange(daysAgo) {
+        const now = new Date();
+        const targetDate = new Date(now.getTime() - daysAgo * MS_IN_DAY);
+        const datePart = formatInMoscow(targetDate).split(' ')[0];
+        const start = `${datePart} 00:00:00`;
+        const end = daysAgo === 0 ? formatInMoscow(now) : `${datePart} 23:59:59`;
+        return { start, end, label: datePart };
+    }
+
+    async function fetchVictoriaMetricsRange(start, end) {
+        const url = '/api/victoriametrics/tests/';
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ start, end })
+            });
+            const responseText = await response.text();
+            if (!response.ok) {
+                let message = 'Ответ сервера: ' + response.status;
+                try {
+                    const parsed = responseText ? JSON.parse(responseText) : null;
+                    if (parsed?.message) {
+                        message += ' — ' + parsed.message;
+                    }
+                } catch (parseError) {
+                    // ignore JSON parsing errors for error payloads
+                }
+                throw new Error(message);
+            }
+        } catch (error) {
+            console.error('Не удалось запросить Victoria Metrics', { url, start, end, error });
+            throw error;
+        }
+    }
+
+    async function refreshLastMonth() {
+        if (isRefreshing) {
+            return;
+        }
+        isRefreshing = true;
+        evaluationsAllowed = false;
+        updateEvaluateButtonState();
+        markAllStatusesPending();
+        refreshButton.disabled = true;
+        const progressToast = showToast('Запрашиваем данные по тестам за последние 30 дней из Victoria Metrics…', 'info');
+        try {
+            for (let dayOffset = 0; dayOffset < DAYS_TO_FETCH; dayOffset++) {
+                const { start, end, label } = getDayRange(dayOffset);
+                try {
+                    await fetchVictoriaMetricsRange(start, end);
+                } catch (error) {
+                    throw new Error(`День ${label}: ${error.message}`);
+                }
+            }
+            const loaded = await loadTests(false);
+            if (!loaded) {
+                throw new Error('Не удалось загрузить список тестов после обновления данных.');
+            }
+            evaluationsAllowed = true;
+            updateEvaluateButtonState();
+            await evaluateAllTests();
+            removeToast(progressToast);
+            showToast('Данные успешно обновлены.', 'success');
+        } catch (error) {
+            removeToast(progressToast);
+            showToast(error.message, 'danger');
+        } finally {
+            isRefreshing = false;
+            refreshButton.disabled = false;
+            evaluationsAllowed = true;
+            await evaluateAllTests();
+            updateEvaluateButtonState();
+        }
+    }
+
+    refreshButton.addEventListener('click', () => refreshLastMonth());
+
+    if (evaluateTestsButton) {
+        evaluateTestsButton.addEventListener('click', () => {
+            if (!evaluateTestsButton.disabled) {
+                evaluateAllTests(true);
+            }
+        });
+    }
+
+    if (releaseFilter) {
+        releaseFilter.addEventListener('change', () => {
+            const selected = Array.from(releaseFilter.selectedOptions).map(option => option.value);
+            if (selected.includes(ANY_RELEASE_VALUE)) {
+                const withoutAny = selected.filter(value => value !== ANY_RELEASE_VALUE);
+                if (withoutAny.length > 0) {
+                    filterState.releases = withoutAny;
+                    Array.from(releaseFilter.options).forEach(option => {
+                        if (option.value === ANY_RELEASE_VALUE) {
+                            option.selected = false;
+                        } else if (filterState.releases.includes(option.value)) {
+                            option.selected = true;
+                        }
+                    });
+                } else {
+                    filterState.releases = [];
+                    Array.from(releaseFilter.options).forEach(option => {
+                        option.selected = option.value === ANY_RELEASE_VALUE;
+                    });
+                }
+            } else {
+                filterState.releases = selected;
+            }
+            applyFilters();
+        });
+    }
+
+    if (periodStartInput) {
+        periodStartInput.addEventListener('change', () => {
+            filterState.periodStart = periodStartInput.value;
+            applyFilters();
+        });
+    }
+
+    if (periodEndInput) {
+        periodEndInput.addEventListener('change', () => {
+            filterState.periodEnd = periodEndInput.value;
+            applyFilters();
+        });
+    }
+
+    if (compliantFilterCheckbox) {
+        compliantFilterCheckbox.addEventListener('change', () => {
+            filterState.compliantOnly = compliantFilterCheckbox.checked;
+            applyFilters();
+        });
+    }
+
+    if (configFilterCheckbox) {
+        configFilterCheckbox.addEventListener('change', () => {
+            filterState.configOnly = configFilterCheckbox.checked;
+            applyFilters();
+        });
+    }
+
+    if (resetFiltersButton) {
+        resetFiltersButton.addEventListener('click', () => resetFilters());
+    }
+
+    async function autoRefresh() {
+        if (autoRefreshInProgress || isRefreshing || isEvaluationInProgress) {
+            return;
+        }
+        autoRefreshInProgress = true;
+        try {
+            const loaded = await loadTests(false);
+            if (loaded) {
+                await evaluateAllTests();
+                await requestConfigurationsForPendingTests();
+            }
+        } finally {
+            autoRefreshInProgress = false;
+        }
+    }
+
+    function startAutoRefresh() {
+        if (autoRefreshTimer) {
+            clearInterval(autoRefreshTimer);
+        }
+        autoRefreshTimer = setInterval(autoRefresh, AUTO_REFRESH_MS);
+    }
+
+    async function requestConfigurationsForPendingTests() {
+        if (pendingConfigRequests.size === 0) {
+            return;
+        }
+        const queue = Array.from(pendingConfigRequests);
+        for (const testId of queue) {
+            const cached = testConfigurationCache.get(testId);
+            if (Array.isArray(cached) && cached.length > 0) {
+                updateTestReleaseFromConfiguration(testId, cached);
+                pendingConfigRequests.delete(testId);
+                continue;
+            }
+            try {
+                const captured = await captureConfiguration(testId);
+                updateConfigurationStatusIcon(testId, captured);
+                updateTestReleaseFromConfiguration(testId, captured);
+                pendingConfigRequests.delete(testId);
+            } catch (error) {
+                updateConfigurationStatusIcon(testId, null, true);
+                pendingConfigRequests.delete(testId);
+            }
+        }
+    }
+
+    (async function init() {
+        updateEvaluateButtonState();
+        const loaded = await loadTests();
+        if (loaded) {
+            await evaluateAllTests();
+        }
+        startAutoRefresh();
+        if (typeof startBackgroundErrorPolling === 'function') {
+            startBackgroundErrorPolling(showToast);
+        }
+    })();
+</script>
+</body>
+</html>
