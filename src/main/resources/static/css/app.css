@@ -10,7 +10,7 @@ body {
         }
 
         .sidebar {
-            width: 270px;
+            width: 300px;
             background: #ffffff;
             color: #4b5563;
             border-right: 1px solid #e5e7eb;
@@ -63,7 +63,7 @@ body {
             background: transparent;
             border: none;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
         }
@@ -115,7 +115,7 @@ body {
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .sidebar-sublink:hover {
@@ -147,7 +147,7 @@ body {
             justify-content: center;
             width: 20px;
             color: #2c2c2b;
-            font-size: 18px;
+            font-size: 16px;
         }
 
         .tests-toolbar {
@@ -530,7 +530,7 @@ body {
         }
 
         .sidebar {
-            width: 270px;
+            width: 300px;
             background: #ffffff;
             color: #4b5563;
             border-right: 1px solid #e5e7eb;
@@ -583,7 +583,7 @@ body {
             background: transparent;
             border: none;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
         }
@@ -635,7 +635,7 @@ body {
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .sidebar-sublink:hover {
@@ -667,7 +667,7 @@ body {
             justify-content: center;
             width: 20px;
             color: #2c2c2b;
-            font-size: 18px;
+            font-size: 16px;
         }
 
         .card {
@@ -748,7 +748,7 @@ body {
         }
 
         .sidebar {
-            width: 270px;
+            width: 300px;
             background: #ffffff;
             color: #4b5563;
             border-right: 1px solid #e5e7eb;
@@ -801,7 +801,7 @@ body {
             background: transparent;
             border: none;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
         }
@@ -853,7 +853,7 @@ body {
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .sidebar-sublink:hover {
@@ -885,7 +885,7 @@ body {
             justify-content: center;
             width: 20px;
             color: #2c2c2b;
-            font-size: 18px;
+            font-size: 16px;
         }
 
         .card-config {
@@ -1014,7 +1014,7 @@ body {
         }
 
         .sidebar {
-            width: 270px;
+            width: 300px;
             background: #ffffff;
             color: #4b5563;
             border-right: 1px solid #e5e7eb;
@@ -1067,7 +1067,7 @@ body {
             background: transparent;
             border: none;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
         }
@@ -1119,7 +1119,7 @@ body {
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .sidebar-sublink:hover {
@@ -1151,7 +1151,7 @@ body {
             justify-content: center;
             width: 20px;
             color: #2c2c2b;
-            font-size: 18px;
+            font-size: 16px;
         }
 
         .settings-card {
@@ -1296,7 +1296,7 @@ body {
         }
 
         .sidebar {
-            width: 270px;
+            width: 300px;
             background: #ffffff;
             color: #4b5563;
             border-right: 1px solid #e5e7eb;
@@ -1349,7 +1349,7 @@ body {
             background: transparent;
             border: none;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
         }
@@ -1401,7 +1401,7 @@ body {
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .sidebar-sublink:hover {
@@ -1433,7 +1433,7 @@ body {
             justify-content: center;
             width: 20px;
             color: #2c2c2b;
-            font-size: 18px;
+            font-size: 16px;
         }
 
         .settings-card {
@@ -1547,7 +1547,7 @@ body {
         }
 
         .sidebar {
-            width: 270px;
+            width: 300px;
             background: #ffffff;
             color: #4b5563;
             border-right: 1px solid #e5e7eb;
@@ -1600,7 +1600,7 @@ body {
             background: transparent;
             border: none;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
         }
@@ -1652,7 +1652,7 @@ body {
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .sidebar-sublink:hover {
@@ -1684,7 +1684,7 @@ body {
             justify-content: center;
             width: 20px;
             color: #2c2c2b;
-            font-size: 18px;
+            font-size: 16px;
         }
 
         .dashboard-card {
@@ -1800,7 +1800,7 @@ body {
         }
 
         .sidebar {
-            width: 270px;
+            width: 300px;
             background: #ffffff;
             color: #4b5563;
             border-right: 1px solid #e5e7eb;
@@ -1853,7 +1853,7 @@ body {
             background: transparent;
             border: none;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
         }
@@ -1905,7 +1905,7 @@ body {
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .sidebar-sublink:hover {
@@ -1937,7 +1937,7 @@ body {
             justify-content: center;
             width: 20px;
             color: #2c2c2b;
-            font-size: 18px;
+            font-size: 16px;
         }
 
         .query-card {
@@ -1985,7 +1985,7 @@ body {
         }
 
         .sidebar {
-            width: 270px;
+            width: 300px;
             background: #ffffff;
             color: #4b5563;
             border-right: 1px solid #e5e7eb;
@@ -2038,7 +2038,7 @@ body {
             background: transparent;
             border: none;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 16px;
             text-decoration: none;
             transition: background-color 0.2s ease, color 0.2s ease;
         }
@@ -2090,7 +2090,7 @@ body {
             text-decoration: none;
             font-weight: 500;
             transition: background-color 0.2s ease, color 0.2s ease;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         .sidebar-sublink:hover {
@@ -2122,7 +2122,7 @@ body {
             justify-content: center;
             width: 20px;
             color: #2c2c2b;
-            font-size: 18px;
+            font-size: 16px;
         }
 
         .requirement-card {

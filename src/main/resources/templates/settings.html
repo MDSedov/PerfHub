@@ -27,21 +27,21 @@
                th:classappend="${activePage} == 'tests' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-activity"></i></span>
-                    <span>Тесты</span>
+                    <span>Тесты и отчеты</span>
                 </span>
             </a>
-            <a class="sidebar-link" th:href="@{/reports}"
-               th:classappend="${activePage} == 'reports' ? ' active' : ''">
+            <a class="sidebar-link" th:href="@{/settings/grafana-dashboards}"
+               th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
                 <span class="sidebar-item">
-                    <span class="menu-icon"><i class="bi bi-journal-text"></i></span>
-                    <span>Отчеты</span>
+                    <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                    <span>Графики из Grafana</span>
                 </span>
             </a>
             <a class="sidebar-link" th:href="@{/configuration}"
                th:classappend="${activePage} == 'configuration' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-gear"></i></span>
-                    <span>Конфигурация</span>
+                    <span>Конфигурация DropApp</span>
                 </span>
             </a>
             <a class="sidebar-link"
