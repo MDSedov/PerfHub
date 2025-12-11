@@ -92,80 +92,81 @@
         </div>
     </aside>
 
-    <div class="page-content">
-<main class="container-fluid py-5 px-4 px-lg-5">
-    <div class="row g-4">
-        <div class="col-12 col-lg-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <div>
-                            <h5 class="card-title mb-1">Генерация отчетов</h5>
-                            <p class="text-muted mb-0 small">Создайте страницы Confluence по выбранным тестам.</p>
-                        </div>
-                    </div>
-                    <form id="reportForm" novalidate>
-                        <div class="mb-3">
-                            <label for="parentPageId" class="form-label">ID родительской страницы</label>
-                            <input type="text" class="form-control" id="parentPageId" placeholder="Например, 1234567" required>
-                            <div class="form-text">Страница, под которой появятся дочерние отчеты.</div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Выбранные тесты</label>
-                            <div class="d-flex align-items-center gap-2 mb-2">
-                                <span id="selectedCounter" class="badge text-bg-success-subtle text-success-emphasis">0</span>
-                                <span class="text-muted small">шт.</span>
+    <div class="page-content" style="background: #ffffff; min-height: 100vh;">
+        <main class="container-fluid py-5 px-4 px-lg-5">
+            <div class="row g-3">
+                <div class="col-12 col-lg-4">
+                    <div class="card reports-card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <div>
+                                    <h5 class="card-title mb-1">Генерация отчетов</h5>
+                                    <p class="text-muted mb-0 small">Создайте страницы Confluence по выбранным тестам.</p>
+                                </div>
                             </div>
-                            <div id="selectedTestsList" class="small text-muted">Тесты не выбраны</div>
+                            <form id="reportForm" novalidate>
+                                <div class="mb-3">
+                                    <label for="parentPageId" class="form-label">ID родительской страницы</label>
+                                    <input type="text" class="form-control" id="parentPageId" placeholder="Например, 1234567" required>
+                                    <div class="form-text">Страница, под которой появятся дочерние отчеты.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Выбранные тесты</label>
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span id="selectedCounter" class="tests-count">0</span>
+                                        <span class="text-muted small">шт.</span>
+                                    </div>
+                                    <div id="selectedTestsList" class="small text-muted">Тесты не выбраны</div>
+                                </div>
+                                <div id="reportAlert" class="alert d-none" role="alert"></div>
+                                <button type="submit" class="btn btn-success w-100" id="createReportsButton" disabled>
+                                    Создать отчеты по тестам
+                                </button>
+                            </form>
                         </div>
-                        <div id="reportAlert" class="alert d-none" role="alert"></div>
-                        <button type="submit" class="btn btn-success w-100" id="createReportsButton" disabled>
-                            Создать отчеты по тестам
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-lg-8">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3 gap-3">
-                        <div>
-                            <h5 class="card-title mb-0">Тесты для отчетов</h5>
-                        </div>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" role="switch" id="selectAllTests">
-                            <label class="form-check-label" for="selectAllTests">Выбрать все</label>
-                        </div>
-                    </div>
-                    <div id="testsLoading" class="tests-loader text-center text-muted">
-                        Загружаем список тестов…
-                    </div>
-                    <div id="testsError" class="alert alert-danger d-none" role="alert"></div>
-                    <div class="table-responsive d-none" id="testsTableWrapper">
-                        <table class="table align-middle">
-                            <thead>
-                            <tr>
-                                <th style="width: 50px;"></th>
-                                <th>Тест</th>
-                                <th>Начало</th>
-                                <th>Окончание</th>
-                                <th>Длительность</th>
-                                <th>Соответствие НФТ</th>
-                            </tr>
-                            </thead>
-                            <tbody id="testsTableBody"></tbody>
-                        </table>
-                    </div>
-                    <div id="testsEmpty" class="text-center text-muted py-4 d-none">
-                        <p class="mb-1 fw-semibold">Тесты не найдены</p>
-                        <p class="mb-0 small">Добавьте тесты в разделе «Тесты», чтобы сформировать отчеты.</p>
                     </div>
                 </div>
+                <div class="col-12 col-lg-8">
+                    <div class="card reports-card h-100">
+                        <div class="card-body">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-3">
+                                <div class="tests-meta">
+                                    <h5 class="mb-0">Тесты для отчетов</h5>
+                                    <span id="testsCount" class="tests-count">0</span>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="selectAllTests">
+                                    <label class="form-check-label" for="selectAllTests">Выбрать все</label>
+                                </div>
+                            </div>
+                            <div id="testsLoading" class="tests-loader text-center text-muted">
+                                Загружаем список тестов…
+                            </div>
+                            <div id="testsError" class="alert alert-danger d-none" role="alert"></div>
+                            <div class="tests-table-wrapper table-responsive d-none" id="testsTableWrapper">
+                                <table class="table align-middle tests-table">
+                                    <thead>
+                                    <tr>
+                                        <th style="width: 50px;"></th>
+                                        <th>Тест</th>
+                                        <th>Начало</th>
+                                        <th>Окончание</th>
+                                        <th>Длительность</th>
+                                        <th class="text-center">Соответствие требованиям</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="testsTableBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="testsEmpty" class="text-center text-muted py-4 d-none">
+                                <p class="mb-1 fw-semibold">Тесты не найдены</p>
+                                <p class="mb-0 small">Добавьте тесты в разделе «Тесты», чтобы сформировать отчеты.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</main>
+        </main>
 
     </div>
 </div>
@@ -181,6 +182,7 @@
         const testsError = document.getElementById('testsError');
         const testsEmpty = document.getElementById('testsEmpty');
         const testsTableWrapper = document.getElementById('testsTableWrapper');
+        const testsCount = document.getElementById('testsCount');
         const selectAllCheckbox = document.getElementById('selectAllTests');
         const selectedCounter = document.getElementById('selectedCounter');
         const parentPageInput = document.getElementById('parentPageId');
@@ -253,12 +255,23 @@
         };
 
         const formatRequirementStatus = (requirement) => {
+            const icon = document.createElement('span');
+            icon.className = 'status-icon';
             if (!requirement || !requirement.evaluated) {
-                return '<span class="status-pill text-bg-secondary-subtle text-secondary-emphasis">Не оценено</span>';
+                icon.textContent = '—';
+                icon.title = 'Не оценено';
+                return icon.outerHTML;
             }
-            const badgeClass = requirement.compliant ? 'text-bg-success' : 'text-bg-danger';
-            const label = requirement.compliant ? 'Соответствует' : 'Не соответствует';
-            return `<span class="status-pill ${badgeClass}">${label}</span>`;
+            if (requirement.compliant) {
+                icon.classList.add('success');
+                icon.textContent = '✔';
+                icon.title = 'Тест соответствует требованиям';
+            } else {
+                icon.classList.add('fail');
+                icon.textContent = '✖';
+                icon.title = 'Тест не соответствует требованиям';
+            }
+            return icon.outerHTML;
         };
 
         const buildSelectedTestLabel = (test) => {
@@ -328,6 +341,9 @@
             testsTableBody.innerHTML = '';
             refreshTestsMap();
             cleanupSelection();
+            if (testsCount) {
+                testsCount.textContent = tests.length.toString();
+            }
             if (tests.length === 0) {
                 testsTableWrapper.classList.add('d-none');
                 testsEmpty.classList.remove('d-none');
@@ -351,7 +367,7 @@
                     <td class="text-nowrap">${test.start ?? '—'}</td>
                     <td class="text-nowrap">${test.end ?? '—'}</td>
                     <td>${formatDuration(test.durationSeconds)}</td>
-                    <td>${formatRequirementStatus(test.requirementCompliance)}</td>
+                    <td class="text-center">${formatRequirementStatus(test.requirementCompliance)}</td>
                 `;
                 testsTableBody.appendChild(row);
             });

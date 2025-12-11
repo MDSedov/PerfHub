@@ -320,6 +320,29 @@ body {
             box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
         }
 
+        .data-panel {
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+        }
+
+        .data-panel-actions .btn {
+            min-width: 220px;
+        }
+
+        .reports-card {
+            background: #ffffff;
+            border: 1px solid #e5efe8;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+            padding: 0.25rem;
+        }
+
+        .reports-card .card-body {
+            padding: 1.25rem 1.5rem;
+        }
+
         .sidebar-title {
             font-size: 0.95rem;
             font-weight: 500;
@@ -496,9 +519,9 @@ body {
         }
 
         .status-icon.success {
-            background: #f3f4f6;
-            color: #5f5e5b;
-            border-color: #d4d7db;
+            background: #f3f4f6 !important;
+            color: #009B48 !important;
+            border-color: #009B48 !important;
         }
 
         .status-icon.fail {
@@ -557,15 +580,16 @@ body {
 
         .details-row > td {
             padding: 0;
-            background: #f9fbf9;
+            background: #ffffff;
             border-color: #e5efe8;
         }
 
         .test-details {
             padding: 1.25rem 1.25rem 1.5rem;
             border-top: 1px solid #e5efe8;
-            max-height: 640px;
-            overflow: auto;
+            max-height: none;
+            overflow: visible;
+            background: #ffffff;
         }
 
         .progress {
