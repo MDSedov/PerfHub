@@ -82,6 +82,12 @@ public class DashboardController {
         return "settings-grafana-dashboards";
     }
 
+    @GetMapping("/grafana-panels")
+    public String grafanaPanels(Model model) {
+        model.addAttribute("activePage", "grafana-panels");
+        return "grafana-panels";
+    }
+
     private List<String> metricTypes() {
         return Arrays.stream(RequirementMetricType.values())
                 .map(Enum::name)

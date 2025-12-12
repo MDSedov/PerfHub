@@ -41,11 +41,11 @@
                     </span>
                 </a>
             </div>
-            <a class="sidebar-link" th:href="@{/settings/grafana-dashboards}"
-               th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+            <a class="sidebar-link" th:href="@{/grafana-panels}"
+               th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
-                    <span>Графики из Grafana</span>
+                    <span>Выгрузка графиков</span>
                 </span>
             </a>
             <a class="sidebar-link" th:href="@{/configuration}"
@@ -97,11 +97,11 @@
             <div class="home-grid">
                 <div class="home-card">
                     <div class="home-card-icon"><i class="bi bi-graph-up"></i></div>
-                    <h5 class="home-card-title">Графики из Grafana</h5>
+                    <h5 class="home-card-title">Выгрузка графиков</h5>
                     <p class="home-card-text">
                         Быстрый просмотр и выгрузка панелей Grafana, готовых к вставке в Confluence и отчёты.
                     </p>
-                    <a class="home-card-link" th:href="@{/settings/grafana-dashboards}">Перейти к графикам</a>
+                    <a class="home-card-link" th:href="@{/grafana-panels}">Перейти к графикам</a>
                 </div>
 
                 <div class="home-card">

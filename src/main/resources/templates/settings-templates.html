@@ -41,11 +41,11 @@
                     </span>
                 </a>
             </div>
-            <a class="sidebar-link" th:href="@{/settings/grafana-dashboards}"
-               th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+            <a class="sidebar-link" th:href="@{/grafana-panels}"
+               th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
-                    <span>Графики из Grafana</span>
+                    <span>Выгрузка графиков</span>
                 </span>
             </a>
             <a class="sidebar-link" th:href="@{/configuration}"
@@ -81,8 +81,8 @@
                     </span>
                 </a>
                 <a class="sidebar-sublink"
-                   th:href="@{/settings/grafana-dashboards}"
-                   th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                   th:href="@{/grafana-panels}"
+                   th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
                     <span class="sidebar-item">
                         <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
                         <span>Графики и нефункциональные требования</span>

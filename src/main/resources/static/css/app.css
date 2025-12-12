@@ -343,6 +343,57 @@ body {
             padding: 1.25rem 1.5rem;
         }
 
+        .reports-card .tests-table {
+            border-top: none;
+        }
+
+        .grafana-wrapper {
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            padding-left: 2.5rem;
+            padding-right: 2.5rem;
+        }
+
+        .grafana-grid {
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .grafana-grid.home-grid {
+            max-width: none;
+        }
+
+        .grafana-grid .home-card {
+            width: auto;
+            min-width: 420px;
+            text-align: center;
+            align-items: center;
+        }
+
+        .grafana-grid .home-card.wide {
+            grid-column: 1 / -1;
+        }
+
+        .grafana-form .form-label {
+            font-weight: 500;
+            color: #1f2b24;
+            white-space: nowrap;
+        }
+
+        .grafana-form .form-control {
+            border-radius: 10px;
+            min-width: 220px;
+        }
+
+        .grafana-field {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: nowrap;
+        }
+
         .sidebar-title {
             font-size: 0.95rem;
             font-weight: 500;

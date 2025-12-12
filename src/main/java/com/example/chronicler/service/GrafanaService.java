@@ -4,6 +4,7 @@ import com.example.chronicler.client.GrafanaClient;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
+import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedDashboard;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
@@ -13,6 +14,7 @@ import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.repository.GrafanaDashboardRepository;
 import com.example.chronicler.repository.LoadTestRepository;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -102,6 +104,52 @@ public class GrafanaService {
     }
 
     /**
+     * Рендерит панели Grafana за произвольный временной диапазон.
+     */
+    public GrafanaRenderResponse renderPanelsByRange(GrafanaRenderRangeRequest request) {
+        Objects.requireNonNull(request, "Grafana render range request must not be null");
+        Instant from = parseInstant(request.from(), "from");
+        Instant to = parseInstant(request.to(), "to");
+        if (!to.isAfter(from)) {
+            throw new GrafanaInvalidTimeRangeException("End time must be after start time");
+        }
+
+        List<GrafanaDashboard> dashboardConfigs = grafanaDashboardRepository.findAll();
+        List<GrafanaDashboard> dashboardsWithPanels = dashboardConfigs.stream()
+                .filter(config -> config.panels() != null && !config.panels().isEmpty())
+                .toList();
+        if (dashboardsWithPanels.isEmpty()) {
+            throw new GrafanaRenderingException("No Grafana panels selected for export");
+        }
+
+        List<GrafanaRenderedDashboard> dashboards = new ArrayList<>();
+        for (GrafanaDashboard dashboardConfig : dashboardsWithPanels) {
+            String uid = requireText(dashboardConfig.uid(), "uid");
+            String slug = requireText(dashboardConfig.slug(), "slug");
+            List<Integer> panels = dashboardConfig.panels();
+
+            List<GrafanaRenderedPanel> renderedPanels = new ArrayList<>(panels.size());
+            for (Integer panelId : panels) {
+                if (panelId == null || panelId <= 0) {
+                    throw new GrafanaRenderingException("Panel identifiers must be positive numbers");
+                }
+                GrafanaPanelMetadata metadata = grafanaClient.getPanelMetadata(uid, panelId);
+                String title = requireText(metadata.title(), "title");
+                String description = metadata.description() == null ? "" : metadata.description();
+                byte[] imageBytes = grafanaClient.renderPanel(uid, slug, panelId, from, to);
+                String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
+                renderedPanels.add(new GrafanaRenderedPanel(panelId, title, description, encodedImage));
+            }
+
+            dashboards.add(new GrafanaRenderedDashboard(uid, slug, renderedPanels));
+        }
+
+        GrafanaRenderResponse response = new GrafanaRenderResponse(from.toString(), to.toString(), dashboards);
+        grafanaRenderCache.store(response);
+        return response;
+    }
+
+    /**
      * Проверяет, что строка содержит непустое значение, иначе выбрасывает исключение рендеринга.
      */
     private String requireText(String value, String field) {
@@ -109,5 +157,14 @@ public class GrafanaService {
             throw new GrafanaRenderingException(field + " must not be blank");
         }
         return value;
+    }
+
+    private Instant parseInstant(String value, String field) {
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException ex) {
+            throw new GrafanaInvalidTimeRangeException(
+                    "Unable to parse " + field + " as ISO-8601 instant: " + value);
+        }
     }
 }

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Летописец — Выгрузка графиков</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            crossorigin="anonymous">
+    <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="sidebar-brand" th:href="@{/}">
+            <img src="/img/chronicler-logo.png" alt="Летописец" class="brand-logo" loading="lazy">
+            <span>Летописец</span>
+        </a>
+        <div class="sidebar-menu">
+            <a class="sidebar-link" th:href="@{/tests}"
+               th:classappend="${activePage} == 'tests' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-activity"></i></span>
+                    <span>Мониторинг тестов</span>
+                </span>
+            </a>
+            <div class="sidebar-submenu" style="margin-bottom: 0.5rem;">
+                <a class="sidebar-sublink"
+                   id="reportsSubLink"
+                   th:href="@{/reports}"
+                   th:classappend="${activePage} == 'reports' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-journal-text"></i></span>
+                        <span>Генерация отчётов</span>
+                    </span>
+                </a>
+            </div>
+            <a class="sidebar-link" th:href="@{/grafana-panels}"
+               th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                    <span>Выгрузка графиков</span>
+                </span>
+            </a>
+            <a class="sidebar-link" th:href="@{/configuration}"
+               th:classappend="${activePage} == 'configuration' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-gear"></i></span>
+                    <span>Конфигурация DropApp</span>
+                </span>
+            </a>
+            <a class="sidebar-link"
+               th:href="@{/settings/connections}"
+               th:classappend="${activePage} == 'settings' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-sliders"></i></span>
+                    <span>Настройки</span>
+                </span>
+            </a>
+            <div class="sidebar-submenu">
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/connections}"
+                   th:classappend="${activeSettingsSection} == 'connections' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-plug"></i></span>
+                        <span>Подключения</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/templates}"
+                   th:classappend="${activeSettingsSection} == 'templates' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-file-earmark-text"></i></span>
+                        <span>Шаблоны отчетов</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/grafana-dashboards}"
+                   th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                        <span>Графики и нефункциональные требования</span>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <div class="page-content" style="background: #ffffff; min-height: 100vh;">
+<main class="container-fluid py-5 px-4 px-lg-5 grafana-wrapper">
+    <div class="home-grid reports-grid grafana-grid">
+        <div class="home-card reports-card">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="home-card-icon"><i class="bi bi-clock-history"></i></div>
+                <h5 class="home-card-title mb-0">Показать графики</h5>
+            </div>
+            <form class="grafana-form d-flex flex-wrap align-items-center gap-3">
+                <div class="grafana-field d-flex align-items-center gap-2">
+                    <label for="rangeStart" class="form-label mb-0">Начало</label>
+                    <input type="datetime-local" class="form-control" id="rangeStart">
+                </div>
+                <div class="grafana-field d-flex align-items-center gap-2">
+                    <label for="rangeEnd" class="form-label mb-0">Конец</label>
+                    <input type="datetime-local" class="form-control" id="rangeEnd">
+                </div>
+                <div class="grafana-field">
+                    <button type="button" class="btn btn-outline-success" id="showPanelsButton">Показать графики</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="home-card reports-card">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="home-card-icon"><i class="bi bi-upload"></i></div>
+                <h5 class="home-card-title mb-0">Выгрузить графики</h5>
+            </div>
+            <form class="grafana-form d-flex flex-wrap align-items-center gap-3">
+                <div class="grafana-field d-flex align-items-center gap-2 flex-grow-1">
+                    <label for="exportPageId" class="form-label mb-0">ID страницы для выгрузки графиков</label>
+                    <input type="text" class="form-control" id="exportPageId" placeholder="Например, 1234567">
+                </div>
+                <div class="grafana-field">
+                    <button type="button" class="btn btn-outline-success" id="exportPanelsButton">Выгрузить графики</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="dashboardsCard" class="home-card reports-card wide d-none">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+                <div>
+                    <h5 class="mb-1">Графики</h5>
+                </div>
+            </div>
+            <div id="dashboardsStatus" class="alert d-none" role="alert"></div>
+            <div id="dashboardsList" class="d-flex flex-column gap-3"></div>
+            <div id="dashboardsEmpty" class="text-muted">Нажмите «Показать графики», чтобы подтянуть их из Grafana.</div>
+        </div>
+    </div>
+</main>
+
+<div id="toastContainer" class="toast-container"></div>
+
+    </div>
+</div>
+
+<script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
+        crossorigin="anonymous"></script>
+<script src="/js/background-errors.js"></script>
+<script>
+    const dashboardsCard = document.getElementById('dashboardsCard');
+    const dashboardsList = document.getElementById('dashboardsList');
+    const dashboardsEmpty = document.getElementById('dashboardsEmpty');
+    const dashboardsStatus = document.getElementById('dashboardsStatus');
+    const showPanelsButton = document.getElementById('showPanelsButton');
+    const exportPanelsButton = document.getElementById('exportPanelsButton');
+    const rangeStartInput = document.getElementById('rangeStart');
+    const rangeEndInput = document.getElementById('rangeEnd');
+    const exportPageIdInput = document.getElementById('exportPageId');
+    const toastContainer = document.getElementById('toastContainer');
+
+    const removeToast = (toast) => {
+        if (!toast) {
+            return;
+        }
+        const timerId = toast.dataset.timerId;
+        if (timerId) {
+            clearTimeout(Number(timerId));
+        }
+        toast.remove();
+    };
+
+    const showToast = (message, type = 'info', durationMs = 12000) => {
+        if (!toastContainer) {
+            return null;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast-item ${type}`;
+        const body = document.createElement('p');
+        body.className = 'toast-body';
+        body.textContent = message;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Закрыть уведомление');
+        close.innerHTML = '&times;';
+        close.addEventListener('click', () => removeToast(toast));
+        const content = document.createElement('div');
+        content.className = 'flex-grow-1';
+        content.appendChild(body);
+        toast.appendChild(content);
+        toast.appendChild(close);
+        toastContainer.appendChild(toast);
+        const timer = setTimeout(() => removeToast(toast), durationMs);
+        toast.dataset.timerId = timer.toString();
+        return toast;
+    };
+
+    if (toastContainer) {
+        toastContainer.addEventListener('click', event => {
+            const closeButton = event.target.closest('.toast-close');
+            if (!closeButton) {
+                return;
+            }
+            const toast = closeButton.closest('.toast-item');
+            removeToast(toast);
+        });
+    }
+
+    function setDashboardsStatus(message, type = 'info') {
+        dashboardsStatus.textContent = message;
+        dashboardsStatus.className = `alert alert-${type} visually-hidden`;
+        showToast(message, type);
+    }
+
+    function clearDashboardsStatus() {
+        dashboardsStatus.className = 'alert d-none';
+        dashboardsStatus.textContent = '';
+    }
+
+    function renderDashboards(items) {
+        dashboardsList.innerHTML = '';
+        if (!items || !items.length) {
+            dashboardsEmpty.classList.remove('d-none');
+            dashboardsEmpty.innerHTML = createSpinner();
+            return;
+        }
+        dashboardsEmpty.classList.add('d-none');
+        dashboardsEmpty.innerHTML = '';
+        items.forEach(item => dashboardsList.appendChild(buildDashboardCard(item)));
+    }
+
+    function buildDashboardCard(item) {
+        const card = document.createElement('div');
+        card.className = 'card dashboard-card';
+        card.dataset.dashboardUid = item?.uid ?? '';
+        card.dataset.dashboardSlug = item?.slug ?? '';
+
+        const body = document.createElement('div');
+        body.className = 'card-body';
+
+        const titleRow = document.createElement('div');
+        titleRow.className = 'd-flex align-items-center justify-content-between gap-3 mb-2 flex-wrap';
+
+        const title = document.createElement('h6');
+        title.className = 'mb-0';
+        title.textContent = item?.title ?? 'Без названия';
+
+        const source = document.createElement('div');
+        source.className = 'text-muted small';
+        source.textContent = `UID: ${item?.uid ?? '—'}`;
+
+        titleRow.appendChild(title);
+        titleRow.appendChild(source);
+
+        const panelsContainer = document.createElement('div');
+        panelsContainer.className = 'grafana-panels-container';
+
+        body.appendChild(titleRow);
+        body.appendChild(panelsContainer);
+        card.appendChild(body);
+        return card;
+    }
+
+    function renderPanels(card, panels) {
+        const container = card.querySelector('.grafana-panels-container');
+        container.innerHTML = '';
+        if (!panels || !panels.length) {
+            const empty = document.createElement('div');
+            empty.className = 'text-muted small';
+            empty.textContent = 'Панели не найдены';
+            container.appendChild(empty);
+            return;
+        }
+        panels.forEach(panel => {
+            const box = document.createElement('div');
+            box.className = 'dashboard-panel';
+            const title = document.createElement('div');
+            title.className = 'fw-semibold mb-1';
+            title.textContent = panel?.title ?? 'Без названия';
+            const descr = document.createElement('div');
+            descr.className = 'text-muted small';
+            descr.textContent = panel?.description ?? '';
+
+            if (panel?.imageBase64) {
+                const image = document.createElement('img');
+                image.className = 'img-fluid rounded border mb-2';
+                image.src = `data:image/png;base64,${panel.imageBase64}`;
+                image.alt = panel?.title ? `График ${panel.title}` : 'График';
+            }
+
+            box.appendChild(title);
+            if (descr.textContent) {
+                box.appendChild(descr);
+            }
+            if (panel?.imageBase64) {
+                const image = document.createElement('img');
+                image.className = 'img-fluid rounded border mb-2';
+                image.src = `data:image/png;base64,${panel.imageBase64}`;
+                image.alt = panel?.title ? `График ${panel.title}` : 'График';
+                box.appendChild(image);
+            }
+            container.appendChild(box);
+        });
+    }
+
+    const createSpinner = () =>
+            '<div class="d-flex justify-content-center py-3"><div class="spinner-border text-info" role="status" aria-label="Загружаем графики"></div></div>';
+
+    async function renderByRange(from, to) {
+        showPanelsButton.disabled = true;
+        showPanelsButton.textContent = 'Запрашиваем…';
+        dashboardsStatus.className = 'alert alert-info d-flex justify-content-center';
+        dashboardsStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-label="Загружаем графики"></span><span>Графики загружаются…</span>';
+        dashboardsEmpty.classList.add('d-none');
+        dashboardsEmpty.innerHTML = '';
+        dashboardsList.innerHTML = '';
+        try {
+            const response = await fetch('/api/grafana/panels/range', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ from, to })
+            });
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            const payload = await response.json();
+            const dashboards = Array.isArray(payload?.dashboards) ? payload.dashboards : [];
+            dashboardsList.innerHTML = '';
+            dashboardsEmpty.classList.add('d-none');
+            if (dashboards.length === 0) {
+                dashboardsEmpty.classList.remove('d-none');
+                dashboardsEmpty.textContent = 'Панели не найдены для выбранного диапазона.';
+            } else {
+                dashboards.forEach(dashboard => {
+                    const card = buildDashboardCard(dashboard);
+                    renderPanels(card, dashboard?.panels);
+                    dashboardsList.appendChild(card);
+                });
+            }
+            dashboardsStatus.className = 'alert d-none';
+            dashboardsStatus.innerHTML = '';
+            if (!dashboards.length) {
+                dashboardsEmpty.classList.remove('d-none');
+                dashboardsEmpty.textContent = 'Панели не найдены для выбранного диапазона.';
+            }
+            showToast('Графики загружены.', 'success');
+        } catch (error) {
+            setDashboardsStatus('Не удалось получить дашборды: ' + error.message, 'danger');
+            dashboardsEmpty.classList.remove('d-none');
+            dashboardsEmpty.textContent = 'Графики не удалось получить.';
+        } finally {
+            showPanelsButton.disabled = false;
+            showPanelsButton.textContent = 'Показать графики';
+        }
+    }
+
+    if (showPanelsButton) {
+        showPanelsButton.addEventListener('click', () => {
+            if (dashboardsCard?.classList.contains('d-none')) {
+                dashboardsCard.classList.remove('d-none');
+            }
+            dashboardsStatus.className = 'alert alert-info d-flex justify-content-center';
+            dashboardsStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-label="Загружаем графики"></span><span>Графики загружаются…</span>';
+            dashboardsEmpty.classList.add('d-none');
+            dashboardsEmpty.innerHTML = '';
+            showToast('Графики загружаются…', 'info');
+            const from = rangeStartInput?.value ? new Date(rangeStartInput.value).toISOString() : null;
+            const to = rangeEndInput?.value ? new Date(rangeEndInput.value).toISOString() : null;
+            if (!from || !to) {
+                setDashboardsStatus('Укажите даты начала и конца диапазона.', 'warning');
+                showPanelsButton.disabled = false;
+                showPanelsButton.textContent = 'Показать графики';
+                return;
+            }
+            renderByRange(from, to);
+        });
+    }
+
+    if (exportPanelsButton) {
+        exportPanelsButton.addEventListener('click', () => {
+            const pageId = (exportPageIdInput?.value ?? '').trim();
+            if (!pageId) {
+                showToast('Укажите ID страницы для выгрузки.', 'warning');
+                return;
+            }
+            showToast(`Выгрузка графиков на страницу ${pageId} пока не настроена.`, 'info');
+        });
+    }
+</script>
+</body>
+</html>
