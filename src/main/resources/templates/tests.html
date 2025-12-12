@@ -27,7 +27,7 @@
                th:classappend="${activePage} == 'tests' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-activity"></i></span>
-                    <span>Тесты и отчеты</span>
+                    <span>Мониторинг тестов</span>
                 </span>
             </a>
             <div class="sidebar-submenu" style="margin-bottom: 0.5rem;">
@@ -94,12 +94,11 @@
 
     <div class="page-content" style="background: #ffffff; min-height: 100vh;">
         <main class="container-fluid py-5 px-4 px-lg-5">
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-lg-4">
-                    <div class="sidebar-card h-100">
-                        <h6 class="sidebar-title">Данные</h6>
-                        <div class="d-grid gap-2">
-                            <button type="button" class="btn btn-success" id="refreshTestsButton">Запросить данные по тестам</button>
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="data-panel d-flex flex-wrap justify-content-md-end justify-content-center gap-2">
+                        <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-md-end justify-content-center">
+                            <button type="button" class="btn btn-outline-success" id="refreshTestsButton">Запросить данные за 30 дней</button>
                             <button type="button" class="btn btn-outline-success" id="evaluateTestsButton">Перепроверить тесты на требования</button>
                         </div>
                     </div>
@@ -161,10 +160,10 @@
                                 </div>
                                 <div class="dropdown" data-bs-auto-close="outside">
                                     <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-shield-check"></i> Соответствие
+                                        <i class="bi bi-shield-check"></i> Требования
                                     </a>
                                     <div class="dropdown-menu filter-dropdown">
-                                        <label class="form-label small text-muted mb-2" for="complianceFilter">Соответствие требованиям</label>
+                                        <label class="form-label small text-muted mb-2" for="complianceFilter">Требования</label>
                                         <select id="complianceFilter" class="form-select form-select-sm">
                                             <option value="">Любое</option>
                                             <option value="success">Соответствует</option>
@@ -359,6 +358,7 @@
     const evaluationRequests = new Map();
     const grafanaPanelsCache = new Map();
     const grafanaPanelRequests = new Map();
+    const grafanaRenderedPanels = new Map();
     const testConfigurationCache = new Map();
     const testConfigurationRequests = new Map();
     const testConfigurationStatusElements = new Map();
@@ -770,6 +770,19 @@
         const config = STATES[state] || STATES.pending;
         element.className = config.className;
         element.textContent = config.text;
+        if (state === 'success') {
+            element.style.background = '#f3f4f6';
+            element.style.color = '#009B48';
+            element.style.borderColor = '#009B48';
+            element.style.boxShadow = 'none';
+            element.style.fontWeight = '700';
+        } else {
+            element.style.background = '';
+            element.style.color = '';
+            element.style.borderColor = '';
+            element.style.boxShadow = '';
+            element.style.fontWeight = '';
+        }
         if (label) {
             element.setAttribute('title', label);
             element.setAttribute('aria-label', label);
@@ -1251,11 +1264,11 @@
                 testsById.set(test.id, test);
             }
         });
-        grafanaPanelsCache.forEach((entry, testId) => {
-            const currentTest = testsById.get(testId);
-            if (!currentTest || !isGrafanaCacheValid(entry, currentTest)) {
+        grafanaPanelsCache.forEach((_, testId) => {
+            if (!testsById.has(testId)) {
                 grafanaPanelsCache.delete(testId);
                 grafanaPanelRequests.delete(testId);
+                grafanaRenderedPanels.delete(testId);
             }
         });
     }
@@ -1280,7 +1293,7 @@
         const notesSection = document.createElement('section');
         const notesTitle = document.createElement('h6');
         notesTitle.className = 'mb-3';
-        notesTitle.textContent = 'Заметки';
+        notesTitle.textContent = 'Заметки к тесту';
         const notesBox = document.createElement('div');
         notesBox.className = 'mb-2';
         const notesArea = document.createElement('textarea');
@@ -1289,7 +1302,7 @@
         notesArea.value = findTestById(testId)?.comment ?? '';
         const notesButton = document.createElement('button');
         notesButton.type = 'button';
-        notesButton.className = 'btn btn-success btn-sm mt-2';
+        notesButton.className = 'btn btn-outline-success btn-sm mt-2';
         notesButton.textContent = 'Сохранить';
         notesButton.addEventListener('click', async () => {
             notesButton.disabled = true;
@@ -1345,25 +1358,64 @@
         grafanaLoadButton.className = 'btn btn-outline-success btn-sm';
         grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
 
-        const cachedPanels = grafanaPanelsCache.get(testId);
-        const currentTest = findTestById(testId);
-        if (isGrafanaCacheValid(cachedPanels, currentTest)) {
-            const panels = Array.isArray(cachedPanels.panels) ? cachedPanels.panels : [];
-            if (panels.length > 0) {
-                grafanaPlaceholder.textContent = '';
-                renderGrafanaPanels(grafanaBox, panels, () => {});
-            } else {
-                grafanaPlaceholder.textContent = '';
+        function applyGrafanaPanels(panels) {
+            const normalizedPanels = Array.isArray(panels) ? panels : [];
+            if (!grafanaBox.isConnected) {
+                return;
             }
+            if (normalizedPanels.length === 0) {
+                grafanaPlaceholder.textContent = '';
+                grafanaBox.innerHTML = '';
+                grafanaRenderedPanels.delete(testId);
+                return;
+            }
+            grafanaPlaceholder.textContent = '';
+            renderGrafanaPanels(grafanaBox, normalizedPanels, () => {});
             grafanaLoadButton.textContent = 'Обновить графики из Grafana для данного теста';
-        } else if (cachedPanels) {
-            grafanaPanelsCache.delete(testId);
+            grafanaRenderedPanels.set(testId, grafanaBox.innerHTML);
+        }
+
+        const cachedPanels = grafanaPanelsCache.get(testId);
+        const cachedRender = grafanaRenderedPanels.get(testId);
+        if (cachedRender) {
+            grafanaPlaceholder.textContent = '';
+            grafanaPlaceholder.classList.add('visually-hidden');
+            grafanaBox.innerHTML = cachedRender;
+            grafanaLoadButton.textContent = 'Обновить графики из Grafana для данного теста';
+        } else if (cachedPanels && Array.isArray(cachedPanels.panels) && cachedPanels.panels.length > 0) {
+            applyGrafanaPanels(cachedPanels.panels);
+        } else if (grafanaPanelRequests.has(testId)) {
+            const request = grafanaPanelRequests.get(testId);
+            grafanaLoadButton.disabled = true;
+            grafanaLoadButton.textContent = 'Загружаем…';
+            grafanaPlaceholder.classList.remove('visually-hidden');
+            grafanaPlaceholder.textContent = 'Загружаем графики…';
+            request
+                    .then(result => {
+                        applyGrafanaPanels(result?.panels);
+                    })
+                    .catch(error => {
+                        if (!grafanaBox.isConnected) {
+                            return;
+                        }
+                        const reason = error?.message ? `: ${error.message}` : '';
+                        grafanaPlaceholder.textContent = `Графики загрузить не удалось${reason}`;
+                        grafanaBox.innerHTML = '';
+                    })
+                    .finally(() => {
+                        if (!grafanaBox.isConnected) {
+                            return;
+                        }
+                        grafanaLoadButton.disabled = false;
+                        grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
+                    });
         }
 
         grafanaLoadButton.addEventListener('click', async () => {
             grafanaLoadButton.disabled = true;
             grafanaLoadButton.textContent = 'Загружаем…';
             grafanaPlaceholder.textContent = 'Загружаем графики…';
+            grafanaPlaceholder.classList.remove('visually-hidden');
             showToast('Загружаем графики…', 'info', 6000);
             try {
                 const panelsData = await ensureGrafanaPanels(testId);
@@ -1375,6 +1427,7 @@
                 } else {
                     grafanaPlaceholder.textContent = '';
                     renderGrafanaPanels(grafanaBox, panels, () => {});
+                    grafanaRenderedPanels.set(testId, grafanaBox.innerHTML);
                     showToast('Графики загружены.', 'success', 6000);
                 }
             } catch (error) {

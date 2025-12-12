@@ -1,0 +1,11 @@
+http://95.163.220.93:8428/
+15
+/api/v1/query_range
+{"jmeterall.a.count"}
+
+http://95.163.220.93:3000
+glsa_4LkGeNjDM2YFa1cnKcWxk9Jrv2sY0tg7_67653836
+500
+1000
+/render/d-solo/
+Europe/Moscow
