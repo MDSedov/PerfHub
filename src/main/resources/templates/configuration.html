@@ -85,25 +85,40 @@
                    th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
                     <span class="sidebar-item">
                         <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
-                        <span>Графики и нефункциональные требования</span>
+                        <span>Графики и требования</span>
                     </span>
                 </a>
             </div>
         </div>
     </aside>
 
-    <div class="page-content">
+    <div class="page-content" style="background: #ffffff; min-height: 100vh;">
 <main class="container-fluid py-5 px-4 px-lg-5">
     <div class="card card-config">
         <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between gap-3 align-items-center mb-4">
-                <div>
-                    <h5 class="card-title mb-1">Конфигурация DropApp</h5>
-                    <p class="text-muted mb-0">Загружайте параметры ресурсов для выбранных namespace.</p>
+            <div class="d-flex flex-column align-items-center text-center gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-gear home-card-icon" style="margin: 0;"></i>
+                    <h5 class="card-title mb-0 home-card-title" style="margin: 0;">Конфигурация DropApp</h5>
                 </div>
-                <button type="button" class="btn btn-refresh text-white" id="loadDropAppConfig">
-                    Получить текущую конфигурацию DropApp
-                </button>
+                <p class="text-muted mb-0" style="max-width: 640px;">
+                    Получите подробную информацию о нужном пространстве DropApp.<br>
+                    Номер релиза, версии сервисов, количестве POD и выделенных для них ресурсов.
+                </p>
+                <div class="d-flex flex-wrap justify-content-center align-items-center gap-3">
+                    <div class="dropdown" data-bs-auto-close="outside">
+                        <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" id="namespaceFilterToggle">
+                            <i class="bi bi-hdd-network"></i> Namespace
+                        </a>
+                        <div class="dropdown-menu filter-dropdown">
+                            <p class="form-label small text-muted mb-2">Namespaces</p>
+                            <div id="namespaceFilterList" class="filter-list"></div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-outline-success" id="loadDropAppConfig">
+                        Получить конфигурацию
+                    </button>
+                </div>
             </div>
             <div id="dropappConfigMessage" class="alert d-none" role="alert"></div>
             <div class="table-responsive d-none" id="dropappConfigTableWrapper">
@@ -144,6 +159,9 @@
         const tableWrapper = document.getElementById('dropappConfigTableWrapper');
         const tableBody = document.querySelector('#dropappConfigTable tbody');
         const toastContainer = document.getElementById('toastContainer');
+        const namespaceFilterList = document.getElementById('namespaceFilterList');
+        const namespaceFilterToggle = document.getElementById('namespaceFilterToggle');
+        let selectedNamespaces = [];
 
         const removeToast = (toast) => {
             if (!toast) {
@@ -197,6 +215,67 @@
             startBackgroundErrorPolling(showToast);
         }
 
+        const updateNamespaceChipLabel = () => {
+            if (!namespaceFilterToggle) return;
+            const count = selectedNamespaces.length;
+            namespaceFilterToggle.innerHTML = `<i class="bi bi-hdd-network"></i> ${count ? `Namespace (${count})` : 'Namespace'}`;
+        };
+
+        const renderNamespaceOptions = (namespaces) => {
+            if (!namespaceFilterList) return;
+            namespaceFilterList.innerHTML = '';
+            if (!namespaces.length) {
+                namespaceFilterList.innerHTML = '<div class="text-muted small">Namespace не найдены</div>';
+                return;
+            }
+            namespaces.forEach(ns => {
+                const id = `ns-${ns}`;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'form-check';
+                const input = document.createElement('input');
+                input.className = 'form-check-input';
+                input.type = 'checkbox';
+                input.id = id;
+                input.value = ns;
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.setAttribute('for', id);
+                label.textContent = ns;
+                input.addEventListener('change', () => {
+                    if (input.checked) {
+                        if (!selectedNamespaces.includes(ns)) {
+                            selectedNamespaces.push(ns);
+                        }
+                    } else {
+                        selectedNamespaces = selectedNamespaces.filter(item => item !== ns);
+                    }
+                    updateNamespaceChipLabel();
+                });
+                wrapper.appendChild(input);
+                wrapper.appendChild(label);
+                namespaceFilterList.appendChild(wrapper);
+            });
+        };
+
+        const loadNamespaces = async () => {
+            if (!namespaceFilterList) {
+                return;
+            }
+            namespaceFilterList.innerHTML = '<div class="text-muted small">Загружаем…</div>';
+            try {
+                const response = await fetch('/api/dropapp/namespaces', { headers: { Accept: 'application/json' } });
+                if (!response.ok) {
+                    throw new Error('Сервер вернул статус ' + response.status);
+                }
+                const data = await response.json();
+                const namespaces = Array.isArray(data) ? data : [];
+                renderNamespaceOptions(namespaces);
+            } catch (error) {
+                namespaceFilterList.innerHTML = '<div class="text-muted small">Не удалось загрузить namespace</div>';
+                showToast('Не удалось получить список namespace: ' + error.message, 'danger');
+            }
+        };
+
         const setMessage = (type, text) => {
             if (messageBox) {
                 messageBox.className = 'alert alert-' + type + ' visually-hidden';
@@ -242,7 +321,9 @@
             showToast('Запрашиваем конфигурацию DropApp…', 'info', 8000);
             loadButton.disabled = true;
             try {
-                const response = await fetch('/api/dropapp/configuration', {headers: {'Accept': 'application/json'}});
+                const selected = selectedNamespaces.filter(Boolean);
+                const query = selected.length ? '?namespace=' + selected.map(encodeURIComponent).join('&namespace=') : '';
+                const response = await fetch('/api/dropapp/configuration' + query, {headers: {'Accept': 'application/json'}});
                 if (!response.ok) {
                     throw new Error('Сервер вернул статус ' + response.status);
                 }
@@ -262,6 +343,9 @@
                 loadButton.disabled = false;
             }
         });
+
+        loadNamespaces();
+        updateNamespaceChipLabel();
     });
 </script>
 </body>

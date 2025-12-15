@@ -85,14 +85,14 @@
                    th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
                     <span class="sidebar-item">
                         <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
-                        <span>Графики и нефункциональные требования</span>
+                        <span>Графики и требования</span>
                     </span>
                 </a>
             </div>
         </div>
     </aside>
 
-    <div class="page-content">
+    <div class="page-content" style="background: #ffffff; min-height: 100vh;">
 <main class="container-fluid py-5 px-4 px-lg-5">
     <div id="settingsStatus" class="alert d-none mb-3" role="alert"></div>
     <div id="settingsList" class="settings-menu"></div>
@@ -114,7 +114,6 @@
     const settingsList = document.getElementById('settingsList');
     const settingsStatus = document.getElementById('settingsStatus');
     const settingsEmpty = document.getElementById('settingsEmpty');
-    const settingsCount = document.getElementById('settingsCount');
     const toastContainer = document.getElementById('toastContainer');
 
     const SERVICE_ORDER = [
@@ -308,11 +307,7 @@
     }
 
     function updateSettingsCount() {
-        if (!settingsCount) {
-            return;
-        }
-        const uniqueServices = new Set(settingsCache.map(item => item.service));
-        settingsCount.textContent = uniqueServices.size.toString();
+        // removed counter display per new design
     }
 
     async function saveService(service) {
@@ -385,6 +380,29 @@
     }
 
     function createServiceCard(service, groupItems) {
+        const sortedItems = (groupItems || []).slice().sort((a, b) => {
+            const orderA = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : null;
+            const orderB = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : null;
+            if (orderA !== null || orderB !== null) {
+                if (orderA === null) return 1;
+                if (orderB === null) return -1;
+                if (orderA !== orderB) return orderA - orderB;
+            }
+            const keyA = (a.key || '').toLowerCase();
+            const keyB = (b.key || '').toLowerCase();
+            const priority = (key) => {
+                if (key.includes('base-url')) return 0;
+                if (key.includes('path')) return 1;
+                if (key.includes('token') || key.includes('key')) return 2;
+                return 3;
+            };
+            const pA = priority(keyA);
+            const pB = priority(keyB);
+            if (pA !== pB) {
+                return pA - pB;
+            }
+            return (a.key || '').localeCompare(b.key || '');
+        });
         const card = document.createElement('div');
         card.className = 'card settings-card integration-card h-100';
 
@@ -398,9 +416,17 @@
         const title = document.createElement('div');
         title.className = 'settings-service-title mb-1';
         title.textContent = service;
+        const serviceDescriptions = {
+            'victoria-metrics': 'Получение данных о нагрузочных метриках',
+            'grafana': 'Получение графиков о нагрузке и стенде',
+            'dropapp': 'Получение конфигурации с данными о стенде',
+            'confluence': 'Отправка данных по отчетам, графикам и конфигурации',
+            'gigachat': 'Подключение нейросети для решения нестандартных задач (пока не используется)'
+        };
+        const serviceDescriptionText = serviceDescriptions[service] ?? '';
         const subtitle = document.createElement('div');
-        subtitle.className = 'text-muted small';
-        subtitle.textContent = `${groupItems.length} параметров`;
+        subtitle.className = 'settings-service-description text-muted mb-3';
+        subtitle.textContent = serviceDescriptionText;
         titleBox.appendChild(title);
         titleBox.appendChild(subtitle);
 
@@ -432,7 +458,7 @@
         status.className = 'small text-muted mb-2 d-none';
 
         const fields = document.createElement('div');
-        fields.className = 'd-flex flex-column gap-3';
+        fields.className = 'd-flex flex-column';
 
         const cardState = {
             element: card,
@@ -443,20 +469,20 @@
             inputs: []
         };
 
-        groupItems.forEach(item => {
+        sortedItems.forEach(item => {
             const entry = document.createElement('div');
             entry.className = 'settings-item';
 
             const meta = document.createElement('div');
             meta.className = 'mb-2';
-            const keyLabel = document.createElement('div');
-            keyLabel.className = 'settings-key';
-            keyLabel.textContent = item.key;
             const description = document.createElement('div');
             description.className = 'settings-description';
             description.textContent = item.description ?? '—';
-            meta.appendChild(keyLabel);
             meta.appendChild(description);
+            const keyLabel = document.createElement('div');
+            keyLabel.className = 'settings-key';
+            keyLabel.textContent = item.key;
+            meta.appendChild(keyLabel);
 
             const input = document.createElement('input');
             input.type = 'text';

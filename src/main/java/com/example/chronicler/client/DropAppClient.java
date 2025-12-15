@@ -4,6 +4,7 @@ import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.dto.kubernetes.KubernetesContainer;
 import com.example.chronicler.dto.kubernetes.KubernetesDeployment;
 import com.example.chronicler.dto.kubernetes.KubernetesDeploymentListResponse;
+import com.example.chronicler.dto.kubernetes.KubernetesNamespaceListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesPod;
 import com.example.chronicler.dto.kubernetes.KubernetesPodListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesPodMetadata;
@@ -162,6 +163,42 @@ public class DropAppClient {
                     headersForLogging(headers),
                     ex);
             throw new DropAppClientException("Не удалось получить конфигурацию Kubernetes: " + ex.getMessage(), ex);
+        }
+    }
+
+    /** Получает список доступных namespace из Kubernetes API. */
+    public List<String> fetchNamespaces() {
+        String baseUrl = configurationProvider.getRequiredValue(SERVICE, BASE_URL_KEY);
+        URI requestUri = UriComponentsBuilder.fromUriString(baseUrl)
+                .path("/api/v1/namespaces")
+                .build(true)
+                .toUri();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setBearerAuth(configurationProvider.getRequiredValue(SERVICE, TOKEN_KEY));
+
+        if (log.isDebugEnabled()) {
+            log.debug("Запрос списка namespaces DropApp по адресу {}", requestUri);
+        }
+
+        try {
+            ResponseEntity<KubernetesNamespaceListResponse> response = restTemplate.exchange(
+                    requestUri, HttpMethod.GET, new HttpEntity<>(headers), KubernetesNamespaceListResponse.class);
+            KubernetesNamespaceListResponse body = response.getBody();
+            if (body == null || body.items() == null) {
+                return List.of();
+            }
+            return body.items().stream()
+                    .map(ns -> ns != null ? ns.name() : null)
+                    .filter(Objects::nonNull)
+                    .filter(name -> !name.isBlank())
+                    .distinct()
+                    .toList();
+        } catch (RestClientResponseException ex) {
+            throw new DropAppClientException("Не удалось получить список namespace DropApp: " + ex.getStatusText(), ex);
+        } catch (RestClientException ex) {
+            throw new DropAppClientException("Не удалось получить список namespace DropApp", ex);
         }
     }
 

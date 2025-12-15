@@ -12,12 +12,15 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class ConfigurationRepository {
 
-    private static final String SELECT_ALL_SQL =
-            "SELECT id, service, \"key\", config_value, description FROM configurations ORDER BY service, \"key\"";
+    private static final String SELECT_ALL_SQL = """
+            SELECT id, service, "key", config_value, description, sort_order
+            FROM configurations
+            ORDER BY service, sort_order NULLS LAST, "key"
+            """;
     private static final String SELECT_ONE_SQL =
             "SELECT config_value FROM configurations WHERE service = ? AND \"key\" = ?";
     private static final String INSERT_SQL =
-            "INSERT INTO configurations (service, \"key\", config_value) VALUES (?, ?, ?)";
+            "INSERT INTO configurations (service, \"key\", config_value, sort_order) VALUES (?, ?, ?, ?)";
     private static final String UPDATE_SQL =
             "UPDATE configurations SET config_value = ? WHERE service = ? AND \"key\" = ?";
 
@@ -43,18 +46,21 @@ public class ConfigurationRepository {
     public void upsert(String service, String key, String value) {
         int updated = jdbcTemplate.update(UPDATE_SQL, value, service, key);
         if (updated == 0) {
-            jdbcTemplate.update(INSERT_SQL, service, key, value);
+            jdbcTemplate.update(INSERT_SQL, service, key, value, null);
         }
     }
 
     private static ConfigurationEntry mapRow(ResultSet rs, int rowNum) throws SQLException {
         Number idValue = (Number) rs.getObject("id");
         Long id = idValue != null ? idValue.longValue() : null;
+        Number orderValue = (Number) rs.getObject("sort_order");
+        Integer sortOrder = orderValue != null ? orderValue.intValue() : null;
         return new ConfigurationEntry(
                 id,
                 rs.getString("service"),
                 rs.getString("key"),
                 rs.getString("config_value"),
-                rs.getString("description"));
+                rs.getString("description"),
+                sortOrder);
     }
 }

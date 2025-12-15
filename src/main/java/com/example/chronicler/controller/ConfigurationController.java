@@ -39,6 +39,7 @@ public class ConfigurationController {
                         item.service().trim(),
                         item.key().trim(),
                         item.value(),
+                        null,
                         null))
                 .collect(Collectors.toList());
         configurationService.upsertAll(entries);
@@ -46,6 +47,7 @@ public class ConfigurationController {
     }
 
     private ConfigurationItemDto toDto(ConfigurationEntry entry) {
-        return new ConfigurationItemDto(entry.id(), entry.service(), entry.key(), entry.value(), entry.description());
+        return new ConfigurationItemDto(
+                entry.id(), entry.service(), entry.key(), entry.value(), entry.description(), entry.sortOrder());
     }
 }

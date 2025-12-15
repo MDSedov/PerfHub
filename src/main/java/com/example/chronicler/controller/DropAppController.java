@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,10 +24,17 @@ public class DropAppController {
 
     /** Возвращает текущую конфигурацию DropApp для отображения на фронтенде. */
     @GetMapping("/configuration")
-    public List<DropAppConfigurationItemDto> getCurrentConfiguration() {
-        return dropAppService.loadCurrentConfiguration().stream()
+    public List<DropAppConfigurationItemDto> getCurrentConfiguration(
+            @RequestParam(value = "namespace", required = false) List<String> namespaces) {
+        return dropAppService.loadConfiguration(namespaces).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+    }
+
+    /** Возвращает список доступных namespace из DropApp. */
+    @GetMapping("/namespaces")
+    public List<String> listNamespaces() {
+        return dropAppService.listNamespaces();
     }
 
     /** Преобразует запись DropApp к DTO для фронтенда. */

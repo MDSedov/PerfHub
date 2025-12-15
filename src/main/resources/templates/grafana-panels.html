@@ -85,7 +85,7 @@
                    th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
                     <span class="sidebar-item">
                         <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
-                        <span>Графики и нефункциональные требования</span>
+                        <span>Графики и требования</span>
                     </span>
                 </a>
             </div>
@@ -96,10 +96,11 @@
 <main class="container-fluid py-5 px-4 px-lg-5 grafana-wrapper">
     <div class="home-grid reports-grid grafana-grid">
         <div class="home-card reports-card">
-            <div class="d-flex align-items-center gap-2 mb-3">
+            <div class="d-flex align-items-center gap-2">
                 <div class="home-card-icon"><i class="bi bi-clock-history"></i></div>
                 <h5 class="home-card-title mb-0">Показать графики</h5>
             </div>
+            <p class="text-muted mb-0">Отобразить графики из Grafana за указанный период.</p>
             <form class="grafana-form d-flex flex-wrap align-items-center gap-3">
                 <div class="grafana-field d-flex align-items-center gap-2">
                     <label for="rangeStart" class="form-label mb-0">Начало</label>
@@ -116,10 +117,11 @@
         </div>
 
         <div class="home-card reports-card">
-            <div class="d-flex align-items-center gap-2 mb-3">
+            <div class="d-flex align-items-center gap-2">
                 <div class="home-card-icon"><i class="bi bi-upload"></i></div>
                 <h5 class="home-card-title mb-0">Выгрузить графики</h5>
             </div>
+            <p class="text-muted mb-0">Отправить графики на страницу в Confluence.</p>
             <form class="grafana-form d-flex flex-wrap align-items-center gap-3">
                 <div class="grafana-field d-flex align-items-center gap-2 flex-grow-1">
                     <label for="exportPageId" class="form-label mb-0">ID страницы для выгрузки графиков</label>
@@ -132,7 +134,7 @@
         </div>
 
         <div id="dashboardsCard" class="home-card reports-card wide d-none">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
                     <h5 class="mb-1">Графики</h5>
                 </div>

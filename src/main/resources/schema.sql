@@ -132,104 +132,136 @@ CREATE TABLE IF NOT EXISTS configurations (
     "key" VARCHAR(128) NOT NULL,
     config_value CLOB NOT NULL,
     description CLOB,
+    sort_order INTEGER,
     CONSTRAINT uq_configurations_service_key UNIQUE (service, "key")
 );
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'victoria-metrics', 'base-url', '', 'Базовый URL инстанса VictoriaMetrics'
+ALTER TABLE configurations ADD COLUMN IF NOT EXISTS sort_order INTEGER;
+
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'victoria-metrics', 'base-url', '', 'Базовый URL инстанса VictoriaMetrics', 10
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'victoria-metrics' AND "key" = 'base-url');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'victoria-metrics', 'query-range-path', '', 'Путь API для запроса диапазона метрик'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'victoria-metrics', 'query-range-path', '', 'Путь API для запроса диапазона метрик', 20
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'victoria-metrics' AND "key" = 'query-range-path');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'victoria-metrics', 'default-step-seconds', '', 'Шаг агрегации метрик в секундах по умолчанию'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'victoria-metrics', 'default-step-seconds', '', 'Шаг агрегации метрик в секундах по умолчанию', 100
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'victoria-metrics' AND "key" = 'default-step-seconds');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'victoria-metrics', 'tests-search-query', '', 'Запрос для поиска тестов'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'victoria-metrics', 'tests-search-query', '', 'Запрос для поиска тестов', 110
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'victoria-metrics' AND "key" = 'tests-search-query');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'gigachat', 'oauth-url', '', 'Endpoint получения OAuth-токена GigaChat'
-WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'oauth-url');
-
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'gigachat', 'api-url', '', 'Основной URL API GigaChat'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'gigachat', 'api-url', '', 'Основной URL API GigaChat', 10
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'api-url');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'gigachat', 'scope', '', 'Значение OAuth scope для GigaChat'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'gigachat', 'oauth-url', '', 'Endpoint получения OAuth-токена GigaChat', 20
+WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'oauth-url');
+
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'gigachat', 'scope', '', 'Значение OAuth scope для GigaChat', 100
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'scope');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'gigachat', 'authorization-key', '', 'Base64 ключ авторизации клиента GigaChat'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'gigachat', 'authorization-key', '', 'Base64 ключ авторизации клиента GigaChat', 30
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'authorization-key');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'gigachat', 'client-id', '', 'Идентификатор клиента для GigaChat'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'gigachat', 'client-id', '', 'Идентификатор клиента для GigaChat', 120
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'client-id');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'gigachat', 'grant-type', '', 'Тип grant''а при OAuth-авторизации GigaChat'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'gigachat', 'grant-type', '', 'Тип grant''а при OAuth-авторизации GigaChat', 130
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'grant-type');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'gigachat', 'model', '', 'Название модели GigaChat для генерации ответов'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'gigachat', 'model', '', 'Название модели GigaChat для генерации ответов', 140
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'model');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'gigachat', 'disable-ssl-validation', '', 'Флаг отключения проверки SSL при обращении к GigaChat'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'gigachat', 'disable-ssl-validation', '', 'Флаг отключения проверки SSL при обращении к GigaChat', 150
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'gigachat' AND "key" = 'disable-ssl-validation');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'grafana', 'base-url', '', 'Базовый URL панели Grafana'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'grafana', 'base-url', '', 'Базовый URL панели Grafana', 10
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'grafana' AND "key" = 'base-url');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'grafana', 'render-path', '', 'Путь API Grafana для рендеринга панелей'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'grafana', 'render-path', '', 'Путь API Grafana для рендеринга панелей', 20
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'grafana' AND "key" = 'render-path');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'grafana', 'api-key', '', 'API-ключ доступа к Grafana'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'grafana', 'api-key', '', 'API-ключ доступа к Grafana', 30
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'grafana' AND "key" = 'api-key');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'grafana', 'image-width', '', 'Ширина рендеримых изображений Grafana'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'grafana', 'image-width', '', 'Ширина рендеримых изображений Grafana', 100
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'grafana' AND "key" = 'image-width');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'grafana', 'image-height', '', 'Высота рендеримых изображений Grafana'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'grafana', 'image-height', '', 'Высота рендеримых изображений Grafana', 110
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'grafana' AND "key" = 'image-height');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'grafana', 'timezone', '', 'Таймзона для отображения данных Grafana'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'grafana', 'timezone', '', 'Таймзона для отображения данных Grafana', 120
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'grafana' AND "key" = 'timezone');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'confluence', 'base-url', '', 'Базовый URL портала Confluence'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'confluence', 'base-url', '', 'Базовый URL портала Confluence', 10
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'confluence' AND "key" = 'base-url');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'confluence', 'api-path', '', 'Путь до API Confluence (например /rest/api или /wiki/rest/api)'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'confluence', 'api-path', '', 'Путь до API Confluence (например /rest/api или /wiki/rest/api)', 20
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'confluence' AND "key" = 'api-path');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'confluence', 'personal-access-token', '', 'Токен доступа к Confluence'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'confluence', 'personal-access-token', '', 'Токен доступа к Confluence', 30
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'confluence' AND "key" = 'personal-access-token');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'dropapp', 'base-url', '', 'Базовый URL сервиса DropApp'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'dropapp', 'base-url', '', 'Базовый URL сервиса DropApp', 10
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'dropapp' AND "key" = 'base-url');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'dropapp', 'token', '', 'Токен авторизации для обращения к DropApp'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'dropapp', 'token', '', 'Токен авторизации для обращения к DropApp', 30
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'dropapp' AND "key" = 'token');
 
-INSERT INTO configurations (service, "key", config_value, description)
-SELECT 'dropapp', 'namespaces', '', 'Список namespace, для которых нужно получать конфигурацию DropApp'
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'dropapp', 'namespaces', '', 'Список namespace, для которых нужно получать конфигурацию DropApp', 100
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'dropapp' AND "key" = 'namespaces');
+
+UPDATE configurations SET sort_order = 10 WHERE service = 'victoria-metrics' AND "key" = 'base-url';
+UPDATE configurations SET sort_order = 20 WHERE service = 'victoria-metrics' AND "key" = 'query-range-path';
+UPDATE configurations SET sort_order = 100 WHERE service = 'victoria-metrics' AND "key" = 'default-step-seconds';
+UPDATE configurations SET sort_order = 110 WHERE service = 'victoria-metrics' AND "key" = 'tests-search-query';
+
+UPDATE configurations SET sort_order = 10 WHERE service = 'gigachat' AND "key" = 'api-url';
+UPDATE configurations SET sort_order = 20 WHERE service = 'gigachat' AND "key" = 'oauth-url';
+UPDATE configurations SET sort_order = 30 WHERE service = 'gigachat' AND "key" = 'authorization-key';
+UPDATE configurations SET sort_order = 100 WHERE service = 'gigachat' AND "key" = 'scope';
+UPDATE configurations SET sort_order = 120 WHERE service = 'gigachat' AND "key" = 'client-id';
+UPDATE configurations SET sort_order = 130 WHERE service = 'gigachat' AND "key" = 'grant-type';
+UPDATE configurations SET sort_order = 140 WHERE service = 'gigachat' AND "key" = 'model';
+UPDATE configurations SET sort_order = 150 WHERE service = 'gigachat' AND "key" = 'disable-ssl-validation';
+
+UPDATE configurations SET sort_order = 10 WHERE service = 'grafana' AND "key" = 'base-url';
+UPDATE configurations SET sort_order = 20 WHERE service = 'grafana' AND "key" = 'render-path';
+UPDATE configurations SET sort_order = 30 WHERE service = 'grafana' AND "key" = 'api-key';
+UPDATE configurations SET sort_order = 100 WHERE service = 'grafana' AND "key" = 'image-width';
+UPDATE configurations SET sort_order = 110 WHERE service = 'grafana' AND "key" = 'image-height';
+UPDATE configurations SET sort_order = 120 WHERE service = 'grafana' AND "key" = 'timezone';
+
+UPDATE configurations SET sort_order = 10 WHERE service = 'confluence' AND "key" = 'base-url';
+UPDATE configurations SET sort_order = 20 WHERE service = 'confluence' AND "key" = 'api-path';
+UPDATE configurations SET sort_order = 30 WHERE service = 'confluence' AND "key" = 'personal-access-token';
+
+UPDATE configurations SET sort_order = 10 WHERE service = 'dropapp' AND "key" = 'base-url';
+UPDATE configurations SET sort_order = 30 WHERE service = 'dropapp' AND "key" = 'token';
+UPDATE configurations SET sort_order = 100 WHERE service = 'dropapp' AND "key" = 'namespaces';
 
 CREATE TABLE IF NOT EXISTS gigachat_prompts (
     id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,

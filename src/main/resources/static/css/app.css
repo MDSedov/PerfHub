@@ -335,8 +335,7 @@ body {
             background: #ffffff;
             border: 1px solid #e5efe8;
             border-radius: 14px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
-            padding: 0.25rem;
+            padding: 1rem;
         }
 
         .reports-card .card-body {
@@ -370,10 +369,12 @@ body {
             min-width: 420px;
             text-align: center;
             align-items: center;
+            box-shadow: none;
         }
 
         .grafana-grid .home-card.wide {
             grid-column: 1 / -1;
+            box-shadow: none;
         }
 
         .grafana-form .form-label {
@@ -888,11 +889,6 @@ body {
             font-size: 16px;
         }
 
-        /* убираем скругление у карточек */
-        .card {
-            border-radius: 0;
-        }
-
         .badge-test-type {
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -1108,9 +1104,10 @@ body {
         }
 
         .card-config {
-            border: none;
-            border-radius: 20px;
-            box-shadow: 0 16px 50px rgba(3, 76, 45, 0.08);
+            border: 1px solid #e5efe8;
+            border-radius: 14px;
+            box-shadow: none;
+            background: #ffffff;
         }
 
         .table thead th {
@@ -1374,9 +1371,11 @@ body {
         }
 
         .settings-card {
-            border: none;
-            border-radius: 20px;
-            box-shadow: 0 16px 50px rgba(3, 76, 45, 0.08);
+            border: 1px solid #e5efe8;
+            border-radius: 14px;
+            box-shadow: none;
+            background: #ffffff;
+            padding: 1rem;
         }
 
         .settings-menu {
@@ -1386,8 +1385,8 @@ body {
         }
 
         .settings-service-title {
-            font-size: 0.95rem;
-            font-weight: 500;
+            font-size: 1.3rem;
+            font-weight: 900;
             text-transform: uppercase;
             color: #0b6b3c;
             margin-bottom: 0.75rem;
@@ -1409,6 +1408,14 @@ body {
         .settings-description {
             font-weight: 500;
             color: #1d2822;
+        }
+
+        .settings-key {
+            font-size: 13px;
+            color: #7d7a75;
+            text-transform: none;
+            letter-spacing: 0;
+            margin-top: 0.25rem;
         }
 
         .integration-card .btn {
@@ -1656,9 +1663,11 @@ body {
         }
 
         .settings-card {
-            border: none;
-            border-radius: 20px;
-            box-shadow: 0 16px 50px rgba(3, 76, 45, 0.08);
+            border: 1px solid #e5efe8;
+            border-radius: 14px;
+            box-shadow: none;
+            background: #ffffff;
+            padding: 1rem;
         }
 
         .accordion-button:focus {

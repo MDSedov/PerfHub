@@ -21,6 +21,11 @@ public class DropAppService {
         this.configurationProvider = configurationProvider;
     }
 
+    /** Возвращает список доступных namespace из DropApp. */
+    public List<String> listNamespaces() {
+        return dropAppClient.fetchNamespaces();
+    }
+
     /** Возвращает актуальную конфигурацию DropApp для namespace, перечисленных в настройках. */
     public List<DropAppPodConfiguration> loadCurrentConfiguration() {
         String rawNamespaces = configurationProvider.getRequiredValue("dropapp", "namespaces");
@@ -30,6 +35,14 @@ public class DropAppService {
                 .collect(Collectors.toList());
         if (namespaces.isEmpty()) {
             throw new DropAppClientException("В конфигурации DropApp не задан ни один namespace (dropapp.namespaces)");
+        }
+        return dropAppClient.fetchConfiguration(namespaces);
+    }
+
+    /** Возвращает конфигурацию DropApp для указанного списка namespace. */
+    public List<DropAppPodConfiguration> loadConfiguration(List<String> namespaces) {
+        if (namespaces == null || namespaces.isEmpty()) {
+            return loadCurrentConfiguration();
         }
         return dropAppClient.fetchConfiguration(namespaces);
     }
