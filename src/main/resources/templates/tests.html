@@ -18,7 +18,7 @@
 <body>
 <div class="app-shell">
     <aside class="sidebar">
-        <a class="sidebar-brand" th:href="@{/}">
+        <a class="sidebar-brand" th:href="@{/main}">
             <img src="/img/chronicler-logo.png" alt="Летописец" class="brand-logo" loading="lazy">
             <span>Летописец</span>
         </a>
@@ -96,10 +96,15 @@
         <main class="container-fluid py-5 px-4 px-lg-5">
             <div class="row g-3">
                 <div class="col-12">
-                    <div class="data-panel d-flex flex-wrap justify-content-md-end justify-content-center gap-2">
-                        <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-md-end justify-content-center">
+                    <div class="data-panel d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-start">
                             <button type="button" class="btn btn-outline-success" id="refreshTestsButton">Запросить данные за 30 дней</button>
                             <button type="button" class="btn btn-outline-success" id="evaluateTestsButton">Перепроверить тесты на требования</button>
+                        </div>
+                        <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-end">
+                            <button type="button"
+                                    class="btn btn-success"
+                                    id="generateReportsButton">Сгенерировать отчеты [0]</button>
                         </div>
                     </div>
                 </div>
@@ -194,12 +199,13 @@
                             <table class="table align-middle tests-table">
                                 <thead>
                                 <tr>
+                                    <th scope="col" class="text-center">В отчет</th>
                                     <th scope="col">Релиз</th>
                                     <th scope="col">Тип теста</th>
                                     <th scope="col">Длительность</th>
                                     <th scope="col">Начало</th>
                                     <th scope="col">Конец</th>
-                                    <th scope="col" class="text-center">Соответствие требованиям</th>
+                                    <th scope="col" class="text-center">Требования</th>
                                     <th scope="col" class="text-center">Конфигурация</th>
                                     <th scope="col" class="text-center">Детали</th>
                                 </tr>
@@ -227,6 +233,7 @@
     const testsCount = document.getElementById('testsCount');
     const refreshButton = document.getElementById('refreshTestsButton');
     const evaluateTestsButton = document.getElementById('evaluateTestsButton');
+    const generateReportsButton = document.getElementById('generateReportsButton');
     const releaseFilterList = document.getElementById('releaseFilterList');
     const typeFilterList = document.getElementById('typeFilterList');
     const durationFromInput = document.getElementById('durationFrom');
@@ -237,6 +244,7 @@
     const configFilter = document.getElementById('configFilter');
     const resetFiltersButton = document.getElementById('resetFiltersButton');
     const toastContainer = document.getElementById('toastContainer');
+    const reportCheckboxes = new Set();
     let filterDropdownsInitialized = false;
 
     const MOSCOW_TZ = 'Europe/Moscow';
@@ -252,12 +260,22 @@
         second: '2-digit'
     });
 
+    function updateSelectedReportsCount() {
+        if (!generateReportsButton) {
+            return;
+        }
+        const selected = Array.from(reportCheckboxes).filter(cb => cb.checked).length;
+        generateReportsButton.textContent = `Сгенерировать отчеты [${selected}]`;
+    }
+
     const TYPE_LABELS = {
         max: 'MAX',
         confirm: 'CONFIRM',
         soak: 'SOAK',
         unknown: 'UNKNOWN'
     };
+
+    updateSelectedReportsCount();
 
     function normalizeTestType(type) {
         const normalized = (type ?? '').toString().toLowerCase();
@@ -448,6 +466,22 @@
             return null;
         }
         return new Date(value.replace(' ', 'T') + '+03:00');
+    }
+
+    function formatDateNoSeconds(value) {
+        if (!value) {
+            return '—';
+        }
+        const date = parseMoscowDate(value);
+        if (!date || Number.isNaN(date.getTime())) {
+            return value;
+        }
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
     }
 
     function parseDateTimeInput(value) {
@@ -1599,6 +1633,8 @@
         testConfigurationStatusElements.clear();
         testStatusElements.clear();
         releaseCells.clear();
+        reportCheckboxes.clear();
+        updateSelectedReportsCount();
         if (resetCaches) {
             evaluationCache.clear();
             evaluationRequests.clear();
@@ -1611,7 +1647,7 @@
         if (tests.length === 0) {
             const emptyRow = document.createElement('tr');
             const emptyCell = document.createElement('td');
-            emptyCell.colSpan = 8;
+            emptyCell.colSpan = 9;
             emptyCell.className = 'text-muted py-4';
             emptyCell.textContent =
                     'Тесты отсутствуют. Нажмите «Запросить данные по тестам», чтобы получить последние результаты.';
@@ -1624,6 +1660,17 @@
         tests.forEach(test => {
             const summaryRow = document.createElement('tr');
             summaryRow.className = 'test-summary-row';
+
+            const reportCell = document.createElement('td');
+            reportCell.className = 'text-center';
+            const reportCheckbox = document.createElement('input');
+            reportCheckbox.type = 'checkbox';
+            reportCheckbox.className = 'form-check-input';
+            reportCheckbox.value = test?.id ?? '';
+            reportCheckbox.setAttribute('aria-label', 'Включить тест в отчет');
+            reportCheckbox.addEventListener('change', updateSelectedReportsCount);
+            reportCheckboxes.add(reportCheckbox);
+            reportCell.appendChild(reportCheckbox);
 
             const releaseCell = document.createElement('td');
             const releaseValue = getReleaseValue(test);
@@ -1642,11 +1689,11 @@
 
             const startCell = document.createElement('td');
             startCell.className = 'test-time';
-            startCell.textContent = test.start ?? '—';
+            startCell.textContent = formatDateNoSeconds(test.start);
 
             const endCell = document.createElement('td');
             endCell.className = 'test-time';
-            endCell.textContent = test.end ?? '—';
+            endCell.textContent = formatDateNoSeconds(test.end);
 
             const complianceCell = document.createElement('td');
             complianceCell.className = 'text-center';
@@ -1694,6 +1741,7 @@
             toggleButton.innerHTML = '<span class="details-icon">▸</span>';
             detailsCell.appendChild(toggleButton);
 
+            summaryRow.appendChild(reportCell);
             summaryRow.appendChild(releaseCell);
             summaryRow.appendChild(typeCell);
             summaryRow.appendChild(durationCell);
@@ -1706,7 +1754,7 @@
             const detailsRow = document.createElement('tr');
             detailsRow.className = 'details-row';
             const detailsWrapper = document.createElement('td');
-            detailsWrapper.colSpan = 8;
+            detailsWrapper.colSpan = 9;
             const detailsContainer = document.createElement('div');
             detailsContainer.className = 'test-details';
             detailsContainer.dataset.loaded = 'false';

@@ -223,6 +223,10 @@ SELECT 'confluence', 'personal-access-token', '', 'Токен доступа к 
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'confluence' AND "key" = 'personal-access-token');
 
 INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'confluence', 'reports-parent-page-id', '', 'Номер родительской страницы для отчетов по НТ', 40
+WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'confluence' AND "key" = 'reports-parent-page-id');
+
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
 SELECT 'dropapp', 'base-url', '', 'Базовый URL сервиса DropApp', 10
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'dropapp' AND "key" = 'base-url');
 
@@ -258,6 +262,10 @@ UPDATE configurations SET sort_order = 120 WHERE service = 'grafana' AND "key" =
 UPDATE configurations SET sort_order = 10 WHERE service = 'confluence' AND "key" = 'base-url';
 UPDATE configurations SET sort_order = 20 WHERE service = 'confluence' AND "key" = 'api-path';
 UPDATE configurations SET sort_order = 30 WHERE service = 'confluence' AND "key" = 'personal-access-token';
+UPDATE configurations SET sort_order = 40 WHERE service = 'confluence' AND "key" = 'reports-parent-page-id';
+UPDATE configurations
+SET description = 'Номер родительской страницы для отчетов по НТ'
+WHERE service = 'confluence' AND "key" = 'reports-parent-page-id';
 
 UPDATE configurations SET sort_order = 10 WHERE service = 'dropapp' AND "key" = 'base-url';
 UPDATE configurations SET sort_order = 30 WHERE service = 'dropapp' AND "key" = 'token';

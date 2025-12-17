@@ -22,6 +22,12 @@ public class DashboardController {
         return "index";
     }
 
+    @GetMapping("/main")
+    public String main(Model model) {
+        model.addAttribute("activePage", "main");
+        return "main";
+    }
+
     @GetMapping("/tests")
     public String tests(Model model) {
         model.addAttribute("activePage", "tests");
