@@ -331,6 +331,23 @@ body {
             min-width: 220px;
         }
 
+        .report-generate-button[aria-disabled="true"] {
+            background-color: #9eb8a6;
+            border-color: #9eb8a6;
+            color: #ffffff;
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .report-generate-button[aria-disabled="true"]:hover,
+        .report-generate-button[aria-disabled="true"]:focus-visible,
+        .report-generate-button[aria-disabled="true"]:active {
+            background-color: #9eb8a6;
+            border-color: #9eb8a6;
+            color: #ffffff;
+            box-shadow: none;
+        }
+
         .reports-card {
             background: #ffffff;
             border: 1px solid #e5efe8;
@@ -697,6 +714,48 @@ body {
             resize: vertical;
         }
 
+        .modal-content.report-generation-modal {
+            border: none;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 24px 60px rgba(15, 31, 22, 0.18);
+        }
+
+        .report-generation-modal .modal-header {
+            padding: 1.25rem 1.5rem 1rem;
+            border-bottom: 1px solid #e5efe8;
+            align-items: flex-start;
+        }
+
+        .report-generation-modal .modal-body {
+            padding: 1.25rem 1.5rem 1.5rem;
+            background: #f7faf8;
+        }
+
+        .report-generation-modal .modal-footer {
+            padding: 1rem 1.5rem 1.25rem;
+            border-top: 1px solid #e5efe8;
+            background: #ffffff;
+        }
+
+        .report-generation-section {
+            background: #ffffff;
+            border: 1px solid #e5efe8;
+            border-radius: 16px;
+            padding: 1.1rem 1.25rem;
+            box-shadow: 0 12px 30px rgba(15, 31, 22, 0.04);
+        }
+
+        .report-generation-status-badge {
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 0.45rem 0.75rem;
+        }
+
+        .report-generation-table td {
+            white-space: nowrap;
+        }
+
         .progress {
             height: 12px;
             background-color: rgba(0, 152, 70, 0.15);
@@ -791,12 +850,19 @@ body {
 
         @media (max-width: 768px) {
             .test-details-modal .modal-header,
-            .test-details-modal .modal-body {
+            .test-details-modal .modal-body,
+            .report-generation-modal .modal-header,
+            .report-generation-modal .modal-body,
+            .report-generation-modal .modal-footer {
                 padding-left: 1rem;
                 padding-right: 1rem;
             }
 
             .test-details-section {
+                padding: 1rem;
+            }
+
+            .report-generation-section {
                 padding: 1rem;
             }
         }

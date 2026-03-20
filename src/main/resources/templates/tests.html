@@ -103,8 +103,11 @@
                         </div>
                         <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-end">
                             <button type="button"
-                                    class="btn btn-success"
-                                    id="generateReportsButton">Сгенерировать отчеты [0]</button>
+                                    class="btn btn-success report-generate-button"
+                                    id="generateReportsButton"
+                                    aria-haspopup="dialog"
+                                    aria-controls="generateReportsModal"
+                                    aria-disabled="true">Сгенерировать отчеты [0]</button>
                         </div>
                     </div>
                 </div>
@@ -242,6 +245,79 @@
             </div>
         </div>
 
+        <div class="modal fade"
+             id="generateReportsModal"
+             tabindex="-1"
+             aria-labelledby="generateReportsModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content report-generation-modal">
+                    <form id="generateReportsModalForm" novalidate>
+                        <div class="modal-header">
+                            <div class="d-flex flex-column gap-1">
+                                <span class="test-details-modal-kicker">Confluence</span>
+                                <h5 class="modal-title" id="generateReportsModalLabel">Генерация отчетов</h5>
+                                <div class="text-muted small">Создайте страницы Confluence по выбранным тестам.</div>
+                            </div>
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="modal"
+                                    aria-label="Закрыть"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="generateReportsParentPageId" class="form-label">ID родительской страницы</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="generateReportsParentPageId"
+                                       placeholder="Например, 1234567"
+                                       required>
+                                <div class="form-text">Страница, под которой появятся дочерние отчеты.</div>
+                            </div>
+
+                            <section class="report-generation-section">
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                                    <div>
+                                        <h6 class="test-details-section-title mb-1">Выбранные тесты</h6>
+                                        <p class="text-muted small mb-0">Список тестов для формирования отчетов в Confluence.</p>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span id="generateReportsSelectedCounter" class="tests-count">0</span>
+                                        <span class="text-muted small">шт.</span>
+                                    </div>
+                                </div>
+
+                                <div id="generateReportsSelectedEmpty" class="text-muted small">Тесты не выбраны</div>
+                                <div id="generateReportsSelectedWrapper" class="table-responsive d-none">
+                                    <table class="table align-middle tests-table mb-0 report-generation-table">
+                                        <thead>
+                                        <tr>
+                                            <th scope="col">Релиз</th>
+                                            <th scope="col">Тип теста</th>
+                                            <th scope="col">Начало</th>
+                                            <th scope="col">Окончание</th>
+                                            <th scope="col">Требования</th>
+                                            <th scope="col">Конфигурация</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody id="generateReportsSelectedBody"></tbody>
+                                    </table>
+                                </div>
+                            </section>
+
+                            <div id="generateReportsModalAlert" class="alert d-none mt-3 mb-0" role="alert"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit"
+                                    class="btn btn-success"
+                                    id="generateReportsModalCreateButton"
+                                    disabled>Создать отчеты по тестам</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <div id="toastContainer" class="toast-container"></div>
     </div>
 </div>
@@ -271,13 +347,26 @@
     const testDetailsModalTitle = document.getElementById('testDetailsModalLabel');
     const testDetailsModalSubtitle = document.getElementById('testDetailsModalSubtitle');
     const testDetailsModalBody = document.getElementById('testDetailsModalBody');
+    const generateReportsModalElement = document.getElementById('generateReportsModal');
+    const generateReportsModalForm = document.getElementById('generateReportsModalForm');
+    const generateReportsParentPageIdInput = document.getElementById('generateReportsParentPageId');
+    const generateReportsSelectedCounter = document.getElementById('generateReportsSelectedCounter');
+    const generateReportsSelectedWrapper = document.getElementById('generateReportsSelectedWrapper');
+    const generateReportsSelectedBody = document.getElementById('generateReportsSelectedBody');
+    const generateReportsSelectedEmpty = document.getElementById('generateReportsSelectedEmpty');
+    const generateReportsModalAlert = document.getElementById('generateReportsModalAlert');
+    const generateReportsModalCreateButton = document.getElementById('generateReportsModalCreateButton');
     const toastContainer = document.getElementById('toastContainer');
-    const reportCheckboxes = new Set();
+    const selectedReportTestIds = new Set();
     let filterDropdownsInitialized = false;
+    let reportSelectionHintToast = null;
+    let isReportCreationInProgress = false;
 
     const MOSCOW_TZ = 'Europe/Moscow';
     const DAYS_TO_FETCH = 30;
     const MS_IN_DAY = 24 * 60 * 60 * 1000;
+    const REPORT_SELECTION_HINT =
+            'Выберите тесты для которых необходимо сформировать отчеты в Confluence. Выбрать тесты можно в колонке "В ОТЧЕТ" таблицы со списком всех тестов.';
     const MOSCOW_FORMATTER = new Intl.DateTimeFormat('sv-SE', {
         timeZone: MOSCOW_TZ,
         year: 'numeric',
@@ -292,8 +381,33 @@
         if (!generateReportsButton) {
             return;
         }
-        const selected = Array.from(reportCheckboxes).filter(cb => cb.checked).length;
+        const selected = selectedReportTestIds.size;
         generateReportsButton.textContent = `Сгенерировать отчеты [${selected}]`;
+        generateReportsButton.setAttribute('aria-disabled', selected === 0 ? 'true' : 'false');
+        refreshGenerateReportsModalState();
+    }
+
+    function showGenerateReportsSelectionHint() {
+        if (selectedReportTestIds.size > 0) {
+            return;
+        }
+        if (reportSelectionHintToast?.isConnected) {
+            removeToast(reportSelectionHintToast);
+        }
+        reportSelectionHintToast = showToast(REPORT_SELECTION_HINT, 'warning', 12000);
+    }
+
+    function pruneSelectedReportTests(tests) {
+        const availableTestIds = new Set(
+                (Array.isArray(tests) ? tests : [])
+                        .map(test => test?.id)
+                        .filter(Boolean)
+        );
+        selectedReportTestIds.forEach(testId => {
+            if (!availableTestIds.has(testId)) {
+                selectedReportTestIds.delete(testId);
+            }
+        });
     }
 
     const TYPE_LABELS = {
@@ -304,6 +418,23 @@
     };
 
     updateSelectedReportsCount();
+
+    if (generateReportsButton) {
+        generateReportsButton.addEventListener('mouseenter', () => {
+            if (selectedReportTestIds.size === 0) {
+                showGenerateReportsSelectionHint();
+            }
+        });
+
+        generateReportsButton.addEventListener('click', event => {
+            if (selectedReportTestIds.size > 0) {
+                openGenerateReportsModal();
+                return;
+            }
+            event.preventDefault();
+            showGenerateReportsSelectionHint();
+        });
+    }
 
     function normalizeTestType(type) {
         const normalized = (type ?? '').toString().toLowerCase();
@@ -419,6 +550,7 @@
     let activeDetailsButton = null;
     let activeDetailsTestId = null;
     let testDetailsModalBackdrop = null;
+    let generateReportsModalBackdrop = null;
     let allTests = [];
     let filterState = {
         releases: [],
@@ -676,6 +808,62 @@
         };
     }
 
+    function getGenerateReportsModalInstance() {
+        if (!generateReportsModalElement || !window.bootstrap?.Modal) {
+            return null;
+        }
+        return bootstrap.Modal.getOrCreateInstance(generateReportsModalElement);
+    }
+
+    function removeGenerateReportsModalBackdrop() {
+        if (generateReportsModalBackdrop?.isConnected) {
+            generateReportsModalBackdrop.remove();
+        }
+        generateReportsModalBackdrop = null;
+    }
+
+    function hideGenerateReportsModalFallback() {
+        if (!generateReportsModalElement) {
+            return;
+        }
+        generateReportsModalElement.classList.remove('show');
+        generateReportsModalElement.style.display = 'none';
+        generateReportsModalElement.setAttribute('aria-hidden', 'true');
+        generateReportsModalElement.removeAttribute('aria-modal');
+        document.body.classList.remove('modal-open');
+        removeGenerateReportsModalBackdrop();
+        clearGenerateReportsModalAlert();
+        updateGenerateReportsSubmitState();
+    }
+
+    function showGenerateReportsModalDialog() {
+        const modalInstance = getGenerateReportsModalInstance();
+        if (modalInstance) {
+            modalInstance.show();
+            return {
+                handleUpdate: () => modalInstance.handleUpdate?.()
+            };
+        }
+
+        if (!generateReportsModalElement) {
+            return null;
+        }
+
+        generateReportsModalElement.style.display = 'block';
+        generateReportsModalElement.classList.add('show');
+        generateReportsModalElement.removeAttribute('aria-hidden');
+        generateReportsModalElement.setAttribute('aria-modal', 'true');
+        document.body.classList.add('modal-open');
+        removeGenerateReportsModalBackdrop();
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        document.body.appendChild(backdrop);
+        generateReportsModalBackdrop = backdrop;
+        return {
+            handleUpdate: () => {}
+        };
+    }
+
     function openTestDetailsModal(testId, button) {
         if (!testDetailsModalElement || !testDetailsModalBody) {
             return;
@@ -741,12 +929,253 @@
             return;
         }
         if (!testDetailsModalElement?.classList.contains('show')) {
+            if (generateReportsModalElement?.classList.contains('show') && !getGenerateReportsModalInstance()) {
+                hideGenerateReportsModalFallback();
+            }
             return;
         }
         if (!getTestDetailsModalInstance()) {
             hideTestDetailsModalFallback();
         }
     });
+
+    function createReportGenerationStatusIcon(state, kind) {
+        const labels = kind === 'configuration'
+                ? {
+                    loading: 'Загружаем конфигурацию',
+                    success: 'Конфигурация получена',
+                    fail: 'Конфигурация не получена',
+                    pending: 'Конфигурация не загружена',
+                    error: 'Ошибка загрузки конфигурации'
+                }
+                : {
+                    loading: 'Проверяем соответствие требованиям',
+                    success: 'Тест соответствует требованиям',
+                    fail: 'Тест не соответствует требованиям',
+                    pending: 'Ожидает проверки',
+                    error: 'Ошибка при проверке требований'
+                };
+        const icon = document.createElement('span');
+        setStatusIcon(icon, state, labels[state] ?? labels.pending);
+        return icon;
+    }
+
+    function resolveRequirementState(test) {
+        const cachedState = (complianceStatusByTest.get(test?.id) || '').toLowerCase();
+        if (cachedState) {
+            return cachedState;
+        }
+        if (test?.requirementCompliance?.evaluated) {
+            return test.requirementCompliance.compliant ? 'success' : 'fail';
+        }
+        return 'pending';
+    }
+
+    function resolveConfigurationState(test) {
+        const cachedState = (configStatusByTest.get(test?.id) || '').toLowerCase();
+        if (cachedState) {
+            return cachedState;
+        }
+        return 'loading';
+    }
+
+    function getSelectedReportTests() {
+        const selectedTests = [];
+        selectedReportTestIds.forEach(testId => {
+            const test = findTestById(testId);
+            if (test) {
+                selectedTests.push(test);
+            }
+        });
+        return selectedTests;
+    }
+
+    function appendGenerateReportsTextCell(row, text, className = '') {
+        const cell = document.createElement('td');
+        if (className) {
+            cell.className = className;
+        }
+        cell.textContent = text;
+        row.appendChild(cell);
+        return cell;
+    }
+
+    function renderGenerateReportsSelectedTests() {
+        if (!generateReportsSelectedBody || !generateReportsSelectedWrapper || !generateReportsSelectedEmpty) {
+            return;
+        }
+        const selectedTests = getSelectedReportTests();
+        generateReportsSelectedBody.innerHTML = '';
+        if (generateReportsSelectedCounter) {
+            generateReportsSelectedCounter.textContent = selectedTests.length.toString();
+        }
+        if (selectedTests.length === 0) {
+            generateReportsSelectedWrapper.classList.add('d-none');
+            generateReportsSelectedEmpty.classList.remove('d-none');
+            return;
+        }
+
+        generateReportsSelectedWrapper.classList.remove('d-none');
+        generateReportsSelectedEmpty.classList.add('d-none');
+
+        selectedTests.forEach(test => {
+            const row = document.createElement('tr');
+            appendGenerateReportsTextCell(row, getReleaseValue(test) ?? '—');
+
+            const typeCell = document.createElement('td');
+            const typeBadge = document.createElement('span');
+            typeBadge.className = 'badge text-bg-light text-success badge-test-type';
+            typeBadge.textContent = normalizeTestType(test?.type);
+            typeCell.appendChild(typeBadge);
+            row.appendChild(typeCell);
+
+            appendGenerateReportsTextCell(row, formatDateNoSeconds(test?.start), 'text-nowrap');
+            appendGenerateReportsTextCell(row, formatDateNoSeconds(test?.end), 'text-nowrap');
+
+            const requirementCell = document.createElement('td');
+            requirementCell.className = 'text-center';
+            requirementCell.appendChild(createReportGenerationStatusIcon(resolveRequirementState(test), 'requirement'));
+            row.appendChild(requirementCell);
+
+            const configurationCell = document.createElement('td');
+            configurationCell.className = 'text-center';
+            configurationCell.appendChild(createReportGenerationStatusIcon(resolveConfigurationState(test), 'configuration'));
+            row.appendChild(configurationCell);
+
+            generateReportsSelectedBody.appendChild(row);
+        });
+    }
+
+    function extractReportCreationErrorMessage(errorText) {
+        const fallback = 'Не удалось создать отчеты';
+        if (!errorText) {
+            return fallback;
+        }
+        try {
+            const parsed = JSON.parse(errorText);
+            if (typeof parsed?.message === 'string' && parsed.message.trim() !== '') {
+                return parsed.message.trim();
+            }
+        } catch (parseError) {
+            // ignore malformed JSON and fallback to raw text
+        }
+        const text = String(errorText).trim();
+        return text === '' ? fallback : text;
+    }
+
+    function toggleGenerateReportsModalAlert(type, message) {
+        if (!generateReportsModalAlert) {
+            return;
+        }
+        generateReportsModalAlert.className = `alert alert-${type}`;
+        generateReportsModalAlert.textContent = message;
+        generateReportsModalAlert.classList.remove('d-none');
+    }
+
+    function clearGenerateReportsModalAlert() {
+        if (!generateReportsModalAlert) {
+            return;
+        }
+        generateReportsModalAlert.textContent = '';
+        generateReportsModalAlert.className = 'alert d-none';
+    }
+
+    function updateGenerateReportsSubmitState() {
+        if (!generateReportsModalCreateButton) {
+            return;
+        }
+        const hasParentPage = (generateReportsParentPageIdInput?.value ?? '').trim().length > 0;
+        const hasSelectedTests = selectedReportTestIds.size > 0;
+        generateReportsModalCreateButton.disabled =
+                isReportCreationInProgress || !hasParentPage || !hasSelectedTests;
+    }
+
+    function refreshGenerateReportsModalState() {
+        renderGenerateReportsSelectedTests();
+        updateGenerateReportsSubmitState();
+    }
+
+    function openGenerateReportsModal() {
+        if (selectedReportTestIds.size === 0) {
+            showGenerateReportsSelectionHint();
+            return;
+        }
+        clearGenerateReportsModalAlert();
+        refreshGenerateReportsModalState();
+        const modalApi = showGenerateReportsModalDialog();
+        window.requestAnimationFrame(() => modalApi?.handleUpdate?.());
+    }
+
+    async function submitGenerateReports(event) {
+        event.preventDefault();
+        if (!generateReportsModalCreateButton || generateReportsModalCreateButton.disabled) {
+            return;
+        }
+        const payload = {
+            parentPageId: (generateReportsParentPageIdInput?.value ?? '').trim(),
+            tests: Array.from(selectedReportTestIds)
+        };
+        isReportCreationInProgress = true;
+        toggleGenerateReportsModalAlert('info', 'Создаем страницы в Confluence…');
+        updateGenerateReportsSubmitState();
+        generateReportsModalCreateButton.textContent = 'Создание…';
+        try {
+            const response = await fetch('/api/confluence/report/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(extractReportCreationErrorMessage(errorText));
+            }
+            await response.json();
+            toggleGenerateReportsModalAlert('info', 'Отчеты успешно созданы');
+        } catch (error) {
+            clearGenerateReportsModalAlert();
+            showToast(error?.message || 'Не удалось создать отчеты', 'danger');
+        } finally {
+            isReportCreationInProgress = false;
+            generateReportsModalCreateButton.textContent = 'Создать отчеты по тестам';
+            updateGenerateReportsSubmitState();
+        }
+    }
+
+    if (generateReportsParentPageIdInput) {
+        generateReportsParentPageIdInput.addEventListener('input', updateGenerateReportsSubmitState);
+    }
+
+    if (generateReportsModalForm) {
+        generateReportsModalForm.addEventListener('submit', submitGenerateReports);
+    }
+
+    if (generateReportsModalElement) {
+        generateReportsModalElement.addEventListener('shown.bs.modal', () => {
+            refreshGenerateReportsModalState();
+            generateReportsParentPageIdInput?.focus();
+        });
+
+        generateReportsModalElement.addEventListener('hidden.bs.modal', () => {
+            if (generateReportsModalCreateButton && !isReportCreationInProgress) {
+                generateReportsModalCreateButton.textContent = 'Создать отчеты по тестам';
+            }
+            clearGenerateReportsModalAlert();
+            updateGenerateReportsSubmitState();
+        });
+
+        generateReportsModalElement.addEventListener('click', event => {
+            const dismissTarget = event.target.closest('[data-bs-dismiss="modal"]');
+            if (dismissTarget && !getGenerateReportsModalInstance()) {
+                hideGenerateReportsModalFallback();
+                return;
+            }
+            if (event.target === generateReportsModalElement && !getGenerateReportsModalInstance()) {
+                hideGenerateReportsModalFallback();
+            }
+        });
+    }
 
     function showToast(message, type = 'info', durationMs = 15000) {
         if (!toastContainer) {
@@ -781,6 +1210,9 @@
         const timerId = toast.dataset.timerId;
         if (timerId) {
             clearTimeout(Number(timerId));
+        }
+        if (reportSelectionHintToast === toast) {
+            reportSelectionHintToast = null;
         }
         toast.remove();
     }
@@ -838,6 +1270,7 @@
         if (cell) {
             cell.textContent = normalized;
         }
+        refreshGenerateReportsModalState();
         updateReleaseOptions(allTests);
         if ((filterState.releases ?? []).length > 0) {
             applyFilters();
@@ -1052,6 +1485,7 @@
         if (testId) {
             complianceStatusByTest.set(testId, mappedState);
         }
+        refreshGenerateReportsModalState();
     }
 
     function setConfigurationStatus(element, state) {
@@ -1068,27 +1502,30 @@
     function updateConfigurationStatusIcon(testId, items, error = false) {
         const icon = testConfigurationStatusElements.get(testId);
         const previousState = configStatusByTest.get(testId);
-        if (!icon) {
-            return;
-        }
         if (error) {
-            setConfigurationStatus(icon, 'error');
+            if (icon) {
+                setConfigurationStatus(icon, 'error');
+            }
             configStatusByTest.set(testId, 'error');
             if (pendingConfigRequests.has(testId)) {
                 showToast('Не удалось получить конфигурацию DropApp для активного теста', 'danger');
                 pendingConfigRequests.delete(testId);
             }
+            refreshGenerateReportsModalState();
             return;
         }
         const hasConfig = Array.isArray(items) && items.length > 0;
         const state = hasConfig ? 'success' : 'fail';
-        setConfigurationStatus(icon, state);
+        if (icon) {
+            setConfigurationStatus(icon, state);
+        }
         configStatusByTest.set(testId, state);
         const stateChanged = previousState !== state;
         if (pendingConfigRequests.has(testId) && state === 'success' && stateChanged) {
             showToast('Получена конфигурация DropApp для активного теста', 'success');
             pendingConfigRequests.delete(testId);
         }
+        refreshGenerateReportsModalState();
         if (filterState.config && stateChanged) {
             applyFilters();
         }
@@ -1729,6 +2166,8 @@
     function setAllTests(tests) {
         pruneGrafanaCache(tests);
         allTests = Array.isArray(tests) ? tests.slice() : [];
+        pruneSelectedReportTests(allTests);
+        updateSelectedReportsCount();
         updateReleaseOptions(allTests);
         updateTypeOptions(allTests);
         filterState.periodStart = periodStartInput?.value ?? '';
@@ -1832,7 +2271,6 @@
         testConfigurationStatusElements.clear();
         testStatusElements.clear();
         releaseCells.clear();
-        reportCheckboxes.clear();
         updateSelectedReportsCount();
         if (resetCaches) {
             evaluationCache.clear();
@@ -1866,9 +2304,19 @@
             reportCheckbox.type = 'checkbox';
             reportCheckbox.className = 'form-check-input';
             reportCheckbox.value = test?.id ?? '';
+            reportCheckbox.checked = selectedReportTestIds.has(test?.id);
             reportCheckbox.setAttribute('aria-label', 'Включить тест в отчет');
-            reportCheckbox.addEventListener('change', updateSelectedReportsCount);
-            reportCheckboxes.add(reportCheckbox);
+            reportCheckbox.addEventListener('change', () => {
+                if (!test?.id) {
+                    return;
+                }
+                if (reportCheckbox.checked) {
+                    selectedReportTestIds.add(test.id);
+                } else {
+                    selectedReportTestIds.delete(test.id);
+                }
+                updateSelectedReportsCount();
+            });
             reportCell.appendChild(reportCheckbox);
 
             const releaseCell = document.createElement('td');
