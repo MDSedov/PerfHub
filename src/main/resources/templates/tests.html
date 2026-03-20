@@ -218,6 +218,30 @@
             </section>
         </main>
 
+        <div class="modal fade"
+             id="testDetailsModal"
+             tabindex="-1"
+             aria-labelledby="testDetailsModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content test-details-modal">
+                    <div class="modal-header">
+                        <div class="d-flex flex-column gap-1">
+                            <span class="test-details-modal-kicker">Детали теста</span>
+                            <h5 class="modal-title" id="testDetailsModalLabel">Детальная информация о тесте</h5>
+                            <div id="testDetailsModalSubtitle"
+                                 class="test-details-modal-subtitle text-muted small d-none"></div>
+                        </div>
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="modal"
+                                aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body" id="testDetailsModalBody"></div>
+                </div>
+            </div>
+        </div>
+
         <div id="toastContainer" class="toast-container"></div>
     </div>
 </div>
@@ -243,6 +267,10 @@
     const complianceFilter = document.getElementById('complianceFilter');
     const configFilter = document.getElementById('configFilter');
     const resetFiltersButton = document.getElementById('resetFiltersButton');
+    const testDetailsModalElement = document.getElementById('testDetailsModal');
+    const testDetailsModalTitle = document.getElementById('testDetailsModalLabel');
+    const testDetailsModalSubtitle = document.getElementById('testDetailsModalSubtitle');
+    const testDetailsModalBody = document.getElementById('testDetailsModalBody');
     const toastContainer = document.getElementById('toastContainer');
     const reportCheckboxes = new Set();
     let filterDropdownsInitialized = false;
@@ -387,8 +415,10 @@
     const releaseCells = new Map();
     const knownTestIds = new Set();
     const pendingConfigRequests = new Set();
-    const expandedTests = new Set();
     let testsInitialized = false;
+    let activeDetailsButton = null;
+    let activeDetailsTestId = null;
+    let testDetailsModalBackdrop = null;
     let allTests = [];
     let filterState = {
         releases: [],
@@ -536,6 +566,187 @@
         }
         return `${hours} ч ${minutes.toString().padStart(2, '0')} мин`;
     }
+
+    function buildTestDetailsTitle(test) {
+        if (!test?.id) {
+            return 'Детальная информация о тесте';
+        }
+        return `${normalizeTestType(test.type)} | ${test.id}`;
+    }
+
+    function buildTestDetailsSubtitle(test) {
+        if (!test) {
+            return '';
+        }
+        const parts = [];
+        const release = getReleaseValue(test);
+        const start = formatDateNoSeconds(test.start);
+        const end = formatDateNoSeconds(test.end);
+        const duration = formatDuration(test.start, test.end);
+
+        if (release) {
+            parts.push(`Релиз ${release}`);
+        }
+        if (start !== '—') {
+            parts.push(`Начало ${start}`);
+        }
+        if (end !== '—') {
+            parts.push(`Конец ${end}`);
+        }
+        if (duration !== '—') {
+            parts.push(`Длительность ${duration}`);
+        }
+        return parts.join(' | ');
+    }
+
+    function resetActiveDetailsButton() {
+        if (activeDetailsButton?.isConnected) {
+            activeDetailsButton.classList.remove('is-open');
+        }
+        activeDetailsButton = null;
+    }
+
+    function resetTestDetailsModalState() {
+        resetActiveDetailsButton();
+        activeDetailsTestId = null;
+        if (testDetailsModalTitle) {
+            testDetailsModalTitle.textContent = 'Детальная информация о тесте';
+        }
+        if (testDetailsModalSubtitle) {
+            testDetailsModalSubtitle.textContent = '';
+            testDetailsModalSubtitle.classList.add('d-none');
+        }
+        if (testDetailsModalBody) {
+            testDetailsModalBody.innerHTML = '';
+        }
+    }
+
+    function getTestDetailsModalInstance() {
+        if (!testDetailsModalElement || !window.bootstrap?.Modal) {
+            return null;
+        }
+        return bootstrap.Modal.getOrCreateInstance(testDetailsModalElement);
+    }
+
+    function removeTestDetailsBackdrop() {
+        if (testDetailsModalBackdrop?.isConnected) {
+            testDetailsModalBackdrop.remove();
+        }
+        testDetailsModalBackdrop = null;
+    }
+
+    function hideTestDetailsModalFallback() {
+        if (!testDetailsModalElement) {
+            return;
+        }
+        testDetailsModalElement.classList.remove('show');
+        testDetailsModalElement.style.display = 'none';
+        testDetailsModalElement.setAttribute('aria-hidden', 'true');
+        testDetailsModalElement.removeAttribute('aria-modal');
+        document.body.classList.remove('modal-open');
+        removeTestDetailsBackdrop();
+        resetTestDetailsModalState();
+    }
+
+    function showTestDetailsModalDialog() {
+        const modalInstance = getTestDetailsModalInstance();
+        if (modalInstance) {
+            modalInstance.show();
+            return {
+                handleUpdate: () => modalInstance.handleUpdate?.()
+            };
+        }
+
+        if (!testDetailsModalElement) {
+            return null;
+        }
+
+        testDetailsModalElement.style.display = 'block';
+        testDetailsModalElement.classList.add('show');
+        testDetailsModalElement.removeAttribute('aria-hidden');
+        testDetailsModalElement.setAttribute('aria-modal', 'true');
+        document.body.classList.add('modal-open');
+        removeTestDetailsBackdrop();
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        document.body.appendChild(backdrop);
+        testDetailsModalBackdrop = backdrop;
+        return {
+            handleUpdate: () => {}
+        };
+    }
+
+    function openTestDetailsModal(testId, button) {
+        if (!testDetailsModalElement || !testDetailsModalBody) {
+            return;
+        }
+
+        resetActiveDetailsButton();
+        activeDetailsButton = button ?? null;
+        if (activeDetailsButton?.isConnected) {
+            activeDetailsButton.classList.add('is-open');
+        }
+        activeDetailsTestId = testId ?? null;
+
+        const test = findTestById(testId);
+        if (testDetailsModalTitle) {
+            testDetailsModalTitle.textContent = buildTestDetailsTitle(test);
+        }
+        if (testDetailsModalSubtitle) {
+            const subtitle = buildTestDetailsSubtitle(test);
+            testDetailsModalSubtitle.textContent = subtitle;
+            testDetailsModalSubtitle.classList.toggle('d-none', subtitle === '');
+        }
+
+        testDetailsModalBody.innerHTML = '';
+        const detailsContainer = document.createElement('div');
+        detailsContainer.className = 'test-details test-details-modal-content';
+        detailsContainer.dataset.loaded = 'false';
+        testDetailsModalBody.appendChild(detailsContainer);
+
+        const modalApi = showTestDetailsModalDialog();
+        if (!modalApi) {
+            return;
+        }
+        window.requestAnimationFrame(() => modalApi.handleUpdate?.());
+
+        loadTestDetails(testId, detailsContainer)
+                .then(() => modalApi.handleUpdate?.())
+                .catch(error => {
+                    detailsContainer.innerHTML =
+                            `<div class="text-danger small">Не удалось загрузить детали теста: ${error.message}</div>`;
+                    modalApi.handleUpdate?.();
+                });
+    }
+
+    if (testDetailsModalElement) {
+        testDetailsModalElement.addEventListener('hidden.bs.modal', () => {
+            resetTestDetailsModalState();
+        });
+
+        testDetailsModalElement.addEventListener('click', event => {
+            const dismissTarget = event.target.closest('[data-bs-dismiss="modal"]');
+            if (dismissTarget && !getTestDetailsModalInstance()) {
+                hideTestDetailsModalFallback();
+                return;
+            }
+            if (event.target === testDetailsModalElement && !getTestDetailsModalInstance()) {
+                hideTestDetailsModalFallback();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') {
+            return;
+        }
+        if (!testDetailsModalElement?.classList.contains('show')) {
+            return;
+        }
+        if (!getTestDetailsModalInstance()) {
+            hideTestDetailsModalFallback();
+        }
+    });
 
     function showToast(message, type = 'info', durationMs = 15000) {
         if (!toastContainer) {
@@ -1322,11 +1533,13 @@
         container.dataset.loading = 'true';
         container.innerHTML = '';
         const wrapper = document.createElement('div');
+        wrapper.className = 'test-details-stack';
         container.appendChild(wrapper);
 
         const notesSection = document.createElement('section');
+        notesSection.className = 'test-details-section';
         const notesTitle = document.createElement('h6');
-        notesTitle.className = 'mb-3';
+        notesTitle.className = 'test-details-section-title mb-3';
         notesTitle.textContent = 'Заметки к тесту';
         const notesBox = document.createElement('div');
         notesBox.className = 'mb-2';
@@ -1359,8 +1572,9 @@
         notesSection.appendChild(notesBox);
 
         const requirementsSection = document.createElement('section');
+        requirementsSection.className = 'test-details-section';
         const requirementsTitle = document.createElement('h6');
-        requirementsTitle.className = 'mb-3';
+        requirementsTitle.className = 'test-details-section-title mb-3';
         requirementsTitle.textContent = 'Проверка на соответствие нефункциональным требованиям';
         const requirementsBox = document.createElement('div');
         requirementsBox.innerHTML = '<div class="text-muted small">Загружаем результаты проверок…</div>';
@@ -1368,8 +1582,9 @@
         requirementsSection.appendChild(requirementsBox);
 
         const configurationSection = document.createElement('section');
+        configurationSection.className = 'test-details-section';
         const configurationTitle = document.createElement('h6');
-        configurationTitle.className = 'mb-3';
+        configurationTitle.className = 'test-details-section-title mb-3';
         configurationTitle.textContent = 'Конфигурация DropApp';
         const configurationBox = document.createElement('div');
         configurationBox.innerHTML = '<div class="text-muted small">Загружаем конфигурацию…</div>';
@@ -1377,8 +1592,9 @@
         configurationSection.appendChild(configurationBox);
 
         const grafanaSection = document.createElement('section');
+        grafanaSection.className = 'test-details-section';
         const grafanaTitle = document.createElement('h6');
-        grafanaTitle.className = 'mb-3';
+        grafanaTitle.className = 'test-details-section-title mb-3';
         grafanaTitle.textContent = 'Графики';
         const grafanaPlaceholder = document.createElement('div');
         grafanaPlaceholder.className = 'text-muted small mb-2 visually-hidden';
@@ -1508,23 +1724,6 @@
 
         container.dataset.loading = 'false';
         container.dataset.loaded = evaluationsAllowed ? 'true' : 'false';
-    }
-
-    function toggleDetails(testId, button, detailsRow, container) {
-        const isExpanded = button.getAttribute('aria-expanded') === 'true';
-        if (isExpanded) {
-            button.setAttribute('aria-expanded', 'false');
-            detailsRow.classList.remove('show');
-            expandedTests.delete(testId);
-            return;
-        }
-        button.setAttribute('aria-expanded', 'true');
-        detailsRow.classList.add('show');
-        expandedTests.add(testId);
-        if (container.dataset.loaded === 'true' || container.dataset.loading === 'true') {
-            return;
-        }
-        loadTestDetails(testId, container);
     }
 
     function setAllTests(tests) {
@@ -1736,10 +1935,16 @@
             const toggleButton = document.createElement('button');
             toggleButton.type = 'button';
             toggleButton.className = 'details-toggle';
-            toggleButton.setAttribute('aria-expanded', 'false');
-            toggleButton.setAttribute('aria-label', 'Раскрыть детали теста');
-            toggleButton.innerHTML = '<span class="details-icon">▸</span>';
+            toggleButton.setAttribute('aria-label', 'Открыть детали теста');
+            toggleButton.setAttribute('aria-haspopup', 'dialog');
+            toggleButton.setAttribute('aria-controls', 'testDetailsModal');
+            toggleButton.innerHTML = '<i class="bi bi-arrows-angle-expand details-icon"></i>';
             detailsCell.appendChild(toggleButton);
+
+            if (activeDetailsTestId === test.id && testDetailsModalElement?.classList.contains('show')) {
+                toggleButton.classList.add('is-open');
+                activeDetailsButton = toggleButton;
+            }
 
             summaryRow.appendChild(reportCell);
             summaryRow.appendChild(releaseCell);
@@ -1751,29 +1956,9 @@
             summaryRow.appendChild(configurationCell);
             summaryRow.appendChild(detailsCell);
 
-            const detailsRow = document.createElement('tr');
-            detailsRow.className = 'details-row';
-            const detailsWrapper = document.createElement('td');
-            detailsWrapper.colSpan = 9;
-            const detailsContainer = document.createElement('div');
-            detailsContainer.className = 'test-details';
-            detailsContainer.dataset.loaded = 'false';
-            detailsContainer.innerHTML =
-                    '<div class="text-muted small">Раскройте, чтобы увидеть проверки, конфигурацию и графики.</div>';
-            detailsWrapper.appendChild(detailsContainer);
-            detailsRow.appendChild(detailsWrapper);
-
-            toggleButton.addEventListener('click', () =>
-                    toggleDetails(test.id, toggleButton, detailsRow, detailsContainer));
-
-            if (expandedTests.has(test.id)) {
-                toggleButton.setAttribute('aria-expanded', 'true');
-                detailsRow.classList.add('show');
-                loadTestDetails(test.id, detailsContainer);
-            }
+            toggleButton.addEventListener('click', () => openTestDetailsModal(test.id, toggleButton));
 
             testsTableBody.appendChild(summaryRow);
-            testsTableBody.appendChild(detailsRow);
         });
 
         updateEvaluateButtonState();
