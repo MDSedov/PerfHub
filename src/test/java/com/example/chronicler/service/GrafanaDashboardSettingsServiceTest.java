@@ -6,12 +6,15 @@ import static org.assertj.core.groups.Tuple.tuple;
 import com.example.chronicler.client.GrafanaClient;
 import com.example.chronicler.dto.grafana.GrafanaDashboardDefinition;
 import com.example.chronicler.dto.grafana.GrafanaPanelDefinition;
+import com.example.chronicler.dto.grafana.GrafanaVariableDefinition;
 import com.example.chronicler.dto.settings.GrafanaDashboardDetailsDto;
 import com.example.chronicler.dto.settings.GrafanaDashboardPanelDto;
 import com.example.chronicler.model.GrafanaDashboard;
 import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
 import com.example.chronicler.repository.GrafanaDashboardRepository;
+import com.example.chronicler.repository.GrafanaDashboardVariableRepository;
 import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
+import com.example.chronicler.repository.model.GrafanaDashboardVariableRecord;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,6 +32,7 @@ class GrafanaDashboardSettingsServiceTest {
 
     private InMemoryGrafanaDashboardRepository repository;
     private InMemoryDashboardPanelRepository panelRepository;
+    private InMemoryDashboardVariableRepository variableRepository;
     private StubGrafanaClient grafanaClient;
     private GrafanaDashboardSettingsService service;
 
@@ -35,8 +40,9 @@ class GrafanaDashboardSettingsServiceTest {
     void setUp() {
         repository = new InMemoryGrafanaDashboardRepository();
         panelRepository = new InMemoryDashboardPanelRepository();
+        variableRepository = new InMemoryDashboardVariableRepository();
         grafanaClient = new StubGrafanaClient();
-        service = new GrafanaDashboardSettingsService(repository, panelRepository, grafanaClient);
+        service = new GrafanaDashboardSettingsService(repository, panelRepository, variableRepository, grafanaClient);
     }
 
     @Test
@@ -49,12 +55,14 @@ class GrafanaDashboardSettingsServiceTest {
                         "Main dashboard",
                         List.of(
                                 new GrafanaPanelDefinition(10, "Throughput", "sum(rate(x[1m]))", 300d),
-                                new GrafanaPanelDefinition(11, "Latency", "histogram_quantile(0.95, ...)", null))),
+                                new GrafanaPanelDefinition(11, "Latency", "histogram_quantile(0.95, ...)", null)),
+                        List.<GrafanaVariableDefinition>of()),
                 new GrafanaDashboardDefinition(
                         "uid2",
                         "slug2",
                         "Secondary",
-                        List.of(new GrafanaPanelDefinition(1, "Errors", "sum(rate(errors[5m]))", 1d)))));
+                        List.of(new GrafanaPanelDefinition(1, "Errors", "sum(rate(errors[5m]))", 1d)),
+                        List.<GrafanaVariableDefinition>of())));
 
         List<GrafanaDashboardDetailsDto> dashboards = service.pullFromGrafana();
 
@@ -206,6 +214,40 @@ class GrafanaDashboardSettingsServiceTest {
                             panel.panelThreshold(),
                             false))
                     .toList());
+        }
+
+        @Override
+        public void deleteByDashboardUid(String dashboardUid) {
+            storage.remove(dashboardUid);
+        }
+
+        @Override
+        public void deleteMissingDashboards(Set<String> existingUids) {
+            storage.keySet().removeIf(uid -> !existingUids.contains(uid));
+        }
+    }
+
+    private static final class InMemoryDashboardVariableRepository extends GrafanaDashboardVariableRepository {
+
+        private final Map<String, List<GrafanaDashboardVariableRecord>> storage = new LinkedHashMap<>();
+
+        private InMemoryDashboardVariableRepository() {
+            super(new JdbcTemplate(), new ObjectMapper());
+        }
+
+        @Override
+        public List<GrafanaDashboardVariableRecord> findByDashboardUid(String dashboardUid) {
+            return storage.getOrDefault(dashboardUid, List.of());
+        }
+
+        @Override
+        public Map<String, List<GrafanaDashboardVariableRecord>> findAllGroupedByUid() {
+            return storage;
+        }
+
+        @Override
+        public void replaceForDashboard(String dashboardUid, Collection<GrafanaDashboardVariableRecord> variables) {
+            storage.put(dashboardUid, List.copyOf(variables));
         }
 
         @Override

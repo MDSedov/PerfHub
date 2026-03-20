@@ -10,9 +10,11 @@ import com.example.chronicler.exception.VmQueryNotFoundException;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
+import com.example.chronicler.repository.GrafanaDashboardVariableRepository;
 import com.example.chronicler.repository.LoadTestRepository;
 import com.example.chronicler.repository.TestTypeRepository;
 import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
+import com.example.chronicler.repository.model.GrafanaDashboardVariableRecord;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -60,12 +62,15 @@ class VictoriaMetricsServiceTest {
         vmDataCache = new VmDataCache();
         testsCache = new VictoriaMetricsTestsCache();
         loadTestRepository = new StubLoadTestRepository();
+        GrafanaVariableService grafanaVariableService =
+                new GrafanaVariableService(new StubGrafanaDashboardVariableRepository());
         service = new VictoriaMetricsService(
                 panelRepository,
                 client,
                 vmDataCache,
                 testsCache,
                 loadTestRepository,
+                grafanaVariableService,
                 configurationProvider,
                 objectMapper);
     }
@@ -293,6 +298,18 @@ class VictoriaMetricsServiceTest {
             recordedStart = start;
             recordedEnd = end;
             return response;
+        }
+    }
+
+    private static final class StubGrafanaDashboardVariableRepository extends GrafanaDashboardVariableRepository {
+
+        private StubGrafanaDashboardVariableRepository() {
+            super(new JdbcTemplate(), new ObjectMapper());
+        }
+
+        @Override
+        public List<GrafanaDashboardVariableRecord> findByDashboardUid(String dashboardUid) {
+            return List.of();
         }
     }
 

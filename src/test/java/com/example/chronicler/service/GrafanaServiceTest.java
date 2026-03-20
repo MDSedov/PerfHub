@@ -7,14 +7,17 @@ import com.example.chronicler.client.GrafanaClient;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
+import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
 import com.example.chronicler.exception.GrafanaRenderingException;
 import com.example.chronicler.model.GrafanaDashboard;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
+import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
 import com.example.chronicler.repository.GrafanaDashboardRepository;
 import com.example.chronicler.repository.LoadTestRepository;
 import com.example.chronicler.repository.TestTypeRepository;
+import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,6 +36,7 @@ class GrafanaServiceTest {
     private GrafanaRenderCache grafanaRenderCache;
     private StubLoadTestRepository loadTestRepository;
     private StubGrafanaDashboardRepository grafanaDashboardRepository;
+    private StubGrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
     private GrafanaService grafanaService;
 
     @BeforeEach
@@ -41,8 +45,13 @@ class GrafanaServiceTest {
         grafanaRenderCache = new GrafanaRenderCache();
         loadTestRepository = new StubLoadTestRepository();
         grafanaDashboardRepository = new StubGrafanaDashboardRepository();
+        grafanaDashboardPanelRepository = new StubGrafanaDashboardPanelRepository();
         grafanaService = new GrafanaService(
-                grafanaClient, grafanaRenderCache, loadTestRepository, grafanaDashboardRepository);
+                grafanaClient,
+                grafanaRenderCache,
+                loadTestRepository,
+                grafanaDashboardRepository,
+                grafanaDashboardPanelRepository);
     }
 
     @Test
@@ -130,11 +139,35 @@ class GrafanaServiceTest {
                 .hasMessage("No enabled Grafana dashboards configured");
     }
 
+    @Test
+    void renderPanelsFallsBackToCachedTitleWhenMetadataRequestFails() {
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "slug", List.of(7), true)));
+        grafanaDashboardPanelRepository.register(
+                new GrafanaDashboardPanelRecord("uid", "slug", "Dashboard", 7, "Cached title", "up", null, false));
+        grafanaClient.setRenderedPanel(7, new byte[] {9});
+        grafanaClient.failMetadataForPanel(7);
+
+        GrafanaRenderResponse response = grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
+
+        assertThat(response.dashboards()).hasSize(1);
+        assertThat(response.dashboards().get(0).panels()).hasSize(1);
+        assertThat(response.dashboards().get(0).panels().get(0).title()).isEqualTo("Cached title");
+        assertThat(response.dashboards().get(0).panels().get(0).description()).isEmpty();
+        assertThat(response.dashboards().get(0).panels().get(0).imageBase64()).isEqualTo("CQ==");
+    }
+
     private static final class StubGrafanaClient extends GrafanaClient {
 
         private final Map<Integer, byte[]> rendered = new HashMap<>();
         private final Map<Integer, GrafanaPanelMetadata> metadata = new HashMap<>();
         private final List<Integer> renderCalls = new ArrayList<>();
+        private final List<Integer> metadataFailures = new ArrayList<>();
 
         private StubGrafanaClient() {
             super(new RestTemplate(), new com.example.chronicler.service.ConfigurationProvider() {
@@ -163,6 +196,10 @@ class GrafanaServiceTest {
             return List.copyOf(renderCalls);
         }
 
+        void failMetadataForPanel(int panelId) {
+            metadataFailures.add(panelId);
+        }
+
         @Override
         public byte[] renderPanel(String dashboardUid, String dashboardSlug, int panelId, Instant from, Instant to) {
             renderCalls.add(panelId);
@@ -171,6 +208,9 @@ class GrafanaServiceTest {
 
         @Override
         public GrafanaPanelMetadata getPanelMetadata(String dashboardUid, int panelId) {
+            if (metadataFailures.contains(panelId)) {
+                throw new GrafanaClientException("Metadata request failed", null);
+            }
             return metadata.get(panelId);
         }
     }
@@ -224,6 +264,26 @@ class GrafanaServiceTest {
         @Override
         public void deleteByUid(String uid) {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    private static final class StubGrafanaDashboardPanelRepository extends GrafanaDashboardPanelRepository {
+
+        private final Map<String, Map<Integer, GrafanaDashboardPanelRecord>> panelsByDashboard = new HashMap<>();
+
+        private StubGrafanaDashboardPanelRepository() {
+            super(new JdbcTemplate());
+        }
+
+        void register(GrafanaDashboardPanelRecord panel) {
+            panelsByDashboard
+                    .computeIfAbsent(panel.dashboardUid(), ignored -> new HashMap<>())
+                    .put(panel.panelId(), panel);
+        }
+
+        @Override
+        public List<GrafanaDashboardPanelRecord> findByDashboardUid(String dashboardUid) {
+            return new ArrayList<>(panelsByDashboard.getOrDefault(dashboardUid, Map.of()).values());
         }
     }
 }
