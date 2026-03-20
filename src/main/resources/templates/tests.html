@@ -27,20 +27,9 @@
                th:classappend="${activePage} == 'tests' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-activity"></i></span>
-                    <span>Мониторинг тестов</span>
+                    <span>Тесты и отчеты</span>
                 </span>
             </a>
-            <div class="sidebar-submenu" style="margin-bottom: 0.5rem;">
-                <a class="sidebar-sublink"
-                   id="reportsSubLink"
-                   th:href="@{/reports}"
-                   th:classappend="${activePage} == 'reports' ? ' active' : ''">
-                    <span class="sidebar-item">
-                        <span class="menu-icon"><i class="bi bi-journal-text"></i></span>
-                        <span>Генерация отчётов</span>
-                    </span>
-                </a>
-            </div>
             <a class="sidebar-link" th:href="@{/grafana-panels}"
                th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
                 <span class="sidebar-item">
@@ -1236,6 +1225,82 @@
         return text === '' ? null : text;
     }
 
+    function splitReleaseSegments(value) {
+        return String(value)
+            .split(/[._-]+/)
+            .map(segment => segment.trim())
+            .filter(segment => segment !== '');
+    }
+
+    function isNumericReleaseSegment(segment) {
+        return /^\d+$/.test(segment);
+    }
+
+    function normalizeNumericReleaseSegment(segment) {
+        return String(segment).replace(/^0+(?=\d)/, '');
+    }
+
+    function compareNumericReleaseSegments(left, right) {
+        const normalizedLeft = normalizeNumericReleaseSegment(left);
+        const normalizedRight = normalizeNumericReleaseSegment(right);
+        if (normalizedLeft.length !== normalizedRight.length) {
+            return normalizedLeft.length - normalizedRight.length;
+        }
+        return normalizedLeft.localeCompare(normalizedRight, 'en');
+    }
+
+    function compareMissingReleaseSegment(actualSegment) {
+        if (actualSegment === undefined || actualSegment === null) {
+            return 0;
+        }
+        if (isNumericReleaseSegment(actualSegment)) {
+            return compareNumericReleaseSegments(actualSegment, '0') === 0 ? 0 : -1;
+        }
+        return 1;
+    }
+
+    function compareReleaseValues(left, right) {
+        const normalizedLeft = normalizeReleaseValue(left);
+        const normalizedRight = normalizeReleaseValue(right);
+        if (normalizedLeft === null) {
+            return normalizedRight === null ? 0 : -1;
+        }
+        if (normalizedRight === null) {
+            return 1;
+        }
+
+        const leftSegments = splitReleaseSegments(normalizedLeft);
+        const rightSegments = splitReleaseSegments(normalizedRight);
+        const maxSegments = Math.max(leftSegments.length, rightSegments.length);
+        for (let index = 0; index < maxSegments; index += 1) {
+            const leftSegment = leftSegments[index];
+            const rightSegment = rightSegments[index];
+
+            let comparison = 0;
+            if (leftSegment === undefined || rightSegment === undefined) {
+                comparison = leftSegment === undefined
+                    ? compareMissingReleaseSegment(rightSegment)
+                    : -compareMissingReleaseSegment(leftSegment);
+            } else {
+                const leftNumeric = isNumericReleaseSegment(leftSegment);
+                const rightNumeric = isNumericReleaseSegment(rightSegment);
+                if (leftNumeric && rightNumeric) {
+                    comparison = compareNumericReleaseSegments(leftSegment, rightSegment);
+                } else if (leftNumeric !== rightNumeric) {
+                    comparison = leftNumeric ? 1 : -1;
+                } else {
+                    comparison = leftSegment.localeCompare(rightSegment, 'en', { sensitivity: 'accent' });
+                }
+            }
+
+            if (comparison !== 0) {
+                return comparison;
+            }
+        }
+
+        return normalizedLeft.localeCompare(normalizedRight, 'en', { sensitivity: 'accent' });
+    }
+
     function getReleaseValue(test) {
         if (!test) {
             return null;
@@ -1247,13 +1312,14 @@
         if (!Array.isArray(items)) {
             return null;
         }
+        let maxRelease = null;
         for (const item of items) {
             const release = normalizeReleaseValue(item?.release);
-            if (release) {
-                return release;
+            if (release && (maxRelease === null || compareReleaseValues(release, maxRelease) > 0)) {
+                maxRelease = release;
             }
         }
-        return null;
+        return maxRelease;
     }
 
     function setTestRelease(testId, release) {
@@ -1362,7 +1428,7 @@
         const sorted = Array.from(releases).sort((a, b) => {
             if (a === MISSING_RELEASE_VALUE) return 1;
             if (b === MISSING_RELEASE_VALUE) return -1;
-            return a.localeCompare(b, 'ru');
+            return compareReleaseValues(a, b);
         });
         renderCheckboxList(
                 releaseFilterList,

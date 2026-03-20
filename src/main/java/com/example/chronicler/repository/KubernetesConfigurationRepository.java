@@ -1,6 +1,7 @@
 package com.example.chronicler.repository;
 
 import com.example.chronicler.model.KubernetesConfiguration;
+import com.example.chronicler.util.ReleaseVersionUtils;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -53,7 +54,7 @@ public class KubernetesConfigurationRepository {
         return !result.isEmpty();
     }
 
-    public Map<UUID, String> findLatestReleases(Collection<UUID> testUuids) {
+    public Map<UUID, String> findMaxReleases(Collection<UUID> testUuids) {
         if (CollectionUtils.isEmpty(testUuids)) {
             return Collections.emptyMap();
         }
@@ -62,7 +63,6 @@ public class KubernetesConfigurationRepository {
                 SELECT test_uuid, release
                 FROM kubernetes_configurations
                 WHERE test_uuid IN (%s) AND release IS NOT NULL AND release <> ''
-                ORDER BY captured_at DESC, id DESC
                 """.formatted(placeholders);
         Map<UUID, String> result = new LinkedHashMap<>();
         jdbcTemplate.query(
@@ -70,14 +70,20 @@ public class KubernetesConfigurationRepository {
                 testUuids.toArray(),
                 rs -> {
                     UUID testUuid = rs.getObject("test_uuid", UUID.class);
-                    if (!result.containsKey(testUuid)) {
-                        result.put(testUuid, rs.getString("release"));
+                    String release = ReleaseVersionUtils.normalize(rs.getString("release"));
+                    if (release == null) {
+                        return;
                     }
+                    result.merge(
+                            testUuid,
+                            release,
+                            (current, candidate) ->
+                                    ReleaseVersionUtils.compare(current, candidate) >= 0 ? current : candidate);
                 });
         return result;
     }
 
-    public String findLatestRelease(UUID testUuid) {
+    public String findMaxRelease(UUID testUuid) {
         if (testUuid == null) {
             return null;
         }
@@ -86,15 +92,10 @@ public class KubernetesConfigurationRepository {
                         SELECT release
                         FROM kubernetes_configurations
                         WHERE test_uuid = ? AND release IS NOT NULL AND release <> ''
-                        ORDER BY captured_at DESC, id DESC
-                        LIMIT 1
                         """,
                 ps -> ps.setObject(1, testUuid),
                 (rs, rowNum) -> rs.getString("release"));
-        if (releases.isEmpty()) {
-            return null;
-        }
-        return releases.get(0);
+        return ReleaseVersionUtils.findMaxRelease(releases);
     }
 
     public void saveAll(UUID testUuid, List<KubernetesConfiguration> configurations) {

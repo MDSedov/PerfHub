@@ -36,12 +36,12 @@ public class KubernetesConfigurationService {
                 .collect(Collectors.toList());
     }
 
-    public Map<UUID, String> findReleases(Collection<UUID> testUuids) {
-        return repository.findLatestReleases(testUuids);
+    public Map<UUID, String> findMaxReleases(Collection<UUID> testUuids) {
+        return repository.findMaxReleases(testUuids);
     }
 
-    public String findRelease(UUID testUuid) {
-        return repository.findLatestRelease(testUuid);
+    public String findMaxRelease(UUID testUuid) {
+        return repository.findMaxRelease(testUuid);
     }
 
     /**

@@ -45,7 +45,7 @@ public class LoadTestController {
     @GetMapping
     public List<LoadTestView> listTests() {
         List<LoadTest> tests = loadTestRepository.findAllOrderByStartDesc();
-        Map<UUID, String> releases = kubernetesConfigurationService.findReleases(
+        Map<UUID, String> releases = kubernetesConfigurationService.findMaxReleases(
                 tests.stream().map(LoadTest::id).collect(Collectors.toList()));
         return tests.stream()
                 .map(loadTest -> LoadTestView.fromModel(
@@ -73,7 +73,7 @@ public class LoadTestController {
         Objects.requireNonNull(testUuid, "testUuid must not be null");
         LoadTest updated = loadTestRepository.updateComment(testUuid, request != null ? request.comment() : null);
         return LoadTestView.fromModel(
-                updated, buildComplianceView(updated.id()), kubernetesConfigurationService.findRelease(testUuid));
+                updated, buildComplianceView(updated.id()), kubernetesConfigurationService.findMaxRelease(testUuid));
     }
 
     private RequirementComplianceView buildComplianceView(UUID testUuid) {
