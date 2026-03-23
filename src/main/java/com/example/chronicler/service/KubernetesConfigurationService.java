@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -40,8 +41,16 @@ public class KubernetesConfigurationService {
         return repository.findMaxReleases(testUuids);
     }
 
+    public Set<UUID> findConfiguredTestIds(Collection<UUID> testUuids) {
+        return repository.findConfiguredTestIds(testUuids);
+    }
+
     public String findMaxRelease(UUID testUuid) {
         return repository.findMaxRelease(testUuid);
+    }
+
+    public boolean hasConfiguration(UUID testUuid) {
+        return repository.existsForTest(testUuid);
     }
 
     /**

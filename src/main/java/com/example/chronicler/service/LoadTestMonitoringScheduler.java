@@ -39,6 +39,7 @@ public class LoadTestMonitoringScheduler {
         try {
             List<LoadTest> detected = victoriaMetricsService.detectAndPersistTests(start, end);
             List<UUID> testIds = detected.stream()
+                    .filter(test -> isActiveAt(test, end))
                     .map(LoadTest::id)
                     .collect(Collectors.toList());
             kubernetesConfigurationService.captureConfigurationsIfMissing(testIds);
@@ -47,5 +48,20 @@ public class LoadTestMonitoringScheduler {
             log.error(message, ex);
             backgroundErrorService.publish(message + ": " + ex.getMessage());
         }
+    }
+
+    private boolean isActiveAt(LoadTest test, Instant moment) {
+        if (test == null || moment == null) {
+            return false;
+        }
+        Instant start = test.start();
+        Instant end = test.end();
+        if (start != null && moment.isBefore(start)) {
+            return false;
+        }
+        if (end != null && moment.isAfter(end)) {
+            return false;
+        }
+        return start != null || end != null;
     }
 }

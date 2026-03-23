@@ -14,6 +14,7 @@ public record LoadTestView(
         String end,
         String type,
         String release,
+        boolean hasSavedConfiguration,
         long durationSeconds,
         RequirementComplianceView requirementCompliance,
         String comment) {
@@ -23,10 +24,15 @@ public record LoadTestView(
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(MOSCOW_ZONE);
 
     public static LoadTestView fromModel(LoadTest loadTest, RequirementComplianceView compliance) {
-        return fromModel(loadTest, compliance, null);
+        return fromModel(loadTest, compliance, null, false);
     }
 
     public static LoadTestView fromModel(LoadTest loadTest, RequirementComplianceView compliance, String release) {
+        return fromModel(loadTest, compliance, release, false);
+    }
+
+    public static LoadTestView fromModel(
+            LoadTest loadTest, RequirementComplianceView compliance, String release, boolean hasSavedConfiguration) {
         LoadTestType type = loadTest.type() == null ? LoadTestType.UNKNOWN : loadTest.type();
         return new LoadTestView(
                 loadTest.id().toString(),
@@ -34,6 +40,7 @@ public record LoadTestView(
                 formatInstant(loadTest.end()),
                 type.value(),
                 normalizeRelease(release),
+                hasSavedConfiguration,
                 calculateDurationSeconds(loadTest.start(), loadTest.end()),
                 compliance,
                 loadTest.comment());

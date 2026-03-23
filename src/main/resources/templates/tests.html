@@ -527,6 +527,7 @@
     const grafanaRenderedPanels = new Map();
     const testConfigurationCache = new Map();
     const testConfigurationRequests = new Map();
+    const testConfigurationCaptureRequests = new Map();
     const testConfigurationStatusElements = new Map();
     const complianceStatusByTest = new Map();
     const configStatusByTest = new Map();
@@ -642,6 +643,27 @@
         const normalized = value.includes('T') ? value : value.replace(' ', 'T');
         const withSeconds = normalized.length === 16 ? `${normalized}:00` : normalized;
         return new Date(withSeconds + '+03:00');
+    }
+
+    function hasSavedConfiguration(test) {
+        return Boolean(test?.hasSavedConfiguration);
+    }
+
+    function isTestCurrentlyActive(test) {
+        const now = new Date();
+        const start = parseMoscowDate(test?.start);
+        const end = parseMoscowDate(test?.end);
+        if (start && now < start) {
+            return false;
+        }
+        if (end && now > end) {
+            return false;
+        }
+        return Boolean(start || end);
+    }
+
+    function shouldAutoRequestConfiguration(test) {
+        return Boolean(test?.id) && isTestCurrentlyActive(test) && !hasSavedConfiguration(test);
     }
 
     function parseGrafanaTimestamp(value) {
@@ -965,7 +987,10 @@
         if (cachedState) {
             return cachedState;
         }
-        return 'loading';
+        if (hasSavedConfiguration(test)) {
+            return 'success';
+        }
+        return shouldAutoRequestConfiguration(test) ? 'loading' : 'pending';
     }
 
     function getSelectedReportTests() {
@@ -1350,6 +1375,14 @@
         }
     }
 
+    function setSavedConfigurationState(testId, hasConfiguration) {
+        const test = findTestById(testId);
+        if (!test) {
+            return;
+        }
+        test.hasSavedConfiguration = Boolean(hasConfiguration);
+    }
+
     function renderCheckboxList(container, values, selectedValues, namePrefix = '', labelFormatter = value => value) {
         if (!container) {
             return;
@@ -1581,6 +1614,7 @@
             return;
         }
         const hasConfig = Array.isArray(items) && items.length > 0;
+        setSavedConfigurationState(testId, hasConfig);
         const state = hasConfig ? 'success' : 'fail';
         if (icon) {
             setConfigurationStatus(icon, state);
@@ -1671,6 +1705,7 @@
                     .then(payload => {
                         const items = Array.isArray(payload) ? payload : [];
                         testConfigurationCache.set(testId, items);
+                        setSavedConfigurationState(testId, items.length > 0);
                         return items;
                     })
                     .finally(() => {
@@ -1689,7 +1724,23 @@
         const payload = await response.json();
         const items = Array.isArray(payload) ? payload : [];
         testConfigurationCache.set(testId, items);
+        setSavedConfigurationState(testId, items.length > 0);
         return items;
+    }
+
+    function ensureCapturedConfiguration(testId) {
+        const cached = testConfigurationCache.get(testId);
+        if (Array.isArray(cached) && cached.length > 0) {
+            return Promise.resolve(cached);
+        }
+        if (!testConfigurationCaptureRequests.has(testId)) {
+            const request = captureConfiguration(testId)
+                    .finally(() => {
+                        testConfigurationCaptureRequests.delete(testId);
+                    });
+            testConfigurationCaptureRequests.set(testId, request);
+        }
+        return testConfigurationCaptureRequests.get(testId);
     }
 
     async function evaluateTestStatus(testId, statusElement, mode = 'cached') {
@@ -1892,15 +1943,25 @@
         container.appendChild(grid);
     }
 
-    function renderConfiguration(container, items, testId) {
+    function renderConfiguration(container, items, testId, options = {}) {
         if (!container) {
             return;
         }
         if (!Array.isArray(items) || items.length === 0) {
             const wrapper = document.createElement('div');
             wrapper.className = 'd-flex flex-column align-items-start gap-2';
+            const emptyMessage = typeof options.emptyMessage === 'string' ? options.emptyMessage.trim() : '';
+            const emptyStateClass = options.emptyStateClass ?? 'text-muted';
+            const allowManualCapture = Boolean(testId) && options.allowManualCapture !== false;
 
-            if (testId) {
+            if (emptyMessage) {
+                const message = document.createElement('div');
+                message.className = `${emptyStateClass} small`;
+                message.textContent = emptyMessage;
+                wrapper.appendChild(message);
+            }
+
+            if (allowManualCapture) {
                 const requestButton = document.createElement('button');
                 requestButton.type = 'button';
                 requestButton.className = 'btn btn-outline-success btn-sm';
@@ -1909,7 +1970,7 @@
                     requestButton.disabled = true;
                     requestButton.textContent = 'Запрашиваем…';
                     try {
-                        const captured = await captureConfiguration(testId);
+                        const captured = await ensureCapturedConfiguration(testId);
                         updateConfigurationStatusIcon(testId, captured);
                         updateTestReleaseFromConfiguration(testId, captured);
                         renderConfiguration(container, captured, testId);
@@ -1988,14 +2049,15 @@
             if (test?.id) {
                 incomingIds.add(test.id);
                 if (testsInitialized && !knownTestIds.has(test.id)) {
-                    newTests.push(test.id);
+                    newTests.push(test);
                 }
             }
         });
 
         if (testsInitialized && newTests.length > 0) {
-            newTests.forEach(() => showToast('Найден новый активный тест', 'info'));
-            newTests.forEach(id => pendingConfigRequests.add(id));
+            newTests
+                    .filter(test => isTestCurrentlyActive(test))
+                    .forEach(() => showToast('Найден новый активный тест', 'info'));
         }
 
         knownTestIds.clear();
@@ -2003,6 +2065,20 @@
         if (!testsInitialized) {
             testsInitialized = true;
         }
+    }
+
+    function queueAutoConfigurationRequests(tests) {
+        (Array.isArray(tests) ? tests : []).forEach(test => {
+            if (!shouldAutoRequestConfiguration(test)) {
+                return;
+            }
+            pendingConfigRequests.add(test.id);
+            configStatusByTest.set(test.id, 'loading');
+            const icon = testConfigurationStatusElements.get(test.id);
+            if (icon) {
+                setConfigurationStatus(icon, 'loading');
+            }
+        });
     }
 
     function pruneGrafanaCache(tests) {
@@ -2033,6 +2109,7 @@
     }
 
     async function loadTestDetails(testId, container) {
+        const test = findTestById(testId);
         container.dataset.loading = 'true';
         container.innerHTML = '';
         const wrapper = document.createElement('div');
@@ -2049,7 +2126,7 @@
         const notesArea = document.createElement('textarea');
         notesArea.className = 'form-control';
         notesArea.rows = 3;
-        notesArea.value = findTestById(testId)?.comment ?? '';
+        notesArea.value = test?.comment ?? '';
         const notesButton = document.createElement('button');
         notesButton.type = 'button';
         notesButton.className = 'btn btn-outline-success btn-sm mt-2';
@@ -2216,13 +2293,31 @@
         }
 
         try {
-            const configuration = await ensureTestConfiguration(testId);
+            let configuration = [];
+            if (hasSavedConfiguration(test)) {
+                configuration = await ensureTestConfiguration(testId);
+            } else if (isTestCurrentlyActive(test)) {
+                configuration = await ensureCapturedConfiguration(testId);
+            }
             updateConfigurationStatusIcon(testId, configuration);
             updateTestReleaseFromConfiguration(testId, configuration);
-            renderConfiguration(configurationBox, configuration, testId);
+            if (Array.isArray(configuration) && configuration.length > 0) {
+                renderConfiguration(configurationBox, configuration, testId);
+            } else if (isTestCurrentlyActive(test)) {
+                renderConfiguration(configurationBox, configuration, testId, {
+                    emptyMessage: 'Конфигурация для активного теста пока недоступна. Можно повторить запрос вручную.'
+                });
+            } else {
+                renderConfiguration(configurationBox, configuration, testId, {
+                    emptyMessage: 'Для завершенного теста конфигурация не сохранена. Запросите ее вручную.'
+                });
+            }
         } catch (error) {
             updateConfigurationStatusIcon(testId, null, true);
-            configurationBox.innerHTML = `<div class="text-danger small">Не удалось загрузить конфигурацию: ${error.message}</div>`;
+            renderConfiguration(configurationBox, [], testId, {
+                emptyMessage: `Не удалось загрузить конфигурацию: ${error.message}`,
+                emptyStateClass: 'text-danger'
+            });
         }
 
         container.dataset.loading = 'false';
@@ -2308,7 +2403,7 @@
                         : filterState.compliance === 'failed'
                                 ? 'fail'
                                 : filterState.compliance;
-                const status = (complianceStatusByTest.get(test.id) || '').toLowerCase();
+                const status = resolveRequirementState(test);
                 if (desired === 'success' && status !== 'success') {
                     return false;
                 }
@@ -2317,7 +2412,7 @@
                 }
             }
             if (filterState.config) {
-                const cfgState = (configStatusByTest.get(test.id) || '').toLowerCase();
+                const cfgState = resolveConfigurationState(test);
                 if (filterState.config === 'has' && cfgState !== 'success') {
                     return false;
                 }
@@ -2343,8 +2438,14 @@
             evaluationRequests.clear();
             testConfigurationCache.clear();
             testConfigurationRequests.clear();
+            testConfigurationCaptureRequests.clear();
             complianceStatusByTest.clear();
             configStatusByTest.clear();
+            pendingConfigRequests.clear();
+        }
+
+        if (resetCaches) {
+            queueAutoConfigurationRequests(allTests);
         }
 
         if (tests.length === 0) {
@@ -2429,20 +2530,13 @@
             configurationCell.className = 'text-center';
             const configurationIcon = document.createElement('span');
             const knownConfigState = configStatusByTest.get(test.id);
-            if (knownConfigState) {
-                setConfigurationStatus(configurationIcon, knownConfigState);
-            } else {
-                setConfigurationStatus(configurationIcon, 'loading');
-                configStatusByTest.set(test.id, 'loading');
-            }
+            const resolvedConfigState = hasSavedConfiguration(test)
+                    ? 'success'
+                    : (knownConfigState || resolveConfigurationState(test));
+            setConfigurationStatus(configurationIcon, resolvedConfigState);
+            configStatusByTest.set(test.id, resolvedConfigState);
             configurationCell.appendChild(configurationIcon);
             testConfigurationStatusElements.set(test.id, configurationIcon);
-            ensureTestConfiguration(test.id)
-                    .then(items => {
-                        updateConfigurationStatusIcon(test.id, items);
-                        updateTestReleaseFromConfiguration(test.id, items);
-                    })
-                    .catch(() => updateConfigurationStatusIcon(test.id, null, true));
 
             const detailsCell = document.createElement('td');
             detailsCell.className = 'text-center';
@@ -2591,6 +2685,7 @@
             evaluationsAllowed = true;
             updateEvaluateButtonState();
             await evaluateAllTests();
+            await requestConfigurationsForPendingTests();
             removeToast(progressToast);
             showToast('Данные успешно обновлены.', 'success');
         } catch (error) {
@@ -2690,14 +2785,25 @@
         }
         const queue = Array.from(pendingConfigRequests);
         for (const testId of queue) {
+            const test = findTestById(testId);
+            if (!shouldAutoRequestConfiguration(test)) {
+                pendingConfigRequests.delete(testId);
+                continue;
+            }
             const cached = testConfigurationCache.get(testId);
             if (Array.isArray(cached) && cached.length > 0) {
+                updateConfigurationStatusIcon(testId, cached);
                 updateTestReleaseFromConfiguration(testId, cached);
                 pendingConfigRequests.delete(testId);
                 continue;
             }
+            const icon = testConfigurationStatusElements.get(testId);
+            if (icon) {
+                setConfigurationStatus(icon, 'loading');
+            }
+            configStatusByTest.set(testId, 'loading');
             try {
-                const captured = await captureConfiguration(testId);
+                const captured = await ensureCapturedConfiguration(testId);
                 updateConfigurationStatusIcon(testId, captured);
                 updateTestReleaseFromConfiguration(testId, captured);
                 pendingConfigRequests.delete(testId);
@@ -2714,6 +2820,7 @@
         const loaded = await loadTests();
         if (loaded) {
             await evaluateAllTests();
+            await requestConfigurationsForPendingTests();
         }
         startAutoRefresh();
         if (typeof startBackgroundErrorPolling === 'function') {

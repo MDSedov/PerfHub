@@ -8,9 +8,11 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -52,6 +54,22 @@ public class KubernetesConfigurationRepository {
     public boolean existsForTest(UUID testUuid) {
         List<Integer> result = jdbcTemplate.query(EXISTS_SQL, ps -> ps.setObject(1, testUuid), (rs, rowNum) -> 1);
         return !result.isEmpty();
+    }
+
+    public Set<UUID> findConfiguredTestIds(Collection<UUID> testUuids) {
+        if (CollectionUtils.isEmpty(testUuids)) {
+            return Collections.emptySet();
+        }
+        String placeholders = String.join(",", Collections.nCopies(testUuids.size(), "?"));
+        String sql = """
+                SELECT DISTINCT test_uuid
+                FROM kubernetes_configurations
+                WHERE test_uuid IN (%s)
+                """.formatted(placeholders);
+        return new LinkedHashSet<>(jdbcTemplate.query(
+                sql,
+                testUuids.toArray(),
+                (rs, rowNum) -> rs.getObject("test_uuid", UUID.class)));
     }
 
     public Map<UUID, String> findMaxReleases(Collection<UUID> testUuids) {
