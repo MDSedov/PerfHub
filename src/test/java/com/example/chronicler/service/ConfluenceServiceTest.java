@@ -16,11 +16,11 @@ import com.example.chronicler.dto.confluence.ConfluencePage;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
-import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
-import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
-import com.example.chronicler.dto.grafana.GrafanaRenderedDashboard;
+import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceOperationException;
+import com.example.chronicler.model.ConfluenceTemplate;
+import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.LoadTestRepository;
@@ -56,12 +56,20 @@ class ConfluenceServiceTest {
     @Mock
     private KubernetesConfigurationService kubernetesConfigurationService;
 
+    @Mock
+    private ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
+
     private ConfluenceService confluenceService;
 
     @BeforeEach
     void setUp() {
         confluenceService = new ConfluenceService(
-                confluenceClient, grafanaService, templateLoader, loadTestRepository, kubernetesConfigurationService);
+                confluenceClient,
+                grafanaService,
+                templateLoader,
+                loadTestRepository,
+                kubernetesConfigurationService,
+                confluenceTemplateSettingsService);
         lenient().when(kubernetesConfigurationService.getConfigurations(any(UUID.class))).thenReturn(List.of());
     }
 
@@ -70,7 +78,12 @@ class ConfluenceServiceTest {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID firstTestUuid = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
         UUID secondTestUuid = UUID.fromString("ffffffff-1111-2222-3333-444444444444");
-        ConfluenceReportRequest request = new ConfluenceReportRequest("123", List.of(firstTestUuid, secondTestUuid));
+        ConfluenceReportRequest request = new ConfluenceReportRequest(
+                "123",
+                null,
+                List.of(
+                        new ConfluenceReportRequest.ReportItem(firstTestUuid, 101),
+                        new ConfluenceReportRequest.ReportItem(secondTestUuid, 202)));
 
         Instant firstStart = Instant.parse("2024-01-01T00:00:00Z");
         Instant firstEnd = Instant.parse("2024-01-01T01:00:00Z");
@@ -84,27 +97,42 @@ class ConfluenceServiceTest {
         byte[] firstImage = new byte[] {1, 2, 3};
         byte[] secondImage = new byte[] {4, 5, 6};
         GrafanaRenderedPanel firstPanel = new GrafanaRenderedPanel(
-                7, "First panel", "First description", Base64.getEncoder().encodeToString(firstImage));
+                7, "First panel", "", Base64.getEncoder().encodeToString(firstImage));
         GrafanaRenderedPanel secondPanel = new GrafanaRenderedPanel(
-                9, "Second panel", "Second description", Base64.getEncoder().encodeToString(secondImage));
-        GrafanaRenderedDashboard firstDashboard = new GrafanaRenderedDashboard("uid-1", "slug-1", List.of(firstPanel));
-        GrafanaRenderedDashboard secondDashboard =
-                new GrafanaRenderedDashboard("uid-2", "slug-2", List.of(secondPanel));
-        when(grafanaService.renderPanels(any(GrafanaRenderRequest.class)))
-                .thenReturn(new GrafanaRenderResponse("from", "to", List.of(firstDashboard)))
-                .thenReturn(new GrafanaRenderResponse("from", "to", List.of(secondDashboard)));
+                9, "Second panel", "", Base64.getEncoder().encodeToString(secondImage));
+
+        ConfluenceTemplate firstTemplate = new ConfluenceTemplate(
+                101,
+                "max",
+                "Пользовательский MAX отчет",
+                "<p>Max template</p>",
+                List.of(new ConfluenceTemplateChart(1L, 101, "CPU", "uid-1", 7, 0)));
+        ConfluenceTemplate secondTemplate = new ConfluenceTemplate(
+                202,
+                "soak",
+                "Пользовательский SOAK отчет",
+                "<p>Soak template</p>",
+                List.of(new ConfluenceTemplateChart(2L, 202, "Latency", "uid-2", 9, 0)));
+        when(confluenceTemplateSettingsService.getActiveTemplate(101)).thenReturn(firstTemplate);
+        when(confluenceTemplateSettingsService.getActiveTemplate(202)).thenReturn(secondTemplate);
+        when(grafanaService.renderSelectedPanels(
+                        firstStart,
+                        firstEnd,
+                        List.of(new GrafanaPanelSelection("uid-1", 7))))
+                .thenReturn(List.of(firstPanel));
+        when(grafanaService.renderSelectedPanels(
+                        secondStart,
+                        secondEnd,
+                        List.of(new GrafanaPanelSelection("uid-2", 9))))
+                .thenReturn(List.of(secondPanel));
 
         ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
         when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
 
-        when(templateLoader.loadTemplate("max-template")).thenReturn("<p>Max template</p>");
-        when(templateLoader.loadTemplate("soak-template")).thenReturn("<p>Soak template</p>");
-
-        ConfluenceReportRequest.TestType firstType = ConfluenceReportRequest.TestType.MAX;
-        ConfluenceReportRequest.TestType secondType = ConfluenceReportRequest.TestType.SOAK;
-        String firstTitle = firstType.displayName() + " — 2024-01-01 03:00:00";
-        String secondTitle = secondType.displayName() + " — 2024-01-02 03:00:00";
-        ConfluencePage firstCreatedPage = new ConfluencePage("456", "page", firstTitle, 1, "<p>Max template</p>", "SPACE");
+        String firstTitle = firstTemplate.fullName();
+        String secondTitle = secondTemplate.fullName();
+        ConfluencePage firstCreatedPage =
+                new ConfluencePage("456", "page", firstTitle, 1, "<p>Max template</p>", "SPACE");
         ConfluencePage secondCreatedPage =
                 new ConfluencePage("789", "page", secondTitle, 1, "<p>Soak template</p>", "SPACE");
         when(confluenceClient.createChildPage(credentials, "123", "SPACE", firstTitle, "<p>Max template</p>"))
@@ -131,10 +159,14 @@ class ConfluenceServiceTest {
         assertThat(secondReport.attachmentNames()).hasSize(1);
         assertThat(secondReport.attachmentNames().get(0)).contains("grafana-panel-9-");
 
-        ArgumentCaptor<GrafanaRenderRequest> renderRequestCaptor = ArgumentCaptor.forClass(GrafanaRenderRequest.class);
-        verify(grafanaService, times(2)).renderPanels(renderRequestCaptor.capture());
-        assertThat(renderRequestCaptor.getAllValues().get(0).testUuid()).isEqualTo(firstTestUuid);
-        assertThat(renderRequestCaptor.getAllValues().get(1).testUuid()).isEqualTo(secondTestUuid);
+        verify(grafanaService).renderSelectedPanels(
+                firstStart,
+                firstEnd,
+                List.of(new GrafanaPanelSelection("uid-1", 7)));
+        verify(grafanaService).renderSelectedPanels(
+                secondStart,
+                secondEnd,
+                List.of(new GrafanaPanelSelection("uid-2", 9)));
 
         verify(confluenceClient).createChildPage(credentials, "123", "SPACE", firstTitle, "<p>Max template</p>");
         verify(confluenceClient).createChildPage(credentials, "123", "SPACE", secondTitle, "<p>Soak template</p>");
@@ -145,40 +177,50 @@ class ConfluenceServiceTest {
         verify(confluenceClient).updatePage(eq(credentials), eq(firstCreatedPage), bodyCaptor.capture());
         String firstBody = bodyCaptor.getValue();
         assertThat(firstBody).contains("<p>Max template</p>");
-        assertThat(firstBody).contains("<h3>First panel</h3>");
+        assertThat(firstBody).contains("<h3>CPU</h3>");
 
         verify(confluenceClient).updatePage(eq(credentials), eq(secondCreatedPage), bodyCaptor.capture());
         String secondBody = bodyCaptor.getValue();
         assertThat(secondBody).contains("<p>Soak template</p>");
-        assertThat(secondBody).contains("<h3>Second panel</h3>");
+        assertThat(secondBody).contains("<h3>Latency</h3>");
     }
 
     @Test
-    void createReportsThrowsWhenPanelsMissing() {
+    void createReportsThrowsWhenTemplateMissing() {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID testUuid = UUID.fromString("ffffffff-1111-2222-3333-444444444444");
-        ConfluenceReportRequest request = new ConfluenceReportRequest("123", List.of(testUuid));
+        ConfluenceReportRequest request = new ConfluenceReportRequest(
+                "123",
+                null,
+                List.of(new ConfluenceReportRequest.ReportItem(testUuid, 777)));
 
         Instant start = Instant.parse("2024-01-03T00:00:00Z");
         Instant end = Instant.parse("2024-01-03T05:00:00Z");
         when(loadTestRepository.findById(testUuid))
                 .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.SOAK, null)));
-
-        GrafanaRenderResponse renderResponse = new GrafanaRenderResponse("from", "to", List.of());
-        when(grafanaService.renderPanels(any(GrafanaRenderRequest.class))).thenReturn(renderResponse);
-        ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
-        when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+        when(confluenceTemplateSettingsService.getActiveTemplate(777))
+                .thenThrow(new IllegalArgumentException("Шаблон отчета не найден"));
 
         assertThatThrownBy(() -> confluenceService.createReports(credentials, request))
                 .isInstanceOf(ConfluenceOperationException.class)
-                .hasMessage("Grafana render does not contain any panels");
+                .hasMessage("Шаблон отчета не найден");
     }
 
     @Test
     void createReportsThrowsWhenParentHasNoSpace() {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID testUuid = UUID.fromString("aaaaaaaa-0000-bbbb-cccc-dddddddddddd");
-        ConfluenceReportRequest request = new ConfluenceReportRequest("parent", List.of(testUuid));
+        ConfluenceReportRequest request = new ConfluenceReportRequest(
+                "parent",
+                null,
+                List.of(new ConfluenceReportRequest.ReportItem(testUuid, 101)));
+
+        Instant start = Instant.parse("2024-01-04T00:00:00Z");
+        Instant end = Instant.parse("2024-01-04T01:00:00Z");
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.MAX, null)));
+        when(confluenceTemplateSettingsService.getActiveTemplate(101))
+                .thenReturn(new ConfluenceTemplate(101, "max", "Max Report", "<p>Body</p>", List.of()));
 
         ConfluencePage parentPage = new ConfluencePage("parent", "page", "Parent", 2, "", null);
         when(confluenceClient.getPage(credentials, "parent")).thenReturn(parentPage);
@@ -192,15 +234,15 @@ class ConfluenceServiceTest {
     void createReportsThrowsWhenTemplateIsNotConfiguredForType() {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID testUuid = UUID.fromString("11111111-2222-3333-4444-555555555555");
-        ConfluenceReportRequest request = new ConfluenceReportRequest("123", List.of(testUuid));
+        ConfluenceReportRequest request = new ConfluenceReportRequest("123", List.of(testUuid), null);
 
         Instant start = Instant.parse("2024-01-05T00:00:00Z");
         Instant end = Instant.parse("2024-01-05T01:00:00Z");
         when(loadTestRepository.findById(testUuid))
                 .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.PSU, null)));
-
-        ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 1, "", "SPACE");
-        when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.PSU))
+                .thenThrow(new IllegalArgumentException(
+                        "Confluence report template is not configured for test type psu"));
 
         assertThatThrownBy(() -> confluenceService.createReports(credentials, request))
                 .isInstanceOf(ConfluenceOperationException.class)

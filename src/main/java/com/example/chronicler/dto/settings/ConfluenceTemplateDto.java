@@ -1,4 +1,10 @@
 package com.example.chronicler.dto.settings;
 
-public record ConfluenceTemplateDto(int id, String name, String testType, String text) {}
+import java.util.List;
 
+public record ConfluenceTemplateDto(
+        int id,
+        String shortName,
+        String fullName,
+        String text,
+        List<ConfluenceTemplateChartDto> charts) {}

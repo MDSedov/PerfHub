@@ -217,7 +217,6 @@
             const thead = document.createElement('thead');
             const headRow = document.createElement('tr');
             [
-                'Добавлять график в отчет',
                 'Название графика',
                 '№ графика в дашборде',
                 'Запрос к источнику данных',
@@ -246,7 +245,7 @@
         footer.className = 'd-flex flex-wrap justify-content-between align-items-center gap-3 mt-3';
         const hint = document.createElement('div');
         hint.className = 'text-muted small';
-        hint.textContent = 'Отмеченные графики будут попадать в отчеты и детали теста.';
+        hint.textContent = 'Настройте запросы и требования для графиков этого дашборда.';
         const saveButton = document.createElement('button');
         saveButton.type = 'button';
         saveButton.className = 'btn btn-success btn-sm';
@@ -339,18 +338,7 @@
     function buildPanelRow(panel, dashboardUid) {
         const row = document.createElement('tr');
         row.dataset.panelId = panel.panelId;
-
-        const selectCell = document.createElement('td');
-        selectCell.className = 'w-25';
-        const checkWrapper = document.createElement('div');
-        checkWrapper.className = 'form-check';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.className = 'form-check-input panel-select';
-        checkbox.dataset.panelId = panel.panelId;
-        checkbox.checked = Boolean(panel.selected);
-        checkWrapper.appendChild(checkbox);
-        selectCell.appendChild(checkWrapper);
+        row.dataset.selected = String(Boolean(panel.selected));
 
         const nameCell = document.createElement('td');
         nameCell.textContent = panel.title || 'Без названия';
@@ -377,7 +365,6 @@
         }
         thresholdCell.appendChild(thresholdInput);
 
-        row.appendChild(selectCell);
         row.appendChild(nameCell);
         row.appendChild(idCell);
         row.appendChild(queryCell);
@@ -409,7 +396,7 @@
         const slug = card.dataset.dashboardSlug;
         const panelSettings = Array.from(card.querySelectorAll('tr[data-panel-id]')).map(row => {
             const panelId = Number.parseInt(row.dataset.panelId, 10);
-            const selected = row.querySelector('.panel-select')?.checked ?? false;
+            const selected = row.dataset.selected === 'true';
             const query = row.querySelector('.panel-query')?.value ?? '';
             const thresholdRaw = row.querySelector('.panel-threshold')?.value;
             const parsedThreshold = thresholdRaw === undefined || thresholdRaw === null || thresholdRaw === ''

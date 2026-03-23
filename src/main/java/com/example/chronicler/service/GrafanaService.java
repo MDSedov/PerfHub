@@ -1,6 +1,7 @@
 package com.example.chronicler.service;
 
 import com.example.chronicler.client.GrafanaClient;
+import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
@@ -23,6 +24,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -94,6 +96,44 @@ public class GrafanaService {
         }
 
         return renderPanelsForRange(from, to);
+    }
+
+    public List<GrafanaRenderedPanel> renderSelectedPanels(
+            Instant from,
+            Instant to,
+            List<GrafanaPanelSelection> panelSelections) {
+        Objects.requireNonNull(from, "from must not be null");
+        Objects.requireNonNull(to, "to must not be null");
+        if (!to.isAfter(from)) {
+            throw new GrafanaInvalidTimeRangeException("End time must be after start time");
+        }
+        if (panelSelections == null || panelSelections.isEmpty()) {
+            return List.of();
+        }
+
+        List<GrafanaRenderedPanel> renderedPanels = new ArrayList<>(panelSelections.size());
+        for (GrafanaPanelSelection selection : panelSelections) {
+            if (selection == null || !StringUtils.hasText(selection.dashboardUid()) || selection.panelId() <= 0) {
+                throw new GrafanaRenderingException("Grafana panel selection is invalid");
+            }
+
+            GrafanaDashboard dashboard = grafanaDashboardRepository.findByUid(selection.dashboardUid())
+                    .orElseThrow(() -> new GrafanaRenderingException(
+                            "Grafana dashboard " + selection.dashboardUid() + " not found"));
+            String slug = requireText(dashboard.slug(), "slug");
+            Optional<GrafanaDashboardPanelRecord> cachedPanel =
+                    grafanaDashboardPanelRepository.findByUidAndPanelId(selection.dashboardUid(), selection.panelId());
+            String title = cachedPanel
+                    .map(GrafanaDashboardPanelRecord::panelTitle)
+                    .filter(StringUtils::hasText)
+                    .orElse("Панель " + selection.panelId());
+            byte[] imageBytes =
+                    grafanaClient.renderPanel(selection.dashboardUid(), slug, selection.panelId(), from, to);
+            String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
+            renderedPanels.add(new GrafanaRenderedPanel(selection.panelId(), title, "", encodedImage));
+        }
+
+        return List.copyOf(renderedPanels);
     }
 
     private GrafanaRenderResponse renderPanelsForRange(Instant from, Instant to) {

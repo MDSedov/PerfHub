@@ -4,6 +4,7 @@ import com.example.chronicler.model.GrafanaDashboard;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -39,6 +40,10 @@ public class GrafanaDashboardRepository {
 
     public List<GrafanaDashboard> findAll() {
         return jdbcTemplate.query(SELECT_ALL_SQL, rowMapper);
+    }
+
+    public Optional<GrafanaDashboard> findByUid(String uid) {
+        return jdbcTemplate.query(SELECT_ONE_SQL, rowMapper, uid).stream().findFirst();
     }
 
     public GrafanaDashboard upsert(GrafanaDashboard dashboard) {

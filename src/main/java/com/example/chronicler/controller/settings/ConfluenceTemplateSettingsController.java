@@ -1,14 +1,20 @@
 package com.example.chronicler.controller.settings;
 
+import com.example.chronicler.dto.settings.ConfluenceTemplateChartDto;
 import com.example.chronicler.dto.settings.ConfluenceTemplateDto;
-import com.example.chronicler.dto.settings.ConfluenceTemplateUpdateRequest;
+import com.example.chronicler.dto.settings.ConfluenceTemplatePanelOptionDto;
+import com.example.chronicler.dto.settings.ConfluenceTemplateSaveRequest;
 import com.example.chronicler.model.ConfluenceTemplate;
+import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.service.ConfluenceTemplateSettingsService;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,23 +34,90 @@ public class ConfluenceTemplateSettingsController {
 
     @GetMapping
     public List<ConfluenceTemplateDto> listTemplates() {
+        Map<String, String> codesByPanelKey = buildPanelCodeMap();
         return settingsService.listTemplates().stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+                .map(template -> toDto(template, codesByPanelKey))
+                .toList();
     }
 
-    @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public List<ConfluenceTemplateDto> updateTemplates(
-            @Valid @RequestBody ConfluenceTemplateUpdateRequest request) {
-        List<ConfluenceTemplateSettingsService.TemplateUpdateCommand> commands = request.templates().stream()
-                .map(item -> new ConfluenceTemplateSettingsService.TemplateUpdateCommand(item.id(), item.text()))
-                .collect(Collectors.toList());
-        return settingsService.updateTemplates(commands).stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+    @GetMapping("/panel-options")
+    public List<ConfluenceTemplatePanelOptionDto> listPanelOptions() {
+        return settingsService.listPanelOptions().stream()
+                .map(option -> new ConfluenceTemplatePanelOptionDto(
+                        option.dashboardUid(),
+                        option.panelId(),
+                        option.code(),
+                        option.dashboardTitle(),
+                        option.panelTitle()))
+                .toList();
     }
 
-    private ConfluenceTemplateDto toDto(ConfluenceTemplate template) {
-        return new ConfluenceTemplateDto(template.id(), template.name(), template.testType(), template.text());
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ConfluenceTemplateDto createTemplate(@Valid @RequestBody ConfluenceTemplateSaveRequest request) {
+        return toDto(settingsService.createTemplate(toCommand(request)), buildPanelCodeMap());
+    }
+
+    @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ConfluenceTemplateDto updateTemplate(
+            @PathVariable int id,
+            @Valid @RequestBody ConfluenceTemplateSaveRequest request) {
+        return toDto(settingsService.updateTemplate(id, toCommand(request)), buildPanelCodeMap());
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteTemplate(@PathVariable int id) {
+        settingsService.deleteTemplate(id);
+    }
+
+    private ConfluenceTemplateDto toDto(
+            ConfluenceTemplate template,
+            Map<String, String> codesByPanelKey) {
+        List<ConfluenceTemplateChartDto> charts = template.charts().stream()
+                .map(chart -> toChartDto(chart, codesByPanelKey))
+                .toList();
+        return new ConfluenceTemplateDto(
+                template.id(),
+                template.shortName(),
+                template.fullName(),
+                template.text(),
+                charts);
+    }
+
+    private ConfluenceTemplateChartDto toChartDto(
+            ConfluenceTemplateChart chart,
+            Map<String, String> codesByPanelKey) {
+        String code = codesByPanelKey.getOrDefault(
+                panelKey(chart.dashboardUid(), chart.panelId()),
+                chart.dashboardUid() + " -> " + chart.panelId());
+        return new ConfluenceTemplateChartDto(chart.title(), chart.dashboardUid(), chart.panelId(), code);
+    }
+
+    private String panelKey(String dashboardUid, int panelId) {
+        return dashboardUid + ":" + panelId;
+    }
+
+    private Map<String, String> buildPanelCodeMap() {
+        return settingsService.listPanelOptions().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        option -> panelKey(option.dashboardUid(), option.panelId()),
+                        ConfluenceTemplateSettingsService.PanelOption::code,
+                        (first, second) -> first));
+    }
+
+    private ConfluenceTemplateSettingsService.TemplateSaveCommand toCommand(ConfluenceTemplateSaveRequest request) {
+        List<ConfluenceTemplateSettingsService.TemplateChartCommand> charts =
+                request.charts() == null
+                        ? List.of()
+                        : request.charts().stream()
+                                .map(item -> new ConfluenceTemplateSettingsService.TemplateChartCommand(
+                                        item.title(),
+                                        item.dashboardUid(),
+                                        item.panelId()))
+                                .toList();
+        return new ConfluenceTemplateSettingsService.TemplateSaveCommand(
+                request.shortName(),
+                request.fullName(),
+                request.text(),
+                charts);
     }
 }

@@ -1,4 +1,10 @@
 package com.example.chronicler.model;
 
-public record ConfluenceTemplate(int id, String name, String testType, String text) {}
+import java.util.List;
 
+public record ConfluenceTemplate(
+        int id,
+        String shortName,
+        String fullName,
+        String text,
+        List<ConfluenceTemplateChart> charts) {}

@@ -70,8 +70,8 @@
                     </span>
                 </a>
                 <a class="sidebar-sublink"
-                   th:href="@{/grafana-panels}"
-                   th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
+                   th:href="@{/settings/grafana-dashboards}"
+                   th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
                     <span class="sidebar-item">
                         <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
                         <span>Графики и требования</span>
@@ -82,25 +82,133 @@
     </aside>
 
     <div class="page-content">
-<main class="container-fluid py-5 px-4 px-lg-5">
-    <div class="card settings-card">
-        <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-                <div>
-                    <h5 class="card-title mb-1">Шаблоны отчетов</h5>
-                    <p class="text-muted small mb-0">Всего <span id="templatesCount">0</span> шаблонов</p>
+        <main class="container-fluid py-5 px-4 px-lg-5">
+            <div class="card settings-card templates-settings-card">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                        <div>
+                            <h5 class="card-title mb-1">Шаблоны отчетов</h5>
+                            <p class="text-muted small mb-0">Всего <span id="templatesCount">0</span> шаблонов</p>
+                        </div>
+                        <button type="button"
+                                class="btn btn-success"
+                                id="addTemplateButton">
+                            Добавить новый шаблон
+                        </button>
+                    </div>
+
+                    <div id="templatesStatus" class="alert d-none" role="alert"></div>
+
+                    <div id="templatesLoading" class="text-muted py-3">
+                        Загружаем шаблоны отчетов…
+                    </div>
+
+                    <div id="templatesTableWrapper" class="table-responsive d-none">
+                        <table class="table align-middle tests-table mb-0">
+                            <thead>
+                            <tr>
+                                <th scope="col">Короткое имя</th>
+                                <th scope="col">Название шаблона</th>
+                                <th scope="col" class="text-center">Детали</th>
+                            </tr>
+                            </thead>
+                            <tbody id="templatesTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="templatesEmpty" class="text-muted py-4 d-none">
+                        Шаблоны не найдены.
+                    </div>
                 </div>
-                <button type="button" class="btn btn-success" id="saveTemplatesButton" disabled>Сохранить</button>
             </div>
-            <div id="templatesStatus" class="alert d-none" role="alert"></div>
-            <div id="templatesAccordion" class="accordion"></div>
-            <div id="templatesEmpty" class="text-muted d-none">Шаблоны не найдены.</div>
+        </main>
+
+        <div class="modal fade"
+             id="templateDetailsModal"
+             tabindex="-1"
+             aria-labelledby="templateDetailsModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content report-template-modal">
+                    <div class="modal-header">
+                        <div class="d-flex flex-column gap-1">
+                            <span class="test-details-modal-kicker">Шаблон отчета</span>
+                            <h5 class="modal-title" id="templateDetailsModalLabel">Детальная информация о шаблоне</h5>
+                            <div id="templateDetailsModalSubtitle"
+                                 class="text-muted small">Настройте шаблон страницы и список графиков для Confluence.</div>
+                        </div>
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="modal"
+                                aria-label="Закрыть"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12 col-lg-4">
+                                <label for="templateShortNameInput" class="form-label">Короткое имя</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="templateShortNameInput"
+                                       maxlength="12"
+                                       placeholder="До 12 символов">
+                            </div>
+                            <div class="col-12 col-lg-8">
+                                <label for="templateFullNameInput" class="form-label">Полное название</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="templateFullNameInput"
+                                       placeholder="Уникальное название шаблона">
+                            </div>
+                            <div class="col-12">
+                                <label for="templateTextInput" class="form-label">Тело страницы Confluence</label>
+                                <textarea id="templateTextInput"
+                                          class="form-control template-editor"
+                                          rows="12"
+                                          placeholder="Текст шаблона"></textarea>
+                            </div>
+                        </div>
+
+                        <section class="report-template-section mt-4">
+                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+                                <div>
+                                    <h6 class="test-details-section-title mb-1">Графики отчета</h6>
+                                    <p class="text-muted small mb-0">Графики будут добавлены в отчет в указанном порядке.</p>
+                                </div>
+                                <button type="button" class="btn btn-outline-success btn-sm" id="addTemplateChartButton">
+                                    Добавить график
+                                </button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table align-middle tests-table mb-0 template-charts-table">
+                                    <thead>
+                                    <tr>
+                                        <th scope="col">Название графика</th>
+                                        <th scope="col">Код графика</th>
+                                        <th scope="col" class="text-center">Удалить</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="templateChartsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </section>
+
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button"
+                                class="btn btn-outline-danger me-auto d-none"
+                                id="deleteTemplateButton">Удалить шаблон</button>
+                        <button type="button"
+                                class="btn btn-success"
+                                id="saveTemplateButton">Сохранить шаблон</button>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
-</main>
 
-<div id="toastContainer" class="toast-container"></div>
-
+        <div id="toastContainer" class="toast-container"></div>
     </div>
 </div>
 
@@ -111,22 +219,144 @@
 <script src="/js/background-errors.js"></script>
 
 <script>
-    const templatesAccordion = document.getElementById('templatesAccordion');
     const templatesStatus = document.getElementById('templatesStatus');
+    const templatesLoading = document.getElementById('templatesLoading');
+    const templatesTableWrapper = document.getElementById('templatesTableWrapper');
+    const templatesTableBody = document.getElementById('templatesTableBody');
     const templatesEmpty = document.getElementById('templatesEmpty');
     const templatesCount = document.getElementById('templatesCount');
-    const saveTemplatesButton = document.getElementById('saveTemplatesButton');
+    const addTemplateButton = document.getElementById('addTemplateButton');
     const toastContainer = document.getElementById('toastContainer');
 
-    const templateChanges = new Map();
-    let templatesCache = [];
-    let isSaving = false;
-    const bootstrapCollapseConstructor =
-        window.bootstrap && typeof window.bootstrap.Collapse === 'function'
-            ? window.bootstrap.Collapse
-            : null;
+    const templateDetailsModalElement = document.getElementById('templateDetailsModal');
+    const templateDetailsModalLabel = document.getElementById('templateDetailsModalLabel');
+    const templateShortNameInput = document.getElementById('templateShortNameInput');
+    const templateFullNameInput = document.getElementById('templateFullNameInput');
+    const templateTextInput = document.getElementById('templateTextInput');
+    const templateChartsTableBody = document.getElementById('templateChartsTableBody');
+    const addTemplateChartButton = document.getElementById('addTemplateChartButton');
+    const deleteTemplateButton = document.getElementById('deleteTemplateButton');
+    const saveTemplateButton = document.getElementById('saveTemplateButton');
 
-    const removeToast = (toast) => {
+    let templatesCache = [];
+    let panelOptionsCache = [];
+    let templatesLoaded = false;
+    let activeTemplateDraft = createEmptyTemplateDraft();
+    let isSaving = false;
+    let isDeleting = false;
+    let templateDetailsModalBackdrop = null;
+
+    function createEmptyTemplateDraft() {
+        return {
+            id: null,
+            shortName: '',
+            fullName: '',
+            text: '',
+            charts: []
+        };
+    }
+
+    function cloneTemplate(template) {
+        return {
+            id: template?.id ?? null,
+            shortName: template?.shortName ?? '',
+            fullName: template?.fullName ?? '',
+            text: template?.text ?? '',
+            charts: Array.isArray(template?.charts)
+                ? template.charts.map(chart => ({
+                    title: chart?.title ?? '',
+                    dashboardUid: chart?.dashboardUid ?? '',
+                    panelId: chart?.panelId ?? ''
+                }))
+                : []
+        };
+    }
+
+    function getTemplateDetailsModal() {
+        if (!window.bootstrap?.Modal || !templateDetailsModalElement) {
+            return null;
+        }
+        return bootstrap.Modal.getOrCreateInstance(templateDetailsModalElement);
+    }
+
+    function removeTemplateDetailsModalBackdrop() {
+        if (templateDetailsModalBackdrop?.isConnected) {
+            templateDetailsModalBackdrop.remove();
+        }
+        templateDetailsModalBackdrop = null;
+    }
+
+    function resetTemplateModalState() {
+        clearTemplateModalAlert();
+        activeTemplateDraft = createEmptyTemplateDraft();
+        isSaving = false;
+        isDeleting = false;
+        updateTemplateModalActions();
+    }
+
+    function hideTemplateDetailsModalFallback() {
+        if (!templateDetailsModalElement) {
+            return;
+        }
+        templateDetailsModalElement.classList.remove('show');
+        templateDetailsModalElement.style.display = 'none';
+        templateDetailsModalElement.setAttribute('aria-hidden', 'true');
+        templateDetailsModalElement.removeAttribute('aria-modal');
+        document.body.classList.remove('modal-open');
+        removeTemplateDetailsModalBackdrop();
+        resetTemplateModalState();
+    }
+
+    function hideTemplateDetailsModal() {
+        const modalInstance = getTemplateDetailsModal();
+        if (modalInstance) {
+            modalInstance.hide();
+            return;
+        }
+        hideTemplateDetailsModalFallback();
+    }
+
+    function showTemplateDetailsModal() {
+        const modalInstance = getTemplateDetailsModal();
+        if (modalInstance) {
+            modalInstance.show();
+            return;
+        }
+        if (!templateDetailsModalElement) {
+            return;
+        }
+        templateDetailsModalElement.style.display = 'block';
+        templateDetailsModalElement.classList.add('show');
+        templateDetailsModalElement.removeAttribute('aria-hidden');
+        templateDetailsModalElement.setAttribute('aria-modal', 'true');
+        document.body.classList.add('modal-open');
+        removeTemplateDetailsModalBackdrop();
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        document.body.appendChild(backdrop);
+        templateDetailsModalBackdrop = backdrop;
+    }
+
+    function setTemplatesStatus(message, type = 'info') {
+        templatesStatus.className = `alert alert-${type}`;
+        templatesStatus.textContent = message;
+        templatesStatus.classList.remove('d-none');
+    }
+
+    function clearTemplatesStatus() {
+        templatesStatus.className = 'alert d-none';
+        templatesStatus.textContent = '';
+    }
+
+    function setTemplateModalAlert(message, type = 'danger') {
+        showToast(message, type);
+    }
+
+    function clearTemplateModalAlert() {
+        // Modal messages are shown as toasts only.
+    }
+
+    function removeToast(toast) {
         if (!toast) {
             return;
         }
@@ -135,33 +365,37 @@
             clearTimeout(Number(timerId));
         }
         toast.remove();
-    };
+    }
 
-    const showToast = (message, type = 'info', durationMs = 12000) => {
+    function showToast(message, type = 'info', durationMs = 12000) {
         if (!toastContainer) {
             return null;
         }
         const toast = document.createElement('div');
         toast.className = `toast-item ${type}`;
+
         const body = document.createElement('p');
         body.className = 'toast-body';
         body.textContent = message;
+
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'toast-close';
         close.setAttribute('aria-label', 'Закрыть уведомление');
         close.innerHTML = '&times;';
         close.addEventListener('click', () => removeToast(toast));
+
         const content = document.createElement('div');
         content.className = 'flex-grow-1';
         content.appendChild(body);
         toast.appendChild(content);
         toast.appendChild(close);
         toastContainer.appendChild(toast);
-        const timer = setTimeout(() => removeToast(toast), durationMs);
-        toast.dataset.timerId = timer.toString();
+
+        const timerId = setTimeout(() => removeToast(toast), durationMs);
+        toast.dataset.timerId = timerId.toString();
         return toast;
-    };
+    }
 
     if (toastContainer) {
         toastContainer.addEventListener('click', event => {
@@ -169,181 +403,435 @@
             if (!closeButton) {
                 return;
             }
-            const toast = closeButton.closest('.toast-item');
-            removeToast(toast);
+            removeToast(closeButton.closest('.toast-item'));
         });
     }
 
-    function setTemplatesStatus(message, type = 'info') {
-        templatesStatus.textContent = message;
-        templatesStatus.className = `alert alert-${type} visually-hidden`;
-        showToast(message, type);
+    function extractErrorMessage(errorText, fallbackMessage) {
+        if (!errorText) {
+            return fallbackMessage;
+        }
+        try {
+            const parsed = JSON.parse(errorText);
+            if (typeof parsed?.message === 'string' && parsed.message.trim() !== '') {
+                return parsed.message.trim();
+            }
+        } catch (error) {
+            // ignore malformed payload
+        }
+        const normalized = String(errorText).trim();
+        return normalized === '' ? fallbackMessage : normalized;
     }
 
-    function clearTemplatesStatus() {
-        templatesStatus.className = 'alert d-none';
-        templatesStatus.textContent = '';
+    function normalizePanelOptionValue(dashboardUid, panelId) {
+        return `${dashboardUid}:${panelId}`;
     }
 
-    function toggleSaveTemplatesButton() {
-        saveTemplatesButton.disabled = templateChanges.size === 0 || isSaving;
+    function parsePanelOptionValue(value) {
+        if (!value || !value.includes(':')) {
+            return { dashboardUid: '', panelId: '' };
+        }
+        const [dashboardUid, panelId] = value.split(':');
+        return {
+            dashboardUid,
+            panelId: panelId ? Number(panelId) : ''
+        };
     }
 
-    function renderTemplates(items) {
-        templatesAccordion.innerHTML = '';
-        templateChanges.clear();
-        toggleSaveTemplatesButton();
+    function renderTemplatesTable() {
+        templatesTableBody.innerHTML = '';
 
         if (templatesCount) {
-            templatesCount.textContent = items.length.toString();
+            templatesCount.textContent = templatesCache.length.toString();
         }
 
-        if (!items.length) {
-            templatesAccordion.classList.add('d-none');
+        if (!templatesLoaded) {
+            templatesLoading.classList.remove('d-none');
+            templatesTableWrapper.classList.add('d-none');
+            templatesEmpty.classList.add('d-none');
+            return;
+        }
+
+        templatesLoading.classList.add('d-none');
+
+        if (templatesCache.length === 0) {
+            templatesTableWrapper.classList.add('d-none');
             templatesEmpty.classList.remove('d-none');
             return;
         }
 
-        templatesAccordion.classList.remove('d-none');
         templatesEmpty.classList.add('d-none');
+        templatesTableWrapper.classList.remove('d-none');
 
-        items.forEach((item, index) => {
-            const accordionItem = document.createElement('div');
-            accordionItem.className = 'accordion-item';
+        templatesCache.forEach(template => {
+            const row = document.createElement('tr');
 
-            const headerId = `templateHeading${item.id}`;
-            const collapseId = `templateCollapse${item.id}`;
+            const shortNameCell = document.createElement('td');
+            shortNameCell.textContent = template.shortName ?? '—';
 
-            const header = document.createElement('h2');
-            header.className = 'accordion-header';
-            header.id = headerId;
+            const fullNameCell = document.createElement('td');
+            fullNameCell.textContent = template.fullName ?? '—';
 
-            const button = document.createElement('button');
-            button.className = `accordion-button${index === 0 ? '' : ' collapsed'}`;
-            button.type = 'button';
-            button.setAttribute('data-bs-toggle', 'collapse');
-            button.setAttribute('data-bs-target', `#${collapseId}`);
-            button.setAttribute('aria-expanded', index === 0 ? 'true' : 'false');
-            button.setAttribute('aria-controls', collapseId);
-            button.textContent = item.name;
+            const detailsCell = document.createElement('td');
+            detailsCell.className = 'text-center';
+            const detailsButton = document.createElement('button');
+            detailsButton.type = 'button';
+            detailsButton.className = 'details-toggle';
+            detailsButton.setAttribute('aria-label', 'Показать детальную информацию о шаблоне');
+            detailsButton.setAttribute('aria-haspopup', 'dialog');
+            detailsButton.setAttribute('aria-controls', 'templateDetailsModal');
+            detailsButton.innerHTML = '<i class="bi bi-arrows-angle-expand details-icon"></i>';
+            detailsButton.addEventListener('click', () => openTemplateDetailsModal(template));
+            detailsCell.appendChild(detailsButton);
 
-            header.appendChild(button);
-            accordionItem.appendChild(header);
-
-            const bodyWrapper = document.createElement('div');
-            bodyWrapper.id = collapseId;
-            bodyWrapper.className = `accordion-collapse collapse${index === 0 ? ' show' : ''}`;
-            bodyWrapper.setAttribute('aria-labelledby', headerId);
-
-            const body = document.createElement('div');
-            body.className = 'accordion-body';
-
-            const meta = document.createElement('p');
-            meta.className = 'template-meta mb-3';
-            meta.textContent = `Тип теста: ${item.testType}`;
-
-            const textarea = document.createElement('textarea');
-            textarea.className = 'form-control template-editor';
-            textarea.rows = 12;
-            textarea.value = item.text ?? '';
-            textarea.dataset.templateId = item.id;
-            const originalValue = textarea.value;
-
-            textarea.addEventListener('input', () => {
-                const currentValue = textarea.value;
-                if (currentValue === originalValue) {
-                    templateChanges.delete(item.id);
-                } else {
-                    templateChanges.set(item.id, currentValue);
-                }
-                toggleSaveTemplatesButton();
-            });
-
-            body.appendChild(meta);
-            body.appendChild(textarea);
-            bodyWrapper.appendChild(body);
-            accordionItem.appendChild(bodyWrapper);
-            templatesAccordion.appendChild(accordionItem);
-
-            const collapseInstance = bootstrapCollapseConstructor
-                ? new bootstrapCollapseConstructor(bodyWrapper, {toggle: false})
-                : null;
-
-            button.addEventListener('click', event => {
-                event.preventDefault();
-                event.stopPropagation();
-
-                if (collapseInstance) {
-                    collapseInstance.toggle();
-                    return;
-                }
-
-                const willShow = !bodyWrapper.classList.contains('show');
-                bodyWrapper.classList.toggle('show', willShow);
-                button.classList.toggle('collapsed', !willShow);
-                button.setAttribute('aria-expanded', willShow.toString());
-            });
+            row.appendChild(shortNameCell);
+            row.appendChild(fullNameCell);
+            row.appendChild(detailsCell);
+            templatesTableBody.appendChild(row);
         });
     }
 
+    function updateTemplateModalActions() {
+        const isExistingTemplate = Boolean(activeTemplateDraft?.id);
+        deleteTemplateButton.classList.toggle('d-none', !isExistingTemplate);
+        deleteTemplateButton.disabled = isDeleting || isSaving;
+        saveTemplateButton.disabled = isSaving || isDeleting;
+        saveTemplateButton.textContent = isSaving ? 'Сохранение…' : 'Сохранить шаблон';
+    }
+
+    function renderTemplateChartsTable() {
+        templateChartsTableBody.innerHTML = '';
+
+        if (!Array.isArray(activeTemplateDraft.charts) || activeTemplateDraft.charts.length === 0) {
+            const emptyRow = document.createElement('tr');
+            const emptyCell = document.createElement('td');
+            emptyCell.colSpan = 3;
+            emptyCell.className = 'text-muted py-3';
+            emptyCell.textContent = 'Графики для шаблона пока не добавлены.';
+            emptyRow.appendChild(emptyCell);
+            templateChartsTableBody.appendChild(emptyRow);
+            return;
+        }
+
+        activeTemplateDraft.charts.forEach((chart, index) => {
+            const row = document.createElement('tr');
+
+            const titleCell = document.createElement('td');
+            const titleInput = document.createElement('input');
+            titleInput.type = 'text';
+            titleInput.className = 'form-control';
+            titleInput.placeholder = 'Название графика в отчете';
+            titleInput.value = chart.title ?? '';
+            titleInput.addEventListener('input', () => {
+                activeTemplateDraft.charts[index].title = titleInput.value;
+            });
+            titleCell.appendChild(titleInput);
+
+            const codeCell = document.createElement('td');
+            const codeSelect = document.createElement('select');
+            codeSelect.className = 'form-select';
+            const placeholderOption = document.createElement('option');
+            placeholderOption.value = '';
+            placeholderOption.textContent = panelOptionsCache.length
+                ? 'Выберите график'
+                : 'Нет загруженных графиков Grafana';
+            codeSelect.appendChild(placeholderOption);
+
+            panelOptionsCache.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = normalizePanelOptionValue(option.dashboardUid, option.panelId);
+                optionElement.textContent = option.code;
+                codeSelect.appendChild(optionElement);
+            });
+
+            if (chart.dashboardUid && chart.panelId) {
+                codeSelect.value = normalizePanelOptionValue(chart.dashboardUid, chart.panelId);
+            }
+            codeSelect.addEventListener('change', () => {
+                const selected = parsePanelOptionValue(codeSelect.value);
+                activeTemplateDraft.charts[index].dashboardUid = selected.dashboardUid;
+                activeTemplateDraft.charts[index].panelId = selected.panelId;
+            });
+            codeCell.appendChild(codeSelect);
+
+            const removeCell = document.createElement('td');
+            removeCell.className = 'text-center';
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'template-action-button danger';
+            removeButton.setAttribute('aria-label', 'Удалить график');
+            removeButton.innerHTML = '<i class="bi bi-trash"></i>';
+            removeButton.addEventListener('click', () => {
+                activeTemplateDraft.charts.splice(index, 1);
+                renderTemplateChartsTable();
+            });
+            removeCell.appendChild(removeButton);
+
+            row.appendChild(titleCell);
+            row.appendChild(codeCell);
+            row.appendChild(removeCell);
+            templateChartsTableBody.appendChild(row);
+        });
+    }
+
+    function renderTemplateModal() {
+        templateDetailsModalLabel.textContent = activeTemplateDraft.id
+            ? `Шаблон: ${activeTemplateDraft.shortName || activeTemplateDraft.fullName || 'без названия'}`
+            : 'Новый шаблон';
+        templateShortNameInput.value = activeTemplateDraft.shortName ?? '';
+        templateFullNameInput.value = activeTemplateDraft.fullName ?? '';
+        templateTextInput.value = activeTemplateDraft.text ?? '';
+        renderTemplateChartsTable();
+        updateTemplateModalActions();
+    }
+
+    function openTemplateDetailsModal(template) {
+        activeTemplateDraft = cloneTemplate(template);
+        clearTemplateModalAlert();
+        renderTemplateModal();
+        showTemplateDetailsModal();
+    }
+
+    function openNewTemplateModal() {
+        activeTemplateDraft = createEmptyTemplateDraft();
+        clearTemplateModalAlert();
+        renderTemplateModal();
+        showTemplateDetailsModal();
+    }
+
+    function buildTemplatePayload() {
+        const shortName = templateShortNameInput.value.trim();
+        const fullName = templateFullNameInput.value.trim();
+        const text = templateTextInput.value;
+        const charts = Array.isArray(activeTemplateDraft.charts)
+            ? activeTemplateDraft.charts.map(chart => ({
+                title: (chart?.title ?? '').trim(),
+                dashboardUid: chart?.dashboardUid ?? '',
+                panelId: Number(chart?.panelId ?? 0)
+            }))
+            : [];
+
+        if (!shortName) {
+            throw new Error('Укажите короткое имя шаблона');
+        }
+        if (shortName.length > 12) {
+            throw new Error('Короткое имя шаблона должно быть не длиннее 12 символов');
+        }
+        if (!fullName) {
+            throw new Error('Укажите полное название шаблона');
+        }
+        if (!text.trim()) {
+            throw new Error('Заполните текст шаблона');
+        }
+
+        charts.forEach(chart => {
+            if (!chart.title) {
+                throw new Error('Укажите название графика');
+            }
+            if (!chart.dashboardUid || !Number.isFinite(chart.panelId) || chart.panelId <= 0) {
+                throw new Error('Выберите код графика для всех строк');
+            }
+        });
+
+        return {
+            shortName,
+            fullName,
+            text,
+            charts
+        };
+    }
+
     async function loadTemplates() {
-        setTemplatesStatus('Загружаем шаблоны…');
+        templatesLoaded = false;
+        renderTemplatesTable();
+        clearTemplatesStatus();
         try {
             const response = await fetch('/api/settings/confluence-templates');
             if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось загрузить шаблоны'));
             }
-            templatesCache = await response.json();
-            renderTemplates(templatesCache);
-            clearTemplatesStatus();
+            const payload = await response.json();
+            templatesCache = Array.isArray(payload) ? payload : [];
+            templatesLoaded = true;
+            renderTemplatesTable();
         } catch (error) {
-            setTemplatesStatus('Не удалось загрузить шаблоны: ' + error.message, 'danger');
+            templatesLoaded = true;
+            templatesCache = [];
+            renderTemplatesTable();
+            setTemplatesStatus(error.message || 'Не удалось загрузить шаблоны', 'danger');
         }
     }
 
-    async function saveTemplates() {
-        if (templateChanges.size === 0) {
+    async function loadPanelOptions() {
+        try {
+            const response = await fetch('/api/settings/confluence-templates/panel-options');
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось загрузить список графиков'));
+            }
+            const payload = await response.json();
+            panelOptionsCache = Array.isArray(payload) ? payload : [];
+            renderTemplateChartsTable();
+        } catch (error) {
+            panelOptionsCache = [];
+            showToast(error.message || 'Не удалось загрузить список графиков', 'warning');
+            renderTemplateChartsTable();
+        }
+    }
+
+    async function saveTemplate() {
+        if (isSaving || isDeleting) {
             return;
         }
-        isSaving = true;
-        toggleSaveTemplatesButton();
-        setTemplatesStatus('Сохраняем изменения…');
-        const payload = {
-            templates: Array.from(templateChanges.entries()).map(([id, text]) => ({
-                id,
-                text
-            }))
-        };
+
+        let payload;
         try {
-            const response = await fetch('/api/settings/confluence-templates', {
-                method: 'PUT',
+            payload = buildTemplatePayload();
+        } catch (error) {
+            setTemplateModalAlert(error.message || 'Проверьте заполнение шаблона');
+            return;
+        }
+
+        isSaving = true;
+        clearTemplateModalAlert();
+        updateTemplateModalActions();
+
+        const isNewTemplate = !activeTemplateDraft.id;
+        const url = isNewTemplate
+            ? '/api/settings/confluence-templates'
+            : `/api/settings/confluence-templates/${activeTemplateDraft.id}`;
+        const method = isNewTemplate ? 'POST' : 'PUT';
+
+        try {
+            const response = await fetch(url, {
+                method,
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
             });
             if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось сохранить шаблон'));
             }
-            templatesCache = await response.json();
-            renderTemplates(templatesCache);
-            setTemplatesStatus('Шаблоны сохранены.', 'success');
+            await response.json();
+            hideTemplateDetailsModal();
+            await loadTemplates();
+            showToast(isNewTemplate ? 'Шаблон создан' : 'Шаблон сохранен', 'success');
         } catch (error) {
-            setTemplatesStatus('Не удалось сохранить шаблоны: ' + error.message, 'danger');
+            setTemplateModalAlert(error.message || 'Не удалось сохранить шаблон');
         } finally {
             isSaving = false;
-            toggleSaveTemplatesButton();
+            updateTemplateModalActions();
         }
     }
 
-    saveTemplatesButton.addEventListener('click', saveTemplates);
+    async function deleteTemplate() {
+        if (!activeTemplateDraft.id || isDeleting || isSaving) {
+            return;
+        }
+        if (!window.confirm('Скрыть шаблон и отметить его удаленным?')) {
+            return;
+        }
 
-    if (typeof startBackgroundErrorPolling === 'function') {
-        startBackgroundErrorPolling(showToast);
+        isDeleting = true;
+        clearTemplateModalAlert();
+        updateTemplateModalActions();
+
+        try {
+            const response = await fetch(`/api/settings/confluence-templates/${activeTemplateDraft.id}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось удалить шаблон'));
+            }
+            hideTemplateDetailsModal();
+            await loadTemplates();
+            showToast('Шаблон скрыт', 'success');
+        } catch (error) {
+            setTemplateModalAlert(error.message || 'Не удалось удалить шаблон');
+        } finally {
+            isDeleting = false;
+            updateTemplateModalActions();
+        }
     }
 
+    if (addTemplateButton) {
+        addTemplateButton.addEventListener('click', openNewTemplateModal);
+    }
+
+    if (templateShortNameInput) {
+        templateShortNameInput.addEventListener('input', () => {
+            activeTemplateDraft.shortName = templateShortNameInput.value;
+        });
+    }
+
+    if (templateFullNameInput) {
+        templateFullNameInput.addEventListener('input', () => {
+            activeTemplateDraft.fullName = templateFullNameInput.value;
+        });
+    }
+
+    if (templateTextInput) {
+        templateTextInput.addEventListener('input', () => {
+            activeTemplateDraft.text = templateTextInput.value;
+        });
+    }
+
+    if (addTemplateChartButton) {
+        addTemplateChartButton.addEventListener('click', () => {
+            activeTemplateDraft.charts.push({
+                title: '',
+                dashboardUid: '',
+                panelId: ''
+            });
+            renderTemplateChartsTable();
+        });
+    }
+
+    if (saveTemplateButton) {
+        saveTemplateButton.addEventListener('click', saveTemplate);
+    }
+
+    if (deleteTemplateButton) {
+        deleteTemplateButton.addEventListener('click', deleteTemplate);
+    }
+
+    if (templateDetailsModalElement) {
+        templateDetailsModalElement.addEventListener('hidden.bs.modal', () => {
+            resetTemplateModalState();
+        });
+
+        templateDetailsModalElement.addEventListener('click', event => {
+            const dismissTarget = event.target.closest('[data-bs-dismiss="modal"]');
+            if (dismissTarget && !getTemplateDetailsModal()) {
+                hideTemplateDetailsModalFallback();
+                return;
+            }
+            if (event.target === templateDetailsModalElement && !getTemplateDetailsModal()) {
+                hideTemplateDetailsModalFallback();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') {
+            return;
+        }
+        if (!templateDetailsModalElement?.classList.contains('show')) {
+            return;
+        }
+        if (!getTemplateDetailsModal()) {
+            hideTemplateDetailsModalFallback();
+        }
+    });
+
     (async function init() {
-        await loadTemplates();
+        await Promise.allSettled([
+            loadTemplates(),
+            loadPanelOptions()
+        ]);
+        if (typeof startBackgroundErrorPolling === 'function') {
+            startBackgroundErrorPolling(showToast);
+        }
     })();
 </script>
 </body>
