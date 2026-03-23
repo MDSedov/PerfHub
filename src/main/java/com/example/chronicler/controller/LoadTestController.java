@@ -4,7 +4,9 @@ import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
 import com.example.chronicler.dto.tests.LoadTestView;
 import com.example.chronicler.dto.tests.RequirementComplianceView;
 import com.example.chronicler.dto.tests.SaveTestCommentRequest;
+import com.example.chronicler.dto.tests.SaveTestTypeRequest;
 import com.example.chronicler.model.LoadTest;
+import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.model.RequirementEvaluationStatus;
 import com.example.chronicler.model.TestRequirementEvaluation;
 import com.example.chronicler.repository.LoadTestRepository;
@@ -17,6 +19,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /** REST-контроллер для работы со списком нагрузочных тестов. */
 @RestController
@@ -77,6 +81,27 @@ public class LoadTestController {
             @PathVariable("testUuid") UUID testUuid, @RequestBody SaveTestCommentRequest request) {
         Objects.requireNonNull(testUuid, "testUuid must not be null");
         LoadTest updated = loadTestRepository.updateComment(testUuid, request != null ? request.comment() : null);
+        return LoadTestView.fromModel(
+                updated,
+                buildComplianceView(updated.id()),
+                kubernetesConfigurationService.findMaxRelease(testUuid),
+                kubernetesConfigurationService.hasConfiguration(testUuid));
+    }
+
+    /** Сохраняет тип теста и возвращает обновленную информацию. */
+    @PostMapping("/{testUuid}/type")
+    public LoadTestView saveType(@PathVariable("testUuid") UUID testUuid, @RequestBody SaveTestTypeRequest request) {
+        Objects.requireNonNull(testUuid, "testUuid must not be null");
+        if (request == null || request.type() == null || request.type().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type is required");
+        }
+        LoadTestType type;
+        try {
+            type = LoadTestType.fromValue(request.type());
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage(), ex);
+        }
+        LoadTest updated = loadTestRepository.updateType(testUuid, type);
         return LoadTestView.fromModel(
                 updated,
                 buildComplianceView(updated.id()),

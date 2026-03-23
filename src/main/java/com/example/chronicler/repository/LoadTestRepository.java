@@ -31,6 +31,7 @@ public class LoadTestRepository {
             "INSERT INTO tests (test_uuid, start_time, end_time, test_type_id, comment) VALUES (?, ?, ?, ?, ?)";
     private static final String UPDATE_SQL =
             "UPDATE tests SET start_time = ?, end_time = ?, test_type_id = ? WHERE test_uuid = ?";
+    private static final String UPDATE_TYPE_SQL = "UPDATE tests SET test_type_id = ? WHERE test_uuid = ?";
     private static final String UPDATE_COMMENT_SQL = "UPDATE tests SET comment = ? WHERE test_uuid = ?";
 
     private final JdbcTemplate jdbcTemplate;
@@ -126,6 +127,24 @@ public class LoadTestRepository {
                         ps.setNull(1, Types.CLOB);
                     } else {
                         ps.setString(1, comment);
+                    }
+                    ps.setObject(2, id);
+                });
+        if (updated == 0) {
+            throw new IncorrectResultSizeDataAccessException("Expected to update one row", 1, 0);
+        }
+        return findById(id).orElseThrow(() -> new IllegalStateException("Failed to load updated test " + id));
+    }
+
+    public LoadTest updateType(UUID id, LoadTestType type) {
+        Integer testTypeId = resolveTestTypeId(type);
+        int updated = jdbcTemplate.update(
+                UPDATE_TYPE_SQL,
+                ps -> {
+                    if (testTypeId == null) {
+                        ps.setNull(1, Types.INTEGER);
+                    } else {
+                        ps.setInt(1, testTypeId);
                     }
                     ps.setObject(2, id);
                 });

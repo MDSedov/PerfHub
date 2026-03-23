@@ -669,6 +669,10 @@ body {
             color: #1c231f;
         }
 
+        .test-details-modal-dialog {
+            max-width: min(1480px, calc(100vw - 2rem));
+        }
+
         .test-details-modal .modal-content {
             border: none;
             border-radius: 20px;

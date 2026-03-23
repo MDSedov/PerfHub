@@ -1,12 +1,15 @@
 package com.example.chronicler.model;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import java.util.Locale;
 
 /** Тип нагрузочного теста, определённый на основе анализа временного ряда интенсивности. */
 public enum LoadTestType {
     MAX("max"),
-    CONFIRM("confirm"),
+    STABILITY("stability"),
     SOAK("soak"),
+    PSU("psu"),
+    DT("dt"),
     UNKNOWN("unknown");
 
     private final String value;
@@ -20,15 +23,29 @@ public enum LoadTestType {
         return value;
     }
 
+    public static LoadTestType fromValue(String value) {
+        if (value == null || value.isBlank()) {
+            return UNKNOWN;
+        }
+        return switch (value.trim().toLowerCase(Locale.ROOT)) {
+            case "max" -> MAX;
+            case "stability", "confirm" -> STABILITY;
+            case "soak" -> SOAK;
+            case "psu" -> PSU;
+            case "dt" -> DT;
+            case "unknown" -> UNKNOWN;
+            default -> throw new IllegalArgumentException("Unsupported load test type: " + value);
+        };
+    }
+
     public static LoadTestType fromDatabaseValue(String databaseValue) {
         if (databaseValue == null || databaseValue.isBlank()) {
             return UNKNOWN;
         }
-        for (LoadTestType type : values()) {
-            if (type.value.equalsIgnoreCase(databaseValue)) {
-                return type;
-            }
+        try {
+            return fromValue(databaseValue);
+        } catch (IllegalArgumentException ex) {
+            return UNKNOWN;
         }
-        return UNKNOWN;
     }
 }

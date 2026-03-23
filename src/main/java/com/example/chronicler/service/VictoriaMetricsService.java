@@ -28,6 +28,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -165,14 +166,29 @@ public class VictoriaMetricsService {
         return detectAndPersistTests(start, end, false);
     }
 
+    public List<LoadTest> detectAndPersistActiveTests(Instant start, Instant end, Duration activityGracePeriod) {
+        Objects.requireNonNull(activityGracePeriod, "activityGracePeriod must not be null");
+        return detectAndPersistTests(
+                start,
+                end,
+                false,
+                interval -> isTestIntervalActive(interval, end, activityGracePeriod));
+    }
+
     private List<LoadTest> detectAndPersistTests(Instant start, Instant end, boolean cacheResponse) {
+        return detectAndPersistTests(start, end, cacheResponse, interval -> true);
+    }
+
+    private List<LoadTest> detectAndPersistTests(
+            Instant start, Instant end, boolean cacheResponse, Predicate<TestInterval> intervalFilter) {
         Objects.requireNonNull(start, "start must not be null");
         Objects.requireNonNull(end, "end must not be null");
+        Objects.requireNonNull(intervalFilter, "intervalFilter must not be null");
         if (!end.isAfter(start)) {
             throw new InvalidTimeRangeException("End time must be after start time");
         }
         NavigableMap<Instant, Double> samples = loadIntensitySamples(start, end, cacheResponse);
-        return persistDetectedTests(samples);
+        return persistDetectedTests(samples, intervalFilter);
     }
 
     private NavigableMap<Instant, Double> loadIntensitySamples(
@@ -191,10 +207,14 @@ public class VictoriaMetricsService {
         return extractSamples(intensityNode);
     }
 
-    private List<LoadTest> persistDetectedTests(NavigableMap<Instant, Double> samples) {
+    private List<LoadTest> persistDetectedTests(
+            NavigableMap<Instant, Double> samples, Predicate<TestInterval> intervalFilter) {
         List<TestInterval> intervals = detectTests(samples);
         List<LoadTest> persistedTests = new ArrayList<>(intervals.size());
         for (TestInterval interval : intervals) {
+            if (!intervalFilter.test(interval)) {
+                continue;
+            }
             NavigableMap<Instant, Double> intervalSamples =
                     samples.subMap(interval.start(), true, interval.end(), true);
             LoadTestType type = classifyTest(intervalSamples, interval.start(), interval.end());
@@ -202,6 +222,17 @@ public class VictoriaMetricsService {
             persistedTests.add(persisted);
         }
         return persistedTests;
+    }
+
+    private boolean isTestIntervalActive(TestInterval interval, Instant referencePoint, Duration gracePeriod) {
+        if (interval == null || referencePoint == null || gracePeriod == null) {
+            return false;
+        }
+        Instant end = interval.end();
+        if (end == null) {
+            return false;
+        }
+        return !referencePoint.isAfter(end.plus(gracePeriod));
     }
 
     private String resolveQuery(String type) {
@@ -460,7 +491,7 @@ public class VictoriaMetricsService {
                             stablePlateau = true;
                             plateauType = totalDuration.compareTo(SOAK_THRESHOLD) >= 0
                                     ? LoadTestType.SOAK
-                                    : LoadTestType.CONFIRM;
+                                    : LoadTestType.STABILITY;
                         }
                     }
                 }

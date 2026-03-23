@@ -15,7 +15,7 @@ public record ConfluenceReportRequest(
 
     public enum TestType {
         MAX("max-template", "Max Test Report"),
-        CONFIRM("confirm-template", "Confirm Test Report"),
+        CONFIRM("confirm-template", "Stability Test Report"),
         SOAK("soak-template", "Soak Test Report");
 
         private final String templateName;

@@ -8,13 +8,27 @@ INSERT INTO test_types (test_type, description)
 SELECT 'max', 'Поиск максимальной производительности'
 WHERE NOT EXISTS (SELECT 1 FROM test_types WHERE test_type = 'max');
 
+UPDATE test_types
+SET test_type = 'stability',
+    description = 'Проверка стабильности под нагрузкой'
+WHERE lower(test_type) = 'confirm'
+  AND NOT EXISTS (SELECT 1 FROM test_types WHERE lower(test_type) = 'stability');
+
 INSERT INTO test_types (test_type, description)
-SELECT 'confirm', 'Подтверждение ожидаемой производительности'
-WHERE NOT EXISTS (SELECT 1 FROM test_types WHERE test_type = 'confirm');
+SELECT 'stability', 'Проверка стабильности под нагрузкой'
+WHERE NOT EXISTS (SELECT 1 FROM test_types WHERE lower(test_type) = 'stability');
 
 INSERT INTO test_types (test_type, description)
 SELECT 'soak', 'Длительный прогон на надежность'
 WHERE NOT EXISTS (SELECT 1 FROM test_types WHERE test_type = 'soak');
+
+INSERT INTO test_types (test_type, description)
+SELECT 'psu', 'Проверка поведения после деградации или отказа'
+WHERE NOT EXISTS (SELECT 1 FROM test_types WHERE lower(test_type) = 'psu');
+
+INSERT INTO test_types (test_type, description)
+SELECT 'dt', 'Проверка типа DT'
+WHERE NOT EXISTS (SELECT 1 FROM test_types WHERE lower(test_type) = 'dt');
 
 CREATE TABLE IF NOT EXISTS tests (
     test_uuid UUID DEFAULT RANDOM_UUID() PRIMARY KEY,
@@ -67,9 +81,9 @@ WHERE test_type = 'max'
   AND NOT EXISTS (SELECT 1 FROM confluence_templates WHERE name = 'max-template');
 
 INSERT INTO confluence_templates (test_type_id, name, text)
-SELECT id, 'confirm-template', 'Тест подтверждения максимальной производительности'
+SELECT id, 'confirm-template', 'Тест стабильности'
 FROM test_types
-WHERE test_type = 'confirm'
+WHERE test_type = 'stability'
   AND NOT EXISTS (SELECT 1 FROM confluence_templates WHERE name = 'confirm-template');
 
 INSERT INTO confluence_templates (test_type_id, name, text)

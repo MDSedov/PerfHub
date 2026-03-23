@@ -16,6 +16,7 @@ public class LoadTestMonitoringScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(LoadTestMonitoringScheduler.class);
     private static final Duration POLL_RANGE = Duration.ofMinutes(15);
+    private static final Duration ACTIVE_TEST_GRACE_PERIOD = Duration.ofMinutes(3);
 
     private final VictoriaMetricsService victoriaMetricsService;
     private final KubernetesConfigurationService kubernetesConfigurationService;
@@ -37,31 +38,14 @@ public class LoadTestMonitoringScheduler {
         Instant end = Instant.now();
         Instant start = end.minus(POLL_RANGE);
         try {
-            List<LoadTest> detected = victoriaMetricsService.detectAndPersistTests(start, end);
-            List<UUID> testIds = detected.stream()
-                    .filter(test -> isActiveAt(test, end))
-                    .map(LoadTest::id)
-                    .collect(Collectors.toList());
+            List<LoadTest> detected =
+                    victoriaMetricsService.detectAndPersistActiveTests(start, end, ACTIVE_TEST_GRACE_PERIOD);
+            List<UUID> testIds = detected.stream().map(LoadTest::id).collect(Collectors.toList());
             kubernetesConfigurationService.captureConfigurationsIfMissing(testIds);
         } catch (Exception ex) {
             String message = "Не удалось обновить информацию о текущих нагрузочных тестах";
             log.error(message, ex);
             backgroundErrorService.publish(message + ": " + ex.getMessage());
         }
-    }
-
-    private boolean isActiveAt(LoadTest test, Instant moment) {
-        if (test == null || moment == null) {
-            return false;
-        }
-        Instant start = test.start();
-        Instant end = test.end();
-        if (start != null && moment.isBefore(start)) {
-            return false;
-        }
-        if (end != null && moment.isAfter(end)) {
-            return false;
-        }
-        return start != null || end != null;
     }
 }

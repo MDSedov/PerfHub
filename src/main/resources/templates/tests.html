@@ -210,13 +210,13 @@
             </section>
         </main>
 
-        <div class="modal fade"
+        <div class="modal fade test-details-modal"
              id="testDetailsModal"
              tabindex="-1"
              aria-labelledby="testDetailsModalLabel"
              aria-hidden="true">
-            <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                <div class="modal-content test-details-modal">
+            <div class="modal-dialog modal-dialog-scrollable test-details-modal-dialog">
+                <div class="modal-content">
                     <div class="modal-header">
                         <div class="d-flex flex-column gap-1">
                             <span class="test-details-modal-kicker">Детали теста</span>
@@ -399,10 +399,18 @@
         });
     }
 
+    const TEST_TYPE_ALIASES = {
+        confirm: 'stability'
+    };
+
+    const TEST_TYPE_OPTIONS = ['unknown', 'max', 'stability', 'soak', 'psu', 'dt'];
+
     const TYPE_LABELS = {
         max: 'MAX',
-        confirm: 'CONFIRM',
+        stability: 'STABILITY',
         soak: 'SOAK',
+        psu: 'PSU',
+        dt: 'DT',
         unknown: 'UNKNOWN'
     };
 
@@ -425,8 +433,13 @@
         });
     }
 
+    function canonicalizeTestType(type) {
+        const normalized = (type ?? '').toString().trim().toLowerCase();
+        return TEST_TYPE_ALIASES[normalized] ?? normalized;
+    }
+
     function normalizeTestType(type) {
-        const normalized = (type ?? '').toString().toLowerCase();
+        const normalized = canonicalizeTestType(type);
         if (normalized && TYPE_LABELS[normalized]) {
             return TYPE_LABELS[normalized];
         }
@@ -502,6 +515,7 @@
     const NO_CONFIG_MESSAGE = 'Конфигурация DropApp для данного теста отсутствует';
     const MISSING_RELEASE_VALUE = '__missing__';
     const AUTO_REFRESH_MS = 60_000;
+    const ACTIVE_TEST_END_GRACE_MS = 3 * 60 * 1000;
 
     const REQUIREMENT_STATUS_LABELS = {
         PASS: 'Соответствует',
@@ -534,9 +548,11 @@
     const activeStatusControllers = new Map();
     const testStatusElements = new Map();
     const releaseCells = new Map();
+    const testSnapshotsById = new Map();
     const knownTestIds = new Set();
     const pendingConfigRequests = new Set();
     let testsInitialized = false;
+    let lastUpdatedActiveTestIds = [];
     let activeDetailsButton = null;
     let activeDetailsTestId = null;
     let testDetailsModalBackdrop = null;
@@ -656,10 +672,17 @@
         if (start && now < start) {
             return false;
         }
-        if (end && now > end) {
-            return false;
+        if (end) {
+            return now.getTime() <= end.getTime() + ACTIVE_TEST_END_GRACE_MS;
         }
-        return Boolean(start || end);
+        return Boolean(start);
+    }
+
+    function formatTestEndValue(test) {
+        if (isTestCurrentlyActive(test)) {
+            return 'В процессе...';
+        }
+        return formatDateNoSeconds(test?.end);
     }
 
     function shouldAutoRequestConfiguration(test) {
@@ -724,7 +747,7 @@
         const parts = [];
         const release = getReleaseValue(test);
         const start = formatDateNoSeconds(test.start);
-        const end = formatDateNoSeconds(test.end);
+        const end = formatTestEndValue(test);
         const duration = formatDuration(test.start, test.end);
 
         if (release) {
@@ -740,6 +763,21 @@
             parts.push(`Длительность ${duration}`);
         }
         return parts.join(' | ');
+    }
+
+    function refreshActiveTestDetailsHeader(testId) {
+        if (activeDetailsTestId !== testId) {
+            return;
+        }
+        const test = findTestById(testId);
+        if (testDetailsModalTitle) {
+            testDetailsModalTitle.textContent = buildTestDetailsTitle(test);
+        }
+        if (testDetailsModalSubtitle) {
+            const subtitle = buildTestDetailsSubtitle(test);
+            testDetailsModalSubtitle.textContent = subtitle;
+            testDetailsModalSubtitle.classList.toggle('d-none', subtitle === '');
+        }
     }
 
     function resetActiveDetailsButton() {
@@ -1044,7 +1082,7 @@
             row.appendChild(typeCell);
 
             appendGenerateReportsTextCell(row, formatDateNoSeconds(test?.start), 'text-nowrap');
-            appendGenerateReportsTextCell(row, formatDateNoSeconds(test?.end), 'text-nowrap');
+            appendGenerateReportsTextCell(row, formatTestEndValue(test), 'text-nowrap');
 
             const requirementCell = document.createElement('td');
             requirementCell.className = 'text-center';
@@ -1479,7 +1517,7 @@
         }
         const types = new Set();
         (tests ?? []).forEach(test => {
-            const value = (test.type ?? '').toString().toLowerCase();
+            const value = canonicalizeTestType(test?.type);
             if (value) {
                 types.add(value);
             }
@@ -1525,6 +1563,7 @@
             clearTestsStatus();
             return true;
         } catch (error) {
+            lastUpdatedActiveTestIds = [];
             if (showLoading) {
                 setTestsStatus('Не удалось получить список тестов: ' + error.message, 'danger');
             }
@@ -1748,18 +1787,18 @@
             activeStatusControllers.get(testId)?.abort();
             const controller = new AbortController();
             activeStatusControllers.set(testId, controller);
-            setTestStatusView(statusElement, 'loading', testId);
+            setComplianceStatus(statusElement, 'loading', testId);
             const evaluation = await ensureEvaluation(testId, mode);
             if (controller.signal.aborted) {
                 return;
             }
             const compliant = Boolean(evaluation?.compliant);
-            setTestStatusView(statusElement, compliant ? 'pass' : 'fail', testId);
+            setComplianceStatus(statusElement, compliant ? 'pass' : 'fail', testId);
         } catch (error) {
             if (error.name === 'AbortError') {
                 return;
             }
-            setTestStatusView(statusElement, 'error', testId);
+            setComplianceStatus(statusElement, 'error', testId);
         } finally {
             activeStatusControllers.delete(testId);
         }
@@ -2042,29 +2081,79 @@
         return await response.json();
     }
 
+    async function saveTestType(testId, type) {
+        const response = await fetch(`/api/tests/${testId}/type`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ type })
+        });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        return await response.json();
+    }
+
+    function buildTestSnapshot(test) {
+        return {
+            start: test?.start ?? null,
+            end: test?.end ?? null,
+            type: canonicalizeTestType(test?.type)
+        };
+    }
+
+    function hasTestSnapshotChanged(previous, current) {
+        if (!previous) {
+            return true;
+        }
+        return previous.start !== current.start
+                || previous.end !== current.end
+                || previous.type !== current.type;
+    }
+
+    function takeUpdatedActiveTestIds() {
+        const updatedIds = lastUpdatedActiveTestIds.slice();
+        lastUpdatedActiveTestIds = [];
+        return updatedIds;
+    }
+
     function handleNewTests(tests) {
+        const hadSnapshots = testsInitialized;
         const incomingIds = new Set();
         const newTests = [];
+        const nextSnapshots = new Map();
+        const updatedActiveTestIds = [];
         (Array.isArray(tests) ? tests : []).forEach(test => {
             if (test?.id) {
                 incomingIds.add(test.id);
-                if (testsInitialized && !knownTestIds.has(test.id)) {
+                if (hadSnapshots && !knownTestIds.has(test.id)) {
                     newTests.push(test);
+                }
+                const snapshot = buildTestSnapshot(test);
+                nextSnapshots.set(test.id, snapshot);
+                if (hadSnapshots
+                        && hasTestSnapshotChanged(testSnapshotsById.get(test.id), snapshot)
+                        && isTestCurrentlyActive(test)) {
+                    updatedActiveTestIds.push(test.id);
                 }
             }
         });
 
-        if (testsInitialized && newTests.length > 0) {
+        if (hadSnapshots && newTests.length > 0) {
             newTests
                     .filter(test => isTestCurrentlyActive(test))
                     .forEach(() => showToast('Найден новый активный тест', 'info'));
         }
 
+        testSnapshotsById.clear();
+        nextSnapshots.forEach((snapshot, testId) => testSnapshotsById.set(testId, snapshot));
         knownTestIds.clear();
         incomingIds.forEach(id => knownTestIds.add(id));
         if (!testsInitialized) {
             testsInitialized = true;
         }
+        lastUpdatedActiveTestIds = hadSnapshots ? updatedActiveTestIds : [];
     }
 
     function queueAutoConfigurationRequests(tests) {
@@ -2108,6 +2197,15 @@
         }
     }
 
+    function updateCachedTestType(testId, type) {
+        const test = findTestById(testId);
+        if (!test) {
+            return;
+        }
+        test.type = canonicalizeTestType(type) || 'unknown';
+        refreshActiveTestDetailsHeader(testId);
+    }
+
     async function loadTestDetails(testId, container) {
         const test = findTestById(testId);
         container.dataset.loading = 'true';
@@ -2118,6 +2216,55 @@
 
         const notesSection = document.createElement('section');
         notesSection.className = 'test-details-section';
+        const typeControls = document.createElement('div');
+        typeControls.className = 'row g-2 align-items-end mb-4';
+        const typeField = document.createElement('div');
+        typeField.className = 'col-12 col-lg-8';
+        const typeLabel = document.createElement('label');
+        typeLabel.className = 'form-label';
+        typeLabel.textContent = 'Тип теста';
+        const typeSelect = document.createElement('select');
+        typeSelect.className = 'form-select';
+        TEST_TYPE_OPTIONS.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = normalizeTestType(type);
+            typeSelect.appendChild(option);
+        });
+        typeSelect.value = canonicalizeTestType(test?.type) || 'unknown';
+        typeField.appendChild(typeLabel);
+        typeField.appendChild(typeSelect);
+
+        const typeButtonWrap = document.createElement('div');
+        typeButtonWrap.className = 'col-12 col-lg-4';
+        const typeButton = document.createElement('button');
+        typeButton.type = 'button';
+        typeButton.className = 'btn btn-outline-success w-100';
+        typeButton.textContent = 'Сохранить тип';
+        typeButton.addEventListener('click', async () => {
+            typeButton.disabled = true;
+            typeSelect.disabled = true;
+            typeButton.textContent = 'Сохраняем…';
+            try {
+                const updated = await saveTestType(testId, typeSelect.value);
+                const savedType = canonicalizeTestType(updated?.type) || typeSelect.value;
+                typeSelect.value = savedType;
+                updateCachedTestType(testId, savedType);
+                updateTypeOptions(allTests);
+                applyFilters();
+                showToast('Тип теста сохранен', 'success');
+            } catch (error) {
+                showToast('Не удалось сохранить тип теста', 'danger');
+            } finally {
+                typeButton.disabled = false;
+                typeSelect.disabled = false;
+                typeButton.textContent = 'Сохранить тип';
+            }
+        });
+        typeButtonWrap.appendChild(typeButton);
+        typeControls.appendChild(typeField);
+        typeControls.appendChild(typeButtonWrap);
+
         const notesTitle = document.createElement('h6');
         notesTitle.className = 'test-details-section-title mb-3';
         notesTitle.textContent = 'Заметки к тесту';
@@ -2148,6 +2295,7 @@
         });
         notesBox.appendChild(notesArea);
         notesBox.appendChild(notesButton);
+        notesSection.appendChild(typeControls);
         notesSection.appendChild(notesTitle);
         notesSection.appendChild(notesBox);
 
@@ -2367,7 +2515,7 @@
                 }
             }
             if (selectedTypes.length > 0) {
-                const normalizedType = (test.type ?? '').toString().toLowerCase();
+                const normalizedType = canonicalizeTestType(test?.type);
                 if (!selectedTypes.includes(normalizedType)) {
                     return false;
                 }
@@ -2494,7 +2642,7 @@
             }
 
             const typeCell = document.createElement('td');
-            const normalizedType = (test.type ?? 'unknown').toLowerCase();
+            const normalizedType = canonicalizeTestType(test?.type) || 'unknown';
             typeCell.textContent = TYPE_LABELS[normalizedType] ?? normalizedType.toUpperCase();
 
             const durationCell = document.createElement('td');
@@ -2507,7 +2655,7 @@
 
             const endCell = document.createElement('td');
             endCell.className = 'test-time';
-            endCell.textContent = formatDateNoSeconds(test.end);
+            endCell.textContent = formatTestEndValue(test);
 
             const complianceCell = document.createElement('td');
             complianceCell.className = 'text-center';
@@ -2572,33 +2720,30 @@
         updateEvaluateButtonState();
     }
 
-    async function evaluateAllTests(showNotification = false) {
-        if (!evaluationsAllowed || testStatusElements.size === 0 || isEvaluationInProgress) {
+    async function evaluateTestsByIds(testIds, mode = 'cached', showNotification = false) {
+        const ids = Array.from(new Set((Array.isArray(testIds) ? testIds : []).filter(Boolean)));
+        if (!evaluationsAllowed || ids.length === 0 || isEvaluationInProgress) {
             return;
         }
         isEvaluationInProgress = true;
         updateEvaluateButtonState();
-        resetTestStatusRequests();
-        const evaluationMode = showNotification ? 'fresh' : 'cached';
         if (showNotification) {
-            markStatusesChecking();
+            resetTestStatusRequests();
+            ids.forEach(testId => setComplianceStatus(testStatusElements.get(testId), 'loading', testId));
         }
-        let completed = 0;
         let refreshPreviouslyDisabled = refreshButton ? refreshButton.disabled : true;
         if (showNotification && refreshButton) {
             refreshButton.disabled = true;
         }
 
-        const testEntries = Array.from(testStatusElements.entries());
         let progressToast = null;
         if (showNotification) {
             progressToast = showToast('Перепроверяем тесты на требования…', 'info');
         }
 
         try {
-            for (const [testId, statusElement] of testEntries) {
-                await evaluateTestStatus(testId, statusElement, evaluationMode);
-                completed += 1;
+            for (const testId of ids) {
+                await evaluateTestStatus(testId, testStatusElements.get(testId), mode);
             }
             if (showNotification) {
                 removeToast(progressToast);
@@ -2619,6 +2764,19 @@
             }
             updateEvaluateButtonState();
         }
+    }
+
+    async function evaluateAllTests(showNotification = false) {
+        const mode = showNotification ? 'fresh' : 'cached';
+        await evaluateTestsByIds(Array.from(testStatusElements.keys()), mode, showNotification);
+    }
+
+    async function refreshUpdatedActiveTests() {
+        const updatedActiveTestIds = takeUpdatedActiveTestIds();
+        if (updatedActiveTestIds.length === 0) {
+            return;
+        }
+        await evaluateTestsByIds(updatedActiveTestIds, 'fresh', false);
     }
 
     function getDayRange(daysAgo) {
@@ -2764,7 +2922,7 @@
         try {
             const loaded = await loadTests(false);
             if (loaded) {
-                await evaluateAllTests();
+                await refreshUpdatedActiveTests();
                 await requestConfigurationsForPendingTests();
             }
         } finally {

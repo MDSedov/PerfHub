@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,7 +62,7 @@ class ConfluenceServiceTest {
     void setUp() {
         confluenceService = new ConfluenceService(
                 confluenceClient, grafanaService, templateLoader, loadTestRepository, kubernetesConfigurationService);
-        when(kubernetesConfigurationService.getConfigurations(any(UUID.class))).thenReturn(List.of());
+        lenient().when(kubernetesConfigurationService.getConfigurations(any(UUID.class))).thenReturn(List.of());
     }
 
     @Test
@@ -101,8 +102,8 @@ class ConfluenceServiceTest {
 
         ConfluenceReportRequest.TestType firstType = ConfluenceReportRequest.TestType.MAX;
         ConfluenceReportRequest.TestType secondType = ConfluenceReportRequest.TestType.SOAK;
-        String firstTitle = firstType.displayName() + " - " + firstTestUuid;
-        String secondTitle = secondType.displayName() + " - " + secondTestUuid;
+        String firstTitle = firstType.displayName() + " — 2024-01-01 03:00:00";
+        String secondTitle = secondType.displayName() + " — 2024-01-02 03:00:00";
         ConfluencePage firstCreatedPage = new ConfluencePage("456", "page", firstTitle, 1, "<p>Max template</p>", "SPACE");
         ConfluencePage secondCreatedPage =
                 new ConfluencePage("789", "page", secondTitle, 1, "<p>Soak template</p>", "SPACE");
@@ -179,24 +180,31 @@ class ConfluenceServiceTest {
         UUID testUuid = UUID.fromString("aaaaaaaa-0000-bbbb-cccc-dddddddddddd");
         ConfluenceReportRequest request = new ConfluenceReportRequest("parent", List.of(testUuid));
 
-        Instant start = Instant.parse("2024-01-04T00:00:00Z");
-        Instant end = Instant.parse("2024-01-04T01:00:00Z");
-        when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.CONFIRM, null)));
-
-        byte[] imageBytes = new byte[] {9, 8, 7};
-        String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
-        GrafanaRenderedPanel panel = new GrafanaRenderedPanel(5, "Panel", "", encodedImage);
-        GrafanaRenderedDashboard dashboard = new GrafanaRenderedDashboard("uid", "slug", List.of(panel));
-        GrafanaRenderResponse renderResponse = new GrafanaRenderResponse("from", "to", List.of(dashboard));
-        when(grafanaService.renderPanels(any(GrafanaRenderRequest.class))).thenReturn(renderResponse);
-
         ConfluencePage parentPage = new ConfluencePage("parent", "page", "Parent", 2, "", null);
         when(confluenceClient.getPage(credentials, "parent")).thenReturn(parentPage);
 
         assertThatThrownBy(() -> confluenceService.createReports(credentials, request))
                 .isInstanceOf(ConfluenceOperationException.class)
                 .hasMessage("Parent page does not contain space key information");
+    }
+
+    @Test
+    void createReportsThrowsWhenTemplateIsNotConfiguredForType() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        UUID testUuid = UUID.fromString("11111111-2222-3333-4444-555555555555");
+        ConfluenceReportRequest request = new ConfluenceReportRequest("123", List.of(testUuid));
+
+        Instant start = Instant.parse("2024-01-05T00:00:00Z");
+        Instant end = Instant.parse("2024-01-05T01:00:00Z");
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.PSU, null)));
+
+        ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 1, "", "SPACE");
+        when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+
+        assertThatThrownBy(() -> confluenceService.createReports(credentials, request))
+                .isInstanceOf(ConfluenceOperationException.class)
+                .hasMessage("Confluence report template is not configured for test type psu");
     }
 
     @Test

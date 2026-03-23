@@ -187,9 +187,35 @@
         let confluenceBaseUrl = '';
         let confluenceBaseUrlLoaded = false;
         let confluenceBaseUrlPromise = null;
+        const ACTIVE_TEST_END_GRACE_MS = 3 * 60 * 1000;
 
         const normalizeTestId = (id) => (id !== undefined && id !== null ? String(id) : null);
         const normalizeTestType = (type) => (type || 'unknown').toUpperCase();
+        const parseMoscowDate = (value) => {
+            if (!value) {
+                return null;
+            }
+            const parsed = new Date(value.replace(' ', 'T') + '+03:00');
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        };
+        const isTestCurrentlyActive = (test) => {
+            const now = new Date();
+            const start = parseMoscowDate(test?.start);
+            const end = parseMoscowDate(test?.end);
+            if (start && now < start) {
+                return false;
+            }
+            if (end) {
+                return now.getTime() <= end.getTime() + ACTIVE_TEST_END_GRACE_MS;
+            }
+            return Boolean(start);
+        };
+        const formatTestEndValue = (test) => {
+            if (isTestCurrentlyActive(test)) {
+                return 'В процессе...';
+            }
+            return test?.end ?? '—';
+        };
 
         const loadConfluenceBaseUrl = async () => {
             if (confluenceBaseUrlLoaded) {
@@ -354,7 +380,7 @@
                         <span class="badge text-bg-light text-success badge-test-type">${normalizeTestType(test.type)}</span>
                     </td>
                     <td class="text-nowrap">${test.start ?? '—'}</td>
-                    <td class="text-nowrap">${test.end ?? '—'}</td>
+                    <td class="text-nowrap">${formatTestEndValue(test)}</td>
                     <td>${formatDuration(test.durationSeconds)}</td>
                     <td class="text-center">${formatRequirementStatus(test.requirementCompliance)}</td>
                 `;

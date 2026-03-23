@@ -186,8 +186,10 @@ public class ConfluenceService {
         }
         ConfluenceReportRequest.TestType reportType = switch (loadTestType) {
             case MAX -> ConfluenceReportRequest.TestType.MAX;
-            case CONFIRM -> ConfluenceReportRequest.TestType.CONFIRM;
+            case STABILITY -> ConfluenceReportRequest.TestType.CONFIRM;
             case SOAK -> ConfluenceReportRequest.TestType.SOAK;
+            case PSU, DT -> throw new ConfluenceOperationException(
+                    "Confluence report template is not configured for test type " + loadTestType.value());
             case UNKNOWN -> throw new ConfluenceOperationException("Test type for test " + testUuid + " is not defined");
         };
         return new TestContext(loadTest, reportType);

@@ -19,10 +19,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -189,6 +191,27 @@ class VictoriaMetricsServiceTest {
         assertThat(client.invocationCount()).isZero();
     }
 
+    @Test
+    void detectAndPersistActiveTestsPersistsOnlyIntervalsWithinGraceWindow() throws Exception {
+        Instant rangeStart = toInstant("2024-01-05 10:00:00");
+        Instant rangeEnd = toInstant("2024-01-05 10:20:00");
+
+        configurationProvider.put(key("tests-search-query"), "intensity_expr");
+        client.setResponse(intensityPayload(
+                rangeStart,
+                new double[] {0, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 7, 7, 7, 7, 7, 7, 7, 0},
+                60));
+
+        List<LoadTest> detected = service.detectAndPersistActiveTests(rangeStart, rangeEnd, Duration.ofMinutes(3));
+
+        assertThat(detected).hasSize(1);
+        assertThat(detected.get(0).start()).isEqualTo(rangeStart.plusSeconds(13 * 60));
+        assertThat(detected.get(0).end()).isEqualTo(rangeStart.plusSeconds(19 * 60));
+        assertThat(loadTestRepository.getSavedTests()).hasSize(1);
+        assertThat(loadTestRepository.getSavedTests().get(0).start()).isEqualTo(rangeStart.plusSeconds(13 * 60));
+        assertThat(loadTestRepository.getSavedTests().get(0).end()).isEqualTo(rangeStart.plusSeconds(19 * 60));
+    }
+
     private Instant toInstant(String value) {
         LocalDateTime localDateTime = LocalDateTime.parse(value, DASHBOARD_FORMAT);
         return localDateTime.atZone(MOSCOW_ZONE).toInstant();
@@ -344,6 +367,7 @@ class VictoriaMetricsServiceTest {
     private static final class StubLoadTestRepository extends LoadTestRepository {
 
         private UUID idToReturn = UUID.randomUUID();
+        private final List<LoadTest> savedTests = new ArrayList<>();
         private Instant lastStart;
         private Instant lastEnd;
         private LoadTestType lastType;
@@ -368,12 +392,18 @@ class VictoriaMetricsServiceTest {
             return lastType;
         }
 
+        List<LoadTest> getSavedTests() {
+            return List.copyOf(savedTests);
+        }
+
         @Override
         public LoadTest saveOrUpdate(Instant start, Instant end, LoadTestType type) {
             lastStart = start;
             lastEnd = end;
             lastType = type;
-            return new LoadTest(idToReturn, start, end, type, null);
+            LoadTest saved = new LoadTest(idToReturn, start, end, type, null);
+            savedTests.add(saved);
+            return saved;
         }
 
         @Override
