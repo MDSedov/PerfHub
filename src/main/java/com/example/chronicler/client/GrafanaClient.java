@@ -129,7 +129,9 @@ public class GrafanaClient {
                 .queryParam("tz", timezone);
         appendVariables(builder, variables);
 
-        URI uri = builder.build(true).toUri();
+        // Кодируем query-параметры (включая var-*) как обычные значения, чтобы спецсимволы
+        // в template variables не ломали URL и не приводили к 400 от Grafana.
+        URI uri = builder.build().encode().toUri();
         log.info(
                 "Requesting Grafana renderer for dashboard '{}' ({}) panel {} from {} to {}",
                 dashboardSlug,
