@@ -15,9 +15,13 @@ import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
 import com.example.chronicler.repository.GrafanaDashboardRepository;
+import com.example.chronicler.repository.GrafanaDashboardVariableRepository;
 import com.example.chronicler.repository.LoadTestRepository;
 import com.example.chronicler.repository.TestTypeRepository;
 import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
+import com.example.chronicler.repository.model.GrafanaDashboardVariableRecord;
+import com.example.chronicler.repository.model.GrafanaVariableOptionRecord;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,6 +41,7 @@ class GrafanaServiceTest {
     private StubLoadTestRepository loadTestRepository;
     private StubGrafanaDashboardRepository grafanaDashboardRepository;
     private StubGrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
+    private StubGrafanaDashboardVariableRepository grafanaDashboardVariableRepository;
     private GrafanaService grafanaService;
 
     @BeforeEach
@@ -46,12 +51,14 @@ class GrafanaServiceTest {
         loadTestRepository = new StubLoadTestRepository();
         grafanaDashboardRepository = new StubGrafanaDashboardRepository();
         grafanaDashboardPanelRepository = new StubGrafanaDashboardPanelRepository();
+        grafanaDashboardVariableRepository = new StubGrafanaDashboardVariableRepository();
         grafanaService = new GrafanaService(
                 grafanaClient,
                 grafanaRenderCache,
                 loadTestRepository,
                 grafanaDashboardRepository,
-                grafanaDashboardPanelRepository);
+                grafanaDashboardPanelRepository,
+                new GrafanaVariableService(grafanaDashboardVariableRepository));
     }
 
     @Test
@@ -162,11 +169,39 @@ class GrafanaServiceTest {
         assertThat(response.dashboards().get(0).panels().get(0).imageBase64()).isEqualTo("CQ==");
     }
 
+    @Test
+    void renderPanelsPassesConfiguredVariablesToGrafanaRenderer() {
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "slug", List.of(10), true)));
+        grafanaDashboardVariableRepository.setVariables(
+                "uid",
+                List.of(new GrafanaDashboardVariableRecord(
+                        "uid",
+                        "service",
+                        "service",
+                        "query",
+                        "backend",
+                        "frontend",
+                        List.of(new GrafanaVariableOptionRecord("frontend", "frontend", true)))));
+        grafanaClient.setRenderedPanel(10, new byte[] {5});
+        grafanaClient.setPanelMetadata(10, new GrafanaPanelMetadata("Panel 10", ""));
+
+        grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
+
+        assertThat(grafanaClient.renderVariables(10)).containsEntry("service", "frontend");
+    }
+
     private static final class StubGrafanaClient extends GrafanaClient {
 
         private final Map<Integer, byte[]> rendered = new HashMap<>();
         private final Map<Integer, GrafanaPanelMetadata> metadata = new HashMap<>();
         private final List<Integer> renderCalls = new ArrayList<>();
+        private final Map<Integer, Map<String, String>> renderVariablesByPanel = new HashMap<>();
         private final List<Integer> metadataFailures = new ArrayList<>();
 
         private StubGrafanaClient() {
@@ -196,6 +231,10 @@ class GrafanaServiceTest {
             return List.copyOf(renderCalls);
         }
 
+        Map<String, String> renderVariables(int panelId) {
+            return renderVariablesByPanel.getOrDefault(panelId, Map.of());
+        }
+
         void failMetadataForPanel(int panelId) {
             metadataFailures.add(panelId);
         }
@@ -204,6 +243,18 @@ class GrafanaServiceTest {
         public byte[] renderPanel(String dashboardUid, String dashboardSlug, int panelId, Instant from, Instant to) {
             renderCalls.add(panelId);
             return rendered.getOrDefault(panelId, new byte[0]);
+        }
+
+        @Override
+        public byte[] renderPanel(
+                String dashboardUid,
+                String dashboardSlug,
+                int panelId,
+                Instant from,
+                Instant to,
+                Map<String, String> variables) {
+            renderVariablesByPanel.put(panelId, variables == null ? Map.of() : Map.copyOf(variables));
+            return renderPanel(dashboardUid, dashboardSlug, panelId, from, to);
         }
 
         @Override
@@ -284,6 +335,26 @@ class GrafanaServiceTest {
         @Override
         public List<GrafanaDashboardPanelRecord> findByDashboardUid(String dashboardUid) {
             return new ArrayList<>(panelsByDashboard.getOrDefault(dashboardUid, Map.of()).values());
+        }
+    }
+
+    private static final class StubGrafanaDashboardVariableRepository extends GrafanaDashboardVariableRepository {
+
+        private final Map<String, List<com.example.chronicler.repository.model.GrafanaDashboardVariableRecord>>
+                variablesByDashboard = new HashMap<>();
+
+        private StubGrafanaDashboardVariableRepository() {
+            super(new JdbcTemplate(), new ObjectMapper());
+        }
+
+        @Override
+        public List<com.example.chronicler.repository.model.GrafanaDashboardVariableRecord> findByDashboardUid(
+                String dashboardUid) {
+            return variablesByDashboard.getOrDefault(dashboardUid, List.of());
+        }
+
+        void setVariables(String dashboardUid, List<GrafanaDashboardVariableRecord> variables) {
+            variablesByDashboard.put(dashboardUid, List.copyOf(variables));
         }
     }
 }

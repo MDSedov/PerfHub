@@ -42,18 +42,21 @@ public class GrafanaService {
     private final LoadTestRepository loadTestRepository;
     private final GrafanaDashboardRepository grafanaDashboardRepository;
     private final GrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
+    private final GrafanaVariableService grafanaVariableService;
 
     public GrafanaService(
             GrafanaClient grafanaClient,
             GrafanaRenderCache grafanaRenderCache,
             LoadTestRepository loadTestRepository,
             GrafanaDashboardRepository grafanaDashboardRepository,
-            GrafanaDashboardPanelRepository grafanaDashboardPanelRepository) {
+            GrafanaDashboardPanelRepository grafanaDashboardPanelRepository,
+            GrafanaVariableService grafanaVariableService) {
         this.grafanaClient = grafanaClient;
         this.grafanaRenderCache = grafanaRenderCache;
         this.loadTestRepository = loadTestRepository;
         this.grafanaDashboardRepository = grafanaDashboardRepository;
         this.grafanaDashboardPanelRepository = grafanaDashboardPanelRepository;
+        this.grafanaVariableService = grafanaVariableService;
     }
 
     /**
@@ -121,6 +124,7 @@ public class GrafanaService {
                     .orElseThrow(() -> new GrafanaRenderingException(
                             "Grafana dashboard " + selection.dashboardUid() + " not found"));
             String slug = requireText(dashboard.slug(), "slug");
+            Map<String, String> variableValues = grafanaVariableService.loadValues(selection.dashboardUid());
             Optional<GrafanaDashboardPanelRecord> cachedPanel =
                     grafanaDashboardPanelRepository.findByUidAndPanelId(selection.dashboardUid(), selection.panelId());
             String title = cachedPanel
@@ -128,7 +132,7 @@ public class GrafanaService {
                     .filter(StringUtils::hasText)
                     .orElse("Панель " + selection.panelId());
             byte[] imageBytes =
-                    grafanaClient.renderPanel(selection.dashboardUid(), slug, selection.panelId(), from, to);
+                    grafanaClient.renderPanel(selection.dashboardUid(), slug, selection.panelId(), from, to, variableValues);
             String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
             renderedPanels.add(new GrafanaRenderedPanel(selection.panelId(), title, "", encodedImage));
         }
@@ -155,6 +159,7 @@ public class GrafanaService {
         for (GrafanaDashboard dashboardConfig : dashboardsWithPanels) {
             String uid = requireText(dashboardConfig.uid(), "uid");
             String slug = requireText(dashboardConfig.slug(), "slug");
+            Map<String, String> variableValues = grafanaVariableService.loadValues(uid);
             List<Integer> panels = dashboardConfig.panels();
             Map<Integer, GrafanaDashboardPanelRecord> cachedPanelsById = grafanaDashboardPanelRepository
                     .findByDashboardUid(uid).stream()
@@ -169,7 +174,7 @@ public class GrafanaService {
                     throw new GrafanaRenderingException("Panel identifiers must be positive numbers");
                 }
                 ResolvedPanelMetadata metadata = resolvePanelMetadata(uid, panelId, cachedPanelsById.get(panelId));
-                byte[] imageBytes = grafanaClient.renderPanel(uid, slug, panelId, from, to);
+                byte[] imageBytes = grafanaClient.renderPanel(uid, slug, panelId, from, to, variableValues);
                 String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
                 renderedPanels.add(new GrafanaRenderedPanel(
                         panelId,
