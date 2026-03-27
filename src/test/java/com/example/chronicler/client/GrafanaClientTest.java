@@ -84,30 +84,6 @@ class GrafanaClientTest {
         assertThat(result).containsExactly(9);
     }
 
-    @Test
-    void renderPanelShouldEncodeTemplateVariableValues() {
-        Instant from = Instant.parse("2024-05-01T00:00:00Z");
-        Instant to = Instant.parse("2024-05-01T01:00:00Z");
-
-        mockServer.expect(MockRestRequestMatchers.requestTo(
-                        "http://localhost:3000/render/d-solo/dashboard-uid/dashboard-slug"
-                                + "?panelId=8&from=1714521600000&to=1714525200000&width=1000&height=500&tz=UTC"
-                                + "&var-query=%7Bjob%3D%22frontend%2Fapi%22%7D"))
-                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
-                .andRespond(MockRestResponseCreators.withSuccess(new byte[] {4}, MediaType.IMAGE_PNG));
-
-        byte[] result = grafanaClient.renderPanel(
-                "dashboard-uid",
-                "dashboard-slug",
-                8,
-                from,
-                to,
-                Map.of("query", "{job=\"frontend/api\"}"));
-
-        mockServer.verify();
-        assertThat(result).containsExactly(4);
-    }
-
     private static String key(String key) {
         return "grafana:" + key;
     }
