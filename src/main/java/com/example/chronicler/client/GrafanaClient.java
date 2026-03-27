@@ -93,6 +93,19 @@ public class GrafanaClient {
      * Выполняет рендеринг панели Grafana и возвращает изображение в виде байтового массива.
      */
     public byte[] renderPanel(String dashboardUid, String dashboardSlug, int panelId, Instant from, Instant to) {
+        return renderPanel(dashboardUid, dashboardSlug, panelId, from, to, Map.of());
+    }
+
+    /**
+     * Выполняет рендеринг панели Grafana с учетом значений template variables.
+     */
+    public byte[] renderPanel(
+            String dashboardUid,
+            String dashboardSlug,
+            int panelId,
+            Instant from,
+            Instant to,
+            Map<String, String> variables) {
         Assert.hasText(dashboardUid, "dashboardUid must not be empty");
         Assert.hasText(dashboardSlug, "dashboardSlug must not be empty");
         Assert.isTrue(panelId > 0, "panelId must be positive");
@@ -114,8 +127,11 @@ public class GrafanaClient {
                 .queryParam("width", imageWidth)
                 .queryParam("height", imageHeight)
                 .queryParam("tz", timezone);
+        appendVariables(builder, variables);
 
-        URI uri = builder.build(true).toUri();
+        // Кодируем query-параметры (включая var-*) как обычные значения, чтобы спецсимволы
+        // в template variables не ломали URL и не приводили к 400 от Grafana.
+        URI uri = builder.build().encode().toUri();
         log.info(
                 "Requesting Grafana renderer for dashboard '{}' ({}) panel {} from {} to {}",
                 dashboardSlug,
@@ -140,6 +156,21 @@ public class GrafanaClient {
         } catch (RestClientException ex) {
             throw new GrafanaClientException("Failed to render Grafana panel", ex);
         }
+    }
+
+    /**
+     * Добавляет значения переменных дашборда в query string в формате var-{name}={value}.
+     */
+    private void appendVariables(UriComponentsBuilder builder, Map<String, String> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return;
+        }
+        variables.forEach((name, value) -> {
+            if (!StringUtils.hasText(name) || !StringUtils.hasText(value)) {
+                return;
+            }
+            builder.queryParam("var-" + name, value);
+        });
     }
 
     /**
