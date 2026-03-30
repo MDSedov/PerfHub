@@ -50,14 +50,14 @@ public class NonFunctionalRequirementSettingsController {
 
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public NonFunctionalRequirementDto updateRequirement(
-            @PathVariable int id,
+            @PathVariable("id") int id,
             @Valid @RequestBody NonFunctionalRequirementRequest request) {
         NonFunctionalRequirement updated = service.update(toModel(request, id));
         return toDto(updated);
     }
 
     @DeleteMapping("/{id}")
-    public void deleteRequirement(@PathVariable int id) {
+    public void deleteRequirement(@PathVariable("id") int id) {
         service.delete(id);
     }
 

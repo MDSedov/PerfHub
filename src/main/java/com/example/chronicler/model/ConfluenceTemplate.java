@@ -6,5 +6,6 @@ public record ConfluenceTemplate(
         int id,
         String shortName,
         String fullName,
+        String reportTitle,
         String text,
         List<ConfluenceTemplateChart> charts) {}

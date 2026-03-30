@@ -18,6 +18,7 @@ public class ConfluenceTemplateRepository {
             SELECT id,
                    short_name,
                    full_name,
+                   report_title,
                    body
               FROM confluence_report_templates
              WHERE deleted_at IS NULL
@@ -28,9 +29,9 @@ public class ConfluenceTemplateRepository {
     private static final String SELECT_LEGACY_TEMPLATE_BODY_SQL =
             "SELECT text FROM confluence_templates WHERE name = ?";
     private static final String INSERT_SQL =
-            "INSERT INTO confluence_report_templates (short_name, full_name, body) VALUES (?, ?, ?)";
+            "INSERT INTO confluence_report_templates (short_name, full_name, report_title, body) VALUES (?, ?, ?, ?)";
     private static final String UPDATE_SQL =
-            "UPDATE confluence_report_templates SET short_name = ?, full_name = ?, body = ? WHERE id = ? AND deleted_at IS NULL";
+            "UPDATE confluence_report_templates SET short_name = ?, full_name = ?, report_title = ?, body = ? WHERE id = ? AND deleted_at IS NULL";
     private static final String SOFT_DELETE_SQL =
             "UPDATE confluence_report_templates SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL";
     private static final String EXISTS_ACTIVE_SHORT_NAME_SQL = """
@@ -53,6 +54,7 @@ public class ConfluenceTemplateRepository {
             rs.getInt("id"),
             rs.getString("short_name"),
             rs.getString("full_name"),
+            rs.getString("report_title"),
             rs.getString("body"),
             List.of());
 
@@ -81,14 +83,15 @@ public class ConfluenceTemplateRepository {
         return jdbcTemplate.query(SELECT_BY_SHORT_NAME_SQL, rowMapper, shortName).stream().findFirst();
     }
 
-    public int create(String shortName, String fullName, String body) {
+    public int create(String shortName, String fullName, String reportTitle, String body) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement statement =
                     connection.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS);
             statement.setString(1, shortName);
             statement.setString(2, fullName);
-            statement.setString(3, body);
+            statement.setString(3, reportTitle);
+            statement.setString(4, body);
             return statement;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -98,8 +101,8 @@ public class ConfluenceTemplateRepository {
         return key.intValue();
     }
 
-    public void update(int id, String shortName, String fullName, String body) {
-        int updated = jdbcTemplate.update(UPDATE_SQL, shortName, fullName, body, id);
+    public void update(int id, String shortName, String fullName, String reportTitle, String body) {
+        int updated = jdbcTemplate.update(UPDATE_SQL, shortName, fullName, reportTitle, body, id);
         if (updated == 0) {
             throw new IllegalArgumentException("Шаблон отчета не найден");
         }

@@ -9,6 +9,7 @@ import java.util.List;
 public record ConfluenceTemplateSaveRequest(
         @NotBlank @Size(max = 12) String shortName,
         @NotBlank String fullName,
+        @NotBlank String reportTitle,
         @NotBlank String text,
         @Valid List<TemplateChartPayload> charts) {
 

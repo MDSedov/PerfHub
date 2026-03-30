@@ -153,27 +153,91 @@
                                        maxlength="12"
                                        placeholder="До 12 символов">
                             </div>
-                            <div class="col-12 col-lg-8">
+                            <div class="col-12 col-lg-4">
                                 <label for="templateFullNameInput" class="form-label">Полное название</label>
                                 <input type="text"
                                        class="form-control"
                                        id="templateFullNameInput"
                                        placeholder="Уникальное название шаблона">
                             </div>
-                            <div class="col-12">
-                                <label for="templateTextInput" class="form-label">Тело страницы Confluence</label>
-                                <textarea id="templateTextInput"
-                                          class="form-control template-editor"
-                                          rows="12"
-                                          placeholder="Текст шаблона"></textarea>
+                            <div class="col-12 col-lg-4">
+                                <label for="templateReportTitleInput" class="form-label">Название отчета</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="templateReportTitleInput"
+                                       placeholder="Например, Отчет по релизу @release">
+                                <div class="form-text">Поддерживаются ключевые слова: @release, @config, @graphics.</div>
+                                <div class="template-placeholder-actions mt-2" data-placeholder-target="title">
+                                    <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
+                                    <button type="button" class="template-placeholder-button" data-placeholder-token="@config">@config</button>
+                                    <button type="button" class="template-placeholder-button" data-placeholder-token="@graphics">@graphics</button>
+                                </div>
                             </div>
                         </div>
+
+                        <section class="report-template-section mt-4">
+                            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                                <div>
+                                    <h6 class="test-details-section-title mb-1">Тело страницы Confluence</h6>
+                                    <p class="text-muted small mb-0">Редактор поддерживает переносы строк, заголовки, выделение, списки и выравнивание.</p>
+                                </div>
+                            </div>
+
+                            <div class="template-editor-shell">
+                                <div class="template-editor-toolbar" id="templateEditorToolbar">
+                                    <select id="templateEditorBlockFormat"
+                                            class="form-select form-select-sm template-editor-select"
+                                            aria-label="Формат текста">
+                                        <option value="p">Обычный текст</option>
+                                        <option value="h1">Заголовок H1</option>
+                                        <option value="h2">Заголовок H2</option>
+                                        <option value="h3">Заголовок H3</option>
+                                    </select>
+                                    <button type="button" class="template-editor-button" data-editor-command="bold" aria-label="Жирный">
+                                        <i class="bi bi-type-bold"></i>
+                                    </button>
+                                    <button type="button" class="template-editor-button" data-editor-command="italic" aria-label="Курсив">
+                                        <i class="bi bi-type-italic"></i>
+                                    </button>
+                                    <button type="button" class="template-editor-button" data-editor-command="underline" aria-label="Подчеркивание">
+                                        <i class="bi bi-type-underline"></i>
+                                    </button>
+                                    <button type="button" class="template-editor-button" data-editor-command="justifyLeft" aria-label="По левому краю">
+                                        <i class="bi bi-text-left"></i>
+                                    </button>
+                                    <button type="button" class="template-editor-button" data-editor-command="justifyCenter" aria-label="По центру">
+                                        <i class="bi bi-text-center"></i>
+                                    </button>
+                                    <button type="button" class="template-editor-button" data-editor-command="justifyRight" aria-label="По правому краю">
+                                        <i class="bi bi-text-right"></i>
+                                    </button>
+                                    <button type="button" class="template-editor-button" data-editor-command="insertUnorderedList" aria-label="Маркированный список">
+                                        <i class="bi bi-list-ul"></i>
+                                    </button>
+                                    <button type="button" class="template-editor-button" data-editor-command="insertOrderedList" aria-label="Нумерованный список">
+                                        <i class="bi bi-list-ol"></i>
+                                    </button>
+                                </div>
+
+                                <div id="templateTextEditor"
+                                     class="template-editor"
+                                     contenteditable="true"
+                                     data-placeholder="Текст шаблона"></div>
+                                <textarea id="templateTextInput" class="d-none" aria-hidden="true"></textarea>
+                            </div>
+
+                            <div class="template-placeholder-actions mt-3" data-placeholder-target="body">
+                                <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
+                                <button type="button" class="template-placeholder-button" data-placeholder-token="@config">@config</button>
+                                <button type="button" class="template-placeholder-button" data-placeholder-token="@graphics">@graphics</button>
+                            </div>
+                        </section>
 
                         <section class="report-template-section mt-4">
                             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
                                 <div>
                                     <h6 class="test-details-section-title mb-1">Графики отчета</h6>
-                                    <p class="text-muted small mb-0">Графики будут добавлены в отчет в указанном порядке.</p>
+                                    <p class="text-muted small mb-0">Графики будут добавлены в отчет в указанном порядке. Строки можно перетаскивать мышкой.</p>
                                 </div>
                                 <button type="button" class="btn btn-outline-success btn-sm" id="addTemplateChartButton">
                                     Добавить график
@@ -184,6 +248,7 @@
                                 <table class="table align-middle tests-table mb-0 template-charts-table">
                                     <thead>
                                     <tr>
+                                        <th scope="col">Порядок</th>
                                         <th scope="col">Название графика</th>
                                         <th scope="col">Код графика</th>
                                         <th scope="col" class="text-center">Удалить</th>
@@ -232,6 +297,10 @@
     const templateDetailsModalLabel = document.getElementById('templateDetailsModalLabel');
     const templateShortNameInput = document.getElementById('templateShortNameInput');
     const templateFullNameInput = document.getElementById('templateFullNameInput');
+    const templateReportTitleInput = document.getElementById('templateReportTitleInput');
+    const templateEditorToolbar = document.getElementById('templateEditorToolbar');
+    const templateEditorBlockFormat = document.getElementById('templateEditorBlockFormat');
+    const templateTextEditor = document.getElementById('templateTextEditor');
     const templateTextInput = document.getElementById('templateTextInput');
     const templateChartsTableBody = document.getElementById('templateChartsTableBody');
     const addTemplateChartButton = document.getElementById('addTemplateChartButton');
@@ -245,12 +314,14 @@
     let isSaving = false;
     let isDeleting = false;
     let templateDetailsModalBackdrop = null;
+    let draggedChartIndex = null;
 
     function createEmptyTemplateDraft() {
         return {
             id: null,
             shortName: '',
             fullName: '',
+            reportTitle: '',
             text: '',
             charts: []
         };
@@ -261,6 +332,7 @@
             id: template?.id ?? null,
             shortName: template?.shortName ?? '',
             fullName: template?.fullName ?? '',
+            reportTitle: template?.reportTitle ?? '',
             text: template?.text ?? '',
             charts: Array.isArray(template?.charts)
                 ? template.charts.map(chart => ({
@@ -287,10 +359,10 @@
     }
 
     function resetTemplateModalState() {
-        clearTemplateModalAlert();
         activeTemplateDraft = createEmptyTemplateDraft();
         isSaving = false;
         isDeleting = false;
+        draggedChartIndex = null;
         updateTemplateModalActions();
     }
 
@@ -350,10 +422,6 @@
 
     function setTemplateModalAlert(message, type = 'danger') {
         showToast(message, type);
-    }
-
-    function clearTemplateModalAlert() {
-        // Modal messages are shown as toasts only.
     }
 
     function removeToast(toast) {
@@ -429,13 +497,143 @@
 
     function parsePanelOptionValue(value) {
         if (!value || !value.includes(':')) {
-            return { dashboardUid: '', panelId: '' };
+            return {dashboardUid: '', panelId: ''};
         }
         const [dashboardUid, panelId] = value.split(':');
         return {
             dashboardUid,
             panelId: panelId ? Number(panelId) : ''
         };
+    }
+
+    function syncTemplateTextInput() {
+        if (!templateTextInput || !templateTextEditor) {
+            return '';
+        }
+        const html = templateTextEditor.innerHTML.trim();
+        templateTextInput.value = html;
+        return html;
+    }
+
+    function setTemplateEditorHtml(html) {
+        if (!templateTextEditor) {
+            return;
+        }
+        const normalized = typeof html === 'string' ? html.trim() : '';
+        templateTextEditor.innerHTML = normalized;
+        syncTemplateTextInput();
+    }
+
+    function isTemplateHtmlBlank(html) {
+        if (!html) {
+            return true;
+        }
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        const textContent = (container.textContent || '').replace(/\u00a0/g, ' ').trim();
+        const hasMedia = container.querySelector('img, table') !== null;
+        return textContent === '' && !hasMedia;
+    }
+
+    function getTemplateEditorHtml() {
+        const html = syncTemplateTextInput();
+        return isTemplateHtmlBlank(html) ? '' : html;
+    }
+
+    function focusTemplateEditor() {
+        if (!templateTextEditor) {
+            return;
+        }
+        templateTextEditor.focus();
+    }
+
+    function applyTemplateEditorCommand(command, value = null) {
+        if (!templateTextEditor || !document.execCommand) {
+            return;
+        }
+        focusTemplateEditor();
+        if (command === 'formatBlock' && value) {
+            document.execCommand(command, false, `<${value}>`);
+        } else {
+            document.execCommand(command, false, value);
+        }
+        activeTemplateDraft.text = getTemplateEditorHtml();
+    }
+
+    function insertTextIntoInput(input, token) {
+        if (!input) {
+            return;
+        }
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? input.value.length;
+        input.value = input.value.slice(0, start) + token + input.value.slice(end);
+        input.focus();
+        input.setSelectionRange(start + token.length, start + token.length);
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+    }
+
+    function selectionInsideEditor() {
+        if (!templateTextEditor) {
+            return false;
+        }
+        const selection = window.getSelection();
+        return Boolean(selection?.anchorNode) && templateTextEditor.contains(selection.anchorNode);
+    }
+
+    function moveCaretToEditorEnd() {
+        if (!templateTextEditor) {
+            return;
+        }
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(templateTextEditor);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+
+    function insertTextIntoEditor(token) {
+        if (!templateTextEditor) {
+            return;
+        }
+        focusTemplateEditor();
+        const selection = window.getSelection();
+        if (!selectionInsideEditor()) {
+            moveCaretToEditorEnd();
+        }
+        const range = selection.rangeCount ? selection.getRangeAt(0) : document.createRange();
+        range.deleteContents();
+        const textNode = document.createTextNode(token);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        activeTemplateDraft.text = getTemplateEditorHtml();
+    }
+
+    function moveTemplateChart(fromIndex, toIndex, position) {
+        if (!Array.isArray(activeTemplateDraft.charts)) {
+            return;
+        }
+        if (fromIndex === toIndex || fromIndex == null || toIndex == null) {
+            return;
+        }
+        const charts = activeTemplateDraft.charts;
+        const [movedChart] = charts.splice(fromIndex, 1);
+        if (!movedChart) {
+            return;
+        }
+        let targetIndex = toIndex;
+        if (fromIndex < toIndex) {
+            targetIndex -= 1;
+        }
+        if (position === 'after') {
+            targetIndex += 1;
+        }
+        targetIndex = Math.max(0, Math.min(targetIndex, charts.length));
+        charts.splice(targetIndex, 0, movedChart);
+        renderTemplateChartsTable();
     }
 
     function renderTemplatesTable() {
@@ -505,7 +703,7 @@
         if (!Array.isArray(activeTemplateDraft.charts) || activeTemplateDraft.charts.length === 0) {
             const emptyRow = document.createElement('tr');
             const emptyCell = document.createElement('td');
-            emptyCell.colSpan = 3;
+            emptyCell.colSpan = 4;
             emptyCell.className = 'text-muted py-3';
             emptyCell.textContent = 'Графики для шаблона пока не добавлены.';
             emptyRow.appendChild(emptyCell);
@@ -515,6 +713,54 @@
 
         activeTemplateDraft.charts.forEach((chart, index) => {
             const row = document.createElement('tr');
+            row.className = 'template-chart-row';
+            row.draggable = true;
+
+            row.addEventListener('dragstart', event => {
+                draggedChartIndex = index;
+                row.classList.add('dragging');
+                if (event.dataTransfer) {
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', String(index));
+                }
+            });
+
+            row.addEventListener('dragover', event => {
+                if (draggedChartIndex == null || draggedChartIndex === index) {
+                    return;
+                }
+                event.preventDefault();
+                const rect = row.getBoundingClientRect();
+                const dropAfter = event.clientY - rect.top > rect.height / 2;
+                row.dataset.dropPosition = dropAfter ? 'after' : 'before';
+                row.classList.toggle('drag-over-top', !dropAfter);
+                row.classList.toggle('drag-over-bottom', dropAfter);
+            });
+
+            row.addEventListener('dragleave', () => {
+                row.classList.remove('drag-over-top', 'drag-over-bottom');
+                delete row.dataset.dropPosition;
+            });
+
+            row.addEventListener('drop', event => {
+                event.preventDefault();
+                const position = row.dataset.dropPosition === 'after' ? 'after' : 'before';
+                moveTemplateChart(draggedChartIndex, index, position);
+            });
+
+            row.addEventListener('dragend', () => {
+                draggedChartIndex = null;
+                templateChartsTableBody.querySelectorAll('.template-chart-row').forEach(item => {
+                    item.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom');
+                    delete item.dataset.dropPosition;
+                });
+            });
+
+            const orderCell = document.createElement('td');
+            const orderWrapper = document.createElement('div');
+            orderWrapper.className = 'template-chart-order';
+            orderWrapper.innerHTML = `<i class="bi bi-grip-vertical"></i><span>${index + 1}</span>`;
+            orderCell.appendChild(orderWrapper);
 
             const titleCell = document.createElement('td');
             const titleInput = document.createElement('input');
@@ -547,6 +793,7 @@
             if (chart.dashboardUid && chart.panelId) {
                 codeSelect.value = normalizePanelOptionValue(chart.dashboardUid, chart.panelId);
             }
+
             codeSelect.addEventListener('change', () => {
                 const selected = parsePanelOptionValue(codeSelect.value);
                 activeTemplateDraft.charts[index].dashboardUid = selected.dashboardUid;
@@ -567,6 +814,7 @@
             });
             removeCell.appendChild(removeButton);
 
+            row.appendChild(orderCell);
             row.appendChild(titleCell);
             row.appendChild(codeCell);
             row.appendChild(removeCell);
@@ -580,21 +828,23 @@
             : 'Новый шаблон';
         templateShortNameInput.value = activeTemplateDraft.shortName ?? '';
         templateFullNameInput.value = activeTemplateDraft.fullName ?? '';
-        templateTextInput.value = activeTemplateDraft.text ?? '';
+        templateReportTitleInput.value = activeTemplateDraft.reportTitle ?? '';
+        setTemplateEditorHtml(activeTemplateDraft.text ?? '');
+        if (templateEditorBlockFormat) {
+            templateEditorBlockFormat.value = 'p';
+        }
         renderTemplateChartsTable();
         updateTemplateModalActions();
     }
 
     function openTemplateDetailsModal(template) {
         activeTemplateDraft = cloneTemplate(template);
-        clearTemplateModalAlert();
         renderTemplateModal();
         showTemplateDetailsModal();
     }
 
     function openNewTemplateModal() {
         activeTemplateDraft = createEmptyTemplateDraft();
-        clearTemplateModalAlert();
         renderTemplateModal();
         showTemplateDetailsModal();
     }
@@ -602,7 +852,8 @@
     function buildTemplatePayload() {
         const shortName = templateShortNameInput.value.trim();
         const fullName = templateFullNameInput.value.trim();
-        const text = templateTextInput.value;
+        const reportTitle = templateReportTitleInput.value.trim();
+        const text = getTemplateEditorHtml();
         const charts = Array.isArray(activeTemplateDraft.charts)
             ? activeTemplateDraft.charts.map(chart => ({
                 title: (chart?.title ?? '').trim(),
@@ -620,8 +871,11 @@
         if (!fullName) {
             throw new Error('Укажите полное название шаблона');
         }
-        if (!text.trim()) {
-            throw new Error('Заполните текст шаблона');
+        if (!reportTitle) {
+            throw new Error('Укажите название отчета');
+        }
+        if (!text || isTemplateHtmlBlank(text)) {
+            throw new Error('Заполните тело страницы Confluence');
         }
 
         charts.forEach(chart => {
@@ -636,6 +890,7 @@
         return {
             shortName,
             fullName,
+            reportTitle,
             text,
             charts
         };
@@ -692,7 +947,6 @@
         }
 
         isSaving = true;
-        clearTemplateModalAlert();
         updateTemplateModalActions();
 
         const isNewTemplate = !activeTemplateDraft.id;
@@ -733,7 +987,6 @@
         }
 
         isDeleting = true;
-        clearTemplateModalAlert();
         updateTemplateModalActions();
 
         try {
@@ -770,11 +1023,51 @@
         });
     }
 
-    if (templateTextInput) {
-        templateTextInput.addEventListener('input', () => {
-            activeTemplateDraft.text = templateTextInput.value;
+    if (templateReportTitleInput) {
+        templateReportTitleInput.addEventListener('input', () => {
+            activeTemplateDraft.reportTitle = templateReportTitleInput.value;
         });
     }
+
+    if (templateTextEditor) {
+        templateTextEditor.addEventListener('input', () => {
+            activeTemplateDraft.text = getTemplateEditorHtml();
+        });
+    }
+
+    if (templateEditorToolbar) {
+        templateEditorToolbar.addEventListener('click', event => {
+            const button = event.target.closest('[data-editor-command]');
+            if (!button) {
+                return;
+            }
+            applyTemplateEditorCommand(button.dataset.editorCommand);
+        });
+    }
+
+    if (templateEditorBlockFormat) {
+        templateEditorBlockFormat.addEventListener('change', () => {
+            applyTemplateEditorCommand('formatBlock', templateEditorBlockFormat.value || 'p');
+        });
+    }
+
+    document.querySelectorAll('.template-placeholder-actions').forEach(container => {
+        container.addEventListener('click', event => {
+            const button = event.target.closest('.template-placeholder-button');
+            if (!button) {
+                return;
+            }
+            const token = button.dataset.placeholderToken ?? '';
+            if (!token) {
+                return;
+            }
+            if (container.dataset.placeholderTarget === 'title') {
+                insertTextIntoInput(templateReportTitleInput, token);
+            } else {
+                insertTextIntoEditor(token);
+            }
+        });
+    });
 
     if (addTemplateChartButton) {
         addTemplateChartButton.addEventListener('click', () => {

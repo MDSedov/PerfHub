@@ -1817,9 +1817,90 @@ body {
             padding: 0;
         }
 
+        .template-editor-shell {
+            border: 1px solid #d6e6dd;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        .template-editor-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            padding: 0.8rem;
+            border-bottom: 1px solid #e5efe8;
+            background: #f7faf8;
+        }
+
+        .template-editor-select {
+            max-width: 190px;
+        }
+
+        .template-editor-button {
+            border: 1px solid #d6e6dd;
+            background: #ffffff;
+            color: #20533a;
+            min-width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+        }
+
+        .template-editor-button:hover,
+        .template-editor-button:focus-visible {
+            border-color: #8cc3a3;
+            background: #f4fbf7;
+            color: #0b6b3c;
+        }
+
         .template-editor {
-            font-family: "SF Mono", "JetBrains Mono", "Courier New", monospace;
-            min-height: 280px;
+            min-height: 320px;
+            padding: 1rem 1.1rem;
+            outline: none;
+            line-height: 1.55;
+            color: #1f2b24;
+            background: #ffffff;
+        }
+
+        .template-editor:empty::before {
+            content: attr(data-placeholder);
+            color: #93a39b;
+        }
+
+        .template-editor h1,
+        .template-editor h2,
+        .template-editor h3,
+        .template-editor p,
+        .template-editor ul,
+        .template-editor ol {
+            margin-bottom: 0.75rem;
+        }
+
+        .template-placeholder-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .template-placeholder-button {
+            border: 1px dashed #b8cfc0;
+            background: #f7faf8;
+            color: #20533a;
+            border-radius: 999px;
+            padding: 0.3rem 0.75rem;
+            font-size: 0.85rem;
+            line-height: 1.2;
+        }
+
+        .template-placeholder-button:hover,
+        .template-placeholder-button:focus-visible {
+            background: #eef8f2;
+            border-color: #88b89a;
         }
 
         .template-action-button {
@@ -1888,6 +1969,32 @@ body {
 
         .template-charts-table td {
             vertical-align: top;
+        }
+
+        .template-chart-order {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            color: #5c7065;
+            font-weight: 600;
+            cursor: grab;
+            user-select: none;
+        }
+
+        .template-chart-order i {
+            font-size: 1rem;
+        }
+
+        .template-chart-row.dragging {
+            opacity: 0.55;
+        }
+
+        .template-chart-row.drag-over-top {
+            box-shadow: inset 0 3px 0 #3b8f61;
+        }
+
+        .template-chart-row.drag-over-bottom {
+            box-shadow: inset 0 -3px 0 #3b8f61;
         }
 
         .toast-container {

@@ -80,7 +80,11 @@ public class ConfluenceTemplateSettingsService {
     public ConfluenceTemplate createTemplate(TemplateSaveCommand command) {
         SanitizedTemplate sanitized = sanitize(command);
         validateUniqueNames(sanitized.shortName(), sanitized.fullName(), null);
-        int templateId = templateRepository.create(sanitized.shortName(), sanitized.fullName(), sanitized.text());
+        int templateId = templateRepository.create(
+                sanitized.shortName(),
+                sanitized.fullName(),
+                sanitized.reportTitle(),
+                sanitized.text());
         chartRepository.replaceForTemplate(templateId, toCharts(templateId, sanitized.charts()));
         return getActiveTemplate(templateId);
     }
@@ -91,7 +95,12 @@ public class ConfluenceTemplateSettingsService {
                 .orElseThrow(() -> new IllegalArgumentException("Шаблон отчета не найден"));
         SanitizedTemplate sanitized = sanitize(command);
         validateUniqueNames(sanitized.shortName(), sanitized.fullName(), id);
-        templateRepository.update(id, sanitized.shortName(), sanitized.fullName(), sanitized.text());
+        templateRepository.update(
+                id,
+                sanitized.shortName(),
+                sanitized.fullName(),
+                sanitized.reportTitle(),
+                sanitized.text());
         chartRepository.replaceForTemplate(id, toCharts(id, sanitized.charts()));
         return getActiveTemplate(id);
     }
@@ -106,6 +115,7 @@ public class ConfluenceTemplateSettingsService {
                 template.id(),
                 template.shortName(),
                 template.fullName(),
+                template.reportTitle(),
                 template.text(),
                 charts == null ? List.of() : List.copyOf(charts));
     }
@@ -139,6 +149,7 @@ public class ConfluenceTemplateSettingsService {
 
         String shortName = StringUtils.trimWhitespace(command.shortName());
         String fullName = StringUtils.trimWhitespace(command.fullName());
+        String reportTitle = StringUtils.trimWhitespace(command.reportTitle());
         if (!StringUtils.hasText(shortName)) {
             throw new IllegalArgumentException("Короткое имя шаблона обязательно");
         }
@@ -147,6 +158,9 @@ public class ConfluenceTemplateSettingsService {
         }
         if (!StringUtils.hasText(fullName)) {
             throw new IllegalArgumentException("Полное название шаблона обязательно");
+        }
+        if (!StringUtils.hasText(reportTitle)) {
+            throw new IllegalArgumentException("Название отчета обязательно");
         }
         if (!StringUtils.hasText(command.text())) {
             throw new IllegalArgumentException("Текст шаблона обязателен");
@@ -173,7 +187,7 @@ public class ConfluenceTemplateSettingsService {
             charts.add(new SanitizedChart(title, dashboardUid, chart.panelId(), index));
         }
 
-        return new SanitizedTemplate(shortName, fullName, command.text(), List.copyOf(charts));
+        return new SanitizedTemplate(shortName, fullName, reportTitle, command.text(), List.copyOf(charts));
     }
 
     private void validateUniqueNames(String shortName, String fullName, Integer templateId) {
@@ -200,6 +214,7 @@ public class ConfluenceTemplateSettingsService {
     public record TemplateSaveCommand(
             String shortName,
             String fullName,
+            String reportTitle,
             String text,
             List<TemplateChartCommand> charts) {}
 
@@ -215,6 +230,7 @@ public class ConfluenceTemplateSettingsService {
     private record SanitizedTemplate(
             String shortName,
             String fullName,
+            String reportTitle,
             String text,
             List<SanitizedChart> charts) {}
 

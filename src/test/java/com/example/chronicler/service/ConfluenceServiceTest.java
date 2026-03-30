@@ -21,6 +21,7 @@ import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceOperationException;
 import com.example.chronicler.model.ConfluenceTemplate;
 import com.example.chronicler.model.ConfluenceTemplateChart;
+import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.LoadTestRepository;
@@ -105,11 +106,13 @@ class ConfluenceServiceTest {
                 101,
                 "max",
                 "Пользовательский MAX отчет",
+                "Пользовательский MAX отчет",
                 "<p>Max template</p>",
                 List.of(new ConfluenceTemplateChart(1L, 101, "CPU", "uid-1", 7, 0)));
         ConfluenceTemplate secondTemplate = new ConfluenceTemplate(
                 202,
                 "soak",
+                "Пользовательский SOAK отчет",
                 "Пользовательский SOAK отчет",
                 "<p>Soak template</p>",
                 List.of(new ConfluenceTemplateChart(2L, 202, "Latency", "uid-2", 9, 0)));
@@ -220,7 +223,7 @@ class ConfluenceServiceTest {
         when(loadTestRepository.findById(testUuid))
                 .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.MAX, null)));
         when(confluenceTemplateSettingsService.getActiveTemplate(101))
-                .thenReturn(new ConfluenceTemplate(101, "max", "Max Report", "<p>Body</p>", List.of()));
+                .thenReturn(new ConfluenceTemplate(101, "max", "Max Report", "Max Report", "<p>Body</p>", List.of()));
 
         ConfluencePage parentPage = new ConfluencePage("parent", "page", "Parent", 2, "", null);
         when(confluenceClient.getPage(credentials, "parent")).thenReturn(parentPage);
@@ -247,6 +250,82 @@ class ConfluenceServiceTest {
         assertThatThrownBy(() -> confluenceService.createReports(credentials, request))
                 .isInstanceOf(ConfluenceOperationException.class)
                 .hasMessage("Confluence report template is not configured for test type psu");
+    }
+
+    @Test
+    void createReportsReplacesTemplateKeywordsInTitleAndBody() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        UUID testUuid = UUID.fromString("99999999-2222-3333-4444-555555555555");
+        ConfluenceReportRequest request = new ConfluenceReportRequest(
+                "123",
+                null,
+                List.of(new ConfluenceReportRequest.ReportItem(testUuid, 301)));
+
+        Instant start = Instant.parse("2024-02-01T00:00:00Z");
+        Instant end = Instant.parse("2024-02-01T02:00:00Z");
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.MAX, null)));
+
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                301,
+                "max",
+                "Шаблон MAX",
+                "Отчет по релизу @release",
+                "<p>@release</p><div>@config</div><section>@graphics</section>",
+                List.of(new ConfluenceTemplateChart(11L, 301, "CPU", "uid-1", 7, 0)));
+        when(confluenceTemplateSettingsService.getActiveTemplate(301)).thenReturn(template);
+
+        when(kubernetesConfigurationService.getConfigurations(testUuid))
+                .thenReturn(List.of(new KubernetesConfiguration(
+                        1L,
+                        testUuid,
+                        "prod",
+                        "dropapp",
+                        "pod-1",
+                        "container-1",
+                        "1.0.0",
+                        "24.1.7",
+                        "100m",
+                        "200m",
+                        "256Mi",
+                        "512Mi",
+                        Instant.parse("2024-02-01T02:30:00Z"))));
+
+        byte[] image = new byte[] {1, 9, 7};
+        GrafanaRenderedPanel panel = new GrafanaRenderedPanel(
+                7, "CPU", "", Base64.getEncoder().encodeToString(image));
+        when(grafanaService.renderSelectedPanels(
+                        start,
+                        end,
+                        List.of(new GrafanaPanelSelection("uid-1", 7))))
+                .thenReturn(List.of(panel));
+
+        ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
+        ConfluencePage createdPage = new ConfluencePage(
+                "555", "page", "Отчет по релизу 24.1.7", 1, template.text(), "SPACE");
+        when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+        when(confluenceClient.createChildPage(
+                        credentials,
+                        "123",
+                        "SPACE",
+                        "Отчет по релизу 24.1.7",
+                        template.text()))
+                .thenReturn(createdPage);
+        when(confluenceClient.uploadAttachment(eq(credentials), eq("555"), anyString(), eq(image)))
+                .thenReturn("grafana-panel-7.png");
+
+        confluenceService.createReports(credentials, request);
+
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(confluenceClient).updatePage(eq(credentials), eq(createdPage), bodyCaptor.capture());
+        String body = bodyCaptor.getValue();
+        assertThat(body).contains("<p>24.1.7</p>");
+        assertThat(body).contains("<h2>Конфигурация DropApp</h2>");
+        assertThat(body).contains("<td>24.1.7</td>");
+        assertThat(body).contains("<h3>CPU</h3>");
+        assertThat(body).doesNotContain("@release");
+        assertThat(body).doesNotContain("@config");
+        assertThat(body).doesNotContain("@graphics");
     }
 
     @Test

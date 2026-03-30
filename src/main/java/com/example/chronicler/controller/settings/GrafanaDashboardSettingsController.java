@@ -49,7 +49,7 @@ public class GrafanaDashboardSettingsController {
 
     @PutMapping(path = "/{uid}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public GrafanaDashboardDto updateDashboard(
-            @PathVariable String uid,
+            @PathVariable("uid") String uid,
             @Valid @RequestBody GrafanaDashboardUpdateRequest request) {
         GrafanaDashboard dashboard = service.update(
                 uid,
@@ -62,7 +62,7 @@ public class GrafanaDashboardSettingsController {
     }
 
     @DeleteMapping("/{uid}")
-    public void deleteDashboard(@PathVariable String uid) {
+    public void deleteDashboard(@PathVariable("uid") String uid) {
         service.delete(uid);
     }
 

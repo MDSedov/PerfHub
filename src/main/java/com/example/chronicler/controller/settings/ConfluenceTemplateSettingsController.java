@@ -59,13 +59,13 @@ public class ConfluenceTemplateSettingsController {
 
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ConfluenceTemplateDto updateTemplate(
-            @PathVariable int id,
+            @PathVariable("id") int id,
             @Valid @RequestBody ConfluenceTemplateSaveRequest request) {
         return toDto(settingsService.updateTemplate(id, toCommand(request)), buildPanelCodeMap());
     }
 
     @DeleteMapping("/{id}")
-    public void deleteTemplate(@PathVariable int id) {
+    public void deleteTemplate(@PathVariable("id") int id) {
         settingsService.deleteTemplate(id);
     }
 
@@ -79,6 +79,7 @@ public class ConfluenceTemplateSettingsController {
                 template.id(),
                 template.shortName(),
                 template.fullName(),
+                template.reportTitle(),
                 template.text(),
                 charts);
     }
@@ -117,6 +118,7 @@ public class ConfluenceTemplateSettingsController {
         return new ConfluenceTemplateSettingsService.TemplateSaveCommand(
                 request.shortName(),
                 request.fullName(),
+                request.reportTitle(),
                 request.text(),
                 charts);
     }

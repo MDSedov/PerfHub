@@ -15,6 +15,7 @@ import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.LoadTestRepository;
+import com.example.chronicler.util.ReleaseVersionUtils;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -133,6 +134,8 @@ public class ConfluenceService {
             ConfluenceTemplate template) {
         UUID testUuid = loadTest.id();
         List<ConfluenceTemplateChart> templateCharts = template.charts() == null ? List.of() : template.charts();
+        List<KubernetesConfiguration> configurations = kubernetesConfigurationService.getConfigurations(testUuid);
+        String releaseValue = resolveReleaseValue(configurations);
         List<GrafanaRenderedPanel> renderedPanels = grafanaService.renderSelectedPanels(
                 loadTest.start(),
                 loadTest.end(),
@@ -143,17 +146,14 @@ public class ConfluenceService {
             throw new ConfluenceOperationException("Не удалось подготовить все графики для выбранного шаблона");
         }
 
+        String configurationSection = buildConfigurationSection(configurations);
+        String pageTitle = buildReportTitle(template, releaseValue, !configurations.isEmpty(), !templateCharts.isEmpty());
         String templateBody = template.text();
         ConfluencePage reportPage = confluenceClient.createChildPage(
-                credentials, parentPageId, spaceKey, template.fullName(), templateBody);
-
-        StringBuilder updatedBody = new StringBuilder(getSafeBody(templateBody));
-        if (updatedBody.length() > 0) {
-            updatedBody.append("\n");
-        }
+                credentials, parentPageId, spaceKey, pageTitle, templateBody);
 
         List<String> attachmentNames = new ArrayList<>();
-        appendConfigurationSection(updatedBody, testUuid);
+        List<RenderedChartAttachment> chartAttachments = new ArrayList<>();
         for (int index = 0; index < templateCharts.size(); index++) {
             ConfluenceTemplateChart chart = templateCharts.get(index);
             GrafanaRenderedPanel panel = renderedPanels.get(index);
@@ -161,10 +161,15 @@ public class ConfluenceService {
             String attachmentName = generateAttachmentName(panel);
             confluenceClient.uploadAttachment(credentials, reportPage.id(), attachmentName, imageBytes);
             attachmentNames.add(attachmentName);
-            appendPanelToBody(updatedBody, chart.title(), attachmentName);
+            chartAttachments.add(new RenderedChartAttachment(chart.title(), attachmentName));
         }
 
-        confluenceClient.updatePage(credentials, reportPage, updatedBody.toString());
+        String updatedBody = buildReportBody(
+                template.text(),
+                releaseValue,
+                configurationSection,
+                buildChartsSection(chartAttachments));
+        confluenceClient.updatePage(credentials, reportPage, updatedBody);
 
         return new ConfluenceReportResponse.ReportPage(
                 testUuid, reportPage.id(), List.copyOf(attachmentNames));
@@ -267,12 +272,12 @@ public class ConfluenceService {
                 .append("\" /></ac:image></p>");
     }
 
-    private void appendConfigurationSection(StringBuilder bodyBuilder, UUID testUuid) {
-        List<KubernetesConfiguration> configurations = kubernetesConfigurationService.getConfigurations(testUuid);
+    private String buildConfigurationSection(List<KubernetesConfiguration> configurations) {
+        StringBuilder bodyBuilder = new StringBuilder();
         bodyBuilder.append("<h2>Конфигурация DropApp</h2>\n");
         if (configurations.isEmpty()) {
             bodyBuilder.append("<p>Конфигурация DropApp для данного теста отсутствует.</p>\n");
-            return;
+            return bodyBuilder.toString();
         }
         bodyBuilder.append("<table>\n")
                 .append("<tr>")
@@ -298,10 +303,78 @@ public class ConfluenceService {
                     .append("</tr>\n");
         }
         bodyBuilder.append("</table>\n");
+        return bodyBuilder.toString();
     }
 
     private String escape(String value) {
         return HtmlUtils.htmlEscape(value == null ? "" : value);
+    }
+
+    private String buildChartsSection(List<RenderedChartAttachment> chartAttachments) {
+        if (chartAttachments == null || chartAttachments.isEmpty()) {
+            return "";
+        }
+        StringBuilder bodyBuilder = new StringBuilder();
+        for (RenderedChartAttachment chartAttachment : chartAttachments) {
+            appendPanelToBody(bodyBuilder, chartAttachment.title(), chartAttachment.attachmentName());
+        }
+        return bodyBuilder.toString();
+    }
+
+    private String buildReportTitle(
+            ConfluenceTemplate template,
+            String releaseValue,
+            boolean hasConfiguration,
+            boolean hasCharts) {
+        String titleTemplate = StringUtils.hasText(template.reportTitle())
+                ? template.reportTitle()
+                : template.fullName();
+        String resolved = getSafeBody(titleTemplate)
+                .replace("@release", releaseValue)
+                .replace("@config", hasConfiguration ? "Конфигурация DropApp" : "—")
+                .replace("@graphics", hasCharts ? "Графики" : "—")
+                .replace('\n', ' ')
+                .replace('\r', ' ')
+                .trim()
+                .replaceAll("\\s{2,}", " ");
+        return StringUtils.hasText(resolved) ? resolved : template.fullName();
+    }
+
+    private String buildReportBody(
+            String templateBody,
+            String releaseValue,
+            String configurationSection,
+            String chartsSection) {
+        String body = getSafeBody(templateBody).replace("@release", escape(releaseValue));
+        boolean hasConfigPlaceholder = body.contains("@config");
+        boolean hasGraphicsPlaceholder = body.contains("@graphics");
+        body = body.replace("@config", configurationSection);
+        body = body.replace("@graphics", chartsSection);
+        if (!hasConfigPlaceholder) {
+            body = appendBodySection(body, configurationSection);
+        }
+        if (!hasGraphicsPlaceholder) {
+            body = appendBodySection(body, chartsSection);
+        }
+        return body;
+    }
+
+    private String appendBodySection(String body, String section) {
+        if (!StringUtils.hasText(section)) {
+            return getSafeBody(body);
+        }
+        if (!StringUtils.hasText(body)) {
+            return section;
+        }
+        return body + "\n" + section;
+    }
+
+    private String resolveReleaseValue(List<KubernetesConfiguration> configurations) {
+        List<String> releases = (configurations == null ? List.<KubernetesConfiguration>of() : configurations).stream()
+                .map(KubernetesConfiguration::release)
+                .toList();
+        String release = ReleaseVersionUtils.findMaxRelease(releases);
+        return StringUtils.hasText(release) ? release : "—";
     }
 
     /**
@@ -323,4 +396,6 @@ public class ConfluenceService {
     private record SubReportTemplate(String templateName, String pageTitle) {}
 
     private record ResolvedReportItem(LoadTest loadTest, ConfluenceTemplate template) {}
+
+    private record RenderedChartAttachment(String title, String attachmentName) {}
 }
