@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.chronicler.client.GrafanaClient;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
+import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.exception.GrafanaClientException;
@@ -196,6 +197,62 @@ class GrafanaServiceTest {
         assertThat(grafanaClient.renderVariables(10)).containsEntry("service", "frontend");
     }
 
+    @Test
+    void renderPanelsSkipsGrafanaVariablesWithoutResolvedValue() {
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "slug", List.of(11), true)));
+        grafanaDashboardVariableRepository.setVariables(
+                "uid",
+                List.of(
+                        new GrafanaDashboardVariableRecord("uid", "service", "service", "query", null, "backend", List.of()),
+                        new GrafanaDashboardVariableRecord("uid", "namespace", "namespace", "query", null, null, List.of()),
+                        new GrafanaDashboardVariableRecord("uid", "", "ignored", "query", "prod", null, List.of())));
+        grafanaClient.setRenderedPanel(11, new byte[] {7});
+        grafanaClient.setPanelMetadata(11, new GrafanaPanelMetadata("Panel 11", ""));
+
+        GrafanaRenderResponse response = grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
+
+        assertThat(response.dashboards()).hasSize(1);
+        assertThat(response.dashboards().get(0).panels()).hasSize(1);
+        assertThat(grafanaClient.renderVariables(11))
+                .containsEntry("service", "backend")
+                .doesNotContainKey("namespace")
+                .doesNotContainKey("");
+    }
+
+    @Test
+    void renderSelectedPanelsSkipsGrafanaVariablesWithoutResolvedValue() {
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "slug", List.of(12), true)));
+        grafanaDashboardPanelRepository.register(
+                new GrafanaDashboardPanelRecord("uid", "slug", "Dashboard", 12, "CPU", "up", null, false));
+        grafanaDashboardVariableRepository.setVariables(
+                "uid",
+                List.of(
+                        new GrafanaDashboardVariableRecord("uid", "service", "service", "query", null, "backend", List.of()),
+                        new GrafanaDashboardVariableRecord("uid", "namespace", "namespace", "query", null, null, List.of())));
+        grafanaClient.setRenderedPanel(12, new byte[] {8});
+
+        List<com.example.chronicler.dto.grafana.GrafanaRenderedPanel> panels = grafanaService.renderSelectedPanels(
+                from,
+                to,
+                List.of(new GrafanaPanelSelection("uid", 12)));
+
+        assertThat(panels).hasSize(1);
+        assertThat(panels.get(0).imageBase64()).isEqualTo("CA==");
+        assertThat(grafanaClient.renderVariables(12))
+                .containsEntry("service", "backend")
+                .doesNotContainKey("namespace");
+    }
+
     private static final class StubGrafanaClient extends GrafanaClient {
 
         private final Map<Integer, byte[]> rendered = new HashMap<>();
@@ -307,6 +364,13 @@ class GrafanaServiceTest {
         }
 
         @Override
+        public Optional<GrafanaDashboard> findByUid(String uid) {
+            return dashboards.stream()
+                    .filter(dashboard -> dashboard.uid().equals(uid))
+                    .findFirst();
+        }
+
+        @Override
         public GrafanaDashboard upsert(GrafanaDashboard dashboard) {
             dashboards = List.of(dashboard);
             return dashboard;
@@ -335,6 +399,11 @@ class GrafanaServiceTest {
         @Override
         public List<GrafanaDashboardPanelRecord> findByDashboardUid(String dashboardUid) {
             return new ArrayList<>(panelsByDashboard.getOrDefault(dashboardUid, Map.of()).values());
+        }
+
+        @Override
+        public Optional<GrafanaDashboardPanelRecord> findByUidAndPanelId(String dashboardUid, int panelId) {
+            return Optional.ofNullable(panelsByDashboard.getOrDefault(dashboardUid, Map.of()).get(panelId));
         }
     }
 

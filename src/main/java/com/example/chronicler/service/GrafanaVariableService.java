@@ -2,9 +2,9 @@ package com.example.chronicler.service;
 
 import com.example.chronicler.repository.GrafanaDashboardVariableRepository;
 import com.example.chronicler.repository.model.GrafanaDashboardVariableRecord;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -21,12 +21,21 @@ public class GrafanaVariableService {
         if (!StringUtils.hasText(dashboardUid)) {
             return Map.of();
         }
-        return variableRepository.findByDashboardUid(dashboardUid).stream()
-                .collect(Collectors.toMap(
-                        GrafanaDashboardVariableRecord::name,
-                        this::resolveValue,
-                        (first, second) -> first,
-                        LinkedHashMap::new));
+        Map<String, String> values = new LinkedHashMap<>();
+        for (GrafanaDashboardVariableRecord variable : variableRepository.findByDashboardUid(dashboardUid)) {
+            if (variable == null || !StringUtils.hasText(variable.name())) {
+                continue;
+            }
+            String value = resolveValue(variable);
+            if (!StringUtils.hasText(value) || values.containsKey(variable.name())) {
+                continue;
+            }
+            values.put(variable.name(), value);
+        }
+        if (values.isEmpty()) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(values);
     }
 
     public String applyVariables(String query, String dashboardUid) {
@@ -53,11 +62,16 @@ public class GrafanaVariableService {
     }
 
     private String resolveValue(GrafanaDashboardVariableRecord variable) {
-        String value = StringUtils.trimWhitespace(variable.value());
+        String value = normalizeValue(variable.value());
         if (StringUtils.hasText(value)) {
             return value;
         }
-        return StringUtils.trimWhitespace(variable.defaultValue());
+        return normalizeValue(variable.defaultValue());
+    }
+
+    private String normalizeValue(String value) {
+        String normalized = StringUtils.trimWhitespace(value);
+        return StringUtils.hasText(normalized) ? normalized : null;
     }
 
     private String replaceVariable(String query, String name, String value) {
