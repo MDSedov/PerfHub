@@ -19,6 +19,8 @@ import com.example.chronicler.util.ReleaseVersionUtils;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -28,6 +30,13 @@ import org.springframework.web.util.HtmlUtils;
 
 @Service
 public class ConfluenceService {
+
+    private static final String RELEASE_PLACEHOLDER = "@release";
+    private static final String CONFIG_PLACEHOLDER = "@config";
+    private static final String GRAPHICS_PLACEHOLDER = "@graphics";
+    private static final String PLACEHOLDER_BLOCK_TAGS =
+            "p|div|section|article|aside|blockquote|li|h1|h2|h3|h4|h5|h6";
+    private static final String PLACEHOLDER_PADDING_PATTERN = "(?:\\s|&nbsp;|&#160;|<br\\s*/?>)*";
 
     private final ConfluenceClient confluenceClient;
     private final GrafanaService grafanaService;
@@ -147,7 +156,7 @@ public class ConfluenceService {
         }
 
         String configurationSection = buildConfigurationSection(configurations);
-        String pageTitle = buildReportTitle(template, releaseValue, !configurations.isEmpty(), !templateCharts.isEmpty());
+        String pageTitle = buildReportTitle(template, releaseValue);
         String templateBody = template.text();
         ConfluencePage reportPage = confluenceClient.createChildPage(
                 credentials, parentPageId, spaceKey, pageTitle, templateBody);
@@ -323,16 +332,14 @@ public class ConfluenceService {
 
     private String buildReportTitle(
             ConfluenceTemplate template,
-            String releaseValue,
-            boolean hasConfiguration,
-            boolean hasCharts) {
+            String releaseValue) {
         String titleTemplate = StringUtils.hasText(template.reportTitle())
                 ? template.reportTitle()
                 : template.fullName();
         String resolved = getSafeBody(titleTemplate)
-                .replace("@release", releaseValue)
-                .replace("@config", hasConfiguration ? "Конфигурация DropApp" : "—")
-                .replace("@graphics", hasCharts ? "Графики" : "—")
+                .replace(RELEASE_PLACEHOLDER, releaseValue)
+                .replace(CONFIG_PLACEHOLDER, "")
+                .replace(GRAPHICS_PLACEHOLDER, "")
                 .replace('\n', ' ')
                 .replace('\r', ' ')
                 .trim()
@@ -345,28 +352,24 @@ public class ConfluenceService {
             String releaseValue,
             String configurationSection,
             String chartsSection) {
-        String body = getSafeBody(templateBody).replace("@release", escape(releaseValue));
-        boolean hasConfigPlaceholder = body.contains("@config");
-        boolean hasGraphicsPlaceholder = body.contains("@graphics");
-        body = body.replace("@config", configurationSection);
-        body = body.replace("@graphics", chartsSection);
-        if (!hasConfigPlaceholder) {
-            body = appendBodySection(body, configurationSection);
-        }
-        if (!hasGraphicsPlaceholder) {
-            body = appendBodySection(body, chartsSection);
-        }
+        String body = getSafeBody(templateBody).replace(RELEASE_PLACEHOLDER, escape(releaseValue));
+        body = replaceSectionPlaceholder(body, CONFIG_PLACEHOLDER, configurationSection);
+        body = replaceSectionPlaceholder(body, GRAPHICS_PLACEHOLDER, chartsSection);
         return body;
     }
 
-    private String appendBodySection(String body, String section) {
-        if (!StringUtils.hasText(section)) {
-            return getSafeBody(body);
-        }
-        if (!StringUtils.hasText(body)) {
-            return section;
-        }
-        return body + "\n" + section;
+    private String replaceSectionPlaceholder(String body, String placeholder, String section) {
+        String safeBody = getSafeBody(body);
+        String safeSection = getSafeBody(section);
+        Pattern wrappedPlaceholderPattern = Pattern.compile(
+                "(?is)<(" + PLACEHOLDER_BLOCK_TAGS + ")[^>]*>"
+                        + PLACEHOLDER_PADDING_PATTERN
+                        + Pattern.quote(placeholder)
+                        + PLACEHOLDER_PADDING_PATTERN
+                        + "</\\1>");
+        String replacedBody = wrappedPlaceholderPattern.matcher(safeBody)
+                .replaceAll(Matcher.quoteReplacement(safeSection));
+        return replacedBody.replace(placeholder, safeSection);
     }
 
     private String resolveReleaseValue(List<KubernetesConfiguration> configurations) {

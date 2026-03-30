@@ -180,12 +180,12 @@ class ConfluenceServiceTest {
         verify(confluenceClient).updatePage(eq(credentials), eq(firstCreatedPage), bodyCaptor.capture());
         String firstBody = bodyCaptor.getValue();
         assertThat(firstBody).contains("<p>Max template</p>");
-        assertThat(firstBody).contains("<h3>CPU</h3>");
+        assertThat(firstBody).doesNotContain("<h3>CPU</h3>");
 
         verify(confluenceClient).updatePage(eq(credentials), eq(secondCreatedPage), bodyCaptor.capture());
         String secondBody = bodyCaptor.getValue();
         assertThat(secondBody).contains("<p>Soak template</p>");
-        assertThat(secondBody).contains("<h3>Latency</h3>");
+        assertThat(secondBody).doesNotContain("<h3>Latency</h3>");
     }
 
     @Test
@@ -270,8 +270,8 @@ class ConfluenceServiceTest {
                 301,
                 "max",
                 "Шаблон MAX",
-                "Отчет по релизу @release",
-                "<p>@release</p><div>@config</div><section>@graphics</section>",
+                "Отчет @release @config @graphics",
+                "<p>@release</p><p>@config</p><p>@graphics</p>",
                 List.of(new ConfluenceTemplateChart(11L, 301, "CPU", "uid-1", 7, 0)));
         when(confluenceTemplateSettingsService.getActiveTemplate(301)).thenReturn(template);
 
@@ -301,14 +301,13 @@ class ConfluenceServiceTest {
                 .thenReturn(List.of(panel));
 
         ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
-        ConfluencePage createdPage = new ConfluencePage(
-                "555", "page", "Отчет по релизу 24.1.7", 1, template.text(), "SPACE");
+        ConfluencePage createdPage = new ConfluencePage("555", "page", "Отчет 24.1.7", 1, template.text(), "SPACE");
         when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
         when(confluenceClient.createChildPage(
                         credentials,
                         "123",
                         "SPACE",
-                        "Отчет по релизу 24.1.7",
+                        "Отчет 24.1.7",
                         template.text()))
                 .thenReturn(createdPage);
         when(confluenceClient.uploadAttachment(eq(credentials), eq("555"), anyString(), eq(image)))
@@ -323,6 +322,8 @@ class ConfluenceServiceTest {
         assertThat(body).contains("<h2>Конфигурация DropApp</h2>");
         assertThat(body).contains("<td>24.1.7</td>");
         assertThat(body).contains("<h3>CPU</h3>");
+        assertThat(body).doesNotContain("<p><h2>");
+        assertThat(body).doesNotContain("<p><h3>");
         assertThat(body).doesNotContain("@release");
         assertThat(body).doesNotContain("@config");
         assertThat(body).doesNotContain("@graphics");
