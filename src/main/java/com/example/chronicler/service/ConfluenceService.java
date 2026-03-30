@@ -187,7 +187,11 @@ public class ConfluenceService {
         confluenceClient.updatePage(credentials, reportPage, updatedBody);
 
         return new ConfluenceReportResponse.ReportPage(
-                testUuid, reportPage.id(), List.copyOf(attachmentNames));
+                testUuid,
+                reportPage.id(),
+                reportPage.title(),
+                confluenceClient.buildPageUrl(reportPage.id()),
+                List.copyOf(attachmentNames));
     }
 
     private List<ResolvedReportItem> resolveReportItems(ConfluenceReportRequest request) {

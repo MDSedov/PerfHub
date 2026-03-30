@@ -77,6 +77,9 @@ class ConfluenceServiceTest {
                 kubernetesConfigurationService,
                 confluenceTemplateSettingsService);
         lenient().when(kubernetesConfigurationService.getConfigurations(any(UUID.class))).thenReturn(List.of());
+        lenient().when(confluenceClient.buildPageUrl(anyString()))
+                .thenAnswer(invocation -> "https://confluence.example/pages/viewpage.action?pageId="
+                        + invocation.getArgument(0, String.class));
     }
 
     @Test
@@ -160,10 +163,14 @@ class ConfluenceServiceTest {
         ConfluenceReportResponse.ReportPage secondReport = response.reports().get(1);
         assertThat(firstReport.testUuid()).isEqualTo(firstTestUuid);
         assertThat(firstReport.pageId()).isEqualTo("456");
+        assertThat(firstReport.pageTitle()).isEqualTo(firstTitle);
+        assertThat(firstReport.pageUrl()).isEqualTo("https://confluence.example/pages/viewpage.action?pageId=456");
         assertThat(firstReport.attachmentNames()).hasSize(1);
         assertThat(firstReport.attachmentNames().get(0)).contains("grafana-panel-7-");
         assertThat(secondReport.testUuid()).isEqualTo(secondTestUuid);
         assertThat(secondReport.pageId()).isEqualTo("789");
+        assertThat(secondReport.pageTitle()).isEqualTo(secondTitle);
+        assertThat(secondReport.pageUrl()).isEqualTo("https://confluence.example/pages/viewpage.action?pageId=789");
         assertThat(secondReport.attachmentNames()).hasSize(1);
         assertThat(secondReport.attachmentNames().get(0)).contains("grafana-panel-9-");
 

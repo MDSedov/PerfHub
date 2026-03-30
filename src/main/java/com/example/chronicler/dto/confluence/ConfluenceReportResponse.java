@@ -5,5 +5,10 @@ import java.util.UUID;
 
 public record ConfluenceReportResponse(List<ReportPage> reports) {
 
-    public record ReportPage(UUID testUuid, String pageId, List<String> attachmentNames) {}
+    public record ReportPage(
+            UUID testUuid,
+            String pageId,
+            String pageTitle,
+            String pageUrl,
+            List<String> attachmentNames) {}
 }

@@ -765,6 +765,32 @@ body {
             white-space: normal;
         }
 
+        .report-generation-results-table td {
+            vertical-align: middle;
+        }
+
+        .report-generation-result-cell {
+            min-width: 320px;
+            white-space: normal;
+        }
+
+        .report-generation-result-link {
+            color: #0b6b3c;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .report-generation-result-link:hover,
+        .report-generation-result-link:focus-visible {
+            text-decoration: underline;
+        }
+
+        .report-generation-result-note {
+            margin-top: 0.35rem;
+            color: #6a7c73;
+            font-size: 0.82rem;
+        }
+
         .progress {
             height: 12px;
             background-color: rgba(0, 152, 70, 0.15);

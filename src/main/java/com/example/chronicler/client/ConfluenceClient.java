@@ -213,6 +213,15 @@ public class ConfluenceClient {
         }
     }
 
+    public String buildPageUrl(String pageId) {
+        Assert.hasText(pageId, "pageId must not be empty");
+        return UriComponentsBuilder.fromHttpUrl(baseUrl())
+                .path("/pages/viewpage.action")
+                .queryParam("pageId", pageId)
+                .build(true)
+                .toUriString();
+    }
+
     public String checkConnection(ConfluenceCredentials credentials) {
         Assert.notNull(credentials, "credentials must not be null");
 

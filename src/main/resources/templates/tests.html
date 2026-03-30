@@ -295,7 +295,28 @@
                                 </div>
                             </section>
 
-                            <div id="generateReportsModalAlert" class="alert d-none mt-3 mb-0" role="alert"></div>
+                            <section class="report-generation-section mt-3">
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                                    <div>
+                                        <h6 class="test-details-section-title mb-1">Статус генерации</h6>
+                                        <p class="text-muted small mb-0">Готовые отчеты появляются в списке по мере создания страниц.</p>
+                                    </div>
+                                </div>
+
+                                <div id="generateReportsResultsEmpty" class="text-muted small">Генерация еще не запускалась.</div>
+                                <div id="generateReportsResultsWrapper" class="table-responsive d-none">
+                                    <table class="table align-middle tests-table mb-0 report-generation-results-table">
+                                        <thead>
+                                        <tr>
+                                            <th scope="col">#</th>
+                                            <th scope="col">Статус</th>
+                                            <th scope="col">Отчет</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody id="generateReportsResultsBody"></tbody>
+                                    </table>
+                                </div>
+                            </section>
                         </div>
                         <div class="modal-footer">
                             <button type="submit"
@@ -344,7 +365,9 @@
     const generateReportsSelectedWrapper = document.getElementById('generateReportsSelectedWrapper');
     const generateReportsSelectedBody = document.getElementById('generateReportsSelectedBody');
     const generateReportsSelectedEmpty = document.getElementById('generateReportsSelectedEmpty');
-    const generateReportsModalAlert = document.getElementById('generateReportsModalAlert');
+    const generateReportsResultsWrapper = document.getElementById('generateReportsResultsWrapper');
+    const generateReportsResultsBody = document.getElementById('generateReportsResultsBody');
+    const generateReportsResultsEmpty = document.getElementById('generateReportsResultsEmpty');
     const generateReportsModalCreateButton = document.getElementById('generateReportsModalCreateButton');
     const toastContainer = document.getElementById('toastContainer');
     const selectedReportTestIds = new Set();
@@ -354,6 +377,7 @@
     let filterDropdownsInitialized = false;
     let reportSelectionHintToast = null;
     let isReportCreationInProgress = false;
+    let reportGenerationResults = [];
 
     const MOSCOW_TZ = 'Europe/Moscow';
     const DAYS_TO_FETCH = 30;
@@ -377,6 +401,9 @@
         const selected = selectedReportTestIds.size;
         generateReportsButton.textContent = `Сгенерировать отчеты [${selected}]`;
         generateReportsButton.setAttribute('aria-disabled', selected === 0 ? 'true' : 'false');
+        if (!isReportCreationInProgress && reportGenerationResults.length > 0) {
+            resetReportGenerationResults();
+        }
         refreshGenerateReportsModalState();
     }
 
@@ -926,7 +953,9 @@
         generateReportsModalElement.removeAttribute('aria-modal');
         document.body.classList.remove('modal-open');
         removeGenerateReportsModalBackdrop();
-        clearGenerateReportsModalAlert();
+        if (!isReportCreationInProgress) {
+            resetReportGenerationResults();
+        }
         updateGenerateReportsSubmitState();
     }
 
@@ -1156,7 +1185,9 @@
                 } else {
                     selectedReportTemplateIds.delete(test.id);
                 }
-                updateGenerateReportsModalAlertState();
+                if (!isReportCreationInProgress && reportGenerationResults.length > 0) {
+                    resetReportGenerationResults();
+                }
                 updateGenerateReportsSubmitState();
             });
             templateCell.appendChild(templateSelect);
@@ -1219,42 +1250,119 @@
         }
     }
 
-    function toggleGenerateReportsModalAlert(type, message) {
-        if (!generateReportsModalAlert) {
-            return;
-        }
-        generateReportsModalAlert.className = `alert alert-${type}`;
-        generateReportsModalAlert.textContent = message;
-        generateReportsModalAlert.classList.remove('d-none');
+    function resetReportGenerationResults() {
+        reportGenerationResults = [];
+        renderGenerateReportsResults();
     }
 
-    function clearGenerateReportsModalAlert() {
-        if (!generateReportsModalAlert) {
-            return;
+    function createReportGenerationStatusBadge(status) {
+        const badge = document.createElement('span');
+        badge.className = 'badge rounded-pill report-generation-status-badge';
+        if (status === 'success') {
+            badge.classList.add('text-bg-success');
+            badge.textContent = 'Создан';
+            return badge;
         }
-        generateReportsModalAlert.textContent = '';
-        generateReportsModalAlert.className = 'alert d-none';
+        if (status === 'error') {
+            badge.classList.add('text-bg-danger');
+            badge.textContent = 'Ошибка';
+            return badge;
+        }
+        if (status === 'running') {
+            badge.classList.add('text-bg-primary');
+            badge.textContent = 'Создаем';
+            return badge;
+        }
+        badge.classList.add('text-bg-secondary');
+        badge.textContent = 'Ожидает';
+        return badge;
     }
 
-    function updateGenerateReportsModalAlertState() {
-        if (isReportCreationInProgress) {
+    function renderGenerateReportsResults() {
+        if (!generateReportsResultsBody || !generateReportsResultsWrapper || !generateReportsResultsEmpty) {
             return;
         }
-        if (!reportTemplatesLoaded) {
-            toggleGenerateReportsModalAlert('info', 'Загружаем список шаблонов отчетов…');
+        generateReportsResultsBody.innerHTML = '';
+        if (reportGenerationResults.length === 0) {
+            generateReportsResultsWrapper.classList.add('d-none');
+            generateReportsResultsEmpty.textContent = isReportCreationInProgress
+                ? 'Подготавливаем запуск генерации…'
+                : 'Генерация еще не запускалась.';
+            generateReportsResultsEmpty.classList.remove('d-none');
             return;
         }
-        if (reportTemplates.length === 0) {
-            toggleGenerateReportsModalAlert(
-                    'warning',
-                    'Нет доступных шаблонов отчетов. Добавьте шаблон в разделе «Шаблоны отчетов».');
+
+        generateReportsResultsEmpty.classList.add('d-none');
+        generateReportsResultsWrapper.classList.remove('d-none');
+
+        reportGenerationResults.forEach(result => {
+            const row = document.createElement('tr');
+
+            appendGenerateReportsTextCell(row, String(result.order), 'text-nowrap');
+
+            const statusCell = document.createElement('td');
+            statusCell.appendChild(createReportGenerationStatusBadge(result.status));
+            row.appendChild(statusCell);
+
+            const reportCell = document.createElement('td');
+            reportCell.className = 'report-generation-result-cell';
+            if (result.status === 'success' && result.pageUrl) {
+                const link = document.createElement('a');
+                link.href = result.pageUrl;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.className = 'report-generation-result-link';
+                link.textContent = result.pageTitle || `Отчет ${result.order}`;
+                reportCell.appendChild(link);
+            } else if (result.status === 'success') {
+                reportCell.textContent = result.pageTitle || `Отчет ${result.order}`;
+            } else if (result.status === 'error') {
+                reportCell.textContent = result.message || 'Не удалось создать отчет';
+            } else if (result.status === 'running') {
+                reportCell.textContent = 'Создаем страницу в Confluence…';
+            } else {
+                reportCell.textContent = 'Ожидает запуска';
+            }
+
+            if (result.contextLabel) {
+                const context = document.createElement('div');
+                context.className = 'report-generation-result-note';
+                context.textContent = result.contextLabel;
+                reportCell.appendChild(context);
+            }
+            row.appendChild(reportCell);
+
+            generateReportsResultsBody.appendChild(row);
+        });
+    }
+
+    function buildReportGenerationContextLabel(test) {
+        if (!test) {
+            return '';
+        }
+        const parts = [];
+        const release = getReleaseValue(test);
+        if (release) {
+            parts.push(`Релиз ${release}`);
+        }
+        parts.push(normalizeTestType(test?.type));
+        const start = formatDateNoSeconds(test?.start);
+        if (start && start !== '—') {
+            parts.push(start);
+        }
+        return parts.join(' • ');
+    }
+
+    function updateReportGenerationResult(testId, patch) {
+        const resultIndex = reportGenerationResults.findIndex(item => item.testId === testId);
+        if (resultIndex < 0) {
             return;
         }
-        if (selectedReportTestIds.size > 0 && getSelectedTestsMissingTemplate().length > 0) {
-            toggleGenerateReportsModalAlert('warning', 'Выберите шаблон для каждого теста в списке ниже.');
-            return;
-        }
-        clearGenerateReportsModalAlert();
+        reportGenerationResults[resultIndex] = {
+            ...reportGenerationResults[resultIndex],
+            ...patch
+        };
+        renderGenerateReportsResults();
     }
 
     function updateGenerateReportsSubmitState() {
@@ -1273,7 +1381,6 @@
 
     function refreshGenerateReportsModalState() {
         renderGenerateReportsSelectedTests();
-        updateGenerateReportsModalAlertState();
         updateGenerateReportsSubmitState();
     }
 
@@ -1282,10 +1389,36 @@
             showGenerateReportsSelectionHint();
             return;
         }
-        clearGenerateReportsModalAlert();
         refreshGenerateReportsModalState();
+        renderGenerateReportsResults();
         const modalApi = showGenerateReportsModalDialog();
         window.requestAnimationFrame(() => modalApi?.handleUpdate?.());
+    }
+
+    async function createSingleConfluenceReport(parentPageId, testId, templateId) {
+        const response = await fetch('/api/confluence/report/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                parentPageId,
+                items: [{
+                    testUuid: testId,
+                    templateId
+                }]
+            })
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(extractReportCreationErrorMessage(errorText));
+        }
+        return response.json();
+    }
+
+    function extractSingleGeneratedReport(payload) {
+        const reports = Array.isArray(payload?.reports) ? payload.reports : [];
+        return reports[0] ?? null;
     }
 
     async function submitGenerateReports(event) {
@@ -1293,43 +1426,103 @@
         if (!generateReportsModalCreateButton || generateReportsModalCreateButton.disabled) {
             return;
         }
-        const payload = {
-            parentPageId: (generateReportsParentPageIdInput?.value ?? '').trim(),
-            items: Array.from(selectedReportTestIds).map(testId => ({
-                testUuid: testId,
-                templateId: Number(selectedReportTemplateIds.get(testId))
-            }))
-        };
+
+        const parentPageId = (generateReportsParentPageIdInput?.value ?? '').trim();
+        const selectedTests = getSelectedReportTests();
+        reportGenerationResults = selectedTests.map((test, index) => ({
+            order: index + 1,
+            testId: test?.id ?? '',
+            status: 'queued',
+            message: '',
+            pageTitle: '',
+            pageUrl: '',
+            contextLabel: buildReportGenerationContextLabel(test)
+        }));
+        renderGenerateReportsResults();
+
         isReportCreationInProgress = true;
-        toggleGenerateReportsModalAlert('info', 'Создаем страницы в Confluence…');
         updateGenerateReportsSubmitState();
         generateReportsModalCreateButton.textContent = 'Создание…';
+        showToast(
+                selectedTests.length > 1
+                    ? `Начинаем генерацию ${selectedTests.length} отчетов в Confluence…`
+                    : 'Начинаем генерацию отчета в Confluence…',
+                'info',
+                6000);
+
+        let successCount = 0;
+        let errorCount = 0;
+
         try {
-            const response = await fetch('/api/confluence/report/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(extractReportCreationErrorMessage(errorText));
+            for (const test of selectedTests) {
+                const testId = test?.id;
+                if (!testId) {
+                    continue;
+                }
+                updateReportGenerationResult(testId, {
+                    status: 'running',
+                    message: ''
+                });
+                try {
+                    const payload = await createSingleConfluenceReport(
+                        parentPageId,
+                        testId,
+                        Number(selectedReportTemplateIds.get(testId))
+                    );
+                    const report = extractSingleGeneratedReport(payload);
+                    if (!report?.pageId) {
+                        throw new Error('Confluence не вернул информацию о созданной странице');
+                    }
+                    updateReportGenerationResult(testId, {
+                        status: 'success',
+                        pageTitle: report.pageTitle || `Отчет ${reportGenerationResults.find(item => item.testId === testId)?.order ?? ''}`.trim(),
+                        pageUrl: report.pageUrl || '',
+                        message: ''
+                    });
+                    successCount += 1;
+                } catch (error) {
+                    updateReportGenerationResult(testId, {
+                        status: 'error',
+                        message: error?.message || 'Не удалось создать отчет'
+                    });
+                    errorCount += 1;
+                    showToast(error?.message || 'Не удалось создать отчет', 'danger', 12000);
+                }
             }
-            await response.json();
-            toggleGenerateReportsModalAlert('info', 'Отчеты успешно созданы');
-        } catch (error) {
-            clearGenerateReportsModalAlert();
-            showToast(error?.message || 'Не удалось создать отчеты', 'danger');
         } finally {
             isReportCreationInProgress = false;
             generateReportsModalCreateButton.textContent = 'Создать отчеты по тестам';
             updateGenerateReportsSubmitState();
         }
+
+        if (errorCount === 0) {
+            showToast(
+                    successCount > 1
+                        ? `Генерация завершена: создано ${successCount} отчетов.`
+                        : 'Отчет успешно создан.',
+                    'success',
+                    6000);
+            return;
+        }
+
+        if (successCount > 0) {
+            showToast(
+                    `Генерация завершена: создано ${successCount} из ${selectedTests.length} отчетов.`,
+                    'warning',
+                    12000);
+            return;
+        }
+
+        showToast('Не удалось создать отчеты', 'danger', 12000);
     }
 
     if (generateReportsParentPageIdInput) {
-        generateReportsParentPageIdInput.addEventListener('input', updateGenerateReportsSubmitState);
+        generateReportsParentPageIdInput.addEventListener('input', () => {
+            if (!isReportCreationInProgress && reportGenerationResults.length > 0) {
+                resetReportGenerationResults();
+            }
+            updateGenerateReportsSubmitState();
+        });
     }
 
     if (generateReportsModalForm) {
@@ -1345,8 +1538,8 @@
         generateReportsModalElement.addEventListener('hidden.bs.modal', () => {
             if (generateReportsModalCreateButton && !isReportCreationInProgress) {
                 generateReportsModalCreateButton.textContent = 'Создать отчеты по тестам';
+                resetReportGenerationResults();
             }
-            clearGenerateReportsModalAlert();
             updateGenerateReportsSubmitState();
         });
 
