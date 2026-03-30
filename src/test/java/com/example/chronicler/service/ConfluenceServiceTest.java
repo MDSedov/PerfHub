@@ -324,14 +324,75 @@ class ConfluenceServiceTest {
         verify(confluenceClient).updatePage(eq(credentials), eq(createdPage), bodyCaptor.capture());
         String body = bodyCaptor.getValue();
         assertThat(body).contains("<p>24.1.7</p>");
-        assertThat(body).contains("<h2>Конфигурация DropApp</h2>");
+        assertThat(body).contains("<table>");
         assertThat(body).contains("<td>24.1.7</td>");
         assertThat(body).contains("<h3>CPU</h3>");
+        assertThat(body).doesNotContain("<h2>Конфигурация DropApp</h2>");
         assertThat(body).doesNotContain("<p><h2>");
         assertThat(body).doesNotContain("<p><h3>");
         assertThat(body).doesNotContain("@release");
         assertThat(body).doesNotContain("@config");
         assertThat(body).doesNotContain("@graphics");
+    }
+
+    @Test
+    void createReportsNormalizesHtmlLineBreaksForConfluenceStorageFormat() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        UUID testUuid = UUID.fromString("88888888-2222-3333-4444-555555555555");
+        ConfluenceReportRequest request = new ConfluenceReportRequest(
+                "123",
+                null,
+                List.of(new ConfluenceReportRequest.ReportItem(testUuid, 302)));
+
+        Instant start = Instant.parse("2024-02-01T00:00:00Z");
+        Instant end = Instant.parse("2024-02-01T02:00:00Z");
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.MAX, null)));
+        when(kubernetesConfigurationService.getConfigurations(testUuid))
+                .thenReturn(List.of(new KubernetesConfiguration(
+                        1L,
+                        testUuid,
+                        "prod",
+                        "dropapp",
+                        "pod-1",
+                        "container-1",
+                        "1.0.0",
+                        "24.1.7",
+                        "100m",
+                        "200m",
+                        "256Mi",
+                        "512Mi",
+                        Instant.parse("2024-02-01T02:30:00Z"))));
+
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                302,
+                "max",
+                "Шаблон MAX",
+                "Отчет @release",
+                "<p>Первая строка<br>Вторая строка</p><p>@release</p>",
+                List.of());
+        when(confluenceTemplateSettingsService.getActiveTemplate(302)).thenReturn(template);
+
+        String normalizedTemplateBody = "<p>Первая строка<br />Вторая строка</p><p>@release</p>";
+        ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
+        ConfluencePage createdPage = new ConfluencePage("556", "page", "Отчет 24.1.7", 1, normalizedTemplateBody, "SPACE");
+        when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+        when(confluenceClient.createChildPage(
+                        credentials,
+                        "123",
+                        "SPACE",
+                        "Отчет 24.1.7",
+                        normalizedTemplateBody))
+                .thenReturn(createdPage);
+
+        confluenceService.createReports(credentials, request);
+
+        verify(confluenceClient).createChildPage(
+                credentials, "123", "SPACE", "Отчет 24.1.7", normalizedTemplateBody);
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(confluenceClient).updatePage(eq(credentials), eq(createdPage), bodyCaptor.capture());
+        assertThat(bodyCaptor.getValue()).contains("<p>Первая строка<br />Вторая строка</p>");
+        assertThat(bodyCaptor.getValue()).doesNotContain("<br>");
     }
 
     @Test

@@ -39,6 +39,10 @@ public class ConfluenceService {
     private static final String PLACEHOLDER_BLOCK_TAGS =
             "p|div|section|article|aside|blockquote|li|h1|h2|h3|h4|h5|h6";
     private static final String PLACEHOLDER_PADDING_PATTERN = "(?:\\s|&nbsp;|&#160;|<br\\s*/?>)*";
+    private static final Pattern BR_TAG_PATTERN = Pattern.compile("(?i)<br\\s*/?>");
+    private static final Pattern BR_CLOSING_TAG_PATTERN = Pattern.compile("(?i)</br\\s*>");
+    private static final Pattern HR_TAG_PATTERN = Pattern.compile("(?i)<hr\\s*/?>");
+    private static final Pattern HR_CLOSING_TAG_PATTERN = Pattern.compile("(?i)</hr\\s*>");
 
     private final ConfluenceClient confluenceClient;
     private final GrafanaService grafanaService;
@@ -159,7 +163,7 @@ public class ConfluenceService {
 
         String configurationSection = buildConfigurationSection(configurations);
         String pageTitle = buildReportTitle(template, releaseValue);
-        String templateBody = template.text();
+        String templateBody = normalizeStorageMarkup(template.text());
         ConfluencePage reportPage = createReportPage(
                 credentials, parentPageId, spaceKey, pageTitle, templateBody, loadTest.id());
 
@@ -268,7 +272,7 @@ public class ConfluenceService {
     }
 
     /**
-     * Добавляет в тело страницы блок с заголовком, описанием и изображением панели.
+     * Добавляет в тело страницы название графика и изображение панели.
      */
     private void appendPanelToBody(StringBuilder bodyBuilder, String title, String attachmentName) {
         String resolvedTitle = StringUtils.hasText(title) ? title : "Панель без названия";
@@ -285,7 +289,6 @@ public class ConfluenceService {
 
     private String buildConfigurationSection(List<KubernetesConfiguration> configurations) {
         StringBuilder bodyBuilder = new StringBuilder();
-        bodyBuilder.append("<h2>Конфигурация DropApp</h2>\n");
         if (configurations.isEmpty()) {
             bodyBuilder.append("<p>Конфигурация DropApp для данного теста отсутствует.</p>\n");
             return bodyBuilder.toString();
@@ -357,7 +360,7 @@ public class ConfluenceService {
         String body = getSafeBody(templateBody).replace(RELEASE_PLACEHOLDER, escape(releaseValue));
         body = replaceSectionPlaceholder(body, CONFIG_PLACEHOLDER, configurationSection);
         body = replaceSectionPlaceholder(body, GRAPHICS_PLACEHOLDER, chartsSection);
-        return body;
+        return normalizeStorageMarkup(body);
     }
 
     private String replaceSectionPlaceholder(String body, String placeholder, String section) {
@@ -445,6 +448,15 @@ public class ConfluenceService {
                 && (normalized.contains("already exists")
                         || normalized.contains("must be unique")
                         || normalized.contains("conflict"));
+    }
+
+    private String normalizeStorageMarkup(String markup) {
+        String normalized = getSafeBody(markup);
+        normalized = BR_CLOSING_TAG_PATTERN.matcher(normalized).replaceAll("");
+        normalized = BR_TAG_PATTERN.matcher(normalized).replaceAll("<br />");
+        normalized = HR_CLOSING_TAG_PATTERN.matcher(normalized).replaceAll("");
+        normalized = HR_TAG_PATTERN.matcher(normalized).replaceAll("<hr />");
+        return normalized;
     }
 
     private String resolveReleaseValue(List<KubernetesConfiguration> configurations) {
