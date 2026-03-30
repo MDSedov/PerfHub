@@ -62,6 +62,13 @@ public class ConfluenceTemplateSettingsService {
         return withCharts(template, chartRepository.findByTemplateId(id));
     }
 
+    public ConfluenceTemplate resolveDefaultTemplate(LoadTestType loadTestType) {
+        String shortName = resolveDefaultTemplateShortName(loadTestType);
+        return findActiveTemplateByShortName(shortName)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Confluence report template is not configured for test type " + loadTestType.value()));
+    }
+
     public String resolveDefaultTemplateShortName(LoadTestType loadTestType) {
         if (loadTestType == null || loadTestType == LoadTestType.UNKNOWN) {
             throw new IllegalArgumentException("Тип теста не определен");

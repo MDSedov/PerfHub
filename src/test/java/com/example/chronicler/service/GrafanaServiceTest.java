@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.chronicler.client.GrafanaClient;
+import com.example.chronicler.model.ConfluenceTemplate;
+import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
@@ -43,6 +45,7 @@ class GrafanaServiceTest {
     private StubGrafanaDashboardRepository grafanaDashboardRepository;
     private StubGrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
     private StubGrafanaDashboardVariableRepository grafanaDashboardVariableRepository;
+    private StubConfluenceTemplateSettingsService confluenceTemplateSettingsService;
     private GrafanaService grafanaService;
 
     @BeforeEach
@@ -53,13 +56,15 @@ class GrafanaServiceTest {
         grafanaDashboardRepository = new StubGrafanaDashboardRepository();
         grafanaDashboardPanelRepository = new StubGrafanaDashboardPanelRepository();
         grafanaDashboardVariableRepository = new StubGrafanaDashboardVariableRepository();
+        confluenceTemplateSettingsService = new StubConfluenceTemplateSettingsService();
         grafanaService = new GrafanaService(
                 grafanaClient,
                 grafanaRenderCache,
                 loadTestRepository,
                 grafanaDashboardRepository,
                 grafanaDashboardPanelRepository,
-                new GrafanaVariableService(grafanaDashboardVariableRepository));
+                new GrafanaVariableService(grafanaDashboardVariableRepository),
+                confluenceTemplateSettingsService);
     }
 
     @Test
@@ -68,7 +73,18 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.MAX, null));
+        confluenceTemplateSettingsService.registerDefaultTemplate(
+                LoadTestType.MAX,
+                new ConfluenceTemplate(
+                        1,
+                        "max",
+                        "MAX report",
+                        "MAX report",
+                        "<p>Body</p>",
+                        List.of(
+                                new ConfluenceTemplateChart(1L, 1, "Panel 1", "uid", 1, 0),
+                                new ConfluenceTemplateChart(2L, 1, "Panel 2", "uid", 2, 1))));
         grafanaDashboardRepository.setDashboards(
                 List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2), true)));
         grafanaClient.setRenderedPanel(1, new byte[] {1, 2});
@@ -107,16 +123,18 @@ class GrafanaServiceTest {
     }
 
     @Test
-    void renderPanelsThrowsWhenDashboardsMissing() {
+    void renderPanelsThrowsWhenTemplateHasNoCharts() {
         UUID testUuid = UUID.randomUUID();
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
-        grafanaDashboardRepository.setDashboards(List.of());
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.MAX, null));
+        confluenceTemplateSettingsService.registerDefaultTemplate(
+                LoadTestType.MAX,
+                new ConfluenceTemplate(1, "max", "MAX report", "MAX report", "<p>Body</p>", List.of()));
 
         assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
                 .isInstanceOf(GrafanaRenderingException.class)
-                .hasMessage("No enabled Grafana dashboards configured");
+                .hasMessage("Для шаблона отчета 'MAX report' не настроены графики");
     }
 
     @Test
@@ -134,17 +152,16 @@ class GrafanaServiceTest {
     }
 
     @Test
-    void renderPanelsThrowsWhenDashboardsDisabled() {
+    void renderPanelsThrowsWhenTemplateNotConfiguredForTestType() {
         UUID testUuid = UUID.randomUUID();
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
-        grafanaDashboardRepository.setDashboards(List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2), false)));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.PSU, null));
 
         assertThatThrownBy(() -> grafanaService.renderPanels(new GrafanaRenderRequest(testUuid)))
                 .isInstanceOf(GrafanaRenderingException.class)
-                .hasMessage("No enabled Grafana dashboards configured");
+                .hasMessage("Confluence report template is not configured for test type psu");
     }
 
     @Test
@@ -153,7 +170,16 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.MAX, null));
+        confluenceTemplateSettingsService.registerDefaultTemplate(
+                LoadTestType.MAX,
+                new ConfluenceTemplate(
+                        1,
+                        "max",
+                        "MAX report",
+                        "MAX report",
+                        "<p>Body</p>",
+                        List.of(new ConfluenceTemplateChart(1L, 1, "", "uid", 7, 0))));
         grafanaDashboardRepository.setDashboards(
                 List.of(new GrafanaDashboard("uid", "slug", List.of(7), true)));
         grafanaDashboardPanelRepository.register(
@@ -176,7 +202,16 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.MAX, null));
+        confluenceTemplateSettingsService.registerDefaultTemplate(
+                LoadTestType.MAX,
+                new ConfluenceTemplate(
+                        1,
+                        "max",
+                        "MAX report",
+                        "MAX report",
+                        "<p>Body</p>",
+                        List.of(new ConfluenceTemplateChart(1L, 1, "Panel 10", "uid", 10, 0))));
         grafanaDashboardRepository.setDashboards(
                 List.of(new GrafanaDashboard("uid", "slug", List.of(10), true)));
         grafanaDashboardVariableRepository.setVariables(
@@ -203,7 +238,16 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
-        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.UNKNOWN, null));
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.MAX, null));
+        confluenceTemplateSettingsService.registerDefaultTemplate(
+                LoadTestType.MAX,
+                new ConfluenceTemplate(
+                        1,
+                        "max",
+                        "MAX report",
+                        "MAX report",
+                        "<p>Body</p>",
+                        List.of(new ConfluenceTemplateChart(1L, 1, "Panel 11", "uid", 11, 0))));
         grafanaDashboardRepository.setDashboards(
                 List.of(new GrafanaDashboard("uid", "slug", List.of(11), true)));
         grafanaDashboardVariableRepository.setVariables(
@@ -424,6 +468,32 @@ class GrafanaServiceTest {
 
         void setVariables(String dashboardUid, List<GrafanaDashboardVariableRecord> variables) {
             variablesByDashboard.put(dashboardUid, List.copyOf(variables));
+        }
+    }
+
+    private static final class StubConfluenceTemplateSettingsService extends ConfluenceTemplateSettingsService {
+
+        private final Map<LoadTestType, ConfluenceTemplate> templatesByType = new HashMap<>();
+
+        private StubConfluenceTemplateSettingsService() {
+            super(null, null, null, null);
+        }
+
+        void registerDefaultTemplate(LoadTestType type, ConfluenceTemplate template) {
+            templatesByType.put(type, template);
+        }
+
+        @Override
+        public ConfluenceTemplate resolveDefaultTemplate(LoadTestType loadTestType) {
+            if (loadTestType == null || loadTestType == LoadTestType.UNKNOWN) {
+                throw new IllegalArgumentException("Тип теста не определен");
+            }
+            ConfluenceTemplate template = templatesByType.get(loadTestType);
+            if (template != null) {
+                return template;
+            }
+            throw new IllegalArgumentException(
+                    "Confluence report template is not configured for test type " + loadTestType.value());
         }
     }
 }

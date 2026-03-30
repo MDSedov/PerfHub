@@ -1,6 +1,8 @@
 package com.example.chronicler.service;
 
 import com.example.chronicler.client.GrafanaClient;
+import com.example.chronicler.model.ConfluenceTemplate;
+import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
@@ -21,6 +23,7 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,6 +46,7 @@ public class GrafanaService {
     private final GrafanaDashboardRepository grafanaDashboardRepository;
     private final GrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
     private final GrafanaVariableService grafanaVariableService;
+    private final ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
 
     public GrafanaService(
             GrafanaClient grafanaClient,
@@ -50,13 +54,15 @@ public class GrafanaService {
             LoadTestRepository loadTestRepository,
             GrafanaDashboardRepository grafanaDashboardRepository,
             GrafanaDashboardPanelRepository grafanaDashboardPanelRepository,
-            GrafanaVariableService grafanaVariableService) {
+            GrafanaVariableService grafanaVariableService,
+            ConfluenceTemplateSettingsService confluenceTemplateSettingsService) {
         this.grafanaClient = grafanaClient;
         this.grafanaRenderCache = grafanaRenderCache;
         this.loadTestRepository = loadTestRepository;
         this.grafanaDashboardRepository = grafanaDashboardRepository;
         this.grafanaDashboardPanelRepository = grafanaDashboardPanelRepository;
         this.grafanaVariableService = grafanaVariableService;
+        this.confluenceTemplateSettingsService = confluenceTemplateSettingsService;
     }
 
     /**
@@ -84,7 +90,7 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        return renderPanelsForRange(from, to);
+        return renderPanelsForTest(loadTest, from, to);
     }
 
     /**
@@ -140,6 +146,59 @@ public class GrafanaService {
         return List.copyOf(renderedPanels);
     }
 
+    private GrafanaRenderResponse renderPanelsForTest(LoadTest loadTest, Instant from, Instant to) {
+        ConfluenceTemplate template = resolveDefaultTemplate(loadTest);
+        List<ConfluenceTemplateChart> templateCharts = template.charts() == null ? List.of() : template.charts();
+        if (templateCharts.isEmpty()) {
+            throw new GrafanaRenderingException(
+                    "Для шаблона отчета '%s' не настроены графики".formatted(template.fullName()));
+        }
+
+        Map<String, List<ConfluenceTemplateChart>> chartsByDashboardUid = templateCharts.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(
+                        ConfluenceTemplateChart::dashboardUid,
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
+        List<GrafanaRenderedDashboard> dashboards = new ArrayList<>();
+        for (Map.Entry<String, List<ConfluenceTemplateChart>> entry : chartsByDashboardUid.entrySet()) {
+            String dashboardUid = requireText(entry.getKey(), "dashboardUid");
+            GrafanaDashboard dashboard = grafanaDashboardRepository.findByUid(dashboardUid)
+                    .orElseThrow(() -> new GrafanaRenderingException(
+                            "Grafana dashboard " + dashboardUid + " not found"));
+            String slug = requireText(dashboard.slug(), "slug");
+            Map<String, String> variableValues = grafanaVariableService.loadValues(dashboardUid);
+            Map<Integer, GrafanaDashboardPanelRecord> cachedPanelsById = grafanaDashboardPanelRepository
+                    .findByDashboardUid(dashboardUid).stream()
+                    .collect(Collectors.toMap(
+                            GrafanaDashboardPanelRecord::panelId,
+                            Function.identity(),
+                            (first, second) -> first));
+
+            List<GrafanaRenderedPanel> renderedPanels = new ArrayList<>(entry.getValue().size());
+            for (ConfluenceTemplateChart chart : entry.getValue()) {
+                if (chart.panelId() <= 0) {
+                    throw new GrafanaRenderingException("Grafana panel selection is invalid");
+                }
+                ResolvedPanelMetadata metadata = resolvePanelMetadata(dashboardUid, chart.panelId(), cachedPanelsById.get(chart.panelId()));
+                byte[] imageBytes = grafanaClient.renderPanel(dashboardUid, slug, chart.panelId(), from, to, variableValues);
+                String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
+                String title = StringUtils.hasText(chart.title()) ? chart.title().trim() : metadata.title();
+                renderedPanels.add(new GrafanaRenderedPanel(
+                        chart.panelId(),
+                        title,
+                        metadata.description(),
+                        encodedImage));
+            }
+            dashboards.add(new GrafanaRenderedDashboard(dashboardUid, slug, List.copyOf(renderedPanels)));
+        }
+
+        GrafanaRenderResponse response = new GrafanaRenderResponse(from.toString(), to.toString(), List.copyOf(dashboards));
+        grafanaRenderCache.store(response);
+        return response;
+    }
+
     private GrafanaRenderResponse renderPanelsForRange(Instant from, Instant to) {
         List<GrafanaDashboard> enabledDashboards = grafanaDashboardRepository.findAll().stream()
                 .filter(GrafanaDashboard::enabled)
@@ -189,6 +248,14 @@ public class GrafanaService {
         GrafanaRenderResponse response = new GrafanaRenderResponse(from.toString(), to.toString(), dashboards);
         grafanaRenderCache.store(response);
         return response;
+    }
+
+    private ConfluenceTemplate resolveDefaultTemplate(LoadTest loadTest) {
+        try {
+            return confluenceTemplateSettingsService.resolveDefaultTemplate(loadTest.type());
+        } catch (IllegalArgumentException ex) {
+            throw new GrafanaRenderingException(ex.getMessage());
+        }
     }
 
     private ResolvedPanelMetadata resolvePanelMetadata(
