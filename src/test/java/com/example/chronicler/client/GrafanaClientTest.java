@@ -1,7 +1,9 @@
 package com.example.chronicler.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -82,6 +84,39 @@ class GrafanaClientTest {
 
         mockServer.verify();
         assertThat(result).containsExactly(9);
+    }
+
+    @Test
+    void renderPanelShouldWrapInvalidNumericConfigAsGrafanaClientException() {
+        ConfigurationProvider configurationProvider = new InMemoryConfigurationProvider(Map.of(
+                key("base-url"), "http://localhost:3000",
+                key("render-path"), "/render/d-solo",
+                key("api-key"), "test-token",
+                key("image-width"), "wide",
+                key("image-height"), "500",
+                key("timezone"), "UTC"));
+        grafanaClient = new GrafanaClient(restTemplate, configurationProvider);
+
+        assertThatThrownBy(() -> grafanaClient.renderPanel(
+                        "dashboard-uid",
+                        "dashboard-slug",
+                        1,
+                        Instant.parse("2024-05-01T00:00:00Z"),
+                        Instant.parse("2024-05-01T01:00:00Z")))
+                .isInstanceOf(GrafanaClientException.class)
+                .hasMessage("Configuration value for grafana.image-width must be an integer but was 'wide'");
+    }
+
+    @Test
+    void renderPanelShouldRejectBlankDashboardSlugWithGrafanaClientException() {
+        assertThatThrownBy(() -> grafanaClient.renderPanel(
+                        "dashboard-uid",
+                        " ",
+                        1,
+                        Instant.parse("2024-05-01T00:00:00Z"),
+                        Instant.parse("2024-05-01T01:00:00Z")))
+                .isInstanceOf(GrafanaClientException.class)
+                .hasMessage("dashboardSlug must not be empty");
     }
 
     private static String key(String key) {

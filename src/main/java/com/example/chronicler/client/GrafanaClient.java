@@ -26,7 +26,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -106,11 +105,11 @@ public class GrafanaClient {
             Instant from,
             Instant to,
             Map<String, String> variables) {
-        Assert.hasText(dashboardUid, "dashboardUid must not be empty");
-        Assert.hasText(dashboardSlug, "dashboardSlug must not be empty");
-        Assert.isTrue(panelId > 0, "panelId must be positive");
-        Assert.notNull(from, "from must not be null");
-        Assert.notNull(to, "to must not be null");
+        requireText(dashboardUid, "dashboardUid must not be empty");
+        requireText(dashboardSlug, "dashboardSlug must not be empty");
+        requirePositive(panelId, "panelId must be positive");
+        requireNonNull(from, "from must not be null");
+        requireNonNull(to, "to must not be null");
 
         String baseUrl = required(BASE_URL_KEY);
         String renderPath = required(RENDER_PATH_KEY);
@@ -177,8 +176,8 @@ public class GrafanaClient {
      * Получает метаданные панели (заголовок и описание) по идентификатору панели и UID дашборда.
      */
     public GrafanaPanelMetadata getPanelMetadata(String dashboardUid, int panelId) {
-        Assert.hasText(dashboardUid, "dashboardUid must not be empty");
-        Assert.isTrue(panelId > 0, "panelId must be positive");
+        requireText(dashboardUid, "dashboardUid must not be empty");
+        requirePositive(panelId, "panelId must be positive");
 
         URI uri = UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
                 .pathSegment("api", "dashboards", "uid", dashboardUid)
@@ -415,7 +414,14 @@ public class GrafanaClient {
     }
 
     private String required(String key) {
-        return configurationProvider.getRequiredValue(SERVICE, key);
+        try {
+            return configurationProvider.getRequiredValue(SERVICE, key);
+        } catch (IllegalStateException ex) {
+            throw new GrafanaClientException(
+                    "Configuration parameter not found for service '%s' and key '%s'"
+                            .formatted(SERVICE, key),
+                    ex);
+        }
     }
 
     private int requiredInt(String key) {
@@ -423,8 +429,28 @@ public class GrafanaClient {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException ex) {
-            throw new IllegalStateException("Configuration value for %s.%s must be an integer but was '%s'"
-                    .formatted(SERVICE, key, value));
+            throw new GrafanaClientException(
+                    "Configuration value for %s.%s must be an integer but was '%s'"
+                            .formatted(SERVICE, key, value),
+                    ex);
+        }
+    }
+
+    private void requireText(String value, String message) {
+        if (!StringUtils.hasText(value)) {
+            throw new GrafanaClientException(message);
+        }
+    }
+
+    private void requirePositive(int value, String message) {
+        if (value <= 0) {
+            throw new GrafanaClientException(message);
+        }
+    }
+
+    private void requireNonNull(Object value, String message) {
+        if (value == null) {
+            throw new GrafanaClientException(message);
         }
     }
 
