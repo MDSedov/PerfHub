@@ -8,6 +8,7 @@ import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
+import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.exception.ConfluenceOperationException;
 import com.example.chronicler.model.ConfluenceTemplate;
 import com.example.chronicler.model.ConfluenceTemplateChart;
@@ -31,6 +32,7 @@ import org.springframework.web.util.HtmlUtils;
 @Service
 public class ConfluenceService {
 
+    private static final int MAX_PAGE_TITLE_LENGTH = 255;
     private static final String RELEASE_PLACEHOLDER = "@release";
     private static final String CONFIG_PLACEHOLDER = "@config";
     private static final String GRAPHICS_PLACEHOLDER = "@graphics";
@@ -158,8 +160,8 @@ public class ConfluenceService {
         String configurationSection = buildConfigurationSection(configurations);
         String pageTitle = buildReportTitle(template, releaseValue);
         String templateBody = template.text();
-        ConfluencePage reportPage = confluenceClient.createChildPage(
-                credentials, parentPageId, spaceKey, pageTitle, templateBody);
+        ConfluencePage reportPage = createReportPage(
+                credentials, parentPageId, spaceKey, pageTitle, templateBody, loadTest.id());
 
         List<String> attachmentNames = new ArrayList<>();
         List<RenderedChartAttachment> chartAttachments = new ArrayList<>();
@@ -370,6 +372,79 @@ public class ConfluenceService {
         String replacedBody = wrappedPlaceholderPattern.matcher(safeBody)
                 .replaceAll(Matcher.quoteReplacement(safeSection));
         return replacedBody.replace(placeholder, safeSection);
+    }
+
+    private ConfluencePage createReportPage(
+            ConfluenceCredentials credentials,
+            String parentPageId,
+            String spaceKey,
+            String baseTitle,
+            String templateBody,
+            UUID testUuid) {
+        List<String> titleCandidates = buildPageTitleCandidates(baseTitle, testUuid);
+        ConfluenceClientException lastDuplicateError = null;
+        for (String titleCandidate : titleCandidates) {
+            try {
+                return confluenceClient.createChildPage(
+                        credentials, parentPageId, spaceKey, titleCandidate, templateBody);
+            } catch (ConfluenceClientException ex) {
+                if (!isDuplicateTitleError(ex) || titleCandidate.equals(titleCandidates.get(titleCandidates.size() - 1))) {
+                    throw ex;
+                }
+                lastDuplicateError = ex;
+            }
+        }
+        if (lastDuplicateError != null) {
+            throw lastDuplicateError;
+        }
+        throw new ConfluenceOperationException("Не удалось создать страницу отчета в Confluence");
+    }
+
+    private List<String> buildPageTitleCandidates(String baseTitle, UUID testUuid) {
+        String safeBaseTitle = StringUtils.hasText(baseTitle) ? baseTitle.trim() : "Confluence Report";
+        String shortTestId = testUuid.toString().substring(0, 8);
+        String uuidSuffix = " [" + shortTestId + "]";
+        String timestampSuffix = " [" + shortTestId + "-" + System.currentTimeMillis() + "]";
+        List<String> candidates = new ArrayList<>();
+        candidates.add(trimPageTitle(safeBaseTitle));
+        candidates.add(trimPageTitle(safeBaseTitle, uuidSuffix));
+        candidates.add(trimPageTitle(safeBaseTitle, timestampSuffix));
+        return candidates.stream().distinct().toList();
+    }
+
+    private String trimPageTitle(String baseTitle) {
+        return trimPageTitle(baseTitle, "");
+    }
+
+    private String trimPageTitle(String baseTitle, String suffix) {
+        String safeSuffix = suffix == null ? "" : suffix;
+        int maxBaseLength = Math.max(1, MAX_PAGE_TITLE_LENGTH - safeSuffix.length());
+        String trimmedBase = baseTitle.length() <= maxBaseLength
+                ? baseTitle
+                : baseTitle.substring(0, maxBaseLength).trim();
+        return trimmedBase + safeSuffix;
+    }
+
+    private boolean isDuplicateTitleError(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (containsDuplicateTitleMessage(current.getMessage())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private boolean containsDuplicateTitleMessage(String message) {
+        if (!StringUtils.hasText(message)) {
+            return false;
+        }
+        String normalized = message.toLowerCase();
+        return normalized.contains("title")
+                && (normalized.contains("already exists")
+                        || normalized.contains("must be unique")
+                        || normalized.contains("conflict"));
     }
 
     private String resolveReleaseValue(List<KubernetesConfiguration> configurations) {

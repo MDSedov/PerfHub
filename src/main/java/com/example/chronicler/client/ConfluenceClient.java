@@ -6,6 +6,8 @@ import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +23,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -28,6 +31,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class ConfluenceClient {
 
     private static final Logger log = LoggerFactory.getLogger(ConfluenceClient.class);
+    private static final Pattern JSON_MESSAGE_PATTERN =
+            Pattern.compile("\"(?:message|reason)\"\\s*:\\s*\"([^\"]+)\"", Pattern.CASE_INSENSITIVE);
     private static final String SERVICE = "confluence";
     private static final String BASE_URL_KEY = "base-url";
     private static final String API_PATH_KEY = "api-path";
@@ -76,7 +81,7 @@ public class ConfluenceClient {
                     storageBody != null ? storageBody : "",
                     spaceKey);
         } catch (RestClientException ex) {
-            throw new ConfluenceClientException("Failed to load Confluence page " + pageId, ex);
+            throw new ConfluenceClientException(buildErrorMessage("Failed to load Confluence page " + pageId, ex), ex);
         }
     }
 
@@ -126,7 +131,9 @@ public class ConfluenceClient {
                     storageBody != null ? storageBody : "",
                     responseSpaceKey);
         } catch (RestClientException ex) {
-            throw new ConfluenceClientException("Failed to create Confluence child page under " + parentPageId, ex);
+            throw new ConfluenceClientException(
+                    buildErrorMessage("Failed to create Confluence child page under " + parentPageId, ex),
+                    ex);
         }
     }
 
@@ -173,7 +180,9 @@ public class ConfluenceClient {
                     attachment.id());
             return attachment.title();
         } catch (RestClientException ex) {
-            throw new ConfluenceClientException("Failed to upload attachment to Confluence page " + pageId, ex);
+            throw new ConfluenceClientException(
+                    buildErrorMessage("Failed to upload attachment to Confluence page " + pageId, ex),
+                    ex);
         }
     }
 
@@ -198,7 +207,9 @@ public class ConfluenceClient {
         try {
             restTemplate.exchange(uri, HttpMethod.PUT, new HttpEntity<>(requestBody, headers), Void.class);
         } catch (RestClientException ex) {
-            throw new ConfluenceClientException("Failed to update Confluence page " + page.id(), ex);
+            throw new ConfluenceClientException(
+                    buildErrorMessage("Failed to update Confluence page " + page.id(), ex),
+                    ex);
         }
     }
 
@@ -216,8 +227,49 @@ public class ConfluenceClient {
                     restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), String.class);
             return response.getStatusCode().toString();
         } catch (RestClientException ex) {
-            throw new ConfluenceClientException("Failed to check Confluence connection", ex);
+            throw new ConfluenceClientException(buildErrorMessage("Failed to check Confluence connection", ex), ex);
         }
+    }
+
+    private String buildErrorMessage(String prefix, RestClientException ex) {
+        String details = extractErrorDetails(ex);
+        return StringUtils.hasText(details) ? prefix + ": " + details : prefix;
+    }
+
+    private String extractErrorDetails(RestClientException ex) {
+        if (ex instanceof RestClientResponseException responseException) {
+            String status = "HTTP " + responseException.getRawStatusCode();
+            if (StringUtils.hasText(responseException.getStatusText())) {
+                status += " " + responseException.getStatusText();
+            }
+            String responseBody = normalizeMessage(responseException.getResponseBodyAsString());
+            if (!StringUtils.hasText(responseBody)) {
+                return status;
+            }
+            String extractedMessage = extractStructuredMessage(responseBody);
+            return status + ": " + truncateMessage(
+                    StringUtils.hasText(extractedMessage) ? extractedMessage : responseBody);
+        }
+        return truncateMessage(normalizeMessage(ex.getMessage()));
+    }
+
+    private String extractStructuredMessage(String responseBody) {
+        Matcher matcher = JSON_MESSAGE_PATTERN.matcher(responseBody);
+        if (matcher.find()) {
+            return normalizeMessage(matcher.group(1));
+        }
+        return null;
+    }
+
+    private String normalizeMessage(String message) {
+        return message == null ? "" : message.replaceAll("\\s+", " ").trim();
+    }
+
+    private String truncateMessage(String message) {
+        if (!StringUtils.hasText(message) || message.length() <= 300) {
+            return message;
+        }
+        return message.substring(0, 297) + "...";
     }
 
     private HttpHeaders authorizationHeaders(ConfluenceCredentials credentials) {

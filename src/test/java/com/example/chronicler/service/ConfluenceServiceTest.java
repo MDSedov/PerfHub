@@ -18,6 +18,7 @@ import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
+import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.exception.ConfluenceOperationException;
 import com.example.chronicler.model.ConfluenceTemplate;
 import com.example.chronicler.model.ConfluenceTemplateChart;
@@ -25,6 +26,7 @@ import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.LoadTestRepository;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
@@ -38,6 +40,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 @ExtendWith(MockitoExtension.class)
 class ConfluenceServiceTest {
@@ -330,6 +335,72 @@ class ConfluenceServiceTest {
     }
 
     @Test
+    void createReportsRetriesWithUniqueTitleWhenConfluenceRejectsDuplicatePageTitle() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        UUID testUuid = UUID.fromString("99999999-2222-3333-4444-555555555555");
+        ConfluenceReportRequest request = new ConfluenceReportRequest(
+                "123",
+                null,
+                List.of(new ConfluenceReportRequest.ReportItem(testUuid, 401)));
+
+        Instant start = Instant.parse("2024-02-02T00:00:00Z");
+        Instant end = Instant.parse("2024-02-02T02:00:00Z");
+        when(loadTestRepository.findById(testUuid))
+                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.MAX, null)));
+        when(kubernetesConfigurationService.getConfigurations(testUuid))
+                .thenReturn(List.of(new KubernetesConfiguration(
+                        1L,
+                        testUuid,
+                        "prod",
+                        "dropapp",
+                        "pod-1",
+                        "container-1",
+                        "1.0.0",
+                        "24.1.7",
+                        "100m",
+                        "200m",
+                        "256Mi",
+                        "512Mi",
+                        Instant.parse("2024-02-02T02:30:00Z"))));
+
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                401,
+                "max",
+                "Шаблон MAX",
+                "Отчет @release",
+                "<p>@release</p>",
+                List.of());
+        when(confluenceTemplateSettingsService.getActiveTemplate(401)).thenReturn(template);
+
+        ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
+        ConfluencePage createdPage = new ConfluencePage("777", "page", "Отчет 24.1.7 [99999999]", 1, template.text(), "SPACE");
+        when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+        when(confluenceClient.createChildPage(
+                        credentials,
+                        "123",
+                        "SPACE",
+                        "Отчет 24.1.7",
+                        template.text()))
+                .thenThrow(duplicateTitleException("123"));
+        when(confluenceClient.createChildPage(
+                        credentials,
+                        "123",
+                        "SPACE",
+                        "Отчет 24.1.7 [99999999]",
+                        template.text()))
+                .thenReturn(createdPage);
+
+        ConfluenceReportResponse response = confluenceService.createReports(credentials, request);
+
+        assertThat(response.reports()).hasSize(1);
+        assertThat(response.reports().get(0).pageId()).isEqualTo("777");
+        verify(confluenceClient).createChildPage(credentials, "123", "SPACE", "Отчет 24.1.7", template.text());
+        verify(confluenceClient).createChildPage(
+                credentials, "123", "SPACE", "Отчет 24.1.7 [99999999]", template.text());
+        verify(confluenceClient).updatePage(eq(credentials), eq(createdPage), anyString());
+    }
+
+    @Test
     void createReportHierarchyCreatesParentAndChildrenUsingTemplates() {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         ConfluencePage parentPage = new ConfluencePage("321", "page", "Parent", 3, "", "SPACE");
@@ -381,5 +452,19 @@ class ConfluenceServiceTest {
         assertThatThrownBy(() -> confluenceService.createReportHierarchy(credentials, "321"))
                 .isInstanceOf(ConfluenceOperationException.class)
                 .hasMessage("Parent page does not contain space key information");
+    }
+
+    private ConfluenceClientException duplicateTitleException(String parentPageId) {
+        HttpClientErrorException cause = HttpClientErrorException.create(
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
+                HttpHeaders.EMPTY,
+                "{\"message\":\"A page with this title already exists\"}".getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8);
+        return new ConfluenceClientException(
+                "Failed to create Confluence child page under "
+                        + parentPageId
+                        + ": HTTP 400 Bad Request: A page with this title already exists",
+                cause);
     }
 }
