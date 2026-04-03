@@ -93,16 +93,57 @@
             <form class="grafana-form d-flex flex-wrap align-items-center gap-3">
                 <div class="grafana-field d-flex align-items-center gap-2">
                     <label for="rangeStart" class="form-label mb-0">Начало</label>
-                    <input type="datetime-local" class="form-control" id="rangeStart">
+                    <div class="input-group">
+                        <input type="text"
+                               class="form-control"
+                               id="rangeStart"
+                               placeholder="2026-04-03 14:30:00 или 1712143800"
+                               autocomplete="off"
+                               spellcheck="false">
+                        <button type="button"
+                                class="btn btn-outline-secondary"
+                                id="rangeStartPickerButton"
+                                aria-label="Выбрать дату и время начала">
+                            <i class="bi bi-calendar3"></i>
+                        </button>
+                    </div>
+                    <input type="datetime-local"
+                           class="visually-hidden"
+                           id="rangeStartPicker"
+                           step="1"
+                           tabindex="-1"
+                           aria-hidden="true">
                 </div>
                 <div class="grafana-field d-flex align-items-center gap-2">
                     <label for="rangeEnd" class="form-label mb-0">Конец</label>
-                    <input type="datetime-local" class="form-control" id="rangeEnd">
+                    <div class="input-group">
+                        <input type="text"
+                               class="form-control"
+                               id="rangeEnd"
+                               placeholder="2026-04-03 15:30:00 или 1712147400000"
+                               autocomplete="off"
+                               spellcheck="false">
+                        <button type="button"
+                                class="btn btn-outline-secondary"
+                                id="rangeEndPickerButton"
+                                aria-label="Выбрать дату и время окончания">
+                            <i class="bi bi-calendar3"></i>
+                        </button>
+                    </div>
+                    <input type="datetime-local"
+                           class="visually-hidden"
+                           id="rangeEndPicker"
+                           step="1"
+                           tabindex="-1"
+                           aria-hidden="true">
                 </div>
                 <div class="grafana-field">
                     <button type="button" class="btn btn-outline-success" id="showPanelsButton">Показать графики</button>
                 </div>
             </form>
+            <p class="text-muted small mt-3 mb-0">
+                Можно выбрать дату и время через календарь, ввести их вручную или вставить Unix timestamp в секундах либо миллисекундах.
+            </p>
         </div>
 
         <div class="home-card reports-card">
@@ -154,6 +195,10 @@
     const exportPanelsButton = document.getElementById('exportPanelsButton');
     const rangeStartInput = document.getElementById('rangeStart');
     const rangeEndInput = document.getElementById('rangeEnd');
+    const rangeStartPickerButton = document.getElementById('rangeStartPickerButton');
+    const rangeEndPickerButton = document.getElementById('rangeEndPickerButton');
+    const rangeStartPickerInput = document.getElementById('rangeStartPicker');
+    const rangeEndPickerInput = document.getElementById('rangeEndPicker');
     const exportPageIdInput = document.getElementById('exportPageId');
     const toastContainer = document.getElementById('toastContainer');
 
@@ -207,7 +252,7 @@
 
     function setDashboardsStatus(message, type = 'info') {
         dashboardsStatus.textContent = message;
-        dashboardsStatus.className = `alert alert-${type} visually-hidden`;
+        dashboardsStatus.className = `alert alert-${type}`;
         showToast(message, type);
     }
 
@@ -305,6 +350,207 @@
     const createSpinner = () =>
             '<div class="d-flex justify-content-center py-3"><div class="spinner-border text-info" role="status" aria-label="Загружаем графики"></div></div>';
 
+    function padDatePart(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function formatRangeDisplayValue(date) {
+        return [
+            date.getFullYear(),
+            padDatePart(date.getMonth() + 1),
+            padDatePart(date.getDate())
+        ].join('-') + ' ' + [
+            padDatePart(date.getHours()),
+            padDatePart(date.getMinutes()),
+            padDatePart(date.getSeconds())
+        ].join(':');
+    }
+
+    function formatRangePickerValue(date) {
+        return [
+            date.getFullYear(),
+            padDatePart(date.getMonth() + 1),
+            padDatePart(date.getDate())
+        ].join('-') + 'T' + [
+            padDatePart(date.getHours()),
+            padDatePart(date.getMinutes()),
+            padDatePart(date.getSeconds())
+        ].join(':');
+    }
+
+    function parseTimestampValue(value) {
+        const trimmed = (value ?? '').trim();
+        if (!trimmed) {
+            return null;
+        }
+        const absoluteValue = trimmed.startsWith('-') ? trimmed.slice(1) : trimmed;
+        if (!/^\d+$/.test(absoluteValue) || ![10, 13].includes(absoluteValue.length)) {
+            return null;
+        }
+        const epochMilliseconds = absoluteValue.length === 10
+                ? Number(trimmed) * 1000
+                : Number(trimmed);
+        if (!Number.isFinite(epochMilliseconds)) {
+            return null;
+        }
+        const date = new Date(epochMilliseconds);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function parseLocalDateTimeValue(value) {
+        const normalized = (value ?? '').trim().replace(/\s+/g, ' ');
+        if (!normalized) {
+            return null;
+        }
+        const match = normalized.match(
+                /^(\d{4})-(\d{2})-(\d{2})(?:[ T])(\d{2}):(\d{2})(?::(\d{2}))?$/
+        );
+        if (!match) {
+            return null;
+        }
+        const [, yearValue, monthValue, dayValue, hourValue, minuteValue, secondValue] = match;
+        const year = Number(yearValue);
+        const month = Number(monthValue);
+        const day = Number(dayValue);
+        const hours = Number(hourValue);
+        const minutes = Number(minuteValue);
+        const seconds = Number(secondValue ?? '0');
+        const date = new Date(year, month - 1, day, hours, minutes, seconds);
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+        if (
+                date.getFullYear() !== year ||
+                date.getMonth() !== month - 1 ||
+                date.getDate() !== day ||
+                date.getHours() !== hours ||
+                date.getMinutes() !== minutes ||
+                date.getSeconds() !== seconds
+        ) {
+            return null;
+        }
+        return date;
+    }
+
+    function parseRangeDateValue(value) {
+        const trimmed = (value ?? '').trim();
+        if (!trimmed) {
+            return null;
+        }
+        const timestampDate = parseTimestampValue(trimmed);
+        if (timestampDate) {
+            return timestampDate;
+        }
+        const localDate = parseLocalDateTimeValue(trimmed);
+        if (localDate) {
+            return localDate;
+        }
+        const isoDate = new Date(trimmed);
+        return Number.isNaN(isoDate.getTime()) ? null : isoDate;
+    }
+
+    function clearRangeInputError(input) {
+        input?.classList.remove('is-invalid');
+    }
+
+    function setRangeInputError(input) {
+        input?.classList.add('is-invalid');
+    }
+
+    function syncRangePickerValue(pickerInput, date) {
+        if (!pickerInput) {
+            return;
+        }
+        pickerInput.value = date ? formatRangePickerValue(date) : '';
+    }
+
+    function normalizeRangeInputValue(textInput, pickerInput) {
+        if (!textInput) {
+            return null;
+        }
+        const rawValue = (textInput.value ?? '').trim();
+        if (!rawValue) {
+            textInput.value = '';
+            syncRangePickerValue(pickerInput, null);
+            clearRangeInputError(textInput);
+            return null;
+        }
+        const parsedDate = parseRangeDateValue(rawValue);
+        if (!parsedDate) {
+            setRangeInputError(textInput);
+            syncRangePickerValue(pickerInput, null);
+            return null;
+        }
+        textInput.value = formatRangeDisplayValue(parsedDate);
+        syncRangePickerValue(pickerInput, parsedDate);
+        clearRangeInputError(textInput);
+        return parsedDate;
+    }
+
+    function serializeRangeInputValue(textInput, pickerInput) {
+        if (!textInput) {
+            return null;
+        }
+        const rawValue = (textInput.value ?? '').trim();
+        if (!rawValue) {
+            setRangeInputError(textInput);
+            syncRangePickerValue(pickerInput, null);
+            return null;
+        }
+        const parsedDate = normalizeRangeInputValue(textInput, pickerInput);
+        return parsedDate ? parsedDate.toISOString() : null;
+    }
+
+    function openRangePicker(pickerInput) {
+        if (!pickerInput) {
+            return;
+        }
+        try {
+            if (typeof pickerInput.showPicker === 'function') {
+                pickerInput.showPicker();
+                return;
+            }
+        } catch (error) {
+            // ignore picker errors and fallback to focus/click below
+        }
+        pickerInput.focus();
+        pickerInput.click();
+    }
+
+    function bindRangeInput(textInput, pickerInput, pickerButton) {
+        if (!textInput) {
+            return;
+        }
+        textInput.addEventListener('input', () => clearRangeInputError(textInput));
+        textInput.addEventListener('blur', () => {
+            normalizeRangeInputValue(textInput, pickerInput);
+        });
+        textInput.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') {
+                return;
+            }
+            event.preventDefault();
+            normalizeRangeInputValue(textInput, pickerInput);
+        });
+        if (pickerInput) {
+            pickerInput.addEventListener('change', () => {
+                const parsedDate = parseLocalDateTimeValue(pickerInput.value);
+                if (!parsedDate) {
+                    return;
+                }
+                textInput.value = formatRangeDisplayValue(parsedDate);
+                clearRangeInputError(textInput);
+                syncRangePickerValue(pickerInput, parsedDate);
+            });
+        }
+        if (pickerButton) {
+            pickerButton.addEventListener('click', () => openRangePicker(pickerInput));
+        }
+    }
+
+    bindRangeInput(rangeStartInput, rangeStartPickerInput, rangeStartPickerButton);
+    bindRangeInput(rangeEndInput, rangeEndPickerInput, rangeEndPickerButton);
+
     async function renderByRange(from, to) {
         showPanelsButton.disabled = true;
         showPanelsButton.textContent = 'Запрашиваем…';
@@ -365,10 +611,13 @@
             dashboardsEmpty.classList.add('d-none');
             dashboardsEmpty.innerHTML = '';
             showToast('Графики загружаются…', 'info');
-            const from = rangeStartInput?.value ? new Date(rangeStartInput.value).toISOString() : null;
-            const to = rangeEndInput?.value ? new Date(rangeEndInput.value).toISOString() : null;
+            const from = serializeRangeInputValue(rangeStartInput, rangeStartPickerInput);
+            const to = serializeRangeInputValue(rangeEndInput, rangeEndPickerInput);
             if (!from || !to) {
-                setDashboardsStatus('Укажите даты начала и конца диапазона.', 'warning');
+                setDashboardsStatus(
+                        'Укажите корректные значения начала и конца диапазона. Поддерживаются дата и время либо Unix timestamp.',
+                        'warning'
+                );
                 showPanelsButton.disabled = false;
                 showPanelsButton.textContent = 'Показать графики';
                 return;

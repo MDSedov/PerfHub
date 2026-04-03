@@ -9,6 +9,7 @@ import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
+import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
@@ -267,6 +268,34 @@ class GrafanaServiceTest {
                 .containsEntry("service", "backend")
                 .doesNotContainKey("namespace")
                 .doesNotContainKey("");
+    }
+
+    @Test
+    void renderPanelsByRangeAcceptsUnixTimestampsInSecondsAndMilliseconds() {
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "slug", List.of(15), true)));
+        grafanaClient.setRenderedPanel(15, new byte[] {6});
+        grafanaClient.setPanelMetadata(15, new GrafanaPanelMetadata("Panel 15", "CPU"));
+
+        GrafanaRenderResponse secondsResponse = grafanaService.renderPanelsByRange(
+                new GrafanaRenderRangeRequest("1704067200", "1704070800"));
+        GrafanaRenderResponse millisecondsResponse = grafanaService.renderPanelsByRange(
+                new GrafanaRenderRangeRequest("1704067200000", "1704070800000"));
+
+        assertThat(secondsResponse.from()).isEqualTo(from.toString());
+        assertThat(secondsResponse.to()).isEqualTo(to.toString());
+        assertThat(secondsResponse.dashboards()).hasSize(1);
+        assertThat(secondsResponse.dashboards().get(0).panels()).hasSize(1);
+        assertThat(secondsResponse.dashboards().get(0).panels().get(0).imageBase64()).isEqualTo("Bg==");
+
+        assertThat(millisecondsResponse.from()).isEqualTo(from.toString());
+        assertThat(millisecondsResponse.to()).isEqualTo(to.toString());
+        assertThat(millisecondsResponse.dashboards()).hasSize(1);
+        assertThat(millisecondsResponse.dashboards().get(0).panels()).hasSize(1);
+        assertThat(millisecondsResponse.dashboards().get(0).panels().get(0).imageBase64()).isEqualTo("Bg==");
     }
 
     @Test

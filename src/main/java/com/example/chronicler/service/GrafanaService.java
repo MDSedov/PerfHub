@@ -298,12 +298,34 @@ public class GrafanaService {
     }
 
     private Instant parseInstant(String value, String field) {
-        try {
-            return Instant.parse(value);
-        } catch (DateTimeParseException ex) {
-            throw new GrafanaInvalidTimeRangeException(
-                    "Unable to parse " + field + " as ISO-8601 instant: " + value);
+        String normalizedValue = value == null ? "" : value.trim();
+        if (!StringUtils.hasText(normalizedValue)) {
+            throw new GrafanaInvalidTimeRangeException(field + " must not be blank");
         }
+        try {
+            Optional<Instant> unixTimestamp = parseUnixTimestamp(normalizedValue);
+            if (unixTimestamp.isPresent()) {
+                return unixTimestamp.get();
+            }
+            return Instant.parse(normalizedValue);
+        } catch (DateTimeParseException | NumberFormatException ex) {
+            throw new GrafanaInvalidTimeRangeException(
+                    "Unable to parse " + field + " as ISO-8601 instant or Unix timestamp: " + value);
+        }
+    }
+
+    private Optional<Instant> parseUnixTimestamp(String value) {
+        String normalizedValue = value.startsWith("-") ? value.substring(1) : value;
+        if (!normalizedValue.chars().allMatch(Character::isDigit)) {
+            return Optional.empty();
+        }
+        if (normalizedValue.length() == 10) {
+            return Optional.of(Instant.ofEpochSecond(Long.parseLong(value)));
+        }
+        if (normalizedValue.length() == 13) {
+            return Optional.of(Instant.ofEpochMilli(Long.parseLong(value)));
+        }
+        return Optional.empty();
     }
 
     private record ResolvedPanelMetadata(String title, String description) {}
