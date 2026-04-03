@@ -1,54 +1,65 @@
 package com.example.chronicler.controller;
 
-import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
-import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
-import com.example.chronicler.service.DropAppService;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSaveRequest;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSummaryDto;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
+import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
+import com.example.chronicler.service.DropAppConfigurationSnapshotService;
 import java.util.List;
-import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /** REST-контроллер для работы с конфигурацией DropApp. */
 @RestController
 @RequestMapping(path = "/api/dropapp", produces = MediaType.APPLICATION_JSON_VALUE)
 public class DropAppController {
 
-    private final DropAppService dropAppService;
+    private final DropAppConfigurationSnapshotService snapshotService;
 
-    public DropAppController(DropAppService dropAppService) {
-        this.dropAppService = dropAppService;
+    public DropAppController(DropAppConfigurationSnapshotService snapshotService) {
+        this.snapshotService = snapshotService;
     }
 
     /** Возвращает текущую конфигурацию DropApp для отображения на фронтенде. */
     @GetMapping("/configuration")
-    public List<DropAppConfigurationItemDto> getCurrentConfiguration(
+    public DropAppConfigurationViewDto getCurrentConfiguration(
             @RequestParam(value = "namespace", required = false) List<String> namespaces) {
-        return dropAppService.loadConfiguration(namespaces).stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+        return snapshotService.loadCurrentConfiguration(namespaces);
+    }
+
+    /** Возвращает список сохранённых конфигураций DropApp. */
+    @GetMapping("/configuration/saved")
+    public List<DropAppConfigurationSnapshotSummaryDto> listSavedConfigurations() {
+        return snapshotService.listSnapshots();
+    }
+
+    /** Возвращает детальную информацию о сохранённой конфигурации DropApp. */
+    @GetMapping("/configuration/saved/{snapshotId}")
+    public DropAppConfigurationSnapshotDetailsDto getSavedConfiguration(@PathVariable("snapshotId") Long snapshotId) {
+        return snapshotService.findSnapshotDetails(snapshotId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Сохраненная конфигурация DropApp не найдена"));
+    }
+
+    /** Сохраняет снапшот текущей конфигурации DropApp. */
+    @PostMapping(path = "/configuration/saved", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public DropAppConfigurationSnapshotDetailsDto saveConfiguration(
+            @RequestBody DropAppConfigurationSnapshotSaveRequest request) {
+        return snapshotService.saveSnapshot(request);
     }
 
     /** Возвращает список доступных namespace из DropApp. */
     @GetMapping("/namespaces")
-    public List<String> listNamespaces() {
-        return dropAppService.listNamespaces();
-    }
-
-    /** Преобразует запись DropApp к DTO для фронтенда. */
-    private DropAppConfigurationItemDto toDto(DropAppPodConfiguration configuration) {
-        return new DropAppConfigurationItemDto(
-                configuration.namespace(),
-                configuration.serviceName(),
-                configuration.podName(),
-                configuration.containerName(),
-                configuration.version(),
-                configuration.release(),
-                configuration.requestCpu(),
-                configuration.limitCpu(),
-                configuration.requestRam(),
-                configuration.limitRam());
+    public DropAppNamespaceOptionsDto listNamespaces() {
+        return snapshotService.getNamespaceOptions();
     }
 }

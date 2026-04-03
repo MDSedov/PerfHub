@@ -109,27 +109,59 @@
                     </button>
                 </div>
             </div>
-            <div id="dropappConfigMessage" class="alert d-none" role="alert"></div>
-            <div class="table-responsive d-none" id="dropappConfigTableWrapper">
-                <table class="table table-hover" id="dropappConfigTable">
-                    <thead>
-                    <tr>
-                        <th scope="col">Название POD</th>
-                        <th scope="col">Контейнер в POD</th>
-                        <th scope="col">Версия</th>
-                        <th scope="col">Релиз</th>
-                        <th scope="col">Request CPU</th>
-                        <th scope="col">Limit CPU</th>
-                        <th scope="col">Request RAM</th>
-                        <th scope="col">Limit RAM</th>
-                    </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+            <div id="dropappConfigMessage" class="alert d-none mt-4" role="alert"></div>
+
+            <div class="saved-configurations-section mt-4 pt-4 border-top">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                    <div>
+                        <h6 class="mb-1">Сохраненные конфигурации</h6>
+                        <p class="text-muted mb-0">
+                            История ранее сохранённых конфигураций DropApp. Каждую запись можно открыть в модальном окне.
+                        </p>
+                    </div>
+                    <span class="saved-configurations-counter text-muted small" id="savedConfigsCounter"></span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle" id="savedDropAppConfigsTable">
+                        <thead>
+                        <tr>
+                            <th scope="col">Дата сохранения</th>
+                            <th scope="col">Релиз</th>
+                            <th scope="col">Комментарий</th>
+                            <th scope="col" class="text-center">Детали</th>
+                        </tr>
+                        </thead>
+                        <tbody id="savedDropAppConfigsTableBody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 </main>
+
+<div class="modal fade test-details-modal"
+     id="dropAppConfigurationModal"
+     tabindex="-1"
+     aria-labelledby="dropAppConfigurationModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable test-details-modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="d-flex flex-column gap-1">
+                    <span class="test-details-modal-kicker">DropApp</span>
+                    <h5 class="modal-title" id="dropAppConfigurationModalLabel">Конфигурация DropApp</h5>
+                    <div id="dropAppConfigurationModalSubtitle"
+                         class="test-details-modal-subtitle text-muted small d-none"></div>
+                </div>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body" id="dropAppConfigurationModalBody"></div>
+        </div>
+    </div>
+</div>
 
 <div id="toastContainer" class="toast-container"></div>
 
@@ -145,12 +177,21 @@
     document.addEventListener('DOMContentLoaded', () => {
         const loadButton = document.getElementById('loadDropAppConfig');
         const messageBox = document.getElementById('dropappConfigMessage');
-        const tableWrapper = document.getElementById('dropappConfigTableWrapper');
-        const tableBody = document.querySelector('#dropappConfigTable tbody');
         const toastContainer = document.getElementById('toastContainer');
         const namespaceFilterList = document.getElementById('namespaceFilterList');
         const namespaceFilterToggle = document.getElementById('namespaceFilterToggle');
+        const savedConfigsCounter = document.getElementById('savedConfigsCounter');
+        const savedConfigsTableBody = document.getElementById('savedDropAppConfigsTableBody');
+        const configurationModalElement = document.getElementById('dropAppConfigurationModal');
+        const configurationModalTitle = document.getElementById('dropAppConfigurationModalLabel');
+        const configurationModalSubtitle = document.getElementById('dropAppConfigurationModalSubtitle');
+        const configurationModalBody = document.getElementById('dropAppConfigurationModalBody');
+        const configurationModal = configurationModalElement && window.bootstrap?.Modal
+                ? bootstrap.Modal.getOrCreateInstance(configurationModalElement)
+                : null;
+
         let selectedNamespaces = [];
+        let currentConfigurationPreview = null;
 
         const removeToast = (toast) => {
             if (!toast) {
@@ -189,6 +230,454 @@
             return toast;
         };
 
+        const valueOrDash = (value) => {
+            if (value === undefined || value === null) {
+                return '—';
+            }
+            const text = String(value).trim();
+            return text === '' ? '—' : text;
+        };
+
+        const normalizeText = (value) => {
+            if (value === undefined || value === null) {
+                return null;
+            }
+            const text = String(value).trim();
+            return text === '' ? null : text;
+        };
+
+        const setMessage = (type, text) => {
+            if (!messageBox) {
+                return;
+            }
+            messageBox.className = 'alert alert-' + type;
+            messageBox.textContent = text;
+        };
+
+        const hideMessage = () => {
+            if (!messageBox) {
+                return;
+            }
+            messageBox.className = 'alert d-none';
+            messageBox.textContent = '';
+        };
+
+        const summarizeNamespaces = (namespaces) => {
+            if (!Array.isArray(namespaces) || namespaces.length === 0) {
+                return 'Namespace';
+            }
+            if (namespaces.length === 1) {
+                return `Namespace: ${namespaces[0]}`;
+            }
+            if (namespaces.length === 2) {
+                return `Namespace: ${namespaces.join(', ')}`;
+            }
+            return `Namespace (${namespaces.length})`;
+        };
+
+        const updateNamespaceChipLabel = () => {
+            if (!namespaceFilterToggle) {
+                return;
+            }
+            namespaceFilterToggle.innerHTML = `<i class="bi bi-hdd-network"></i> ${summarizeNamespaces(selectedNamespaces)}`;
+        };
+
+        const syncSelectedNamespaces = () => {
+            if (!namespaceFilterList) {
+                return;
+            }
+            selectedNamespaces = Array.from(namespaceFilterList.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(input => normalizeText(input.value))
+                    .filter(Boolean);
+            updateNamespaceChipLabel();
+        };
+
+        const renderNamespaceOptions = (payload) => {
+            if (!namespaceFilterList) {
+                return;
+            }
+
+            const available = Array.isArray(payload?.available)
+                    ? payload.available
+                    : (Array.isArray(payload) ? payload : []);
+            const selected = Array.isArray(payload?.selected) ? payload.selected : [];
+
+            selectedNamespaces = selected
+                    .map(normalizeText)
+                    .filter(Boolean);
+
+            namespaceFilterList.innerHTML = '';
+            if (!available.length) {
+                namespaceFilterList.innerHTML = '<div class="text-muted small">Namespace не найдены</div>';
+                updateNamespaceChipLabel();
+                return;
+            }
+
+            available.forEach(ns => {
+                const normalizedNamespace = normalizeText(ns);
+                if (!normalizedNamespace) {
+                    return;
+                }
+                const id = `ns-${normalizedNamespace.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'form-check';
+
+                const input = document.createElement('input');
+                input.className = 'form-check-input';
+                input.type = 'checkbox';
+                input.id = id;
+                input.value = normalizedNamespace;
+                input.checked = selectedNamespaces.includes(normalizedNamespace);
+                input.addEventListener('change', syncSelectedNamespaces);
+
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.setAttribute('for', id);
+                label.textContent = normalizedNamespace;
+
+                wrapper.appendChild(input);
+                wrapper.appendChild(label);
+                namespaceFilterList.appendChild(wrapper);
+            });
+
+            syncSelectedNamespaces();
+        };
+
+        const appendCell = (row, value, className = '') => {
+            const cell = document.createElement('td');
+            if (className) {
+                cell.className = className;
+            }
+            cell.textContent = valueOrDash(value);
+            row.appendChild(cell);
+        };
+
+        const buildConfigurationTable = (items) => {
+            const table = document.createElement('table');
+            table.className = 'table table-sm align-middle mb-0';
+
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            ['Namespace', 'POD', 'Контейнер', 'Версия', 'Релиз', 'Request CPU', 'Limit CPU', 'Request RAM', 'Limit RAM']
+                    .forEach(title => {
+                        const th = document.createElement('th');
+                        th.scope = 'col';
+                        th.textContent = title;
+                        headerRow.appendChild(th);
+                    });
+            thead.appendChild(headerRow);
+
+            const tbody = document.createElement('tbody');
+            (Array.isArray(items) ? items : []).forEach(item => {
+                const row = document.createElement('tr');
+                appendCell(row, item?.namespace);
+                appendCell(row, item?.podName);
+                appendCell(row, item?.containerName);
+                appendCell(row, item?.version);
+                appendCell(row, item?.release);
+                appendCell(row, item?.requestCpu);
+                appendCell(row, item?.limitCpu);
+                appendCell(row, item?.requestRam);
+                appendCell(row, item?.limitRam);
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            return table;
+        };
+
+        const createDetailsSection = (title) => {
+            const section = document.createElement('section');
+            section.className = 'test-details-section';
+            const heading = document.createElement('h6');
+            heading.className = 'test-details-section-title mb-3';
+            heading.textContent = title;
+            section.appendChild(heading);
+            return section;
+        };
+
+        const createMetaCard = (label, value, extraClass = '') => {
+            const card = document.createElement('div');
+            card.className = `configuration-meta-card${extraClass ? ` ${extraClass}` : ''}`;
+
+            const kicker = document.createElement('div');
+            kicker.className = 'configuration-meta-label';
+            kicker.textContent = label;
+
+            const content = document.createElement('div');
+            content.className = 'configuration-meta-value';
+            content.textContent = valueOrDash(value);
+
+            card.appendChild(kicker);
+            card.appendChild(content);
+            return card;
+        };
+
+        const buildModalSubtitle = (payload, mode) => {
+            const parts = [];
+            if (mode === 'saved' && payload?.savedAt) {
+                parts.push(`Сохранено ${payload.savedAt}`);
+            }
+            if (payload?.release) {
+                parts.push(`Релиз ${payload.release}`);
+            }
+            if (Array.isArray(payload?.namespaces) && payload.namespaces.length > 0) {
+                parts.push(`Namespace: ${payload.namespaces.join(', ')}`);
+            }
+            return parts.join(' | ');
+        };
+
+        const renderConfigurationModal = (payload, mode) => {
+            if (!configurationModalBody || !configurationModalTitle) {
+                return;
+            }
+
+            const normalizedMode = mode === 'saved' ? 'saved' : 'preview';
+            const items = Array.isArray(payload?.items) ? payload.items : [];
+
+            configurationModalTitle.textContent = normalizedMode === 'saved'
+                    ? 'Сохраненная конфигурация DropApp'
+                    : 'Текущая конфигурация DropApp';
+
+            if (configurationModalSubtitle) {
+                const subtitle = buildModalSubtitle(payload, normalizedMode);
+                configurationModalSubtitle.textContent = subtitle;
+                configurationModalSubtitle.classList.toggle('d-none', subtitle === '');
+            }
+
+            configurationModalBody.innerHTML = '';
+            const stack = document.createElement('div');
+            stack.className = 'test-details test-details-modal-content test-details-stack';
+
+            const metaSection = createDetailsSection('Общая информация');
+            const metaGrid = document.createElement('div');
+            metaGrid.className = 'configuration-meta-grid';
+            if (normalizedMode === 'saved') {
+                metaGrid.appendChild(createMetaCard('Дата сохранения', payload?.savedAt));
+            }
+            metaGrid.appendChild(createMetaCard('Релиз', payload?.release));
+            metaGrid.appendChild(createMetaCard('Namespace', Array.isArray(payload?.namespaces) ? payload.namespaces.join(', ') : null));
+            metaGrid.appendChild(createMetaCard('Комментарий', payload?.comment, 'configuration-meta-card-wide'));
+            metaSection.appendChild(metaGrid);
+            stack.appendChild(metaSection);
+
+            const tableSection = createDetailsSection('Состав конфигурации');
+            if (items.length === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'text-muted small';
+                emptyState.textContent = 'Конфигурация DropApp пуста.';
+                tableSection.appendChild(emptyState);
+            } else {
+                const tableWrapper = document.createElement('div');
+                tableWrapper.className = 'table-responsive';
+                tableWrapper.appendChild(buildConfigurationTable(items));
+                tableSection.appendChild(tableWrapper);
+            }
+            stack.appendChild(tableSection);
+
+            if (normalizedMode === 'preview') {
+                const saveSection = createDetailsSection('Сохранить конфигурацию');
+                const saveCard = document.createElement('div');
+                saveCard.className = 'configuration-save-card';
+
+                const formGrid = document.createElement('div');
+                formGrid.className = 'row g-3';
+
+                const releaseCol = document.createElement('div');
+                releaseCol.className = 'col-12 col-lg-4';
+                const releaseLabel = document.createElement('label');
+                releaseLabel.className = 'form-label';
+                releaseLabel.textContent = 'Номер релиза';
+                const releaseInput = document.createElement('input');
+                releaseInput.type = 'text';
+                releaseInput.className = 'form-control';
+                releaseInput.value = payload?.release ?? '';
+                releaseInput.placeholder = 'Например, 2.12.10';
+                releaseCol.appendChild(releaseLabel);
+                releaseCol.appendChild(releaseInput);
+
+                const commentCol = document.createElement('div');
+                commentCol.className = 'col-12';
+                const commentLabel = document.createElement('label');
+                commentLabel.className = 'form-label';
+                commentLabel.textContent = 'Комментарий';
+                const commentInput = document.createElement('textarea');
+                commentInput.className = 'form-control';
+                commentInput.rows = 4;
+                commentInput.placeholder = 'Комментарий будет отображаться в таблице сохранённых конфигураций.';
+                commentCol.appendChild(commentLabel);
+                commentCol.appendChild(commentInput);
+
+                formGrid.appendChild(releaseCol);
+                formGrid.appendChild(commentCol);
+
+                const actions = document.createElement('div');
+                actions.className = 'd-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mt-3';
+
+                const helperText = document.createElement('div');
+                helperText.className = 'text-muted small';
+                helperText.textContent = 'При сохранении будет зафиксирован текущий состав контейнеров и ресурсов.';
+
+                const saveButton = document.createElement('button');
+                saveButton.type = 'button';
+                saveButton.className = 'btn btn-success';
+                saveButton.textContent = 'Сохранить конфигурацию';
+                saveButton.addEventListener('click', async () => {
+                    if (!currentConfigurationPreview?.items?.length) {
+                        showToast('Нет текущей конфигурации для сохранения.', 'warning');
+                        return;
+                    }
+
+                    saveButton.disabled = true;
+                    saveButton.textContent = 'Сохраняем…';
+                    try {
+                        const savedConfiguration = await requestJson('/api/dropapp/configuration/saved', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                namespaces: currentConfigurationPreview.namespaces,
+                                release: releaseInput.value,
+                                comment: commentInput.value,
+                                items: currentConfigurationPreview.items
+                            })
+                        });
+                        await loadSavedConfigurations(false);
+                        currentConfigurationPreview = null;
+                        renderConfigurationModal(savedConfiguration, 'saved');
+                        showToast('Конфигурация DropApp сохранена.', 'success');
+                        setMessage('success', 'Конфигурация DropApp сохранена и добавлена в список ниже.');
+                    } catch (error) {
+                        showToast('Не удалось сохранить конфигурацию DropApp: ' + error.message, 'danger');
+                    } finally {
+                        saveButton.disabled = false;
+                        saveButton.textContent = 'Сохранить конфигурацию';
+                    }
+                });
+
+                actions.appendChild(helperText);
+                actions.appendChild(saveButton);
+                saveCard.appendChild(formGrid);
+                saveCard.appendChild(actions);
+                saveSection.appendChild(saveCard);
+                stack.appendChild(saveSection);
+            }
+
+            configurationModalBody.appendChild(stack);
+            configurationModal?.show();
+        };
+
+        const renderSavedConfigurationsTable = (items) => {
+            if (!savedConfigsTableBody) {
+                return;
+            }
+
+            savedConfigsTableBody.innerHTML = '';
+            const savedItems = Array.isArray(items) ? items : [];
+            if (savedConfigsCounter) {
+                savedConfigsCounter.textContent = savedItems.length === 0
+                        ? 'Сохранённых конфигураций пока нет'
+                        : `Сохранено конфигураций: ${savedItems.length}`;
+            }
+
+            if (savedItems.length === 0) {
+                const emptyRow = document.createElement('tr');
+                const emptyCell = document.createElement('td');
+                emptyCell.colSpan = 4;
+                emptyCell.className = 'text-center text-muted py-4';
+                emptyCell.textContent = 'Сохранённые конфигурации пока отсутствуют.';
+                emptyRow.appendChild(emptyCell);
+                savedConfigsTableBody.appendChild(emptyRow);
+                return;
+            }
+
+            savedItems.forEach(item => {
+                const row = document.createElement('tr');
+                appendCell(row, item?.savedAt);
+                appendCell(row, item?.release);
+                appendCell(row, item?.comment);
+
+                const actionsCell = document.createElement('td');
+                actionsCell.className = 'text-center';
+                const detailsButton = document.createElement('button');
+                detailsButton.type = 'button';
+                detailsButton.className = 'details-toggle';
+                detailsButton.setAttribute('aria-label', 'Открыть сохраненную конфигурацию');
+                detailsButton.innerHTML = '<i class="bi bi-arrows-angle-expand details-icon"></i>';
+                detailsButton.addEventListener('click', async () => {
+                    detailsButton.disabled = true;
+                    try {
+                        const details = await requestJson('/api/dropapp/configuration/saved/' + encodeURIComponent(item.id));
+                        renderConfigurationModal(details, 'saved');
+                    } catch (error) {
+                        showToast('Не удалось загрузить сохраненную конфигурацию: ' + error.message, 'danger');
+                    } finally {
+                        detailsButton.disabled = false;
+                    }
+                });
+                actionsCell.appendChild(detailsButton);
+                row.appendChild(actionsCell);
+                savedConfigsTableBody.appendChild(row);
+            });
+        };
+
+        const requestJson = async (url, options = {}) => {
+            const headers = {
+                Accept: 'application/json',
+                ...(options.body ? {'Content-Type': 'application/json'} : {}),
+                ...(options.headers || {})
+            };
+            const response = await fetch(url, {...options, headers});
+            const raw = await response.text();
+            let data = null;
+            if (raw) {
+                try {
+                    data = JSON.parse(raw);
+                } catch (error) {
+                    data = raw;
+                }
+            }
+
+            if (!response.ok) {
+                let message = 'Сервер вернул статус ' + response.status;
+                if (data && typeof data === 'object' && data.message) {
+                    message = data.message;
+                } else if (typeof data === 'string' && data.trim() !== '') {
+                    message = data.trim();
+                }
+                throw new Error(message);
+            }
+
+            return data;
+        };
+
+        const loadNamespaces = async () => {
+            if (!namespaceFilterList) {
+                return;
+            }
+            namespaceFilterList.innerHTML = '<div class="text-muted small">Загружаем…</div>';
+            try {
+                const data = await requestJson('/api/dropapp/namespaces');
+                renderNamespaceOptions(data);
+            } catch (error) {
+                namespaceFilterList.innerHTML = '<div class="text-muted small">Не удалось загрузить namespace</div>';
+                setMessage('danger', 'Не удалось получить список namespace: ' + error.message);
+                showToast('Не удалось получить список namespace: ' + error.message, 'danger');
+            }
+        };
+
+        const loadSavedConfigurations = async (showErrorMessage = true) => {
+            try {
+                const data = await requestJson('/api/dropapp/configuration/saved');
+                renderSavedConfigurationsTable(Array.isArray(data) ? data : []);
+            } catch (error) {
+                renderSavedConfigurationsTable([]);
+                if (showErrorMessage) {
+                    setMessage('danger', 'Не удалось загрузить список сохранённых конфигураций: ' + error.message);
+                }
+                showToast('Не удалось загрузить список сохранённых конфигураций: ' + error.message, 'danger');
+            }
+        };
+
         if (toastContainer) {
             toastContainer.addEventListener('click', event => {
                 const closeButton = event.target.closest('.toast-close');
@@ -204,137 +693,45 @@
             startBackgroundErrorPolling(showToast);
         }
 
-        const updateNamespaceChipLabel = () => {
-            if (!namespaceFilterToggle) return;
-            const count = selectedNamespaces.length;
-            namespaceFilterToggle.innerHTML = `<i class="bi bi-hdd-network"></i> ${count ? `Namespace (${count})` : 'Namespace'}`;
-        };
-
-        const renderNamespaceOptions = (namespaces) => {
-            if (!namespaceFilterList) return;
-            namespaceFilterList.innerHTML = '';
-            if (!namespaces.length) {
-                namespaceFilterList.innerHTML = '<div class="text-muted small">Namespace не найдены</div>';
-                return;
-            }
-            namespaces.forEach(ns => {
-                const id = `ns-${ns}`;
-                const wrapper = document.createElement('div');
-                wrapper.className = 'form-check';
-                const input = document.createElement('input');
-                input.className = 'form-check-input';
-                input.type = 'checkbox';
-                input.id = id;
-                input.value = ns;
-                const label = document.createElement('label');
-                label.className = 'form-check-label';
-                label.setAttribute('for', id);
-                label.textContent = ns;
-                input.addEventListener('change', () => {
-                    if (input.checked) {
-                        if (!selectedNamespaces.includes(ns)) {
-                            selectedNamespaces.push(ns);
-                        }
-                    } else {
-                        selectedNamespaces = selectedNamespaces.filter(item => item !== ns);
-                    }
-                    updateNamespaceChipLabel();
-                });
-                wrapper.appendChild(input);
-                wrapper.appendChild(label);
-                namespaceFilterList.appendChild(wrapper);
-            });
-        };
-
-        const loadNamespaces = async () => {
-            if (!namespaceFilterList) {
-                return;
-            }
-            namespaceFilterList.innerHTML = '<div class="text-muted small">Загружаем…</div>';
-            try {
-                const response = await fetch('/api/dropapp/namespaces', { headers: { Accept: 'application/json' } });
-                if (!response.ok) {
-                    throw new Error('Сервер вернул статус ' + response.status);
-                }
-                const data = await response.json();
-                const namespaces = Array.isArray(data) ? data : [];
-                renderNamespaceOptions(namespaces);
-            } catch (error) {
-                namespaceFilterList.innerHTML = '<div class="text-muted small">Не удалось загрузить namespace</div>';
-                showToast('Не удалось получить список namespace: ' + error.message, 'danger');
-            }
-        };
-
-        const setMessage = (type, text) => {
-            if (messageBox) {
-                messageBox.className = 'alert alert-' + type + ' visually-hidden';
-                messageBox.textContent = text;
-            }
-            showToast(text, type);
-        };
-
-        const hideMessage = () => {
-            if (messageBox) {
-                messageBox.className = 'alert d-none';
-                messageBox.textContent = '';
-            }
-        };
-
-        const valueOrDash = (value) => {
-            if (value === undefined || value === null) {
-                return '—';
-            }
-            const text = String(value).trim();
-            return text === '' ? '—' : text;
-        };
-
-        const renderRows = (items) => {
-            tableBody.innerHTML = '';
-            items.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${valueOrDash(item.podName)}</td>
-                    <td>${valueOrDash(item.containerName)}</td>
-                    <td>${valueOrDash(item.version)}</td>
-                    <td>${valueOrDash(item.release)}</td>
-                    <td>${valueOrDash(item.requestCpu)}</td>
-                    <td>${valueOrDash(item.limitCpu)}</td>
-                    <td>${valueOrDash(item.requestRam)}</td>
-                    <td>${valueOrDash(item.limitRam)}</td>`;
-                tableBody.appendChild(row);
-            });
-        };
-
-        loadButton.addEventListener('click', async () => {
+        loadButton?.addEventListener('click', async () => {
             hideMessage();
-            showToast('Запрашиваем конфигурацию DropApp…', 'info', 8000);
+            if (!selectedNamespaces.length) {
+                setMessage('warning', 'Выберите хотя бы один namespace для получения текущей конфигурации.');
+                showToast('Выберите хотя бы один namespace для получения текущей конфигурации.', 'warning');
+                return;
+            }
+
             loadButton.disabled = true;
+            const progressToast = showToast('Запрашиваем текущую конфигурацию DropApp…', 'info', 8000);
             try {
-                const selected = selectedNamespaces.filter(Boolean);
-                const query = selected.length ? '?namespace=' + selected.map(encodeURIComponent).join('&namespace=') : '';
-                const response = await fetch('/api/dropapp/configuration' + query, {headers: {'Accept': 'application/json'}});
-                if (!response.ok) {
-                    throw new Error('Сервер вернул статус ' + response.status);
-                }
-                const data = await response.json();
-                if (!Array.isArray(data) || data.length === 0) {
-                    tableWrapper.classList.add('d-none');
-                    setMessage('warning', 'Конфигурация DropApp пуста. Проверьте настройки namespace.');
+                const query = '?namespace=' + selectedNamespaces.map(encodeURIComponent).join('&namespace=');
+                const data = await requestJson('/api/dropapp/configuration' + query);
+                if (!Array.isArray(data?.items) || data.items.length === 0) {
+                    setMessage('warning', 'Конфигурация DropApp пуста. Проверьте выбранные namespace.');
+                    showToast('Конфигурация DropApp пуста. Проверьте выбранные namespace.', 'warning');
                     return;
                 }
-                renderRows(data);
-                tableWrapper.classList.remove('d-none');
-                setMessage('success', 'Конфигурация DropApp успешно загружена.');
+
+                currentConfigurationPreview = {
+                    namespaces: Array.isArray(data.namespaces) ? data.namespaces : [...selectedNamespaces],
+                    release: normalizeText(data.release),
+                    items: data.items
+                };
+                renderConfigurationModal(currentConfigurationPreview, 'preview');
+                setMessage('success', 'Текущая конфигурация загружена. Проверьте её в модальном окне и при необходимости сохраните.');
             } catch (error) {
-                tableWrapper.classList.add('d-none');
+                currentConfigurationPreview = null;
                 setMessage('danger', 'Не удалось загрузить конфигурацию DropApp: ' + error.message);
+                showToast('Не удалось загрузить конфигурацию DropApp: ' + error.message, 'danger');
             } finally {
+                removeToast(progressToast);
                 loadButton.disabled = false;
             }
         });
 
-        loadNamespaces();
         updateNamespaceChipLabel();
+        loadNamespaces();
+        loadSavedConfigurations(false);
     });
 </script>
 </body>
