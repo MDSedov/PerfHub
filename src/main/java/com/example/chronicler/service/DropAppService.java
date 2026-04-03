@@ -13,6 +13,11 @@ import org.springframework.util.StringUtils;
 @Service
 public class DropAppService {
 
+    private static final String SERVICE = "dropapp";
+    private static final String BASE_URL_KEY = "base-url";
+    private static final String TOKEN_KEY = "token";
+    private static final String NAMESPACES_KEY = "namespaces";
+
     private final DropAppClient dropAppClient;
     private final ConfigurationProvider configurationProvider;
 
@@ -26,9 +31,19 @@ public class DropAppService {
         return dropAppClient.fetchNamespaces();
     }
 
+    /** Выполняет легкий запрос к DropApp, чтобы токен не простаивал. */
+    public void keepAlive() {
+        dropAppClient.fetchNamespaces();
+    }
+
+    /** Проверяет, что для фонового запроса DropApp настроены URL и токен. */
+    public boolean isConfigured() {
+        return hasTextValue(BASE_URL_KEY) && hasTextValue(TOKEN_KEY);
+    }
+
     /** Возвращает актуальную конфигурацию DropApp для namespace, перечисленных в настройках. */
     public List<DropAppPodConfiguration> loadCurrentConfiguration() {
-        String rawNamespaces = configurationProvider.getRequiredValue("dropapp", "namespaces");
+        String rawNamespaces = configurationProvider.getRequiredValue(SERVICE, NAMESPACES_KEY);
         List<String> namespaces = Arrays.stream(rawNamespaces.split(","))
                 .map(String::trim)
                 .filter(StringUtils::hasText)
@@ -45,5 +60,11 @@ public class DropAppService {
             return loadCurrentConfiguration();
         }
         return dropAppClient.fetchConfiguration(namespaces);
+    }
+
+    private boolean hasTextValue(String key) {
+        return configurationProvider.findValue(SERVICE, key)
+                .map(StringUtils::hasText)
+                .orElse(false);
     }
 }
