@@ -275,15 +275,23 @@ class GrafanaServiceTest {
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
         Instant to = Instant.parse("2024-01-01T01:00:00Z");
 
+        confluenceTemplateSettingsService.registerTemplate(
+                new ConfluenceTemplate(
+                        77,
+                        "max",
+                        "MAX report",
+                        "MAX report",
+                        "<p>Body</p>",
+                        List.of(new ConfluenceTemplateChart(1L, 77, "Panel 15", "uid", 15, 0))));
         grafanaDashboardRepository.setDashboards(
                 List.of(new GrafanaDashboard("uid", "slug", List.of(15), true)));
         grafanaClient.setRenderedPanel(15, new byte[] {6});
         grafanaClient.setPanelMetadata(15, new GrafanaPanelMetadata("Panel 15", "CPU"));
 
         GrafanaRenderResponse secondsResponse = grafanaService.renderPanelsByRange(
-                new GrafanaRenderRangeRequest("1704067200", "1704070800"));
+                new GrafanaRenderRangeRequest("1704067200", "1704070800", 77));
         GrafanaRenderResponse millisecondsResponse = grafanaService.renderPanelsByRange(
-                new GrafanaRenderRangeRequest("1704067200000", "1704070800000"));
+                new GrafanaRenderRangeRequest("1704067200000", "1704070800000", 77));
 
         assertThat(secondsResponse.from()).isEqualTo(from.toString());
         assertThat(secondsResponse.to()).isEqualTo(to.toString());
@@ -296,6 +304,40 @@ class GrafanaServiceTest {
         assertThat(millisecondsResponse.dashboards()).hasSize(1);
         assertThat(millisecondsResponse.dashboards().get(0).panels()).hasSize(1);
         assertThat(millisecondsResponse.dashboards().get(0).panels().get(0).imageBase64()).isEqualTo("Bg==");
+    }
+
+    @Test
+    void renderPanelsByRangeUsesSelectedTemplateCharts() {
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+
+        confluenceTemplateSettingsService.registerTemplate(
+                new ConfluenceTemplate(
+                        55,
+                        "stability",
+                        "Stability report",
+                        "Stability report",
+                        "<p>Body</p>",
+                        List.of(
+                                new ConfluenceTemplateChart(1L, 55, "CPU", "uid", 7, 0),
+                                new ConfluenceTemplateChart(2L, 55, "Memory", "uid", 8, 1))));
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "slug", List.of(1, 2, 3), true)));
+        grafanaClient.setRenderedPanel(7, new byte[] {1});
+        grafanaClient.setRenderedPanel(8, new byte[] {2});
+        grafanaClient.setPanelMetadata(7, new GrafanaPanelMetadata("CPU", ""));
+        grafanaClient.setPanelMetadata(8, new GrafanaPanelMetadata("Memory", ""));
+
+        GrafanaRenderResponse response = grafanaService.renderPanelsByRange(
+                new GrafanaRenderRangeRequest(from.toString(), to.toString(), 55));
+
+        assertThat(response.from()).isEqualTo(from.toString());
+        assertThat(response.to()).isEqualTo(to.toString());
+        assertThat(response.dashboards()).hasSize(1);
+        assertThat(response.dashboards().get(0).panels())
+                .extracting(panel -> panel.panelId())
+                .containsExactly(7, 8);
+        assertThat(grafanaClient.renderCalls()).containsExactly(7, 8);
     }
 
     @Test
@@ -503,6 +545,7 @@ class GrafanaServiceTest {
     private static final class StubConfluenceTemplateSettingsService extends ConfluenceTemplateSettingsService {
 
         private final Map<LoadTestType, ConfluenceTemplate> templatesByType = new HashMap<>();
+        private final Map<Integer, ConfluenceTemplate> templatesById = new HashMap<>();
 
         private StubConfluenceTemplateSettingsService() {
             super(null, null, null, null);
@@ -510,6 +553,11 @@ class GrafanaServiceTest {
 
         void registerDefaultTemplate(LoadTestType type, ConfluenceTemplate template) {
             templatesByType.put(type, template);
+            registerTemplate(template);
+        }
+
+        void registerTemplate(ConfluenceTemplate template) {
+            templatesById.put(template.id(), template);
         }
 
         @Override
@@ -523,6 +571,15 @@ class GrafanaServiceTest {
             }
             throw new IllegalArgumentException(
                     "Confluence report template is not configured for test type " + loadTestType.value());
+        }
+
+        @Override
+        public ConfluenceTemplate getActiveTemplate(int id) {
+            ConfluenceTemplate template = templatesById.get(id);
+            if (template != null) {
+                return template;
+            }
+            throw new IllegalArgumentException("Шаблон отчета не найден");
         }
     }
 }

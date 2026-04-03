@@ -95,11 +95,15 @@
                     Номер релиза, версии сервисов, количестве POD и выделенных для них ресурсов.
                 </p>
                 <div class="d-flex flex-wrap justify-content-center align-items-center gap-3">
-                    <div class="dropdown" data-bs-auto-close="outside">
-                        <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" id="namespaceFilterToggle">
+                    <div class="dropdown filter-dropdown-container" id="namespaceFilterContainer">
+                        <button type="button"
+                                class="filter-chip dropdown-toggle"
+                                id="namespaceFilterToggle"
+                                aria-expanded="false"
+                                aria-controls="namespaceFilterMenu">
                             <i class="bi bi-hdd-network"></i> Namespace
-                        </a>
-                        <div class="dropdown-menu filter-dropdown">
+                        </button>
+                        <div class="dropdown-menu filter-dropdown" id="namespaceFilterMenu">
                             <p class="form-label small text-muted mb-2">Namespaces</p>
                             <div id="namespaceFilterList" class="filter-list"></div>
                         </div>
@@ -109,8 +113,6 @@
                     </button>
                 </div>
             </div>
-            <div id="dropappConfigMessage" class="alert d-none mt-4" role="alert"></div>
-
             <div class="saved-configurations-section mt-4 pt-4 border-top">
                 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
                     <div>
@@ -176,10 +178,11 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const loadButton = document.getElementById('loadDropAppConfig');
-        const messageBox = document.getElementById('dropappConfigMessage');
         const toastContainer = document.getElementById('toastContainer');
+        const namespaceFilterContainer = document.getElementById('namespaceFilterContainer');
         const namespaceFilterList = document.getElementById('namespaceFilterList');
         const namespaceFilterToggle = document.getElementById('namespaceFilterToggle');
+        const namespaceFilterMenu = document.getElementById('namespaceFilterMenu');
         const savedConfigsCounter = document.getElementById('savedConfigsCounter');
         const savedConfigsTableBody = document.getElementById('savedDropAppConfigsTableBody');
         const configurationModalElement = document.getElementById('dropAppConfigurationModal');
@@ -246,22 +249,6 @@
             return text === '' ? null : text;
         };
 
-        const setMessage = (type, text) => {
-            if (!messageBox) {
-                return;
-            }
-            messageBox.className = 'alert alert-' + type;
-            messageBox.textContent = text;
-        };
-
-        const hideMessage = () => {
-            if (!messageBox) {
-                return;
-            }
-            messageBox.className = 'alert d-none';
-            messageBox.textContent = '';
-        };
-
         const summarizeNamespaces = (namespaces) => {
             if (!Array.isArray(namespaces) || namespaces.length === 0) {
                 return 'Namespace';
@@ -280,6 +267,32 @@
                 return;
             }
             namespaceFilterToggle.innerHTML = `<i class="bi bi-hdd-network"></i> ${summarizeNamespaces(selectedNamespaces)}`;
+        };
+
+        const isNamespaceMenuOpen = () => namespaceFilterMenu?.classList.contains('show');
+
+        const closeNamespaceMenu = () => {
+            if (!namespaceFilterMenu || !namespaceFilterToggle) {
+                return;
+            }
+            namespaceFilterMenu.classList.remove('show');
+            namespaceFilterToggle.setAttribute('aria-expanded', 'false');
+        };
+
+        const openNamespaceMenu = () => {
+            if (!namespaceFilterMenu || !namespaceFilterToggle) {
+                return;
+            }
+            namespaceFilterMenu.classList.add('show');
+            namespaceFilterToggle.setAttribute('aria-expanded', 'true');
+        };
+
+        const toggleNamespaceMenu = () => {
+            if (isNamespaceMenuOpen()) {
+                closeNamespaceMenu();
+                return;
+            }
+            openNamespaceMenu();
         };
 
         const syncSelectedNamespaces = () => {
@@ -545,7 +558,6 @@
                         currentConfigurationPreview = null;
                         renderConfigurationModal(savedConfiguration, 'saved');
                         showToast('Конфигурация DropApp сохранена.', 'success');
-                        setMessage('success', 'Конфигурация DropApp сохранена и добавлена в список ниже.');
                     } catch (error) {
                         showToast('Не удалось сохранить конфигурацию DropApp: ' + error.message, 'danger');
                     } finally {
@@ -660,7 +672,6 @@
                 renderNamespaceOptions(data);
             } catch (error) {
                 namespaceFilterList.innerHTML = '<div class="text-muted small">Не удалось загрузить namespace</div>';
-                setMessage('danger', 'Не удалось получить список namespace: ' + error.message);
                 showToast('Не удалось получить список namespace: ' + error.message, 'danger');
             }
         };
@@ -672,9 +683,8 @@
             } catch (error) {
                 renderSavedConfigurationsTable([]);
                 if (showErrorMessage) {
-                    setMessage('danger', 'Не удалось загрузить список сохранённых конфигураций: ' + error.message);
+                    showToast('Не удалось загрузить список сохранённых конфигураций: ' + error.message, 'danger');
                 }
-                showToast('Не удалось загрузить список сохранённых конфигураций: ' + error.message, 'danger');
             }
         };
 
@@ -689,25 +699,39 @@
             });
         }
 
+        namespaceFilterToggle?.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleNamespaceMenu();
+        });
+
+        namespaceFilterMenu?.addEventListener('click', event => {
+            event.stopPropagation();
+        });
+
+        document.addEventListener('click', event => {
+            if (!namespaceFilterContainer?.contains(event.target)) {
+                closeNamespaceMenu();
+            }
+        });
+
         if (typeof startBackgroundErrorPolling === 'function') {
             startBackgroundErrorPolling(showToast);
         }
 
         loadButton?.addEventListener('click', async () => {
-            hideMessage();
             if (!selectedNamespaces.length) {
-                setMessage('warning', 'Выберите хотя бы один namespace для получения текущей конфигурации.');
                 showToast('Выберите хотя бы один namespace для получения текущей конфигурации.', 'warning');
                 return;
             }
 
+            closeNamespaceMenu();
             loadButton.disabled = true;
             const progressToast = showToast('Запрашиваем текущую конфигурацию DropApp…', 'info', 8000);
             try {
                 const query = '?namespace=' + selectedNamespaces.map(encodeURIComponent).join('&namespace=');
                 const data = await requestJson('/api/dropapp/configuration' + query);
                 if (!Array.isArray(data?.items) || data.items.length === 0) {
-                    setMessage('warning', 'Конфигурация DropApp пуста. Проверьте выбранные namespace.');
                     showToast('Конфигурация DropApp пуста. Проверьте выбранные namespace.', 'warning');
                     return;
                 }
@@ -718,14 +742,18 @@
                     items: data.items
                 };
                 renderConfigurationModal(currentConfigurationPreview, 'preview');
-                setMessage('success', 'Текущая конфигурация загружена. Проверьте её в модальном окне и при необходимости сохраните.');
             } catch (error) {
                 currentConfigurationPreview = null;
-                setMessage('danger', 'Не удалось загрузить конфигурацию DropApp: ' + error.message);
                 showToast('Не удалось загрузить конфигурацию DropApp: ' + error.message, 'danger');
             } finally {
                 removeToast(progressToast);
                 loadButton.disabled = false;
+            }
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                closeNamespaceMenu();
             }
         });
 

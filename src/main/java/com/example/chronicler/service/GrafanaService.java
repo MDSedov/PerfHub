@@ -104,7 +104,7 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        return renderPanelsForRange(from, to);
+        return renderPanelsForTemplate(resolveTemplate(request.templateId()), from, to);
     }
 
     public List<GrafanaRenderedPanel> renderSelectedPanels(
@@ -147,7 +147,10 @@ public class GrafanaService {
     }
 
     private GrafanaRenderResponse renderPanelsForTest(LoadTest loadTest, Instant from, Instant to) {
-        ConfluenceTemplate template = resolveDefaultTemplate(loadTest);
+        return renderPanelsForTemplate(resolveDefaultTemplate(loadTest), from, to);
+    }
+
+    private GrafanaRenderResponse renderPanelsForTemplate(ConfluenceTemplate template, Instant from, Instant to) {
         List<ConfluenceTemplateChart> templateCharts = template.charts() == null ? List.of() : template.charts();
         if (templateCharts.isEmpty()) {
             throw new GrafanaRenderingException(
@@ -199,60 +202,20 @@ public class GrafanaService {
         return response;
     }
 
-    private GrafanaRenderResponse renderPanelsForRange(Instant from, Instant to) {
-        List<GrafanaDashboard> enabledDashboards = grafanaDashboardRepository.findAll().stream()
-                .filter(GrafanaDashboard::enabled)
-                .toList();
-        if (enabledDashboards.isEmpty()) {
-            throw new GrafanaRenderingException("No enabled Grafana dashboards configured");
-        }
-
-        List<GrafanaDashboard> dashboardsWithPanels = enabledDashboards.stream()
-                .filter(config -> config.panels() != null && !config.panels().isEmpty())
-                .toList();
-        if (dashboardsWithPanels.isEmpty()) {
-            throw new GrafanaRenderingException("No Grafana panels selected for export");
-        }
-
-        List<GrafanaRenderedDashboard> dashboards = new ArrayList<>();
-        for (GrafanaDashboard dashboardConfig : dashboardsWithPanels) {
-            String uid = requireText(dashboardConfig.uid(), "uid");
-            String slug = requireText(dashboardConfig.slug(), "slug");
-            Map<String, String> variableValues = grafanaVariableService.loadValues(uid);
-            List<Integer> panels = dashboardConfig.panels();
-            Map<Integer, GrafanaDashboardPanelRecord> cachedPanelsById = grafanaDashboardPanelRepository
-                    .findByDashboardUid(uid).stream()
-                    .collect(Collectors.toMap(
-                            GrafanaDashboardPanelRecord::panelId,
-                            Function.identity(),
-                            (first, second) -> first));
-
-            List<GrafanaRenderedPanel> renderedPanels = new ArrayList<>(panels.size());
-            for (Integer panelId : panels) {
-                if (panelId == null || panelId <= 0) {
-                    throw new GrafanaRenderingException("Panel identifiers must be positive numbers");
-                }
-                ResolvedPanelMetadata metadata = resolvePanelMetadata(uid, panelId, cachedPanelsById.get(panelId));
-                byte[] imageBytes = grafanaClient.renderPanel(uid, slug, panelId, from, to, variableValues);
-                String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
-                renderedPanels.add(new GrafanaRenderedPanel(
-                        panelId,
-                        metadata.title(),
-                        metadata.description(),
-                        encodedImage));
-            }
-
-            dashboards.add(new GrafanaRenderedDashboard(uid, slug, renderedPanels));
-        }
-
-        GrafanaRenderResponse response = new GrafanaRenderResponse(from.toString(), to.toString(), dashboards);
-        grafanaRenderCache.store(response);
-        return response;
-    }
-
     private ConfluenceTemplate resolveDefaultTemplate(LoadTest loadTest) {
         try {
             return confluenceTemplateSettingsService.resolveDefaultTemplate(loadTest.type());
+        } catch (IllegalArgumentException ex) {
+            throw new GrafanaRenderingException(ex.getMessage());
+        }
+    }
+
+    private ConfluenceTemplate resolveTemplate(Integer templateId) {
+        if (templateId == null) {
+            throw new GrafanaRenderingException("templateId must not be null");
+        }
+        try {
+            return confluenceTemplateSettingsService.getActiveTemplate(templateId);
         } catch (IllegalArgumentException ex) {
             throw new GrafanaRenderingException(ex.getMessage());
         }

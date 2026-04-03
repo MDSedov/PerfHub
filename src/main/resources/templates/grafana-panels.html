@@ -91,6 +91,12 @@
             </div>
             <p class="text-muted mb-0">Отобразить графики из Grafana за указанный период.</p>
             <form class="grafana-form d-flex flex-wrap align-items-center gap-3">
+                <div class="grafana-field d-flex align-items-center gap-2 flex-grow-1">
+                    <label for="templateId" class="form-label mb-0">Шаблон</label>
+                    <select class="form-select" id="templateId">
+                        <option value="">Загрузка шаблонов...</option>
+                    </select>
+                </div>
                 <div class="grafana-field d-flex align-items-center gap-2">
                     <label for="rangeStart" class="form-label mb-0">Начало</label>
                     <div class="input-group">
@@ -199,6 +205,7 @@
     const rangeEndPickerButton = document.getElementById('rangeEndPickerButton');
     const rangeStartPickerInput = document.getElementById('rangeStartPicker');
     const rangeEndPickerInput = document.getElementById('rangeEndPicker');
+    const templateIdInput = document.getElementById('templateId');
     const exportPageIdInput = document.getElementById('exportPageId');
     const toastContainer = document.getElementById('toastContainer');
 
@@ -287,7 +294,7 @@
 
         const title = document.createElement('h6');
         title.className = 'mb-0';
-        title.textContent = item?.title ?? 'Без названия';
+        title.textContent = item?.title || item?.slug || item?.uid || 'Без названия';
 
         const source = document.createElement('div');
         source.className = 'text-muted small';
@@ -349,6 +356,61 @@
 
     const createSpinner = () =>
             '<div class="d-flex justify-content-center py-3"><div class="spinner-border text-info" role="status" aria-label="Загружаем графики"></div></div>';
+
+    function extractErrorMessage(errorText, fallbackMessage) {
+        if (!errorText) {
+            return fallbackMessage;
+        }
+        try {
+            const parsed = JSON.parse(errorText);
+            if (typeof parsed?.message === 'string' && parsed.message.trim() !== '') {
+                return parsed.message.trim();
+            }
+        } catch (error) {
+            // ignore malformed payload
+        }
+        const normalized = String(errorText).trim();
+        return normalized === '' ? fallbackMessage : normalized;
+    }
+
+    function renderTemplateOptions(templates) {
+        if (!templateIdInput) {
+            return;
+        }
+        templateIdInput.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = templates.length > 0
+                ? 'Выберите шаблон отчета'
+                : 'Нет доступных шаблонов';
+        templateIdInput.appendChild(placeholder);
+        templates.forEach(template => {
+            const option = document.createElement('option');
+            option.value = String(template?.id ?? '');
+            option.textContent = template?.fullName || template?.shortName || `Шаблон #${template?.id ?? ''}`;
+            templateIdInput.appendChild(option);
+        });
+        templateIdInput.disabled = templates.length === 0;
+    }
+
+    async function loadTemplates() {
+        if (!templateIdInput) {
+            return;
+        }
+        templateIdInput.disabled = true;
+        templateIdInput.innerHTML = '<option value="">Загрузка шаблонов...</option>';
+        try {
+            const response = await fetch('/api/settings/confluence-templates');
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось загрузить шаблоны отчетов'));
+            }
+            const payload = await response.json();
+            renderTemplateOptions(Array.isArray(payload) ? payload : []);
+        } catch (error) {
+            renderTemplateOptions([]);
+            showToast(error.message || 'Не удалось загрузить шаблоны отчетов', 'warning');
+        }
+    }
 
     function padDatePart(value) {
         return String(value).padStart(2, '0');
@@ -551,7 +613,7 @@
     bindRangeInput(rangeStartInput, rangeStartPickerInput, rangeStartPickerButton);
     bindRangeInput(rangeEndInput, rangeEndPickerInput, rangeEndPickerButton);
 
-    async function renderByRange(from, to) {
+    async function renderByRange(from, to, templateId) {
         showPanelsButton.disabled = true;
         showPanelsButton.textContent = 'Запрашиваем…';
         dashboardsStatus.className = 'alert alert-info d-flex justify-content-center';
@@ -565,10 +627,10 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ from, to })
+                body: JSON.stringify({ from, to, templateId })
             });
             if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось получить графики'));
             }
             const payload = await response.json();
             const dashboards = Array.isArray(payload?.dashboards) ? payload.dashboards : [];
@@ -613,6 +675,7 @@
             showToast('Графики загружаются…', 'info');
             const from = serializeRangeInputValue(rangeStartInput, rangeStartPickerInput);
             const to = serializeRangeInputValue(rangeEndInput, rangeEndPickerInput);
+            const templateId = Number.parseInt((templateIdInput?.value ?? '').trim(), 10);
             if (!from || !to) {
                 setDashboardsStatus(
                         'Укажите корректные значения начала и конца диапазона. Поддерживаются дата и время либо Unix timestamp.',
@@ -622,7 +685,14 @@
                 showPanelsButton.textContent = 'Показать графики';
                 return;
             }
-            renderByRange(from, to);
+            if (!Number.isInteger(templateId) || templateId <= 0) {
+                setDashboardsStatus('Выберите шаблон отчета, для которого нужно показать графики.', 'warning');
+                showPanelsButton.disabled = false;
+                showPanelsButton.textContent = 'Показать графики';
+                templateIdInput?.focus();
+                return;
+            }
+            renderByRange(from, to, templateId);
         });
     }
 
@@ -636,6 +706,8 @@
             showToast(`Выгрузка графиков на страницу ${pageId} пока не настроена.`, 'info');
         });
     }
+
+    loadTemplates();
 </script>
 </body>
 </html>
