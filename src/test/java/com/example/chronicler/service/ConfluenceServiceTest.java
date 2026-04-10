@@ -11,12 +11,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.example.chronicler.client.ConfluenceClient;
+import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
+import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePage;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
+import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.exception.ConfluenceOperationException;
@@ -65,6 +68,9 @@ class ConfluenceServiceTest {
     @Mock
     private ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
 
+    @Mock
+    private ConfigurationProvider configurationProvider;
+
     private ConfluenceService confluenceService;
 
     @BeforeEach
@@ -75,11 +81,14 @@ class ConfluenceServiceTest {
                 templateLoader,
                 loadTestRepository,
                 kubernetesConfigurationService,
-                confluenceTemplateSettingsService);
+                confluenceTemplateSettingsService,
+                configurationProvider);
         lenient().when(kubernetesConfigurationService.getConfigurations(any(UUID.class))).thenReturn(List.of());
         lenient().when(confluenceClient.buildPageUrl(anyString()))
                 .thenAnswer(invocation -> "https://confluence.example/pages/viewpage.action?pageId="
                         + invocation.getArgument(0, String.class));
+        lenient().when(configurationProvider.getRequiredValue("grafana", "image-width")).thenReturn("1200");
+        lenient().when(configurationProvider.getRequiredValue("grafana", "image-height")).thenReturn("630");
     }
 
     @Test
@@ -520,6 +529,65 @@ class ConfluenceServiceTest {
         assertThatThrownBy(() -> confluenceService.createReportHierarchy(credentials, "321"))
                 .isInstanceOf(ConfluenceOperationException.class)
                 .hasMessage("Parent page does not contain space key information");
+    }
+
+    @Test
+    void appendChartsToPageUploadsChartsAndAppendsThemToExistingBody() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        ConfluenceChartsAppendRequest request = new ConfluenceChartsAppendRequest(
+                "654",
+                "2024-03-01T00:00:00Z",
+                "2024-03-01T01:00:00Z",
+                900);
+
+        byte[] firstImage = new byte[] {4, 2};
+        byte[] secondImage = new byte[] {9, 1};
+        GrafanaRenderedPanel firstPanel = new GrafanaRenderedPanel(
+                12,
+                "CPU",
+                "Описание CPU",
+                Base64.getEncoder().encodeToString(firstImage));
+        GrafanaRenderedPanel secondPanel = new GrafanaRenderedPanel(
+                13,
+                "Latency",
+                "Описание latency",
+                Base64.getEncoder().encodeToString(secondImage));
+
+        ConfluencePage existingPage = new ConfluencePage("654", "page", "Target", 5, "<p>Existing body</p>", "SPACE");
+        when(confluenceClient.getPage(credentials, "654")).thenReturn(existingPage);
+        when(grafanaService.renderTemplatePanelsByRange(
+                        new GrafanaRenderRangeRequest(request.from(), request.to(), request.templateId())))
+                .thenReturn(List.of(firstPanel, secondPanel));
+        when(confluenceClient.uploadAttachment(eq(credentials), eq("654"), anyString(), eq(firstImage)))
+                .thenReturn("first.png");
+        when(confluenceClient.uploadAttachment(eq(credentials), eq("654"), anyString(), eq(secondImage)))
+                .thenReturn("second.png");
+
+        ConfluenceChartsAppendResponse response = confluenceService.appendChartsToPage(credentials, request);
+
+        assertThat(response.pageId()).isEqualTo("654");
+        assertThat(response.pageTitle()).isEqualTo("Target");
+        assertThat(response.pageUrl()).isEqualTo("https://confluence.example/pages/viewpage.action?pageId=654");
+        assertThat(response.appendedChartsCount()).isEqualTo(2);
+        assertThat(response.attachmentNames()).hasSize(2);
+
+        verify(grafanaService).renderTemplatePanelsByRange(
+                new GrafanaRenderRangeRequest(request.from(), request.to(), request.templateId()));
+        verify(confluenceClient).uploadAttachment(eq(credentials), eq("654"), anyString(), eq(firstImage));
+        verify(confluenceClient).uploadAttachment(eq(credentials), eq("654"), anyString(), eq(secondImage));
+
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(confluenceClient).updatePage(eq(credentials), eq(existingPage), bodyCaptor.capture());
+        String updatedBody = bodyCaptor.getValue();
+        assertThat(updatedBody).contains("<p>Existing body</p>");
+        assertThat(updatedBody).contains("<hr />");
+        assertThat(updatedBody).contains("<h3>CPU</h3>");
+        assertThat(updatedBody).contains("<p>Описание CPU</p>");
+        assertThat(updatedBody).contains("<h3>Latency</h3>");
+        assertThat(updatedBody).contains("<p>Описание latency</p>");
+        assertThat(updatedBody).contains("ri:filename=");
+        assertThat(updatedBody).contains("ac:width=\"1200\"");
+        assertThat(updatedBody).contains("ac:height=\"630\"");
     }
 
     private ConfluenceClientException duplicateTitleException(String parentPageId) {

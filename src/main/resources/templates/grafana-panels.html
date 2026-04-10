@@ -84,20 +84,20 @@
     <div class="page-content" style="background: #ffffff; min-height: 100vh;">
 <main class="container-fluid py-5 px-4 px-lg-5 grafana-wrapper">
     <div class="home-grid reports-grid grafana-grid">
-        <div class="home-card reports-card">
+        <div class="home-card reports-card grafana-action-card">
             <div class="d-flex align-items-center gap-2">
                 <div class="home-card-icon"><i class="bi bi-clock-history"></i></div>
                 <h5 class="home-card-title mb-0">Показать графики</h5>
             </div>
             <p class="text-muted mb-0">Отобразить графики из Grafana за указанный период.</p>
-            <form class="grafana-form d-flex flex-wrap align-items-center gap-3">
-                <div class="grafana-field d-flex align-items-center gap-2 flex-grow-1">
+            <form class="grafana-form">
+                <div class="grafana-field">
                     <label for="templateId" class="form-label mb-0">Шаблон</label>
                     <select class="form-select" id="templateId">
                         <option value="">Загрузка шаблонов...</option>
                     </select>
                 </div>
-                <div class="grafana-field d-flex align-items-center gap-2">
+                <div class="grafana-field">
                     <label for="rangeStart" class="form-label mb-0">Начало</label>
                     <div class="input-group">
                         <input type="text"
@@ -120,7 +120,7 @@
                            tabindex="-1"
                            aria-hidden="true">
                 </div>
-                <div class="grafana-field d-flex align-items-center gap-2">
+                <div class="grafana-field">
                     <label for="rangeEnd" class="form-label mb-0">Конец</label>
                     <div class="input-group">
                         <input type="text"
@@ -143,7 +143,7 @@
                            tabindex="-1"
                            aria-hidden="true">
                 </div>
-                <div class="grafana-field">
+                <div class="grafana-action">
                     <button type="button" class="btn btn-outline-success" id="showPanelsButton">Показать графики</button>
                 </div>
             </form>
@@ -152,19 +152,19 @@
             </p>
         </div>
 
-        <div class="home-card reports-card">
+        <div class="home-card reports-card grafana-action-card">
             <div class="d-flex align-items-center gap-2">
                 <div class="home-card-icon"><i class="bi bi-upload"></i></div>
                 <h5 class="home-card-title mb-0">Выгрузить графики</h5>
             </div>
             <p class="text-muted mb-0">Отправить графики на страницу в Confluence.</p>
-            <form class="grafana-form d-flex flex-wrap align-items-center gap-3">
-                <div class="grafana-field d-flex align-items-center gap-2 flex-grow-1">
+            <form class="grafana-form">
+                <div class="grafana-field">
                     <label for="exportPageId" class="form-label mb-0">ID страницы для выгрузки графиков</label>
                     <input type="text" class="form-control" id="exportPageId" placeholder="Например, 1234567">
                 </div>
-                <div class="grafana-field">
-                    <button type="button" class="btn btn-outline-success" id="exportPanelsButton">Выгрузить графики</button>
+                <div class="grafana-action is-disabled" id="exportPanelsAction">
+                    <button type="button" class="btn btn-outline-success" id="exportPanelsButton" disabled>Выгрузить графики</button>
                 </div>
             </form>
         </div>
@@ -199,6 +199,7 @@
     const dashboardsStatus = document.getElementById('dashboardsStatus');
     const showPanelsButton = document.getElementById('showPanelsButton');
     const exportPanelsButton = document.getElementById('exportPanelsButton');
+    const exportPanelsAction = document.getElementById('exportPanelsAction');
     const rangeStartInput = document.getElementById('rangeStart');
     const rangeEndInput = document.getElementById('rangeEnd');
     const rangeStartPickerButton = document.getElementById('rangeStartPickerButton');
@@ -208,6 +209,8 @@
     const templateIdInput = document.getElementById('templateId');
     const exportPageIdInput = document.getElementById('exportPageId');
     const toastContainer = document.getElementById('toastContainer');
+    let exportInProgress = false;
+    let exportDisabledHintAt = 0;
 
     const removeToast = (toast) => {
         if (!toast) {
@@ -391,6 +394,7 @@
             templateIdInput.appendChild(option);
         });
         templateIdInput.disabled = templates.length === 0;
+        updateExportButtonState();
     }
 
     async function loadTemplates() {
@@ -410,6 +414,44 @@
             renderTemplateOptions([]);
             showToast(error.message || 'Не удалось загрузить шаблоны отчетов', 'warning');
         }
+    }
+
+    function isShowFormFilled() {
+        return (templateIdInput?.value ?? '').trim() !== ''
+                && (rangeStartInput?.value ?? '').trim() !== ''
+                && (rangeEndInput?.value ?? '').trim() !== '';
+    }
+
+    function isExportFormFilled() {
+        return (exportPageIdInput?.value ?? '').trim() !== '';
+    }
+
+    function canExportPanels() {
+        return isShowFormFilled() && isExportFormFilled();
+    }
+
+    function updateExportButtonState() {
+        if (!exportPanelsButton) {
+            return;
+        }
+        exportPanelsButton.disabled = exportInProgress || !canExportPanels();
+        exportPanelsAction?.classList.toggle('is-disabled', exportPanelsButton.disabled && !exportInProgress);
+    }
+
+    function showExportDisabledHint() {
+        if (exportInProgress || canExportPanels()) {
+            return;
+        }
+        const now = Date.now();
+        if (now - exportDisabledHintAt < 3000) {
+            return;
+        }
+        exportDisabledHintAt = now;
+        showToast(
+                'Чтобы выгрузить графики, заполните поля в формах «Показать графики» и «Выгрузить графики».',
+                'warning',
+                5000
+        );
     }
 
     function padDatePart(value) {
@@ -583,9 +625,13 @@
         if (!textInput) {
             return;
         }
-        textInput.addEventListener('input', () => clearRangeInputError(textInput));
+        textInput.addEventListener('input', () => {
+            clearRangeInputError(textInput);
+            updateExportButtonState();
+        });
         textInput.addEventListener('blur', () => {
             normalizeRangeInputValue(textInput, pickerInput);
+            updateExportButtonState();
         });
         textInput.addEventListener('keydown', event => {
             if (event.key !== 'Enter') {
@@ -593,6 +639,7 @@
             }
             event.preventDefault();
             normalizeRangeInputValue(textInput, pickerInput);
+            updateExportButtonState();
         });
         if (pickerInput) {
             pickerInput.addEventListener('change', () => {
@@ -603,6 +650,7 @@
                 textInput.value = formatRangeDisplayValue(parsedDate);
                 clearRangeInputError(textInput);
                 syncRangePickerValue(pickerInput, parsedDate);
+                updateExportButtonState();
             });
         }
         if (pickerButton) {
@@ -612,6 +660,17 @@
 
     bindRangeInput(rangeStartInput, rangeStartPickerInput, rangeStartPickerButton);
     bindRangeInput(rangeEndInput, rangeEndPickerInput, rangeEndPickerButton);
+    templateIdInput?.addEventListener('change', updateExportButtonState);
+    exportPageIdInput?.addEventListener('input', updateExportButtonState);
+    exportPageIdInput?.addEventListener('blur', updateExportButtonState);
+    exportPanelsAction?.addEventListener('mouseenter', showExportDisabledHint);
+    exportPanelsAction?.addEventListener('click', event => {
+        if (!exportPanelsButton?.disabled) {
+            return;
+        }
+        event.preventDefault();
+        showExportDisabledHint();
+    });
 
     async function renderByRange(from, to, templateId) {
         showPanelsButton.disabled = true;
@@ -663,6 +722,42 @@
         }
     }
 
+    async function appendChartsToPage(pageId, from, to, templateId) {
+        if (!exportPanelsButton) {
+            return;
+        }
+        exportInProgress = true;
+        updateExportButtonState();
+        exportPanelsButton.textContent = 'Выгружаем…';
+        try {
+            const response = await fetch('/api/confluence/charts/append/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ pageId, from, to, templateId })
+            });
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось выгрузить графики в Confluence'));
+            }
+            const payload = await response.json();
+            const targetPageId = payload?.pageId || pageId;
+            const chartsCount = Number.isFinite(payload?.appendedChartsCount)
+                    ? payload.appendedChartsCount
+                    : null;
+            const successMessage = chartsCount && chartsCount > 0
+                    ? `Графики (${chartsCount}) добавлены в конец страницы ${targetPageId}.`
+                    : `Графики добавлены в конец страницы ${targetPageId}.`;
+            showToast(successMessage, 'success');
+        } catch (error) {
+            showToast(error.message || 'Не удалось выгрузить графики в Confluence', 'danger');
+        } finally {
+            exportInProgress = false;
+            updateExportButtonState();
+            exportPanelsButton.textContent = 'Выгрузить графики';
+        }
+    }
+
     if (showPanelsButton) {
         showPanelsButton.addEventListener('click', () => {
             if (dashboardsCard?.classList.contains('d-none')) {
@@ -699,15 +794,34 @@
     if (exportPanelsButton) {
         exportPanelsButton.addEventListener('click', () => {
             const pageId = (exportPageIdInput?.value ?? '').trim();
-            if (!pageId) {
-                showToast('Укажите ID страницы для выгрузки.', 'warning');
+            const from = serializeRangeInputValue(rangeStartInput, rangeStartPickerInput);
+            const to = serializeRangeInputValue(rangeEndInput, rangeEndPickerInput);
+            const templateId = Number.parseInt((templateIdInput?.value ?? '').trim(), 10);
+            if (!from || !to) {
+                showToast(
+                        'Укажите корректные значения начала и конца диапазона. Поддерживаются дата и время либо Unix timestamp.',
+                        'warning'
+                );
+                updateExportButtonState();
                 return;
             }
-            showToast(`Выгрузка графиков на страницу ${pageId} пока не настроена.`, 'info');
+            if (!Number.isInteger(templateId) || templateId <= 0) {
+                showToast('Выберите шаблон отчета для выгрузки графиков.', 'warning');
+                templateIdInput?.focus();
+                updateExportButtonState();
+                return;
+            }
+            if (!pageId) {
+                showToast('Укажите ID страницы для выгрузки.', 'warning');
+                updateExportButtonState();
+                return;
+            }
+            appendChartsToPage(pageId, from, to, templateId);
         });
     }
 
     loadTemplates();
+    updateExportButtonState();
 </script>
 </body>
 </html>

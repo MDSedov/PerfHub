@@ -1,12 +1,15 @@
 package com.example.chronicler.service;
 
 import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureRequest;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureResponse;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSaveRequest;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSummaryDto;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
 import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
+import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
 import com.example.chronicler.model.DropAppConfigurationSnapshotItem;
 import com.example.chronicler.repository.DropAppConfigurationSnapshotRepository;
@@ -53,6 +56,39 @@ public class DropAppConfigurationSnapshotService {
                 .map(this::toDto)
                 .toList();
         return new DropAppConfigurationViewDto(resolvedNamespaces, resolveRelease(items), items);
+    }
+
+    public DropAppConfigurationCaptureResponse captureCurrentConfiguration(DropAppConfigurationCaptureRequest request) {
+        List<String> requestedNamespaces = request != null ? request.namespaces() : List.of();
+        List<String> requestedComponents = request != null ? request.components() : List.of();
+        String comment = request != null ? request.comment() : null;
+
+        List<DropAppConfigurationComponent> resolvedComponents = DropAppConfigurationComponent.resolve(
+                requestedComponents,
+                DropAppConfigurationComponent.defaultSelection());
+        List<String> resolvedNamespaces = dropAppService.resolveNamespaces(requestedNamespaces);
+        List<DropAppConfigurationItemDto> items = dropAppService.loadConfiguration(resolvedNamespaces, resolvedComponents)
+                .stream()
+                .map(this::toDto)
+                .toList();
+        if (items.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Конфигурация DropApp пуста");
+        }
+
+        DropAppConfigurationSnapshotDetailsDto savedSnapshot = saveSnapshot(new DropAppConfigurationSnapshotSaveRequest(
+                resolvedNamespaces,
+                resolveRelease(items),
+                comment,
+                items));
+
+        return new DropAppConfigurationCaptureResponse(
+                savedSnapshot.id(),
+                savedSnapshot.savedAt(),
+                savedSnapshot.release(),
+                savedSnapshot.comment(),
+                savedSnapshot.namespaces(),
+                resolvedComponents.stream().map(DropAppConfigurationComponent::code).toList(),
+                savedSnapshot.items());
     }
 
     public List<DropAppConfigurationSnapshotSummaryDto> listSnapshots() {

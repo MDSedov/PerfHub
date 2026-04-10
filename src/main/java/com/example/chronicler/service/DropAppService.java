@@ -3,6 +3,7 @@ package com.example.chronicler.service;
 import com.example.chronicler.client.DropAppClient;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.exception.DropAppClientException;
+import com.example.chronicler.model.DropAppConfigurationComponent;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -56,6 +57,16 @@ public class DropAppService {
     /** Возвращает конфигурацию DropApp для указанного списка namespace. */
     public List<DropAppPodConfiguration> loadConfiguration(List<String> namespaces) {
         return dropAppClient.fetchConfiguration(resolveNamespaces(namespaces));
+    }
+
+    /** Возвращает конфигурацию DropApp для указанного списка namespace и типов ресурсов. */
+    public List<DropAppPodConfiguration> loadConfiguration(
+            List<String> namespaces,
+            List<DropAppConfigurationComponent> components) {
+        List<DropAppConfigurationComponent> resolvedComponents = components == null || components.isEmpty()
+                ? List.of(DropAppConfigurationComponent.PODS)
+                : components.stream().distinct().toList();
+        return dropAppClient.fetchConfiguration(resolveNamespaces(namespaces), resolvedComponents);
     }
 
     /** Возвращает итоговый список namespace: выбранные пользователем или namespace из настроек. */

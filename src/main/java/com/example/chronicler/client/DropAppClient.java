@@ -1,6 +1,8 @@
 package com.example.chronicler.client;
 
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
+import com.example.chronicler.dto.kubernetes.KubernetesConfigMap;
+import com.example.chronicler.dto.kubernetes.KubernetesConfigMapListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesContainer;
 import com.example.chronicler.dto.kubernetes.KubernetesDeployment;
 import com.example.chronicler.dto.kubernetes.KubernetesDeploymentListResponse;
@@ -8,7 +10,11 @@ import com.example.chronicler.dto.kubernetes.KubernetesNamespaceListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesPod;
 import com.example.chronicler.dto.kubernetes.KubernetesPodListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesPodMetadata;
+import com.example.chronicler.dto.kubernetes.KubernetesService;
+import com.example.chronicler.dto.kubernetes.KubernetesServiceListResponse;
+import com.example.chronicler.dto.kubernetes.KubernetesServiceSpec;
 import com.example.chronicler.exception.DropAppClientException;
+import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
 import java.util.ArrayList;
@@ -30,6 +36,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
@@ -56,7 +63,15 @@ public class DropAppClient {
 
     /** Получает конфигурацию ресурсов Pod/Container из Kubernetes API для указанных namespace. */
     public List<DropAppPodConfiguration> fetchConfiguration(List<String> namespaces) {
+        return fetchConfiguration(namespaces, List.of(DropAppConfigurationComponent.PODS));
+    }
+
+    /** Получает конфигурацию выбранных ресурсов Kubernetes из DropApp для указанных namespace. */
+    public List<DropAppPodConfiguration> fetchConfiguration(
+            List<String> namespaces,
+            List<DropAppConfigurationComponent> components) {
         Assert.notEmpty(namespaces, "Список namespace DropApp не должен быть пустым");
+        Assert.notEmpty(components, "Список компонентов DropApp не должен быть пустым");
         HttpMethod method = HttpMethod.GET;
 
         HttpHeaders headers = new HttpHeaders();
@@ -64,7 +79,7 @@ public class DropAppClient {
         headers.setBearerAuth(configurationProvider.getRequiredValue(SERVICE, TOKEN_KEY));
 
         return namespaces.stream()
-                .flatMap(namespace -> fetchNamespacePods(namespace, method, headers).stream())
+                .flatMap(namespace -> fetchNamespaceConfiguration(namespace, components, method, headers).stream())
                 .collect(Collectors.toList());
     }
 
@@ -98,8 +113,68 @@ public class DropAppClient {
         }
     }
 
-    private List<DropAppPodConfiguration> fetchNamespacePods(String namespace, HttpMethod method, HttpHeaders headers) {
-        List<DeploymentDescriptor> deployments = fetchDeploymentDescriptors(namespace, method, headers);
+    private URI buildConfigMapsUri(String namespace) {
+        String baseUrl = configurationProvider.getRequiredValue(SERVICE, BASE_URL_KEY);
+        try {
+            return UriComponentsBuilder.fromUriString(baseUrl)
+                    .path("/api/v1/namespaces/{namespace}/configmaps")
+                    .buildAndExpand(namespace)
+                    .encode()
+                    .toUri();
+        } catch (IllegalArgumentException ex) {
+            throw new DropAppClientException(
+                    "Некорректный базовый URL DropApp: " + Objects.toString(baseUrl, "<null>"), ex);
+        }
+    }
+
+    private URI buildServicesUri(String namespace) {
+        String baseUrl = configurationProvider.getRequiredValue(SERVICE, BASE_URL_KEY);
+        try {
+            return UriComponentsBuilder.fromUriString(baseUrl)
+                    .path("/api/v1/namespaces/{namespace}/services")
+                    .buildAndExpand(namespace)
+                    .encode()
+                    .toUri();
+        } catch (IllegalArgumentException ex) {
+            throw new DropAppClientException(
+                    "Некорректный базовый URL DropApp: " + Objects.toString(baseUrl, "<null>"), ex);
+        }
+    }
+
+    private List<DropAppPodConfiguration> fetchNamespaceConfiguration(
+            String namespace,
+            List<DropAppConfigurationComponent> components,
+            HttpMethod method,
+            HttpHeaders headers) {
+        List<DeploymentDescriptor> deployments = requiresDeployments(components)
+                ? fetchDeploymentDescriptors(namespace, method, headers)
+                : List.of();
+        List<DropAppPodConfiguration> result = new ArrayList<>();
+        if (components.contains(DropAppConfigurationComponent.PODS)) {
+            result.addAll(fetchNamespacePods(namespace, deployments, method, headers));
+        }
+        if (components.contains(DropAppConfigurationComponent.DEPLOYMENTS)) {
+            result.addAll(fetchNamespaceDeployments(namespace, deployments));
+        }
+        if (components.contains(DropAppConfigurationComponent.CONFIGMAPS)) {
+            result.addAll(fetchNamespaceConfigMaps(namespace, method, headers));
+        }
+        if (components.contains(DropAppConfigurationComponent.SERVICES)) {
+            result.addAll(fetchNamespaceServices(namespace, method, headers));
+        }
+        return result;
+    }
+
+    private boolean requiresDeployments(List<DropAppConfigurationComponent> components) {
+        return components.contains(DropAppConfigurationComponent.PODS)
+                || components.contains(DropAppConfigurationComponent.DEPLOYMENTS);
+    }
+
+    private List<DropAppPodConfiguration> fetchNamespacePods(
+            String namespace,
+            List<DeploymentDescriptor> deployments,
+            HttpMethod method,
+            HttpHeaders headers) {
         URI requestUri = buildPodsUri(namespace);
         HttpEntity<Void> request = new HttpEntity<>(headers);
         if (log.isDebugEnabled()) {
@@ -128,7 +203,7 @@ public class DropAppClient {
                 for (KubernetesContainer container : pod.spec().containers()) {
                     result.add(new DropAppPodConfiguration(
                             namespace,
-                            null,
+                            DropAppConfigurationComponent.PODS.label(),
                             podName,
                             container.name(),
                             version,
@@ -163,6 +238,105 @@ public class DropAppClient {
                     headersForLogging(headers),
                     ex);
             throw new DropAppClientException("Не удалось получить конфигурацию Kubernetes: " + ex.getMessage(), ex);
+        }
+    }
+
+    private List<DropAppPodConfiguration> fetchNamespaceDeployments(
+            String namespace,
+            List<DeploymentDescriptor> deployments) {
+        return deployments.stream()
+                .map(deployment -> new DropAppPodConfiguration(
+                        namespace,
+                        DropAppConfigurationComponent.DEPLOYMENTS.label(),
+                        deployment.name(),
+                        formatDeploymentDetails(deployment.selector()),
+                        deployment.version(),
+                        deployment.release(),
+                        "",
+                        "",
+                        "",
+                        ""))
+                .toList();
+    }
+
+    private List<DropAppPodConfiguration> fetchNamespaceConfigMaps(
+            String namespace,
+            HttpMethod method,
+            HttpHeaders headers) {
+        URI requestUri = buildConfigMapsUri(namespace);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<KubernetesConfigMapListResponse> response = restTemplate.exchange(
+                    requestUri, method, request, KubernetesConfigMapListResponse.class);
+            KubernetesConfigMapListResponse body = response.getBody();
+            if (body == null || body.items() == null) {
+                return Collections.emptyList();
+            }
+            List<DropAppPodConfiguration> result = new ArrayList<>(body.items().size());
+            for (KubernetesConfigMap configMap : body.items()) {
+                KubernetesPodMetadata metadata = configMap != null ? configMap.metadata() : null;
+                String name = metadata != null ? metadata.name() : null;
+                String details = "Ключей: " + (configMap != null && configMap.data() != null ? configMap.data().size() : 0);
+                result.add(new DropAppPodConfiguration(
+                        namespace,
+                        DropAppConfigurationComponent.CONFIGMAPS.label(),
+                        name,
+                        details,
+                        extractVersion(metadata),
+                        extractReleaseFromLabels(metadata != null ? metadata.labels() : null),
+                        "",
+                        "",
+                        "",
+                        ""));
+            }
+            return result;
+        } catch (RestClientResponseException ex) {
+            throw new DropAppClientException(
+                    "Не удалось получить список configmaps Kubernetes: статус %s %s".formatted(
+                            ex.getRawStatusCode(), ex.getStatusText()),
+                    ex);
+        } catch (RestClientException ex) {
+            throw new DropAppClientException("Не удалось получить список configmaps Kubernetes: " + ex.getMessage(), ex);
+        }
+    }
+
+    private List<DropAppPodConfiguration> fetchNamespaceServices(
+            String namespace,
+            HttpMethod method,
+            HttpHeaders headers) {
+        URI requestUri = buildServicesUri(namespace);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<KubernetesServiceListResponse> response = restTemplate.exchange(
+                    requestUri, method, request, KubernetesServiceListResponse.class);
+            KubernetesServiceListResponse body = response.getBody();
+            if (body == null || body.items() == null) {
+                return Collections.emptyList();
+            }
+            List<DropAppPodConfiguration> result = new ArrayList<>(body.items().size());
+            for (KubernetesService service : body.items()) {
+                KubernetesPodMetadata metadata = service != null ? service.metadata() : null;
+                KubernetesServiceSpec spec = service != null ? service.spec() : null;
+                result.add(new DropAppPodConfiguration(
+                        namespace,
+                        DropAppConfigurationComponent.SERVICES.label(),
+                        metadata != null ? metadata.name() : null,
+                        formatServiceDetails(spec),
+                        extractVersion(metadata),
+                        extractReleaseFromLabels(metadata != null ? metadata.labels() : null),
+                        "",
+                        "",
+                        "",
+                        ""));
+            }
+            return result;
+        } catch (RestClientResponseException ex) {
+            throw new DropAppClientException(
+                    "Не удалось получить список services Kubernetes: статус %s %s".formatted(
+                            ex.getRawStatusCode(), ex.getStatusText()),
+                    ex);
+        } catch (RestClientException ex) {
+            throw new DropAppClientException("Не удалось получить список services Kubernetes: " + ex.getMessage(), ex);
         }
     }
 
@@ -225,7 +399,11 @@ public class DropAppClient {
                 if (selector.isEmpty()) {
                     continue;
                 }
-                descriptors.add(new DeploymentDescriptor(selector, version, extractReleaseFromLabels(metadata.labels())));
+                descriptors.add(new DeploymentDescriptor(
+                        selector,
+                        metadata != null ? metadata.name() : null,
+                        version,
+                        extractReleaseFromLabels(metadata != null ? metadata.labels() : null)));
             }
             return descriptors;
         } catch (RestClientResponseException ex) {
@@ -341,7 +519,31 @@ public class DropAppClient {
         return value != null ? value : "";
     }
 
-    private record DeploymentDescriptor(Map<String, String> selector, String version, String release) {}
+    private String formatDeploymentDetails(Map<String, String> selector) {
+        if (selector == null || selector.isEmpty()) {
+            return "";
+        }
+        return selector.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(", "));
+    }
+
+    private String formatServiceDetails(KubernetesServiceSpec spec) {
+        if (spec == null) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>(2);
+        if (StringUtils.hasText(spec.type())) {
+            parts.add("Тип: " + spec.type().trim());
+        }
+        if (StringUtils.hasText(spec.clusterIp())) {
+            parts.add("ClusterIP: " + spec.clusterIp().trim());
+        }
+        return String.join(", ", parts);
+    }
+
+    private record DeploymentDescriptor(Map<String, String> selector, String name, String version, String release) {}
 
     private String headersForLogging(HttpHeaders headers) {
         if (headers == null || headers.isEmpty()) {

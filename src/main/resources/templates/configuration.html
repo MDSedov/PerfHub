@@ -91,26 +91,31 @@
                     <h5 class="card-title mb-0 home-card-title" style="margin: 0;">Конфигурация DropApp</h5>
                 </div>
                 <p class="text-muted mb-0" style="max-width: 640px;">
-                    Получите подробную информацию о нужном пространстве DropApp.<br>
-                    Номер релиза, версии сервисов, количестве POD и выделенных для них ресурсов.
+                    Выгружайте текущую конфигурацию DropApp по выбранным namespace и компонентам.<br>
+                    Снапшот сохраняется в БД и сразу отображается на этой странице.
                 </p>
                 <div class="d-flex flex-wrap justify-content-center align-items-center gap-3">
-                    <div class="dropdown filter-dropdown-container" id="namespaceFilterContainer">
-                        <button type="button"
-                                class="filter-chip dropdown-toggle"
-                                id="namespaceFilterToggle"
-                                aria-expanded="false"
-                                aria-controls="namespaceFilterMenu">
-                            <i class="bi bi-hdd-network"></i> Namespace
-                        </button>
-                        <div class="dropdown-menu filter-dropdown" id="namespaceFilterMenu">
-                            <p class="form-label small text-muted mb-2">Namespaces</p>
-                            <div id="namespaceFilterList" class="filter-list"></div>
-                        </div>
-                    </div>
                     <button type="button" class="btn btn-outline-success" id="loadDropAppConfig">
                         Получить конфигурацию
                     </button>
+                </div>
+            </div>
+            <div class="current-configuration-section mt-4 pt-4 border-top">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                    <div>
+                        <h6 class="mb-1">Текущая выгруженная конфигурация</h6>
+                        <p class="text-muted mb-0">
+                            После выгрузки здесь появится текущий снапшот со списком ресурсов и сохранённым комментарием.
+                        </p>
+                    </div>
+                    <span class="saved-configurations-counter text-muted small" id="currentDropAppConfigCounter"></span>
+                </div>
+                <div id="currentDropAppConfigEmpty" class="text-muted">
+                    Конфигурация ещё не выгружалась в этой сессии.
+                </div>
+                <div id="currentDropAppConfigContent" class="d-none">
+                    <div class="configuration-meta-grid mb-3" id="currentDropAppConfigMeta"></div>
+                    <div class="table-responsive" id="currentDropAppConfigTableWrapper"></div>
                 </div>
             </div>
             <div class="saved-configurations-section mt-4 pt-4 border-top">
@@ -140,6 +145,53 @@
         </div>
     </div>
 </main>
+
+<div class="modal fade test-details-modal"
+     id="dropAppCaptureModal"
+     tabindex="-1"
+     aria-labelledby="dropAppCaptureModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable test-details-modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="d-flex flex-column gap-1">
+                    <span class="test-details-modal-kicker">DropApp</span>
+                    <h5 class="modal-title" id="dropAppCaptureModalLabel">Параметры выгрузки конфигурации</h5>
+                    <div class="test-details-modal-subtitle text-muted small">
+                        Выберите namespace, типы ресурсов и добавьте комментарий к сохраняемому снапшоту.
+                    </div>
+                </div>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <div class="test-details test-details-modal-content test-details-stack">
+                    <section class="test-details-section">
+                        <h6 class="test-details-section-title mb-3">Namespace</h6>
+                        <div class="configuration-option-list" id="captureNamespaceList"></div>
+                    </section>
+                    <section class="test-details-section">
+                        <h6 class="test-details-section-title mb-3">Компоненты</h6>
+                        <div class="configuration-option-list" id="captureComponentList"></div>
+                    </section>
+                    <section class="test-details-section">
+                        <h6 class="test-details-section-title mb-3">Комментарий</h6>
+                        <textarea class="form-control configuration-capture-comment"
+                                  id="captureCommentInput"
+                                  rows="4"
+                                  placeholder="Например: конфигурация перед вечерним прогоном"></textarea>
+                    </section>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-success" id="submitDropAppCapture">Выгрузить конфигурацию</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="modal fade test-details-modal"
      id="dropAppConfigurationModal"
@@ -177,24 +229,58 @@
 <script src="/js/background-errors.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        const COMPONENT_OPTIONS = [
+            {
+                code: 'pods',
+                label: 'Pods',
+                description: 'POD и контейнеры с версиями и ресурсными лимитами'
+            },
+            {
+                code: 'deployments',
+                label: 'Deployments',
+                description: 'Deployment с версиями и релизными метками'
+            },
+            {
+                code: 'configmaps',
+                label: 'ConfigMaps',
+                description: 'ConfigMap и количество ключей'
+            },
+            {
+                code: 'services',
+                label: 'Services',
+                description: 'Сервисы Kubernetes с типом и ClusterIP'
+            }
+        ];
+
         const loadButton = document.getElementById('loadDropAppConfig');
         const toastContainer = document.getElementById('toastContainer');
-        const namespaceFilterContainer = document.getElementById('namespaceFilterContainer');
-        const namespaceFilterList = document.getElementById('namespaceFilterList');
-        const namespaceFilterToggle = document.getElementById('namespaceFilterToggle');
-        const namespaceFilterMenu = document.getElementById('namespaceFilterMenu');
+        const currentConfigCounter = document.getElementById('currentDropAppConfigCounter');
+        const currentConfigEmpty = document.getElementById('currentDropAppConfigEmpty');
+        const currentConfigContent = document.getElementById('currentDropAppConfigContent');
+        const currentConfigMeta = document.getElementById('currentDropAppConfigMeta');
+        const currentConfigTableWrapper = document.getElementById('currentDropAppConfigTableWrapper');
         const savedConfigsCounter = document.getElementById('savedConfigsCounter');
         const savedConfigsTableBody = document.getElementById('savedDropAppConfigsTableBody');
+        const captureModalElement = document.getElementById('dropAppCaptureModal');
+        const captureNamespaceList = document.getElementById('captureNamespaceList');
+        const captureComponentList = document.getElementById('captureComponentList');
+        const captureCommentInput = document.getElementById('captureCommentInput');
+        const captureSubmitButton = document.getElementById('submitDropAppCapture');
         const configurationModalElement = document.getElementById('dropAppConfigurationModal');
         const configurationModalTitle = document.getElementById('dropAppConfigurationModalLabel');
         const configurationModalSubtitle = document.getElementById('dropAppConfigurationModalSubtitle');
         const configurationModalBody = document.getElementById('dropAppConfigurationModalBody');
+        const captureModal = captureModalElement && window.bootstrap?.Modal
+                ? bootstrap.Modal.getOrCreateInstance(captureModalElement)
+                : null;
         const configurationModal = configurationModalElement && window.bootstrap?.Modal
                 ? bootstrap.Modal.getOrCreateInstance(configurationModalElement)
                 : null;
 
-        let selectedNamespaces = [];
-        let currentConfigurationPreview = null;
+        let namespaceOptions = {
+            available: [],
+            selected: []
+        };
 
         const removeToast = (toast) => {
             if (!toast) {
@@ -249,111 +335,95 @@
             return text === '' ? null : text;
         };
 
-        const summarizeNamespaces = (namespaces) => {
-            if (!Array.isArray(namespaces) || namespaces.length === 0) {
-                return 'Namespace';
+        const resolveComponentLabel = (item) => {
+            const explicit = normalizeText(item?.serviceName);
+            if (explicit) {
+                return explicit;
             }
-            if (namespaces.length === 1) {
-                return `Namespace: ${namespaces[0]}`;
+            if (normalizeText(item?.podName) || normalizeText(item?.containerName)) {
+                return 'Pod';
             }
-            if (namespaces.length === 2) {
-                return `Namespace: ${namespaces.join(', ')}`;
-            }
-            return `Namespace (${namespaces.length})`;
+            return null;
         };
 
-        const updateNamespaceChipLabel = () => {
-            if (!namespaceFilterToggle) {
-                return;
-            }
-            namespaceFilterToggle.innerHTML = `<i class="bi bi-hdd-network"></i> ${summarizeNamespaces(selectedNamespaces)}`;
+        const buildOptionId = (prefix, value) => {
+            const normalizedValue = normalizeText(value) ?? prefix;
+            return `${prefix}-${normalizedValue.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
         };
 
-        const isNamespaceMenuOpen = () => namespaceFilterMenu?.classList.contains('show');
-
-        const closeNamespaceMenu = () => {
-            if (!namespaceFilterMenu || !namespaceFilterToggle) {
+        const buildOptionList = (container, options, selectedValues) => {
+            if (!container) {
                 return;
             }
-            namespaceFilterMenu.classList.remove('show');
-            namespaceFilterToggle.setAttribute('aria-expanded', 'false');
-        };
-
-        const openNamespaceMenu = () => {
-            if (!namespaceFilterMenu || !namespaceFilterToggle) {
+            const selectedSet = new Set((Array.isArray(selectedValues) ? selectedValues : [])
+                    .map(normalizeText)
+                    .filter(Boolean));
+            container.innerHTML = '';
+            if (!Array.isArray(options) || options.length === 0) {
+                container.innerHTML = '<div class="text-muted small">Список пока пуст.</div>';
                 return;
             }
-            namespaceFilterMenu.classList.add('show');
-            namespaceFilterToggle.setAttribute('aria-expanded', 'true');
-        };
 
-        const toggleNamespaceMenu = () => {
-            if (isNamespaceMenuOpen()) {
-                closeNamespaceMenu();
-                return;
-            }
-            openNamespaceMenu();
-        };
+            options.forEach(option => {
+                const value = normalizeText(option?.value);
+                const label = normalizeText(option?.label);
+                if (!value || !label) {
+                    return;
+                }
+                const wrapper = document.createElement('label');
+                wrapper.className = 'configuration-option-item';
 
-        const syncSelectedNamespaces = () => {
-            if (!namespaceFilterList) {
-                return;
-            }
-            selectedNamespaces = Array.from(namespaceFilterList.querySelectorAll('input[type="checkbox"]:checked'))
-                    .map(input => normalizeText(input.value))
-                    .filter(Boolean);
-            updateNamespaceChipLabel();
+                const input = document.createElement('input');
+                input.className = 'form-check-input mt-0';
+                input.type = 'checkbox';
+                input.value = value;
+                input.id = buildOptionId(container.id || 'option', value);
+                input.checked = selectedSet.has(value);
+
+                const content = document.createElement('div');
+                content.className = 'configuration-option-content';
+
+                const title = document.createElement('div');
+                title.className = 'configuration-option-title';
+                title.textContent = label;
+
+                const description = document.createElement('div');
+                description.className = 'configuration-option-description';
+                description.textContent = normalizeText(option?.description) ?? '';
+
+                content.appendChild(title);
+                if (description.textContent !== '') {
+                    content.appendChild(description);
+                }
+
+                wrapper.appendChild(input);
+                wrapper.appendChild(content);
+                container.appendChild(wrapper);
+            });
         };
 
         const renderNamespaceOptions = (payload) => {
-            if (!namespaceFilterList) {
-                return;
-            }
-
             const available = Array.isArray(payload?.available)
                     ? payload.available
                     : (Array.isArray(payload) ? payload : []);
             const selected = Array.isArray(payload?.selected) ? payload.selected : [];
 
-            selectedNamespaces = selected
+            namespaceOptions = {
+                available: available
                     .map(normalizeText)
-                    .filter(Boolean);
-
-            namespaceFilterList.innerHTML = '';
-            if (!available.length) {
-                namespaceFilterList.innerHTML = '<div class="text-muted small">Namespace не найдены</div>';
-                updateNamespaceChipLabel();
-                return;
-            }
-
-            available.forEach(ns => {
-                const normalizedNamespace = normalizeText(ns);
-                if (!normalizedNamespace) {
-                    return;
-                }
-                const id = `ns-${normalizedNamespace.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-                const wrapper = document.createElement('div');
-                wrapper.className = 'form-check';
-
-                const input = document.createElement('input');
-                input.className = 'form-check-input';
-                input.type = 'checkbox';
-                input.id = id;
-                input.value = normalizedNamespace;
-                input.checked = selectedNamespaces.includes(normalizedNamespace);
-                input.addEventListener('change', syncSelectedNamespaces);
-
-                const label = document.createElement('label');
-                label.className = 'form-check-label';
-                label.setAttribute('for', id);
-                label.textContent = normalizedNamespace;
-
-                wrapper.appendChild(input);
-                wrapper.appendChild(label);
-                namespaceFilterList.appendChild(wrapper);
-            });
-
-            syncSelectedNamespaces();
+                    .filter(Boolean),
+                selected: selected
+                    .map(normalizeText)
+                    .filter(Boolean)
+            };
+            buildOptionList(
+                    captureNamespaceList,
+                    namespaceOptions.available.map(item => ({
+                        value: item,
+                        label: item
+                    })),
+                    namespaceOptions.selected
+            );
         };
 
         const appendCell = (row, value, className = '') => {
@@ -371,7 +441,7 @@
 
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
-            ['Namespace', 'POD', 'Контейнер', 'Версия', 'Релиз', 'Request CPU', 'Limit CPU', 'Request RAM', 'Limit RAM']
+            ['Namespace', 'Компонент', 'Ресурс', 'Детали', 'Версия', 'Релиз', 'Request CPU', 'Limit CPU', 'Request RAM', 'Limit RAM']
                     .forEach(title => {
                         const th = document.createElement('th');
                         th.scope = 'col';
@@ -384,6 +454,7 @@
             (Array.isArray(items) ? items : []).forEach(item => {
                 const row = document.createElement('tr');
                 appendCell(row, item?.namespace);
+                appendCell(row, resolveComponentLabel(item));
                 appendCell(row, item?.podName);
                 appendCell(row, item?.containerName);
                 appendCell(row, item?.version);
@@ -438,6 +509,12 @@
             if (Array.isArray(payload?.namespaces) && payload.namespaces.length > 0) {
                 parts.push(`Namespace: ${payload.namespaces.join(', ')}`);
             }
+            if (Array.isArray(payload?.components) && payload.components.length > 0) {
+                const componentLabels = payload.components
+                        .map(code => COMPONENT_OPTIONS.find(item => item.code === code)?.label ?? code)
+                        .join(', ');
+                parts.push(`Компоненты: ${componentLabels}`);
+            }
             return parts.join(' | ');
         };
 
@@ -471,6 +548,12 @@
             }
             metaGrid.appendChild(createMetaCard('Релиз', payload?.release));
             metaGrid.appendChild(createMetaCard('Namespace', Array.isArray(payload?.namespaces) ? payload.namespaces.join(', ') : null));
+            if (Array.isArray(payload?.components) && payload.components.length > 0) {
+                metaGrid.appendChild(createMetaCard(
+                        'Компоненты',
+                        payload.components.map(code => COMPONENT_OPTIONS.find(item => item.code === code)?.label ?? code).join(', ')
+                ));
+            }
             metaGrid.appendChild(createMetaCard('Комментарий', payload?.comment, 'configuration-meta-card-wide'));
             metaSection.appendChild(metaGrid);
             stack.appendChild(metaSection);
@@ -489,93 +572,49 @@
             }
             stack.appendChild(tableSection);
 
-            if (normalizedMode === 'preview') {
-                const saveSection = createDetailsSection('Сохранить конфигурацию');
-                const saveCard = document.createElement('div');
-                saveCard.className = 'configuration-save-card';
-
-                const formGrid = document.createElement('div');
-                formGrid.className = 'row g-3';
-
-                const releaseCol = document.createElement('div');
-                releaseCol.className = 'col-12 col-lg-4';
-                const releaseLabel = document.createElement('label');
-                releaseLabel.className = 'form-label';
-                releaseLabel.textContent = 'Номер релиза';
-                const releaseInput = document.createElement('input');
-                releaseInput.type = 'text';
-                releaseInput.className = 'form-control';
-                releaseInput.value = payload?.release ?? '';
-                releaseInput.placeholder = 'Например, 2.12.10';
-                releaseCol.appendChild(releaseLabel);
-                releaseCol.appendChild(releaseInput);
-
-                const commentCol = document.createElement('div');
-                commentCol.className = 'col-12';
-                const commentLabel = document.createElement('label');
-                commentLabel.className = 'form-label';
-                commentLabel.textContent = 'Комментарий';
-                const commentInput = document.createElement('textarea');
-                commentInput.className = 'form-control';
-                commentInput.rows = 4;
-                commentInput.placeholder = 'Комментарий будет отображаться в таблице сохранённых конфигураций.';
-                commentCol.appendChild(commentLabel);
-                commentCol.appendChild(commentInput);
-
-                formGrid.appendChild(releaseCol);
-                formGrid.appendChild(commentCol);
-
-                const actions = document.createElement('div');
-                actions.className = 'd-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mt-3';
-
-                const helperText = document.createElement('div');
-                helperText.className = 'text-muted small';
-                helperText.textContent = 'При сохранении будет зафиксирован текущий состав контейнеров и ресурсов.';
-
-                const saveButton = document.createElement('button');
-                saveButton.type = 'button';
-                saveButton.className = 'btn btn-success';
-                saveButton.textContent = 'Сохранить конфигурацию';
-                saveButton.addEventListener('click', async () => {
-                    if (!currentConfigurationPreview?.items?.length) {
-                        showToast('Нет текущей конфигурации для сохранения.', 'warning');
-                        return;
-                    }
-
-                    saveButton.disabled = true;
-                    saveButton.textContent = 'Сохраняем…';
-                    try {
-                        const savedConfiguration = await requestJson('/api/dropapp/configuration/saved', {
-                            method: 'POST',
-                            body: JSON.stringify({
-                                namespaces: currentConfigurationPreview.namespaces,
-                                release: releaseInput.value,
-                                comment: commentInput.value,
-                                items: currentConfigurationPreview.items
-                            })
-                        });
-                        await loadSavedConfigurations(false);
-                        currentConfigurationPreview = null;
-                        renderConfigurationModal(savedConfiguration, 'saved');
-                        showToast('Конфигурация DropApp сохранена.', 'success');
-                    } catch (error) {
-                        showToast('Не удалось сохранить конфигурацию DropApp: ' + error.message, 'danger');
-                    } finally {
-                        saveButton.disabled = false;
-                        saveButton.textContent = 'Сохранить конфигурацию';
-                    }
-                });
-
-                actions.appendChild(helperText);
-                actions.appendChild(saveButton);
-                saveCard.appendChild(formGrid);
-                saveCard.appendChild(actions);
-                saveSection.appendChild(saveCard);
-                stack.appendChild(saveSection);
-            }
-
             configurationModalBody.appendChild(stack);
             configurationModal?.show();
+        };
+
+        const renderCurrentConfiguration = (payload) => {
+            const items = Array.isArray(payload?.items) ? payload.items : [];
+            if (currentConfigCounter) {
+                currentConfigCounter.textContent = items.length === 0
+                        ? 'Нет записей'
+                        : `Записей: ${items.length}`;
+            }
+            if (currentConfigEmpty) {
+                currentConfigEmpty.classList.toggle('d-none', items.length > 0);
+            }
+            if (!currentConfigContent || !currentConfigMeta || !currentConfigTableWrapper) {
+                return;
+            }
+
+            if (items.length === 0) {
+                currentConfigContent.classList.add('d-none');
+                currentConfigTableWrapper.innerHTML = '';
+                currentConfigMeta.innerHTML = '';
+                return;
+            }
+
+            currentConfigContent.classList.remove('d-none');
+            currentConfigMeta.innerHTML = '';
+            currentConfigMeta.appendChild(createMetaCard('Дата сохранения', payload?.savedAt));
+            currentConfigMeta.appendChild(createMetaCard('Релиз', payload?.release));
+            currentConfigMeta.appendChild(createMetaCard(
+                    'Namespace',
+                    Array.isArray(payload?.namespaces) ? payload.namespaces.join(', ') : null
+            ));
+            currentConfigMeta.appendChild(createMetaCard(
+                    'Компоненты',
+                    Array.isArray(payload?.components)
+                            ? payload.components.map(code => COMPONENT_OPTIONS.find(item => item.code === code)?.label ?? code).join(', ')
+                            : null
+            ));
+            currentConfigMeta.appendChild(createMetaCard('Комментарий', payload?.comment, 'configuration-meta-card-wide'));
+
+            currentConfigTableWrapper.innerHTML = '';
+            currentConfigTableWrapper.appendChild(buildConfigurationTable(items));
         };
 
         const renderSavedConfigurationsTable = (items) => {
@@ -663,17 +702,38 @@
         };
 
         const loadNamespaces = async () => {
-            if (!namespaceFilterList) {
+            if (!captureNamespaceList) {
                 return;
             }
-            namespaceFilterList.innerHTML = '<div class="text-muted small">Загружаем…</div>';
+            captureNamespaceList.innerHTML = '<div class="text-muted small">Загружаем namespace…</div>';
             try {
                 const data = await requestJson('/api/dropapp/namespaces');
                 renderNamespaceOptions(data);
             } catch (error) {
-                namespaceFilterList.innerHTML = '<div class="text-muted small">Не удалось загрузить namespace</div>';
+                captureNamespaceList.innerHTML = '<div class="text-muted small">Не удалось загрузить namespace</div>';
                 showToast('Не удалось получить список namespace: ' + error.message, 'danger');
             }
+        };
+
+        const renderComponentOptions = () => {
+            buildOptionList(
+                    captureComponentList,
+                    COMPONENT_OPTIONS.map(option => ({
+                        value: option.code,
+                        label: option.label,
+                        description: option.description
+                    })),
+                    COMPONENT_OPTIONS.map(option => option.code)
+            );
+        };
+
+        const readCheckedValues = (container) => {
+            if (!container) {
+                return [];
+            }
+            return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(input => normalizeText(input.value))
+                    .filter(Boolean);
         };
 
         const loadSavedConfigurations = async (showErrorMessage = true) => {
@@ -699,65 +759,53 @@
             });
         }
 
-        namespaceFilterToggle?.addEventListener('click', event => {
-            event.preventDefault();
-            event.stopPropagation();
-            toggleNamespaceMenu();
-        });
-
-        namespaceFilterMenu?.addEventListener('click', event => {
-            event.stopPropagation();
-        });
-
-        document.addEventListener('click', event => {
-            if (!namespaceFilterContainer?.contains(event.target)) {
-                closeNamespaceMenu();
-            }
-        });
-
         if (typeof startBackgroundErrorPolling === 'function') {
             startBackgroundErrorPolling(showToast);
         }
 
-        loadButton?.addEventListener('click', async () => {
+        loadButton?.addEventListener('click', () => {
+            captureCommentInput.value = '';
+            captureModal?.show();
+        });
+
+        captureSubmitButton?.addEventListener('click', async () => {
+            const selectedNamespaces = readCheckedValues(captureNamespaceList);
+            const selectedComponents = readCheckedValues(captureComponentList);
             if (!selectedNamespaces.length) {
-                showToast('Выберите хотя бы один namespace для получения текущей конфигурации.', 'warning');
+                showToast('Выберите хотя бы один namespace.', 'warning');
+                return;
+            }
+            if (!selectedComponents.length) {
+                showToast('Выберите хотя бы один компонент для выгрузки.', 'warning');
                 return;
             }
 
-            closeNamespaceMenu();
-            loadButton.disabled = true;
-            const progressToast = showToast('Запрашиваем текущую конфигурацию DropApp…', 'info', 8000);
+            captureSubmitButton.disabled = true;
+            captureSubmitButton.textContent = 'Выгружаем…';
+            const progressToast = showToast('Запрашиваем текущую конфигурацию DropApp и сохраняем снапшот…', 'info', 10000);
             try {
-                const query = '?namespace=' + selectedNamespaces.map(encodeURIComponent).join('&namespace=');
-                const data = await requestJson('/api/dropapp/configuration' + query);
-                if (!Array.isArray(data?.items) || data.items.length === 0) {
-                    showToast('Конфигурация DropApp пуста. Проверьте выбранные namespace.', 'warning');
-                    return;
-                }
-
-                currentConfigurationPreview = {
-                    namespaces: Array.isArray(data.namespaces) ? data.namespaces : [...selectedNamespaces],
-                    release: normalizeText(data.release),
-                    items: data.items
-                };
-                renderConfigurationModal(currentConfigurationPreview, 'preview');
+                const data = await requestJson('/api/dropapp/configuration/capture', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        namespaces: selectedNamespaces,
+                        components: selectedComponents,
+                        comment: captureCommentInput?.value ?? ''
+                    })
+                });
+                renderCurrentConfiguration(data);
+                await loadSavedConfigurations(false);
+                captureModal?.hide();
+                showToast('Конфигурация DropApp выгружена, сохранена в БД и добавлена в таблицу.', 'success');
             } catch (error) {
-                currentConfigurationPreview = null;
                 showToast('Не удалось загрузить конфигурацию DropApp: ' + error.message, 'danger');
             } finally {
                 removeToast(progressToast);
-                loadButton.disabled = false;
+                captureSubmitButton.disabled = false;
+                captureSubmitButton.textContent = 'Выгрузить конфигурацию';
             }
         });
-
-        document.addEventListener('keydown', event => {
-            if (event.key === 'Escape') {
-                closeNamespaceMenu();
-            }
-        });
-
-        updateNamespaceChipLabel();
+        renderComponentOptions();
+        renderCurrentConfiguration({items: []});
         loadNamespaces();
         loadSavedConfigurations(false);
     });

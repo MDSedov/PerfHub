@@ -1,6 +1,8 @@
 package com.example.chronicler.controller;
 
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
+import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
+import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
@@ -56,6 +58,18 @@ public class ConfluenceController {
         ConfluenceCredentials credentials = new ConfluenceCredentials(resolvedLogin, resolvedToken);
         ConfluenceReportHierarchyResponse response =
                 confluenceService.createReportHierarchy(credentials, request.parentPageId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(path = "/charts/append/", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ConfluenceChartsAppendResponse> appendCharts(
+            @RequestHeader(value = LOGIN_HEADER, required = false) String login,
+            @RequestHeader(value = TOKEN_HEADER, required = false) String token,
+            @Valid @RequestBody ConfluenceChartsAppendRequest request) {
+        String resolvedLogin = resolveLogin(login);
+        String resolvedToken = resolveToken(token);
+        ConfluenceCredentials credentials = new ConfluenceCredentials(resolvedLogin, resolvedToken);
+        ConfluenceChartsAppendResponse response = confluenceService.appendChartsToPage(credentials, request);
         return ResponseEntity.ok(response);
     }
 

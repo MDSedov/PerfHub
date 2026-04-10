@@ -1,12 +1,15 @@
 package com.example.chronicler.service;
 
 import com.example.chronicler.client.ConfluenceClient;
+import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
+import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePage;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
+import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.exception.ConfluenceOperationException;
@@ -33,6 +36,9 @@ import org.springframework.web.util.HtmlUtils;
 public class ConfluenceService {
 
     private static final int MAX_PAGE_TITLE_LENGTH = 255;
+    private static final String GRAFANA_SERVICE = "grafana";
+    private static final String GRAFANA_IMAGE_WIDTH_KEY = "image-width";
+    private static final String GRAFANA_IMAGE_HEIGHT_KEY = "image-height";
     private static final String RELEASE_PLACEHOLDER = "@release";
     private static final String CONFIG_PLACEHOLDER = "@config";
     private static final String GRAPHICS_PLACEHOLDER = "@graphics";
@@ -50,6 +56,7 @@ public class ConfluenceService {
     private final LoadTestRepository loadTestRepository;
     private final KubernetesConfigurationService kubernetesConfigurationService;
     private final ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
+    private final ConfigurationProvider configurationProvider;
 
     /**
      * Создаёт сервис для работы с Confluence, кешем рендеров Grafana и загрузкой шаблонов.
@@ -60,13 +67,15 @@ public class ConfluenceService {
             TemplateLoader templateLoader,
             LoadTestRepository loadTestRepository,
             KubernetesConfigurationService kubernetesConfigurationService,
-            ConfluenceTemplateSettingsService confluenceTemplateSettingsService) {
+            ConfluenceTemplateSettingsService confluenceTemplateSettingsService,
+            ConfigurationProvider configurationProvider) {
         this.confluenceClient = confluenceClient;
         this.grafanaService = grafanaService;
         this.templateLoader = templateLoader;
         this.loadTestRepository = loadTestRepository;
         this.kubernetesConfigurationService = kubernetesConfigurationService;
         this.confluenceTemplateSettingsService = confluenceTemplateSettingsService;
+        this.configurationProvider = configurationProvider;
     }
 
     private static final String OVERVIEW_TEMPLATE_NAME = "overall-report";
@@ -141,6 +150,46 @@ public class ConfluenceService {
         return new ConfluenceReportHierarchyResponse(overviewPage.id(), List.copyOf(childPageIds));
     }
 
+    public ConfluenceChartsAppendResponse appendChartsToPage(
+            ConfluenceCredentials credentials,
+            ConfluenceChartsAppendRequest request) {
+        Objects.requireNonNull(credentials, "Confluence credentials must not be null");
+        Objects.requireNonNull(request, "Confluence charts append request must not be null");
+        validateCredentials(credentials);
+        if (!StringUtils.hasText(request.pageId())) {
+            throw new ConfluenceOperationException("pageId is required");
+        }
+
+        ConfluencePage page = confluenceClient.getPage(credentials, request.pageId());
+        List<GrafanaRenderedPanel> renderedPanels = grafanaService.renderTemplatePanelsByRange(
+                new GrafanaRenderRangeRequest(request.from(), request.to(), request.templateId()));
+        if (renderedPanels.isEmpty()) {
+            throw new ConfluenceOperationException("Не удалось подготовить графики для выгрузки");
+        }
+
+        List<String> attachmentNames = new ArrayList<>(renderedPanels.size());
+        List<RenderedChartAttachment> chartAttachments = new ArrayList<>(renderedPanels.size());
+        for (GrafanaRenderedPanel panel : renderedPanels) {
+            byte[] imageBytes = decodePanelImage(panel);
+            String attachmentName = generateAttachmentName(panel);
+            confluenceClient.uploadAttachment(credentials, page.id(), attachmentName, imageBytes);
+            attachmentNames.add(attachmentName);
+            chartAttachments.add(new RenderedChartAttachment(panel.title(), panel.description(), attachmentName));
+        }
+
+        String existingBody = normalizeStorageMarkup(page.body());
+        String appendedChartsSection = buildChartsSection(chartAttachments);
+        String updatedBody = appendChartsSection(existingBody, appendedChartsSection);
+        confluenceClient.updatePage(credentials, page, updatedBody);
+
+        return new ConfluenceChartsAppendResponse(
+                page.id(),
+                page.title(),
+                confluenceClient.buildPageUrl(page.id()),
+                chartAttachments.size(),
+                List.copyOf(attachmentNames));
+    }
+
     private ConfluenceReportResponse.ReportPage createSingleReport(
             ConfluenceCredentials credentials,
             String parentPageId,
@@ -176,7 +225,7 @@ public class ConfluenceService {
             String attachmentName = generateAttachmentName(panel);
             confluenceClient.uploadAttachment(credentials, reportPage.id(), attachmentName, imageBytes);
             attachmentNames.add(attachmentName);
-            chartAttachments.add(new RenderedChartAttachment(chart.title(), attachmentName));
+            chartAttachments.add(new RenderedChartAttachment(chart.title(), panel.description(), attachmentName));
         }
 
         String updatedBody = buildReportBody(
@@ -278,15 +327,30 @@ public class ConfluenceService {
     /**
      * Добавляет в тело страницы название графика и изображение панели.
      */
-    private void appendPanelToBody(StringBuilder bodyBuilder, String title, String attachmentName) {
+    private void appendPanelToBody(
+            StringBuilder bodyBuilder,
+            String title,
+            String description,
+            GrafanaImageDimensions imageDimensions,
+            String attachmentName) {
         String resolvedTitle = StringUtils.hasText(title) ? title : "Панель без названия";
         bodyBuilder
                 .append("<h3>")
                 .append(HtmlUtils.htmlEscape(resolvedTitle))
                 .append("</h3>");
+        if (StringUtils.hasText(description)) {
+            bodyBuilder
+                    .append("<p>")
+                    .append(HtmlUtils.htmlEscape(description))
+                    .append("</p>");
+        }
 
         bodyBuilder
-                .append("<p><ac:image><ri:attachment ri:filename=\"")
+                .append("<p><ac:image ac:width=\"")
+                .append(imageDimensions.width())
+                .append("\" ac:height=\"")
+                .append(imageDimensions.height())
+                .append("\"><ri:attachment ri:filename=\"")
                 .append(HtmlUtils.htmlEscape(attachmentName))
                 .append("\" /></ac:image></p>");
     }
@@ -332,11 +396,52 @@ public class ConfluenceService {
         if (chartAttachments == null || chartAttachments.isEmpty()) {
             return "";
         }
+        GrafanaImageDimensions imageDimensions = resolveGrafanaImageDimensions();
         StringBuilder bodyBuilder = new StringBuilder();
         for (RenderedChartAttachment chartAttachment : chartAttachments) {
-            appendPanelToBody(bodyBuilder, chartAttachment.title(), chartAttachment.attachmentName());
+            appendPanelToBody(
+                    bodyBuilder,
+                    chartAttachment.title(),
+                    chartAttachment.description(),
+                    imageDimensions,
+                    chartAttachment.attachmentName());
         }
         return bodyBuilder.toString();
+    }
+
+    private GrafanaImageDimensions resolveGrafanaImageDimensions() {
+        return new GrafanaImageDimensions(
+                resolvePositiveConfigInt(GRAFANA_SERVICE, GRAFANA_IMAGE_WIDTH_KEY),
+                resolvePositiveConfigInt(GRAFANA_SERVICE, GRAFANA_IMAGE_HEIGHT_KEY));
+    }
+
+    private int resolvePositiveConfigInt(String service, String key) {
+        String rawValue = configurationProvider.getRequiredValue(service, key);
+        String normalizedValue = rawValue == null ? "" : rawValue.trim();
+        try {
+            int parsedValue = Integer.parseInt(normalizedValue);
+            if (parsedValue <= 0) {
+                throw new NumberFormatException("Value must be positive");
+            }
+            return parsedValue;
+        } catch (NumberFormatException ex) {
+            throw new ConfluenceOperationException(
+                    "Configuration value for %s.%s must be a positive integer but was '%s'"
+                            .formatted(service, key, rawValue),
+                    ex);
+        }
+    }
+
+    private String appendChartsSection(String existingBody, String chartsSection) {
+        String normalizedExistingBody = normalizeStorageMarkup(getSafeBody(existingBody));
+        String normalizedChartsSection = normalizeStorageMarkup(getSafeBody(chartsSection));
+        if (!StringUtils.hasText(normalizedExistingBody)) {
+            return normalizedChartsSection;
+        }
+        if (!StringUtils.hasText(normalizedChartsSection)) {
+            return normalizedExistingBody;
+        }
+        return normalizedExistingBody + "<hr />" + normalizedChartsSection;
     }
 
     private String buildReportTitle(
@@ -491,5 +596,7 @@ public class ConfluenceService {
 
     private record ResolvedReportItem(LoadTest loadTest, ConfluenceTemplate template) {}
 
-    private record RenderedChartAttachment(String title, String attachmentName) {}
+    private record GrafanaImageDimensions(int width, int height) {}
+
+    private record RenderedChartAttachment(String title, String description, String attachmentName) {}
 }

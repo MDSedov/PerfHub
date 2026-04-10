@@ -1,6 +1,8 @@
 package com.example.chronicler.controller;
 
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureRequest;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureResponse;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSaveRequest;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSummaryDto;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
@@ -34,6 +36,13 @@ public class DropAppController {
     public DropAppConfigurationViewDto getCurrentConfiguration(
             @RequestParam(value = "namespace", required = false) List<String> namespaces) {
         return snapshotService.loadCurrentConfiguration(namespaces);
+    }
+
+    /** Загружает текущую конфигурацию DropApp, сохраняет её в БД и возвращает сохранённый снапшот. */
+    @PostMapping(path = "/configuration/capture", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public DropAppConfigurationCaptureResponse captureCurrentConfiguration(
+            @RequestBody(required = false) DropAppConfigurationCaptureRequest request) {
+        return snapshotService.captureCurrentConfiguration(request);
     }
 
     /** Возвращает список сохранённых конфигураций DropApp. */

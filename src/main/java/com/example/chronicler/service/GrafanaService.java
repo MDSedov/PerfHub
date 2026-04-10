@@ -107,6 +107,17 @@ public class GrafanaService {
         return renderPanelsForTemplate(resolveTemplate(request.templateId()), from, to);
     }
 
+    public List<GrafanaRenderedPanel> renderTemplatePanelsByRange(GrafanaRenderRangeRequest request) {
+        Objects.requireNonNull(request, "Grafana render range request must not be null");
+        Instant from = parseInstant(request.from(), "from");
+        Instant to = parseInstant(request.to(), "to");
+        if (!to.isAfter(from)) {
+            throw new GrafanaInvalidTimeRangeException("End time must be after start time");
+        }
+
+        return renderTemplatePanels(resolveTemplate(request.templateId()), from, to);
+    }
+
     public List<GrafanaRenderedPanel> renderSelectedPanels(
             Instant from,
             Instant to,
@@ -151,55 +162,73 @@ public class GrafanaService {
     }
 
     private GrafanaRenderResponse renderPanelsForTemplate(ConfluenceTemplate template, Instant from, Instant to) {
+        List<TemplateRenderedPanel> renderedTemplatePanels = renderTemplatePanelsInternal(template, from, to);
+        List<GrafanaRenderedDashboard> dashboards = new ArrayList<>();
+        Map<String, List<GrafanaRenderedPanel>> panelsByDashboardUid = new LinkedHashMap<>();
+        Map<String, String> dashboardSlugs = new LinkedHashMap<>();
+        for (TemplateRenderedPanel renderedTemplatePanel : renderedTemplatePanels) {
+            dashboardSlugs.putIfAbsent(renderedTemplatePanel.dashboardUid(), renderedTemplatePanel.dashboardSlug());
+            panelsByDashboardUid
+                    .computeIfAbsent(renderedTemplatePanel.dashboardUid(), ignored -> new ArrayList<>())
+                    .add(renderedTemplatePanel.panel());
+        }
+        for (Map.Entry<String, List<GrafanaRenderedPanel>> entry : panelsByDashboardUid.entrySet()) {
+            dashboards.add(new GrafanaRenderedDashboard(
+                    entry.getKey(),
+                    dashboardSlugs.get(entry.getKey()),
+                    List.copyOf(entry.getValue())));
+        }
+
+        GrafanaRenderResponse response = new GrafanaRenderResponse(from.toString(), to.toString(), List.copyOf(dashboards));
+        grafanaRenderCache.store(response);
+        return response;
+    }
+
+    private List<GrafanaRenderedPanel> renderTemplatePanels(ConfluenceTemplate template, Instant from, Instant to) {
+        return renderTemplatePanelsInternal(template, from, to).stream()
+                .map(TemplateRenderedPanel::panel)
+                .toList();
+    }
+
+    private List<TemplateRenderedPanel> renderTemplatePanelsInternal(
+            ConfluenceTemplate template,
+            Instant from,
+            Instant to) {
         List<ConfluenceTemplateChart> templateCharts = template.charts() == null ? List.of() : template.charts();
         if (templateCharts.isEmpty()) {
             throw new GrafanaRenderingException(
                     "Для шаблона отчета '%s' не настроены графики".formatted(template.fullName()));
         }
 
-        Map<String, List<ConfluenceTemplateChart>> chartsByDashboardUid = templateCharts.stream()
-                .filter(Objects::nonNull)
-                .collect(Collectors.groupingBy(
-                        ConfluenceTemplateChart::dashboardUid,
-                        LinkedHashMap::new,
-                        Collectors.toList()));
-
-        List<GrafanaRenderedDashboard> dashboards = new ArrayList<>();
-        for (Map.Entry<String, List<ConfluenceTemplateChart>> entry : chartsByDashboardUid.entrySet()) {
-            String dashboardUid = requireText(entry.getKey(), "dashboardUid");
-            GrafanaDashboard dashboard = grafanaDashboardRepository.findByUid(dashboardUid)
-                    .orElseThrow(() -> new GrafanaRenderingException(
-                            "Grafana dashboard " + dashboardUid + " not found"));
-            String slug = requireText(dashboard.slug(), "slug");
-            Map<String, String> variableValues = grafanaVariableService.loadValues(dashboardUid);
-            Map<Integer, GrafanaDashboardPanelRecord> cachedPanelsById = grafanaDashboardPanelRepository
-                    .findByDashboardUid(dashboardUid).stream()
-                    .collect(Collectors.toMap(
-                            GrafanaDashboardPanelRecord::panelId,
-                            Function.identity(),
-                            (first, second) -> first));
-
-            List<GrafanaRenderedPanel> renderedPanels = new ArrayList<>(entry.getValue().size());
-            for (ConfluenceTemplateChart chart : entry.getValue()) {
-                if (chart.panelId() <= 0) {
-                    throw new GrafanaRenderingException("Grafana panel selection is invalid");
-                }
-                ResolvedPanelMetadata metadata = resolvePanelMetadata(dashboardUid, chart.panelId(), cachedPanelsById.get(chart.panelId()));
-                byte[] imageBytes = grafanaClient.renderPanel(dashboardUid, slug, chart.panelId(), from, to, variableValues);
-                String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
-                String title = StringUtils.hasText(chart.title()) ? chart.title().trim() : metadata.title();
-                renderedPanels.add(new GrafanaRenderedPanel(
-                        chart.panelId(),
-                        title,
-                        metadata.description(),
-                        encodedImage));
+        Map<String, DashboardRenderContext> contextByDashboardUid = new LinkedHashMap<>();
+        List<TemplateRenderedPanel> renderedPanels = new ArrayList<>(templateCharts.size());
+        for (ConfluenceTemplateChart chart : templateCharts) {
+            if (chart == null || chart.panelId() <= 0) {
+                throw new GrafanaRenderingException("Grafana panel selection is invalid");
             }
-            dashboards.add(new GrafanaRenderedDashboard(dashboardUid, slug, List.copyOf(renderedPanels)));
+            String dashboardUid = requireText(chart.dashboardUid(), "dashboardUid");
+            DashboardRenderContext context = contextByDashboardUid.computeIfAbsent(
+                    dashboardUid,
+                    this::loadDashboardRenderContext);
+            ResolvedPanelMetadata metadata = resolvePanelMetadata(
+                    dashboardUid,
+                    chart.panelId(),
+                    context.cachedPanelsById().get(chart.panelId()));
+            byte[] imageBytes = grafanaClient.renderPanel(
+                    dashboardUid,
+                    context.dashboardSlug(),
+                    chart.panelId(),
+                    from,
+                    to,
+                    context.variableValues());
+            String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
+            String title = StringUtils.hasText(chart.title()) ? chart.title().trim() : metadata.title();
+            renderedPanels.add(new TemplateRenderedPanel(
+                    dashboardUid,
+                    context.dashboardSlug(),
+                    new GrafanaRenderedPanel(chart.panelId(), title, metadata.description(), encodedImage)));
         }
-
-        GrafanaRenderResponse response = new GrafanaRenderResponse(from.toString(), to.toString(), List.copyOf(dashboards));
-        grafanaRenderCache.store(response);
-        return response;
+        return List.copyOf(renderedPanels);
     }
 
     private ConfluenceTemplate resolveDefaultTemplate(LoadTest loadTest) {
@@ -219,6 +248,21 @@ public class GrafanaService {
         } catch (IllegalArgumentException ex) {
             throw new GrafanaRenderingException(ex.getMessage());
         }
+    }
+
+    private DashboardRenderContext loadDashboardRenderContext(String dashboardUid) {
+        GrafanaDashboard dashboard = grafanaDashboardRepository.findByUid(dashboardUid)
+                .orElseThrow(() -> new GrafanaRenderingException(
+                        "Grafana dashboard " + dashboardUid + " not found"));
+        String slug = requireText(dashboard.slug(), "slug");
+        Map<String, String> variableValues = grafanaVariableService.loadValues(dashboardUid);
+        Map<Integer, GrafanaDashboardPanelRecord> cachedPanelsById = grafanaDashboardPanelRepository
+                .findByDashboardUid(dashboardUid).stream()
+                .collect(Collectors.toMap(
+                        GrafanaDashboardPanelRecord::panelId,
+                        Function.identity(),
+                        (first, second) -> first));
+        return new DashboardRenderContext(slug, Map.copyOf(variableValues), Map.copyOf(cachedPanelsById));
     }
 
     private ResolvedPanelMetadata resolvePanelMetadata(
@@ -292,4 +336,14 @@ public class GrafanaService {
     }
 
     private record ResolvedPanelMetadata(String title, String description) {}
+
+    private record DashboardRenderContext(
+            String dashboardSlug,
+            Map<String, String> variableValues,
+            Map<Integer, GrafanaDashboardPanelRecord> cachedPanelsById) {}
+
+    private record TemplateRenderedPanel(
+            String dashboardUid,
+            String dashboardSlug,
+            GrafanaRenderedPanel panel) {}
 }
