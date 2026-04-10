@@ -573,12 +573,12 @@
             thead.appendChild(headerRow);
 
             const tbody = document.createElement('tbody');
-            (Array.isArray(documents) ? documents : []).forEach(document => {
+            (Array.isArray(documents) ? documents : []).forEach(documentItem => {
                 const row = document.createElement('tr');
-                appendCell(row, document?.namespace);
-                appendCell(row, resolveComponentCodeLabel(document?.component));
-                appendCell(row, document?.resourceName);
-                appendCell(row, document?.fileName);
+                appendCell(row, documentItem?.namespace);
+                appendCell(row, resolveComponentCodeLabel(documentItem?.component));
+                appendCell(row, documentItem?.resourceName);
+                appendCell(row, documentItem?.fileName);
                 tbody.appendChild(row);
             });
 
