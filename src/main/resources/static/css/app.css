@@ -1699,6 +1699,19 @@ body {
             grid-template-columns: 1fr;
         }
 
+        .settings-actions-bar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
+        }
+
+        .settings-actions-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
         .settings-service-title {
             font-size: 1.3rem;
             font-weight: 900;
@@ -1735,6 +1748,17 @@ body {
 
         .integration-card .btn {
             white-space: nowrap;
+        }
+
+        @media (max-width: 576px) {
+            .settings-actions-bar,
+            .settings-actions-group {
+                justify-content: stretch;
+            }
+
+            .settings-actions-group .btn {
+                width: 100%;
+            }
         }
 
         .toast-container {

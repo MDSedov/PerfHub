@@ -83,7 +83,17 @@
 
     <div class="page-content" style="background: #ffffff; min-height: 100vh;">
 <main class="container-fluid py-5 px-4 px-lg-5">
-    <div id="settingsStatus" class="alert d-none mb-3" role="alert"></div>
+    <div class="settings-actions-bar">
+        <div class="settings-actions-group">
+            <button id="exportConnectionsButton" type="button" class="btn btn-outline-secondary">
+                Выгрузить настройки
+            </button>
+            <button id="importConnectionsButton" type="button" class="btn btn-success">
+                Загрузить настройки
+            </button>
+            <input id="importConnectionsInput" type="file" accept=".json,application/json" class="d-none">
+        </div>
+    </div>
     <div id="settingsList" class="settings-menu"></div>
     <div id="settingsEmpty" class="text-muted d-none">Настройки не найдены.</div>
 </main>
@@ -101,9 +111,12 @@
 
 <script>
     const settingsList = document.getElementById('settingsList');
-    const settingsStatus = document.getElementById('settingsStatus');
     const settingsEmpty = document.getElementById('settingsEmpty');
+    const settingsCount = document.getElementById('settingsCount');
     const toastContainer = document.getElementById('toastContainer');
+    const exportConnectionsButton = document.getElementById('exportConnectionsButton');
+    const importConnectionsButton = document.getElementById('importConnectionsButton');
+    const importConnectionsInput = document.getElementById('importConnectionsInput');
 
     const SERVICE_ORDER = [
         'victoria-metrics',
@@ -119,6 +132,20 @@
     const serviceCards = new Map();
     const serviceSaving = new Set();
     let settingsCache = [];
+    let settingsImportInProgress = false;
+    let settingsStatusToast = null;
+
+    function setSettingsActionsDisabled(disabled) {
+        if (exportConnectionsButton) {
+            exportConnectionsButton.disabled = disabled;
+        }
+        if (importConnectionsButton) {
+            importConnectionsButton.disabled = disabled;
+        }
+        if (importConnectionsInput) {
+            importConnectionsInput.disabled = disabled;
+        }
+    }
 
     const removeToast = (toast) => {
         if (!toast) {
@@ -181,14 +208,71 @@
         return `${service}::${key}`;
     }
 
+    function normalizeSettingValue(value) {
+        if (value === null || value === undefined) {
+            return '';
+        }
+        if (typeof value === 'string') {
+            return value;
+        }
+        if (typeof value === 'object') {
+            return JSON.stringify(value);
+        }
+        return String(value);
+    }
+
+    function createPersistentToast(type = 'info') {
+        if (!toastContainer) {
+            return null;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast-item status-toast ${type}`;
+        const body = document.createElement('p');
+        body.className = 'toast-body';
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Закрыть уведомление');
+        close.innerHTML = '&times;';
+        close.addEventListener('click', () => {
+            removeToast(toast);
+            if (settingsStatusToast === toast) {
+                settingsStatusToast = null;
+            }
+        });
+        const content = document.createElement('div');
+        content.className = 'flex-grow-1';
+        content.appendChild(body);
+        toast.appendChild(content);
+        toast.appendChild(close);
+        return toast;
+    }
+
     function setSettingsStatus(message, type = 'info') {
-        settingsStatus.textContent = message;
-        settingsStatus.className = `alert alert-${type}`;
-        settingsStatus.classList.remove('d-none');
+        if (!toastContainer) {
+            return;
+        }
+        if (!settingsStatusToast || !settingsStatusToast.isConnected) {
+            settingsStatusToast = createPersistentToast(type);
+            if (!settingsStatusToast) {
+                return;
+            }
+            toastContainer.appendChild(settingsStatusToast);
+        }
+        const body = settingsStatusToast.querySelector('.toast-body');
+        if (body) {
+            body.textContent = message;
+        }
+        settingsStatusToast.className = `toast-item status-toast ${type}`;
+        toastContainer.appendChild(settingsStatusToast);
     }
 
     function clearSettingsStatus() {
-        settingsStatus.classList.add('d-none');
+        if (!settingsStatusToast) {
+            return;
+        }
+        removeToast(settingsStatusToast);
+        settingsStatusToast = null;
     }
 
     function applyStoredConnectionStatus(service, element) {
@@ -276,6 +360,215 @@
 
     function getServiceItemsFromCache(service) {
         return settingsCache.filter(item => item.service === service);
+    }
+
+    function setInputValueAndTrackChange(input, nextValue) {
+        const normalizedValue = normalizeSettingValue(nextValue);
+        const service = input.dataset.service;
+        const key = input.dataset.key;
+        const originalValue = input.dataset.originalValue ?? '';
+        const compoundKey = getCompoundKey(service, key);
+        input.value = normalizedValue;
+        if (normalizedValue === originalValue) {
+            settingsChanges.delete(compoundKey);
+        } else {
+            settingsChanges.set(compoundKey, {
+                service,
+                key,
+                value: normalizedValue
+            });
+        }
+    }
+
+    function collectCurrentConnectionSettings() {
+        const grouped = {};
+        const serviceNames = serviceCards.size
+            ? Array.from(serviceCards.keys()).sort(compareServices)
+            : Array.from(new Set(settingsCache.map(item => item.service))).sort(compareServices);
+
+        serviceNames.forEach(service => {
+            const card = serviceCards.get(service);
+            if (card) {
+                grouped[service] = {};
+                card.inputs.forEach(input => {
+                    grouped[service][input.dataset.key] = input.value ?? '';
+                });
+                return;
+            }
+            const items = getServiceItemsFromCache(service);
+            if (!items.length) {
+                return;
+            }
+            grouped[service] = {};
+            items.forEach(item => {
+                grouped[service][item.key] = item.value ?? '';
+            });
+        });
+
+        return {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            connections: grouped
+        };
+    }
+
+    function downloadConnectionSettings() {
+        const payload = collectCurrentConnectionSettings();
+        const hasData = Object.keys(payload.connections || {}).length > 0;
+        if (!hasData) {
+            showToast('Нет настроек для выгрузки.', 'info');
+            return;
+        }
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `chronicler-connections-${stamp}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        showToast('Настройки подключений выгружены в JSON.', 'success', 6000);
+    }
+
+    function normalizeImportedConnectionEntries(rawData) {
+        const entries = [];
+        const addEntry = (service, key, value) => {
+            const normalizedService = typeof service === 'string' ? service.trim() : '';
+            const normalizedKey = typeof key === 'string' ? key.trim() : '';
+            if (!normalizedService || !normalizedKey) {
+                return;
+            }
+            entries.push({
+                service: normalizedService,
+                key: normalizedKey,
+                value: normalizeSettingValue(value)
+            });
+        };
+
+        if (Array.isArray(rawData)) {
+            rawData.forEach(item => addEntry(item?.service, item?.key, item?.value));
+            return entries;
+        }
+
+        if (!rawData || typeof rawData !== 'object') {
+            throw new Error('Файл должен содержать JSON-объект с настройками подключений.');
+        }
+
+        if (Array.isArray(rawData.parameters)) {
+            rawData.parameters.forEach(item => addEntry(item?.service, item?.key, item?.value));
+            return entries;
+        }
+
+        const connections = rawData.connections
+            ?? rawData.services
+            ?? (Object.values(rawData).every(value => value && typeof value === 'object' && !Array.isArray(value))
+                ? rawData
+                : null);
+
+        if (!connections || typeof connections !== 'object' || Array.isArray(connections)) {
+            throw new Error('Неподдерживаемый формат файла. Используйте JSON из кнопки "Выгрузить настройки".');
+        }
+
+        Object.entries(connections).forEach(([service, values]) => {
+            if (!values || typeof values !== 'object' || Array.isArray(values)) {
+                return;
+            }
+            Object.entries(values).forEach(([key, value]) => addEntry(service, key, value));
+        });
+        return entries;
+    }
+
+    function applyImportedConnectionEntries(entries) {
+        const serviceEntries = new Map();
+        const skipped = [];
+
+        entries.forEach(entry => {
+            if (!serviceEntries.has(entry.service)) {
+                serviceEntries.set(entry.service, new Map());
+            }
+            serviceEntries.get(entry.service).set(entry.key, entry.value);
+        });
+
+        const servicesToProcess = [];
+        serviceEntries.forEach((valuesByKey, service) => {
+            const card = serviceCards.get(service);
+            if (!card) {
+                skipped.push(service);
+                return;
+            }
+            const inputsByKey = new Map(card.inputs.map(input => [input.dataset.key, input]));
+            let hasMatchedFields = false;
+            valuesByKey.forEach((value, key) => {
+                const input = inputsByKey.get(key);
+                if (!input) {
+                    skipped.push(`${service}.${key}`);
+                    return;
+                }
+                setInputValueAndTrackChange(input, value);
+                hasMatchedFields = true;
+            });
+            if (!hasMatchedFields) {
+                return;
+            }
+            servicesToProcess.push(service);
+            setServiceMessage(service, '', 'muted');
+            refreshServiceActions(service);
+        });
+
+        return {
+            services: servicesToProcess.sort(compareServices),
+            skipped
+        };
+    }
+
+    async function importConnectionSettingsFromFile(file) {
+        if (!file) {
+            return;
+        }
+        settingsImportInProgress = true;
+        setSettingsActionsDisabled(true);
+        setSettingsStatus('Читаем файл с настройками подключений…', 'info');
+        try {
+            const rawText = await file.text();
+            const parsed = JSON.parse(rawText);
+            const entries = normalizeImportedConnectionEntries(parsed);
+            if (!entries.length) {
+                throw new Error('В файле не найдено ни одной настройки подключений.');
+            }
+
+            const applied = applyImportedConnectionEntries(entries);
+            if (!applied.services.length) {
+                throw new Error('Не найдено совпадающих настроек для импорта на этой странице.');
+            }
+
+            for (let index = 0; index < applied.services.length; index += 1) {
+                const service = applied.services[index];
+                setSettingsStatus(
+                    `Сохраняем и проверяем подключение ${service} (${index + 1}/${applied.services.length})…`,
+                    'info'
+                );
+                await saveAndTest(service);
+            }
+
+            if (applied.skipped.length) {
+                const skippedPreview = applied.skipped.slice(0, 4).join(', ');
+                const suffix = applied.skipped.length > 4 ? ' и другие' : '';
+                showToast(`Пропущены неизвестные настройки: ${skippedPreview}${suffix}.`, 'info');
+            }
+
+            setSettingsStatus('Настройки подключений загружены из JSON и сохранены.', 'success');
+        } catch (error) {
+            setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');
+            showToast('Не удалось загрузить настройки: ' + error.message, 'danger');
+        } finally {
+            settingsImportInProgress = false;
+            if (importConnectionsInput) {
+                importConnectionsInput.value = '';
+            }
+            setSettingsActionsDisabled(false);
+        }
     }
 
     function resetService(service) {
@@ -482,17 +775,7 @@
             input.dataset.originalValue = input.value;
 
             input.addEventListener('input', () => {
-                const originalValue = input.dataset.originalValue ?? '';
-                const compoundKey = getCompoundKey(item.service, item.key);
-                if (input.value === originalValue) {
-                    settingsChanges.delete(compoundKey);
-                } else {
-                    settingsChanges.set(compoundKey, {
-                        service: item.service,
-                        key: item.key,
-                        value: input.value
-                    });
-                }
+                setInputValueAndTrackChange(input, input.value);
                 setServiceMessage(service, '', 'muted');
                 refreshServiceActions(item.service);
             });
@@ -575,6 +858,7 @@
 
     async function loadSettings() {
         setSettingsStatus('Загружаем настройки…', 'info');
+        setSettingsActionsDisabled(true);
         try {
             const response = await fetch('/api/chronicler/properties/');
             if (!response.ok) {
@@ -586,7 +870,27 @@
             clearSettingsStatus();
         } catch (error) {
             setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');
+        } finally {
+            setSettingsActionsDisabled(settingsImportInProgress);
         }
+    }
+
+    if (exportConnectionsButton) {
+        exportConnectionsButton.addEventListener('click', downloadConnectionSettings);
+    }
+
+    if (importConnectionsButton && importConnectionsInput) {
+        importConnectionsButton.addEventListener('click', () => {
+            if (settingsImportInProgress) {
+                return;
+            }
+            importConnectionsInput.value = '';
+            importConnectionsInput.click();
+        });
+        importConnectionsInput.addEventListener('change', event => {
+            const [file] = event.target.files || [];
+            void importConnectionSettingsFromFile(file);
+        });
     }
 
     if (typeof startBackgroundErrorPolling === 'function') {
