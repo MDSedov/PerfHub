@@ -490,13 +490,24 @@
             row.appendChild(cell);
         };
 
+        const isResourceConfigurationItem = (item) => {
+            const serviceName = normalizeText(item?.serviceName)?.toLowerCase() ?? '';
+            const hasResourceValues = [
+                item?.requestCpu,
+                item?.limitCpu,
+                item?.requestRam,
+                item?.limitRam
+            ].some(value => normalizeText(value));
+            return serviceName.includes('pod') || hasResourceValues;
+        };
+
         const buildConfigurationTable = (items) => {
             const table = document.createElement('table');
             table.className = 'table table-sm align-middle mb-0';
 
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
-            ['Namespace', 'Компонент', 'Ресурс', 'Детали', 'Версия', 'Релиз', 'Request CPU', 'Limit CPU', 'Request RAM', 'Limit RAM']
+            ['POD', 'Контейнер', 'Версия', 'Релиз', 'Request CPU', 'Limit CPU', 'Request RAM', 'Limit RAM']
                     .forEach(title => {
                         const th = document.createElement('th');
                         th.scope = 'col';
@@ -508,8 +519,6 @@
             const tbody = document.createElement('tbody');
             (Array.isArray(items) ? items : []).forEach(item => {
                 const row = document.createElement('tr');
-                appendCell(row, item?.namespace);
-                appendCell(row, resolveComponentLabel(item));
                 appendCell(row, item?.podName);
                 appendCell(row, item?.containerName);
                 appendCell(row, item?.version);
@@ -658,6 +667,7 @@
             const normalizedMode = mode === 'saved' ? 'saved' : 'preview';
             const items = Array.isArray(payload?.items) ? payload.items : [];
             const documents = Array.isArray(payload?.documents) ? payload.documents : [];
+            const resourceItems = items.filter(isResourceConfigurationItem);
 
             configurationModalTitle.textContent = normalizedMode === 'saved'
                     ? 'Сохраненная конфигурация DropApp'
@@ -758,15 +768,15 @@
             }
 
             const tableSection = createDetailsSection('Состав конфигурации');
-            if (items.length === 0) {
+            if (resourceItems.length === 0) {
                 const emptyState = document.createElement('div');
                 emptyState.className = 'text-muted small';
-                emptyState.textContent = 'Конфигурация DropApp пуста.';
+                emptyState.textContent = 'Ресурсные данные компонентов для этой конфигурации отсутствуют.';
                 tableSection.appendChild(emptyState);
             } else {
                 const tableWrapper = document.createElement('div');
                 tableWrapper.className = 'table-responsive';
-                tableWrapper.appendChild(buildConfigurationTable(items));
+                tableWrapper.appendChild(buildConfigurationTable(resourceItems));
                 tableSection.appendChild(tableWrapper);
             }
             stack.appendChild(tableSection);
