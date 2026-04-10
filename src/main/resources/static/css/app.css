@@ -408,6 +408,30 @@ body {
             gap: 0.75rem;
         }
 
+        .grafana-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+        }
+
+        .grafana-action-card .home-card-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            line-height: 1;
+        }
+
+        .grafana-action-card .home-card-icon i {
+            display: block;
+            line-height: 1;
+        }
+
+        .grafana-action-card .home-card-title {
+            line-height: 1.2;
+        }
+
         .grafana-form {
             display: flex;
             flex-direction: column;
@@ -441,6 +465,16 @@ body {
 
         .grafana-field .input-group {
             width: 100%;
+        }
+
+        .grafana-field .input-group > .form-control {
+            flex: 1 1 auto;
+            width: 1%;
+            min-width: 0;
+        }
+
+        .grafana-field .input-group > .btn {
+            flex: 0 0 auto;
         }
 
         .grafana-action {
