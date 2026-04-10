@@ -97,9 +97,7 @@
                 <div class="d-flex flex-wrap justify-content-center align-items-center gap-3">
                     <button type="button"
                             class="btn btn-outline-success"
-                            id="loadDropAppConfig"
-                            data-bs-toggle="modal"
-                            data-bs-target="#dropAppCaptureModal">
+                            id="loadDropAppConfig">
                         Получить конфигурацию
                     </button>
                 </div>
@@ -246,6 +244,7 @@
         const toastContainer = document.getElementById('toastContainer');
         const savedConfigsCounter = document.getElementById('savedConfigsCounter');
         const savedConfigsTableBody = document.getElementById('savedDropAppConfigsTableBody');
+        const captureOpenButton = document.getElementById('loadDropAppConfig');
         const captureModalElement = document.getElementById('dropAppCaptureModal');
         const captureNamespaceList = document.getElementById('captureNamespaceList');
         const captureComponentList = document.getElementById('captureComponentList');
@@ -255,11 +254,12 @@
         const configurationModalTitle = document.getElementById('dropAppConfigurationModalLabel');
         const configurationModalSubtitle = document.getElementById('dropAppConfigurationModalSubtitle');
         const configurationModalBody = document.getElementById('dropAppConfigurationModalBody');
-        const captureModal = captureModalElement && window.bootstrap?.Modal
-                ? bootstrap.Modal.getOrCreateInstance(captureModalElement)
+        const bootstrapModalApi = window.bootstrap?.Modal ?? null;
+        const captureModal = captureModalElement && bootstrapModalApi
+                ? bootstrapModalApi.getOrCreateInstance(captureModalElement)
                 : null;
-        const configurationModal = configurationModalElement && window.bootstrap?.Modal
-                ? bootstrap.Modal.getOrCreateInstance(configurationModalElement)
+        const configurationModal = configurationModalElement && bootstrapModalApi
+                ? bootstrapModalApi.getOrCreateInstance(configurationModalElement)
                 : null;
 
         let namespaceOptions = {
@@ -318,6 +318,76 @@
             }
             const text = String(value).trim();
             return text === '' ? null : text;
+        };
+
+        const ensureFallbackBackdrop = () => {
+            let backdrop = document.querySelector('.modal-backdrop.chronicler-fallback-backdrop');
+            if (backdrop) {
+                return backdrop;
+            }
+            backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show chronicler-fallback-backdrop';
+            document.body.appendChild(backdrop);
+            return backdrop;
+        };
+
+        const removeFallbackBackdropIfUnused = () => {
+            if (document.querySelector('.modal.show')) {
+                return;
+            }
+            const backdrop = document.querySelector('.modal-backdrop.chronicler-fallback-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('paddingRight');
+        };
+
+        const showManagedModal = (element, modalInstance) => {
+            if (!element) {
+                return;
+            }
+            if (modalInstance) {
+                modalInstance.show();
+                return;
+            }
+            element.style.display = 'block';
+            element.removeAttribute('aria-hidden');
+            element.setAttribute('aria-modal', 'true');
+            element.classList.add('show');
+            document.body.classList.add('modal-open');
+            document.body.style.overflow = 'hidden';
+            ensureFallbackBackdrop();
+        };
+
+        const hideManagedModal = (element, modalInstance) => {
+            if (!element) {
+                return;
+            }
+            if (modalInstance) {
+                modalInstance.hide();
+                return;
+            }
+            element.classList.remove('show');
+            element.style.display = 'none';
+            element.setAttribute('aria-hidden', 'true');
+            element.removeAttribute('aria-modal');
+            removeFallbackBackdropIfUnused();
+        };
+
+        const bindFallbackDismiss = (element, modalInstance) => {
+            if (!element || modalInstance) {
+                return;
+            }
+            element.querySelectorAll('[data-bs-dismiss="modal"]').forEach(button => {
+                button.addEventListener('click', () => hideManagedModal(element, null));
+            });
+            element.addEventListener('click', event => {
+                if (event.target === element) {
+                    hideManagedModal(element, null);
+                }
+            });
         };
 
         const resolveComponentLabel = (item) => {
@@ -558,7 +628,7 @@
             stack.appendChild(tableSection);
 
             configurationModalBody.appendChild(stack);
-            configurationModal?.show();
+            showManagedModal(configurationModalElement, configurationModal);
         };
 
         const renderSavedConfigurationsTable = (items) => {
@@ -707,9 +777,19 @@
             startBackgroundErrorPolling(showToast);
         }
 
-        captureModalElement?.addEventListener('show.bs.modal', () => {
+        bindFallbackDismiss(captureModalElement, captureModal);
+        bindFallbackDismiss(configurationModalElement, configurationModal);
+
+        const prepareCaptureModal = () => {
             captureCommentInput.value = '';
+        };
+
+        captureOpenButton?.addEventListener('click', () => {
+            prepareCaptureModal();
+            showManagedModal(captureModalElement, captureModal);
         });
+
+        captureModalElement?.addEventListener('show.bs.modal', prepareCaptureModal);
 
         captureSubmitButton?.addEventListener('click', async () => {
             const selectedNamespaces = readCheckedValues(captureNamespaceList);
@@ -736,7 +816,7 @@
                     })
                 });
                 await loadSavedConfigurations(false);
-                captureModal?.hide();
+                hideManagedModal(captureModalElement, captureModal);
                 showToast('Конфигурация DropApp выгружена и добавлена в таблицу сохранённых конфигураций.', 'success');
             } catch (error) {
                 showToast('Не удалось загрузить конфигурацию DropApp: ' + error.message, 'danger');
