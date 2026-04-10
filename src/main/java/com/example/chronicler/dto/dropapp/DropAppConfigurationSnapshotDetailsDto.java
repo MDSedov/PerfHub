@@ -9,4 +9,6 @@ public record DropAppConfigurationSnapshotDetailsDto(
         String release,
         String comment,
         List<String> namespaces,
-        List<DropAppConfigurationItemDto> items) {}
+        List<String> components,
+        List<DropAppConfigurationItemDto> items,
+        List<DropAppConfigurationDocumentDto> documents) {}

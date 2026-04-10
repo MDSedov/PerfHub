@@ -553,6 +553,83 @@
             return card;
         };
 
+        const resolveComponentOption = (code) => COMPONENT_OPTIONS.find(item => item.code === code);
+
+        const resolveComponentCodeLabel = (code) => resolveComponentOption(code)?.label ?? valueOrDash(code);
+
+        const buildDocumentsTable = (documents) => {
+            const table = document.createElement('table');
+            table.className = 'table table-sm align-middle mb-0';
+
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            ['Namespace', 'Компонент', 'Ресурс', 'Файл']
+                    .forEach(title => {
+                        const th = document.createElement('th');
+                        th.scope = 'col';
+                        th.textContent = title;
+                        headerRow.appendChild(th);
+                    });
+            thead.appendChild(headerRow);
+
+            const tbody = document.createElement('tbody');
+            (Array.isArray(documents) ? documents : []).forEach(document => {
+                const row = document.createElement('tr');
+                appendCell(row, document?.namespace);
+                appendCell(row, resolveComponentCodeLabel(document?.component));
+                appendCell(row, document?.resourceName);
+                appendCell(row, document?.fileName);
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            return table;
+        };
+
+        const triggerSnapshotArchiveDownload = (snapshotId) => {
+            if (!snapshotId) {
+                showToast('Не удалось определить сохранённую конфигурацию для скачивания архива.', 'danger');
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = `/api/dropapp/configuration/saved/${encodeURIComponent(snapshotId)}/archive`;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        };
+
+        const saveSnapshotMetadata = async (snapshotId, release, comment, saveButton) => {
+            if (!snapshotId) {
+                showToast('Не удалось определить сохранённую конфигурацию для сохранения.', 'danger');
+                return;
+            }
+            const originalLabel = saveButton?.textContent || 'Сохранить изменения';
+            if (saveButton) {
+                saveButton.disabled = true;
+                saveButton.textContent = 'Сохраняем…';
+            }
+            try {
+                const updated = await requestJson(`/api/dropapp/configuration/saved/${encodeURIComponent(snapshotId)}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        release,
+                        comment
+                    })
+                });
+                renderConfigurationModal(updated, 'saved');
+                await loadSavedConfigurations(false);
+                showToast('Сохранённая конфигурация DropApp обновлена.', 'success');
+            } catch (error) {
+                showToast('Не удалось обновить сохранённую конфигурацию: ' + error.message, 'danger');
+                if (saveButton) {
+                    saveButton.disabled = false;
+                    saveButton.textContent = originalLabel;
+                }
+            }
+        };
+
         const buildModalSubtitle = (payload, mode) => {
             const parts = [];
             if (mode === 'saved' && payload?.savedAt) {
@@ -580,6 +657,7 @@
 
             const normalizedMode = mode === 'saved' ? 'saved' : 'preview';
             const items = Array.isArray(payload?.items) ? payload.items : [];
+            const documents = Array.isArray(payload?.documents) ? payload.documents : [];
 
             configurationModalTitle.textContent = normalizedMode === 'saved'
                     ? 'Сохраненная конфигурация DropApp'
@@ -601,17 +679,83 @@
             if (normalizedMode === 'saved') {
                 metaGrid.appendChild(createMetaCard('Дата сохранения', payload?.savedAt));
             }
-            metaGrid.appendChild(createMetaCard('Релиз', payload?.release));
             metaGrid.appendChild(createMetaCard('Namespace', Array.isArray(payload?.namespaces) ? payload.namespaces.join(', ') : null));
             if (Array.isArray(payload?.components) && payload.components.length > 0) {
                 metaGrid.appendChild(createMetaCard(
                         'Компоненты',
-                        payload.components.map(code => COMPONENT_OPTIONS.find(item => item.code === code)?.label ?? code).join(', ')
+                        payload.components.map(resolveComponentCodeLabel).join(', ')
                 ));
             }
-            metaGrid.appendChild(createMetaCard('Комментарий', payload?.comment, 'configuration-meta-card-wide'));
+            if (normalizedMode === 'saved') {
+                metaGrid.appendChild(createMetaCard('YAML документов', String(documents.length)));
+            } else {
+                metaGrid.appendChild(createMetaCard('Релиз', payload?.release));
+                metaGrid.appendChild(createMetaCard('Комментарий', payload?.comment, 'configuration-meta-card-wide'));
+            }
             metaSection.appendChild(metaGrid);
             stack.appendChild(metaSection);
+
+            if (normalizedMode === 'saved') {
+                const editSection = createDetailsSection('Параметры сохранённой конфигурации');
+                const editorCard = document.createElement('div');
+                editorCard.className = 'configuration-save-card d-flex flex-column gap-3';
+
+                const releaseField = document.createElement('div');
+                const releaseLabel = document.createElement('label');
+                releaseLabel.className = 'form-label';
+                releaseLabel.textContent = 'Версия релиза';
+                releaseLabel.setAttribute('for', 'savedConfigurationReleaseInput');
+                const releaseInput = document.createElement('input');
+                releaseInput.type = 'text';
+                releaseInput.className = 'form-control';
+                releaseInput.id = 'savedConfigurationReleaseInput';
+                releaseInput.value = payload?.release ?? '';
+                releaseInput.placeholder = 'Например, 2.13.1';
+                releaseField.appendChild(releaseLabel);
+                releaseField.appendChild(releaseInput);
+
+                const commentField = document.createElement('div');
+                const commentLabel = document.createElement('label');
+                commentLabel.className = 'form-label';
+                commentLabel.textContent = 'Комментарий';
+                commentLabel.setAttribute('for', 'savedConfigurationCommentInput');
+                const commentInput = document.createElement('textarea');
+                commentInput.className = 'form-control';
+                commentInput.id = 'savedConfigurationCommentInput';
+                commentInput.rows = 4;
+                commentInput.placeholder = 'Комментарий к сохранённой конфигурации';
+                commentInput.value = payload?.comment ?? '';
+                commentField.appendChild(commentLabel);
+                commentField.appendChild(commentInput);
+
+                const actionsRow = document.createElement('div');
+                actionsRow.className = 'd-flex flex-wrap align-items-center gap-2';
+                const saveButton = document.createElement('button');
+                saveButton.type = 'button';
+                saveButton.className = 'btn btn-success';
+                saveButton.textContent = 'Сохранить изменения';
+                saveButton.addEventListener('click', async () => {
+                    await saveSnapshotMetadata(
+                            payload?.id,
+                            releaseInput.value,
+                            commentInput.value,
+                            saveButton
+                    );
+                });
+                const downloadButton = document.createElement('button');
+                downloadButton.type = 'button';
+                downloadButton.className = 'btn btn-outline-secondary';
+                downloadButton.textContent = 'Скачать ZIP';
+                downloadButton.addEventListener('click', () => triggerSnapshotArchiveDownload(payload?.id));
+                actionsRow.appendChild(saveButton);
+                actionsRow.appendChild(downloadButton);
+
+                editorCard.appendChild(releaseField);
+                editorCard.appendChild(commentField);
+                editorCard.appendChild(actionsRow);
+                editSection.appendChild(editorCard);
+                stack.appendChild(editSection);
+            }
 
             const tableSection = createDetailsSection('Состав конфигурации');
             if (items.length === 0) {
@@ -626,6 +770,22 @@
                 tableSection.appendChild(tableWrapper);
             }
             stack.appendChild(tableSection);
+
+            if (normalizedMode === 'saved') {
+                const documentsSection = createDetailsSection('YAML документы');
+                if (documents.length === 0) {
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'text-muted small';
+                    emptyState.textContent = 'Для этой сохранённой конфигурации YAML-документы пока отсутствуют.';
+                    documentsSection.appendChild(emptyState);
+                } else {
+                    const documentsWrapper = document.createElement('div');
+                    documentsWrapper.className = 'table-responsive';
+                    documentsWrapper.appendChild(buildDocumentsTable(documents));
+                    documentsSection.appendChild(documentsWrapper);
+                }
+                stack.appendChild(documentsSection);
+            }
 
             configurationModalBody.appendChild(stack);
             showManagedModal(configurationModalElement, configurationModal);

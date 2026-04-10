@@ -5,13 +5,17 @@ import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureRequest;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureResponse;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSaveRequest;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSummaryDto;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotUpdateRequest;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
 import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
 import com.example.chronicler.service.DropAppConfigurationSnapshotService;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -64,6 +68,22 @@ public class DropAppController {
     public DropAppConfigurationSnapshotDetailsDto saveConfiguration(
             @RequestBody DropAppConfigurationSnapshotSaveRequest request) {
         return snapshotService.saveSnapshot(request);
+    }
+
+    @PatchMapping(path = "/configuration/saved/{snapshotId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public DropAppConfigurationSnapshotDetailsDto updateSavedConfiguration(
+            @PathVariable("snapshotId") Long snapshotId,
+            @RequestBody(required = false) DropAppConfigurationSnapshotUpdateRequest request) {
+        return snapshotService.updateSnapshot(snapshotId, request);
+    }
+
+    @GetMapping(path = "/configuration/saved/{snapshotId}/archive", produces = "application/zip")
+    public ResponseEntity<byte[]> downloadSavedConfigurationArchive(@PathVariable("snapshotId") Long snapshotId) {
+        DropAppConfigurationSnapshotService.SnapshotArchive archive = snapshotService.createSnapshotArchive(snapshotId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + archive.fileName() + "\"")
+                .contentType(MediaType.parseMediaType(archive.contentType()))
+                .body(archive.content());
     }
 
     /** Возвращает список доступных namespace из DropApp. */

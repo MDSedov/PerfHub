@@ -4,6 +4,7 @@ import com.example.chronicler.client.DropAppClient;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
+import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -67,6 +68,19 @@ public class DropAppService {
                 ? List.of(DropAppConfigurationComponent.PODS)
                 : components.stream().distinct().toList();
         return dropAppClient.fetchConfiguration(resolveNamespaces(namespaces), resolvedComponents);
+    }
+
+    /** Возвращает YAML-документы выбранных ресурсов Kubernetes для указанных namespace. */
+    public List<DropAppConfigurationSnapshotDocument> loadConfigurationDocuments(
+            List<String> namespaces,
+            List<DropAppConfigurationComponent> components) {
+        List<DropAppConfigurationComponent> resolvedComponents = components == null || components.isEmpty()
+                ? List.of()
+                : components.stream().distinct().toList();
+        if (resolvedComponents.isEmpty()) {
+            return List.of();
+        }
+        return dropAppClient.fetchConfigurationDocuments(resolveNamespaces(namespaces), resolvedComponents);
     }
 
     /** Возвращает итоговый список namespace: выбранные пользователем или namespace из настроек. */

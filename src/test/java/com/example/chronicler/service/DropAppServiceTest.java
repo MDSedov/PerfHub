@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.example.chronicler.client.DropAppClient;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.model.DropAppConfigurationComponent;
+import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,6 +93,27 @@ class DropAppServiceTest {
         List<DropAppPodConfiguration> result = dropAppService.loadConfiguration(List.of("ns-x"), components);
 
         verify(dropAppClient).fetchConfiguration(List.of("ns-x"), components);
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void loadConfigurationDocumentsDelegatesToClient() {
+        List<DropAppConfigurationComponent> components = List.of(
+                DropAppConfigurationComponent.DEPLOYMENTS,
+                DropAppConfigurationComponent.CONFIGMAPS);
+        when(dropAppClient.fetchConfigurationDocuments(List.of("ns-y"), components))
+                .thenReturn(List.of(new DropAppConfigurationSnapshotDocument(
+                        null,
+                        null,
+                        "ns-y",
+                        "deployments",
+                        "api",
+                        "apiVersion: apps/v1\nkind: Deployment")));
+
+        List<DropAppConfigurationSnapshotDocument> result =
+                dropAppService.loadConfigurationDocuments(List.of("ns-y"), components);
+
+        verify(dropAppClient).fetchConfigurationDocuments(List.of("ns-y"), components);
         assertThat(result).hasSize(1);
     }
 }

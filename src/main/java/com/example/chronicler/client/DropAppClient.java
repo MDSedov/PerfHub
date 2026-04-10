@@ -1,7 +1,7 @@
 package com.example.chronicler.client;
 
-import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.dto.kubernetes.KubernetesConfigMap;
+import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.dto.kubernetes.KubernetesConfigMapListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesContainer;
 import com.example.chronicler.dto.kubernetes.KubernetesDeployment;
@@ -19,6 +19,11 @@ import com.example.chronicler.dto.kubernetes.KubernetesServiceListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesServiceSpec;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
+import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
 import java.util.ArrayList;
@@ -59,10 +64,15 @@ public class DropAppClient {
 
     private final RestTemplate restTemplate;
     private final ConfigurationProvider configurationProvider;
+    private final ObjectMapper objectMapper;
 
-    public DropAppClient(RestTemplate restTemplate, ConfigurationProvider configurationProvider) {
+    public DropAppClient(
+            RestTemplate restTemplate,
+            ConfigurationProvider configurationProvider,
+            ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
         this.configurationProvider = configurationProvider;
+        this.objectMapper = objectMapper;
     }
 
     /** Получает конфигурацию ресурсов Pod/Container из Kubernetes API для указанных namespace. */
@@ -85,6 +95,22 @@ public class DropAppClient {
         return namespaces.stream()
                 .flatMap(namespace -> fetchNamespaceConfiguration(namespace, components, method, headers).stream())
                 .collect(Collectors.toList());
+    }
+
+    /** Получает YAML-документы выбранных ресурсов Kubernetes из DropApp для указанных namespace. */
+    public List<DropAppConfigurationSnapshotDocument> fetchConfigurationDocuments(
+            List<String> namespaces,
+            List<DropAppConfigurationComponent> components) {
+        Assert.notEmpty(namespaces, "Список namespace DropApp не должен быть пустым");
+        Assert.notEmpty(components, "Список компонентов DropApp не должен быть пустым");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setBearerAuth(configurationProvider.getRequiredValue(SERVICE, TOKEN_KEY));
+
+        return namespaces.stream()
+                .flatMap(namespace -> fetchNamespaceDocuments(namespace, components, HttpMethod.GET, headers).stream())
+                .toList();
     }
 
     /** Формирует полный URI запроса списка Pod для namespace. */
@@ -184,6 +210,88 @@ public class DropAppClient {
             result.addAll(fetchNamespaceIngresses(namespace, method, headers));
         }
         return result;
+    }
+
+    private List<DropAppConfigurationSnapshotDocument> fetchNamespaceDocuments(
+            String namespace,
+            List<DropAppConfigurationComponent> components,
+            HttpMethod method,
+            HttpHeaders headers) {
+        List<DropAppConfigurationSnapshotDocument> result = new ArrayList<>();
+        if (components.contains(DropAppConfigurationComponent.DEPLOYMENTS)) {
+            result.addAll(fetchResourceDocuments(
+                    namespace,
+                    DropAppConfigurationComponent.DEPLOYMENTS,
+                    buildDeploymentsUri(namespace),
+                    method,
+                    headers));
+        }
+        if (components.contains(DropAppConfigurationComponent.CONFIGMAPS)) {
+            result.addAll(fetchResourceDocuments(
+                    namespace,
+                    DropAppConfigurationComponent.CONFIGMAPS,
+                    buildConfigMapsUri(namespace),
+                    method,
+                    headers));
+        }
+        if (components.contains(DropAppConfigurationComponent.SERVICES)) {
+            result.addAll(fetchResourceDocuments(
+                    namespace,
+                    DropAppConfigurationComponent.SERVICES,
+                    buildServicesUri(namespace),
+                    method,
+                    headers));
+        }
+        if (components.contains(DropAppConfigurationComponent.INGRESS)) {
+            result.addAll(fetchResourceDocuments(
+                    namespace,
+                    DropAppConfigurationComponent.INGRESS,
+                    buildIngressesUri(namespace),
+                    method,
+                    headers));
+        }
+        return result;
+    }
+
+    private List<DropAppConfigurationSnapshotDocument> fetchResourceDocuments(
+            String namespace,
+            DropAppConfigurationComponent component,
+            URI requestUri,
+            HttpMethod method,
+            HttpHeaders headers) {
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<JsonNode> response = restTemplate.exchange(requestUri, method, request, JsonNode.class);
+            JsonNode body = response.getBody();
+            JsonNode items = body != null ? body.path("items") : null;
+            if (items == null || !items.isArray()) {
+                return List.of();
+            }
+            List<DropAppConfigurationSnapshotDocument> result = new ArrayList<>();
+            for (JsonNode item : items) {
+                String resourceName = normalizeResourceName(item);
+                if (!StringUtils.hasText(resourceName)) {
+                    continue;
+                }
+                result.add(new DropAppConfigurationSnapshotDocument(
+                        null,
+                        null,
+                        namespace,
+                        component.code(),
+                        resourceName,
+                        toYaml(sanitizeResourceNode(item))));
+            }
+            return result;
+        } catch (RestClientResponseException ex) {
+            throw new DropAppClientException(
+                    "Не удалось получить YAML для %s Kubernetes: статус %s %s".formatted(
+                            component.code(), ex.getRawStatusCode(), ex.getStatusText()),
+                    ex);
+        } catch (RestClientException ex) {
+            throw new DropAppClientException(
+                    "Не удалось получить YAML для %s Kubernetes: %s".formatted(component.code(), ex.getMessage()),
+                    ex);
+        }
     }
 
     private boolean requiresDeployments(List<DropAppConfigurationComponent> components) {
@@ -624,6 +732,155 @@ public class DropAppClient {
             parts.add("Хосты: " + hosts);
         }
         return String.join(", ", parts);
+    }
+
+    private String normalizeResourceName(JsonNode item) {
+        if (item == null) {
+            return null;
+        }
+        JsonNode metadata = item.path("metadata");
+        if (metadata.isMissingNode() || metadata.isNull()) {
+            return null;
+        }
+        String name = metadata.path("name").asText(null);
+        return StringUtils.hasText(name) ? name.trim() : null;
+    }
+
+    private JsonNode sanitizeResourceNode(JsonNode source) {
+        if (!(source instanceof ObjectNode objectNode)) {
+            return source;
+        }
+        ObjectNode root = objectNode.deepCopy();
+        root.remove("status");
+        JsonNode metadataNode = root.get("metadata");
+        if (metadataNode instanceof ObjectNode metadata) {
+            metadata.remove(List.of(
+                    "managedFields",
+                    "resourceVersion",
+                    "uid",
+                    "creationTimestamp",
+                    "generation",
+                    "selfLink"));
+        }
+        return root;
+    }
+
+    private String toYaml(JsonNode node) {
+        StringBuilder builder = new StringBuilder();
+        appendYamlNode(builder, node, 0);
+        return builder.toString().stripTrailing();
+    }
+
+    private void appendYamlNode(StringBuilder builder, JsonNode node, int indent) {
+        if (node == null || node.isNull()) {
+            builder.append("null\n");
+            return;
+        }
+        if (node.isObject()) {
+            if (!node.fieldNames().hasNext()) {
+                builder.append("{}\n");
+                return;
+            }
+            node.fields().forEachRemaining(entry -> appendYamlField(builder, entry.getKey(), entry.getValue(), indent));
+            return;
+        }
+        if (node.isArray()) {
+            if (node.isEmpty()) {
+                builder.append("[]\n");
+                return;
+            }
+            node.forEach(item -> appendYamlArrayItem(builder, item, indent));
+            return;
+        }
+        indent(builder, indent);
+        builder.append(formatYamlScalar(node, indent)).append('\n');
+    }
+
+    private void appendYamlField(StringBuilder builder, String key, JsonNode value, int indent) {
+        indent(builder, indent);
+        builder.append(formatYamlKey(key)).append(':');
+        if (isInlineYamlValue(value)) {
+            builder.append(' ').append(formatYamlScalar(value, indent)).append('\n');
+            return;
+        }
+        builder.append('\n');
+        appendYamlNode(builder, value, indent + 2);
+    }
+
+    private void appendYamlArrayItem(StringBuilder builder, JsonNode value, int indent) {
+        indent(builder, indent);
+        builder.append('-');
+        if (isInlineYamlValue(value)) {
+            builder.append(' ').append(formatYamlScalar(value, indent)).append('\n');
+            return;
+        }
+        builder.append('\n');
+        appendYamlNode(builder, value, indent + 2);
+    }
+
+    private boolean isInlineYamlValue(JsonNode value) {
+        return value == null
+                || value.isNull()
+                || value.isValueNode()
+                || (value.isArray() && value.isEmpty())
+                || (value.isObject() && value.isEmpty());
+    }
+
+    private String formatYamlKey(String key) {
+        if (key != null && key.matches("[A-Za-z0-9_.-]+")) {
+            return key;
+        }
+        return quoteYamlString(key);
+    }
+
+    private String formatYamlScalar(JsonNode value, int indent) {
+        if (value == null || value.isNull()) {
+            return "null";
+        }
+        if (value.isBoolean() || value.isNumber()) {
+            return value.asText();
+        }
+        if (value.isTextual()) {
+            return formatYamlString(value.textValue(), indent);
+        }
+        if (value.isArray() && value.isEmpty()) {
+            return "[]";
+        }
+        if (value.isObject() && value.isEmpty()) {
+            return "{}";
+        }
+        return quoteYamlString(value.toString());
+    }
+
+    private String formatYamlString(String value, int indent) {
+        if (value == null) {
+            return "null";
+        }
+        String normalized = value.replace("\r\n", "\n");
+        if (normalized.contains("\n")) {
+            StringBuilder builder = new StringBuilder("|-\n");
+            String[] lines = normalized.split("\n", -1);
+            for (String line : lines) {
+                indent(builder, indent + 2);
+                builder.append(line).append('\n');
+            }
+            return builder.toString().stripTrailing();
+        }
+        return quoteYamlString(normalized);
+    }
+
+    private String quoteYamlString(String value) {
+        try {
+            return objectMapper.writeValueAsString(value != null ? value : "");
+        } catch (JsonProcessingException ex) {
+            throw new DropAppClientException("Не удалось сериализовать YAML-строку", ex);
+        }
+    }
+
+    private void indent(StringBuilder builder, int indent) {
+        for (int index = 0; index < indent; index += 1) {
+            builder.append(' ');
+        }
     }
 
     private record DeploymentDescriptor(Map<String, String> selector, String name, String version, String release) {}
