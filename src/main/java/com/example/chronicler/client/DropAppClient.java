@@ -6,6 +6,10 @@ import com.example.chronicler.dto.kubernetes.KubernetesConfigMapListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesContainer;
 import com.example.chronicler.dto.kubernetes.KubernetesDeployment;
 import com.example.chronicler.dto.kubernetes.KubernetesDeploymentListResponse;
+import com.example.chronicler.dto.kubernetes.KubernetesIngress;
+import com.example.chronicler.dto.kubernetes.KubernetesIngressListResponse;
+import com.example.chronicler.dto.kubernetes.KubernetesIngressRule;
+import com.example.chronicler.dto.kubernetes.KubernetesIngressSpec;
 import com.example.chronicler.dto.kubernetes.KubernetesNamespaceListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesPod;
 import com.example.chronicler.dto.kubernetes.KubernetesPodListResponse;
@@ -141,6 +145,20 @@ public class DropAppClient {
         }
     }
 
+    private URI buildIngressesUri(String namespace) {
+        String baseUrl = configurationProvider.getRequiredValue(SERVICE, BASE_URL_KEY);
+        try {
+            return UriComponentsBuilder.fromUriString(baseUrl)
+                    .path("/apis/networking.k8s.io/v1/namespaces/{namespace}/ingresses")
+                    .buildAndExpand(namespace)
+                    .encode()
+                    .toUri();
+        } catch (IllegalArgumentException ex) {
+            throw new DropAppClientException(
+                    "Некорректный базовый URL DropApp: " + Objects.toString(baseUrl, "<null>"), ex);
+        }
+    }
+
     private List<DropAppPodConfiguration> fetchNamespaceConfiguration(
             String namespace,
             List<DropAppConfigurationComponent> components,
@@ -161,6 +179,9 @@ public class DropAppClient {
         }
         if (components.contains(DropAppConfigurationComponent.SERVICES)) {
             result.addAll(fetchNamespaceServices(namespace, method, headers));
+        }
+        if (components.contains(DropAppConfigurationComponent.INGRESS)) {
+            result.addAll(fetchNamespaceIngresses(namespace, method, headers));
         }
         return result;
     }
@@ -337,6 +358,46 @@ public class DropAppClient {
                     ex);
         } catch (RestClientException ex) {
             throw new DropAppClientException("Не удалось получить список services Kubernetes: " + ex.getMessage(), ex);
+        }
+    }
+
+    private List<DropAppPodConfiguration> fetchNamespaceIngresses(
+            String namespace,
+            HttpMethod method,
+            HttpHeaders headers) {
+        URI requestUri = buildIngressesUri(namespace);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<KubernetesIngressListResponse> response = restTemplate.exchange(
+                    requestUri, method, request, KubernetesIngressListResponse.class);
+            KubernetesIngressListResponse body = response.getBody();
+            if (body == null || body.items() == null) {
+                return Collections.emptyList();
+            }
+            List<DropAppPodConfiguration> result = new ArrayList<>(body.items().size());
+            for (KubernetesIngress ingress : body.items()) {
+                KubernetesPodMetadata metadata = ingress != null ? ingress.metadata() : null;
+                KubernetesIngressSpec spec = ingress != null ? ingress.spec() : null;
+                result.add(new DropAppPodConfiguration(
+                        namespace,
+                        DropAppConfigurationComponent.INGRESS.label(),
+                        metadata != null ? metadata.name() : null,
+                        formatIngressDetails(spec),
+                        extractVersion(metadata),
+                        extractReleaseFromLabels(metadata != null ? metadata.labels() : null),
+                        "",
+                        "",
+                        "",
+                        ""));
+            }
+            return result;
+        } catch (RestClientResponseException ex) {
+            throw new DropAppClientException(
+                    "Не удалось получить список ingress Kubernetes: статус %s %s".formatted(
+                            ex.getRawStatusCode(), ex.getStatusText()),
+                    ex);
+        } catch (RestClientException ex) {
+            throw new DropAppClientException("Не удалось получить список ingress Kubernetes: " + ex.getMessage(), ex);
         }
     }
 
@@ -539,6 +600,28 @@ public class DropAppClient {
         }
         if (StringUtils.hasText(spec.clusterIp())) {
             parts.add("ClusterIP: " + spec.clusterIp().trim());
+        }
+        return String.join(", ", parts);
+    }
+
+    private String formatIngressDetails(KubernetesIngressSpec spec) {
+        if (spec == null) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>(2);
+        if (StringUtils.hasText(spec.ingressClassName())) {
+            parts.add("Класс: " + spec.ingressClassName().trim());
+        }
+        String hosts = spec.rules() == null
+                ? ""
+                : spec.rules().stream()
+                        .map(KubernetesIngressRule::host)
+                        .filter(StringUtils::hasText)
+                        .map(String::trim)
+                        .distinct()
+                        .collect(Collectors.joining(", "));
+        if (StringUtils.hasText(hosts)) {
+            parts.add("Хосты: " + hosts);
         }
         return String.join(", ", parts);
     }

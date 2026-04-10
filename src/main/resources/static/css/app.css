@@ -371,19 +371,22 @@ body {
             padding-right: 2.5rem;
         }
 
-        .grafana-grid {
+        .grafana-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            width: 100%;
+        }
+
+        .grafana-actions-row {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            width: 100%;
-            margin: 0 auto;
             gap: 1.5rem;
+            align-items: start;
+            width: 100%;
         }
 
-        .grafana-grid.home-grid {
-            max-width: none;
-        }
-
-        .grafana-grid .home-card {
+        .grafana-layout .home-card {
             width: 100%;
             min-width: 0;
             text-align: left;
@@ -391,22 +394,19 @@ body {
             box-shadow: none;
         }
 
-        .grafana-grid .home-card.wide {
-            grid-column: 1 / -1;
-            box-shadow: none;
-        }
-
         .grafana-action-card {
             min-height: 100%;
+            justify-content: flex-start;
+            gap: 0.75rem;
         }
 
         .grafana-form {
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 1rem;
+            gap: 0.75rem;
             width: 100%;
-            margin-top: 1.25rem;
+            margin-top: 1rem;
         }
 
         .grafana-form .form-label {
@@ -426,7 +426,7 @@ body {
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 0.5rem;
+            gap: 0.35rem;
             flex-wrap: nowrap;
             width: 100%;
         }
@@ -439,6 +439,7 @@ body {
             display: flex;
             justify-content: flex-start;
             width: 100%;
+            margin-top: 0.15rem;
         }
 
         .grafana-action .btn {
@@ -858,12 +859,6 @@ body {
             margin-bottom: 0;
             background-color: #ffffff;
             height: 100%;
-        }
-
-        .grafana-wrapper .grafana-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 1.5rem;
         }
 
         .grafana-panel-title {
@@ -2259,7 +2254,7 @@ body {
                 padding-top: 1.25rem;
             }
 
-            .grafana-wrapper .grafana-grid {
+            .grafana-actions-row {
                 grid-template-columns: 1fr;
             }
         }

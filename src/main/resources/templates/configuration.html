@@ -92,30 +92,16 @@
                 </div>
                 <p class="text-muted mb-0" style="max-width: 640px;">
                     Выгружайте текущую конфигурацию DropApp по выбранным namespace и компонентам.<br>
-                    Снапшот сохраняется в БД и сразу отображается на этой странице.
+                    Снапшот сохраняется в БД и появляется в таблице сохранённых конфигураций.
                 </p>
                 <div class="d-flex flex-wrap justify-content-center align-items-center gap-3">
-                    <button type="button" class="btn btn-outline-success" id="loadDropAppConfig">
+                    <button type="button"
+                            class="btn btn-outline-success"
+                            id="loadDropAppConfig"
+                            data-bs-toggle="modal"
+                            data-bs-target="#dropAppCaptureModal">
                         Получить конфигурацию
                     </button>
-                </div>
-            </div>
-            <div class="current-configuration-section mt-4 pt-4 border-top">
-                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
-                    <div>
-                        <h6 class="mb-1">Текущая выгруженная конфигурация</h6>
-                        <p class="text-muted mb-0">
-                            После выгрузки здесь появится текущий снапшот со списком ресурсов и сохранённым комментарием.
-                        </p>
-                    </div>
-                    <span class="saved-configurations-counter text-muted small" id="currentDropAppConfigCounter"></span>
-                </div>
-                <div id="currentDropAppConfigEmpty" class="text-muted">
-                    Конфигурация ещё не выгружалась в этой сессии.
-                </div>
-                <div id="currentDropAppConfigContent" class="d-none">
-                    <div class="configuration-meta-grid mb-3" id="currentDropAppConfigMeta"></div>
-                    <div class="table-responsive" id="currentDropAppConfigTableWrapper"></div>
                 </div>
             </div>
             <div class="saved-configurations-section mt-4 pt-4 border-top">
@@ -249,16 +235,15 @@
                 code: 'services',
                 label: 'Services',
                 description: 'Сервисы Kubernetes с типом и ClusterIP'
+            },
+            {
+                code: 'ingress',
+                label: 'Ingress',
+                description: 'Ingress с ingress class и хостами'
             }
         ];
 
-        const loadButton = document.getElementById('loadDropAppConfig');
         const toastContainer = document.getElementById('toastContainer');
-        const currentConfigCounter = document.getElementById('currentDropAppConfigCounter');
-        const currentConfigEmpty = document.getElementById('currentDropAppConfigEmpty');
-        const currentConfigContent = document.getElementById('currentDropAppConfigContent');
-        const currentConfigMeta = document.getElementById('currentDropAppConfigMeta');
-        const currentConfigTableWrapper = document.getElementById('currentDropAppConfigTableWrapper');
         const savedConfigsCounter = document.getElementById('savedConfigsCounter');
         const savedConfigsTableBody = document.getElementById('savedDropAppConfigsTableBody');
         const captureModalElement = document.getElementById('dropAppCaptureModal');
@@ -576,47 +561,6 @@
             configurationModal?.show();
         };
 
-        const renderCurrentConfiguration = (payload) => {
-            const items = Array.isArray(payload?.items) ? payload.items : [];
-            if (currentConfigCounter) {
-                currentConfigCounter.textContent = items.length === 0
-                        ? 'Нет записей'
-                        : `Записей: ${items.length}`;
-            }
-            if (currentConfigEmpty) {
-                currentConfigEmpty.classList.toggle('d-none', items.length > 0);
-            }
-            if (!currentConfigContent || !currentConfigMeta || !currentConfigTableWrapper) {
-                return;
-            }
-
-            if (items.length === 0) {
-                currentConfigContent.classList.add('d-none');
-                currentConfigTableWrapper.innerHTML = '';
-                currentConfigMeta.innerHTML = '';
-                return;
-            }
-
-            currentConfigContent.classList.remove('d-none');
-            currentConfigMeta.innerHTML = '';
-            currentConfigMeta.appendChild(createMetaCard('Дата сохранения', payload?.savedAt));
-            currentConfigMeta.appendChild(createMetaCard('Релиз', payload?.release));
-            currentConfigMeta.appendChild(createMetaCard(
-                    'Namespace',
-                    Array.isArray(payload?.namespaces) ? payload.namespaces.join(', ') : null
-            ));
-            currentConfigMeta.appendChild(createMetaCard(
-                    'Компоненты',
-                    Array.isArray(payload?.components)
-                            ? payload.components.map(code => COMPONENT_OPTIONS.find(item => item.code === code)?.label ?? code).join(', ')
-                            : null
-            ));
-            currentConfigMeta.appendChild(createMetaCard('Комментарий', payload?.comment, 'configuration-meta-card-wide'));
-
-            currentConfigTableWrapper.innerHTML = '';
-            currentConfigTableWrapper.appendChild(buildConfigurationTable(items));
-        };
-
         const renderSavedConfigurationsTable = (items) => {
             if (!savedConfigsTableBody) {
                 return;
@@ -763,9 +707,8 @@
             startBackgroundErrorPolling(showToast);
         }
 
-        loadButton?.addEventListener('click', () => {
+        captureModalElement?.addEventListener('show.bs.modal', () => {
             captureCommentInput.value = '';
-            captureModal?.show();
         });
 
         captureSubmitButton?.addEventListener('click', async () => {
@@ -784,7 +727,7 @@
             captureSubmitButton.textContent = 'Выгружаем…';
             const progressToast = showToast('Запрашиваем текущую конфигурацию DropApp и сохраняем снапшот…', 'info', 10000);
             try {
-                const data = await requestJson('/api/dropapp/configuration/capture', {
+                await requestJson('/api/dropapp/configuration/capture', {
                     method: 'POST',
                     body: JSON.stringify({
                         namespaces: selectedNamespaces,
@@ -792,10 +735,9 @@
                         comment: captureCommentInput?.value ?? ''
                     })
                 });
-                renderCurrentConfiguration(data);
                 await loadSavedConfigurations(false);
                 captureModal?.hide();
-                showToast('Конфигурация DropApp выгружена, сохранена в БД и добавлена в таблицу.', 'success');
+                showToast('Конфигурация DropApp выгружена и добавлена в таблицу сохранённых конфигураций.', 'success');
             } catch (error) {
                 showToast('Не удалось загрузить конфигурацию DropApp: ' + error.message, 'danger');
             } finally {
@@ -805,7 +747,6 @@
             }
         });
         renderComponentOptions();
-        renderCurrentConfiguration({items: []});
         loadNamespaces();
         loadSavedConfigurations(false);
     });

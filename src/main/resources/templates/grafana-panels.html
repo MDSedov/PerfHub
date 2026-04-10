@@ -83,93 +83,95 @@
 
     <div class="page-content" style="background: #ffffff; min-height: 100vh;">
 <main class="container-fluid py-5 px-4 px-lg-5 grafana-wrapper">
-    <div class="home-grid reports-grid grafana-grid">
-        <div class="home-card reports-card grafana-action-card">
-            <div class="d-flex align-items-center gap-2">
-                <div class="home-card-icon"><i class="bi bi-clock-history"></i></div>
-                <h5 class="home-card-title mb-0">Показать графики</h5>
+    <div class="grafana-layout">
+        <div class="grafana-actions-row">
+            <div class="home-card reports-card grafana-action-card">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="home-card-icon"><i class="bi bi-clock-history"></i></div>
+                    <h5 class="home-card-title mb-0">Показать графики</h5>
+                </div>
+                <p class="text-muted mb-0">Отобразить графики из Grafana за указанный период.</p>
+                <form class="grafana-form">
+                    <div class="grafana-field">
+                        <label for="templateId" class="form-label mb-0">Шаблон</label>
+                        <select class="form-select" id="templateId">
+                            <option value="">Загрузка шаблонов...</option>
+                        </select>
+                    </div>
+                    <div class="grafana-field">
+                        <label for="rangeStart" class="form-label mb-0">Начало</label>
+                        <div class="input-group">
+                            <input type="text"
+                                   class="form-control"
+                                   id="rangeStart"
+                                   placeholder="2026-04-03 14:30:00 или 1712143800"
+                                   autocomplete="off"
+                                   spellcheck="false">
+                            <button type="button"
+                                    class="btn btn-outline-secondary"
+                                    id="rangeStartPickerButton"
+                                    aria-label="Выбрать дату и время начала">
+                                <i class="bi bi-calendar3"></i>
+                            </button>
+                        </div>
+                        <input type="datetime-local"
+                               class="visually-hidden"
+                               id="rangeStartPicker"
+                               step="1"
+                               tabindex="-1"
+                               aria-hidden="true">
+                    </div>
+                    <div class="grafana-field">
+                        <label for="rangeEnd" class="form-label mb-0">Конец</label>
+                        <div class="input-group">
+                            <input type="text"
+                                   class="form-control"
+                                   id="rangeEnd"
+                                   placeholder="2026-04-03 15:30:00 или 1712147400000"
+                                   autocomplete="off"
+                                   spellcheck="false">
+                            <button type="button"
+                                    class="btn btn-outline-secondary"
+                                    id="rangeEndPickerButton"
+                                    aria-label="Выбрать дату и время окончания">
+                                <i class="bi bi-calendar3"></i>
+                            </button>
+                        </div>
+                        <input type="datetime-local"
+                               class="visually-hidden"
+                               id="rangeEndPicker"
+                               step="1"
+                               tabindex="-1"
+                               aria-hidden="true">
+                    </div>
+                    <div class="grafana-action">
+                        <button type="button" class="btn btn-outline-success" id="showPanelsButton">Показать графики</button>
+                    </div>
+                </form>
+                <p class="text-muted small mt-3 mb-0">
+                    Можно выбрать дату и время через календарь, ввести их вручную или вставить Unix timestamp в секундах либо миллисекундах.
+                </p>
             </div>
-            <p class="text-muted mb-0">Отобразить графики из Grafana за указанный период.</p>
-            <form class="grafana-form">
-                <div class="grafana-field">
-                    <label for="templateId" class="form-label mb-0">Шаблон</label>
-                    <select class="form-select" id="templateId">
-                        <option value="">Загрузка шаблонов...</option>
-                    </select>
+
+            <div class="home-card reports-card grafana-action-card">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="home-card-icon"><i class="bi bi-upload"></i></div>
+                    <h5 class="home-card-title mb-0">Выгрузить графики</h5>
                 </div>
-                <div class="grafana-field">
-                    <label for="rangeStart" class="form-label mb-0">Начало</label>
-                    <div class="input-group">
-                        <input type="text"
-                               class="form-control"
-                               id="rangeStart"
-                               placeholder="2026-04-03 14:30:00 или 1712143800"
-                               autocomplete="off"
-                               spellcheck="false">
-                        <button type="button"
-                                class="btn btn-outline-secondary"
-                                id="rangeStartPickerButton"
-                                aria-label="Выбрать дату и время начала">
-                            <i class="bi bi-calendar3"></i>
-                        </button>
+                <p class="text-muted mb-0">Отправить графики на страницу в Confluence.</p>
+                <form class="grafana-form">
+                    <div class="grafana-field">
+                        <label for="exportPageId" class="form-label mb-0">ID страницы для выгрузки графиков</label>
+                        <input type="text" class="form-control" id="exportPageId" placeholder="Например, 1234567">
                     </div>
-                    <input type="datetime-local"
-                           class="visually-hidden"
-                           id="rangeStartPicker"
-                           step="1"
-                           tabindex="-1"
-                           aria-hidden="true">
-                </div>
-                <div class="grafana-field">
-                    <label for="rangeEnd" class="form-label mb-0">Конец</label>
-                    <div class="input-group">
-                        <input type="text"
-                               class="form-control"
-                               id="rangeEnd"
-                               placeholder="2026-04-03 15:30:00 или 1712147400000"
-                               autocomplete="off"
-                               spellcheck="false">
-                        <button type="button"
-                                class="btn btn-outline-secondary"
-                                id="rangeEndPickerButton"
-                                aria-label="Выбрать дату и время окончания">
-                            <i class="bi bi-calendar3"></i>
-                        </button>
+                    <div class="grafana-action is-disabled" id="exportPanelsAction">
+                        <button type="button" class="btn btn-outline-success" id="exportPanelsButton" disabled>Выгрузить графики</button>
                     </div>
-                    <input type="datetime-local"
-                           class="visually-hidden"
-                           id="rangeEndPicker"
-                           step="1"
-                           tabindex="-1"
-                           aria-hidden="true">
-                </div>
-                <div class="grafana-action">
-                    <button type="button" class="btn btn-outline-success" id="showPanelsButton">Показать графики</button>
-                </div>
-            </form>
-            <p class="text-muted small mt-3 mb-0">
-                Можно выбрать дату и время через календарь, ввести их вручную или вставить Unix timestamp в секундах либо миллисекундах.
-            </p>
+                </form>
+            </div>
         </div>
 
-        <div class="home-card reports-card grafana-action-card">
-            <div class="d-flex align-items-center gap-2">
-                <div class="home-card-icon"><i class="bi bi-upload"></i></div>
-                <h5 class="home-card-title mb-0">Выгрузить графики</h5>
-            </div>
-            <p class="text-muted mb-0">Отправить графики на страницу в Confluence.</p>
-            <form class="grafana-form">
-                <div class="grafana-field">
-                    <label for="exportPageId" class="form-label mb-0">ID страницы для выгрузки графиков</label>
-                    <input type="text" class="form-control" id="exportPageId" placeholder="Например, 1234567">
-                </div>
-                <div class="grafana-action is-disabled" id="exportPanelsAction">
-                    <button type="button" class="btn btn-outline-success" id="exportPanelsButton" disabled>Выгрузить графики</button>
-                </div>
-            </form>
-        </div>
-
-        <div id="dashboardsCard" class="home-card reports-card wide d-none">
+        <div id="dashboardsCard" class="home-card reports-card d-none">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
                     <h5 class="mb-1">Графики</h5>

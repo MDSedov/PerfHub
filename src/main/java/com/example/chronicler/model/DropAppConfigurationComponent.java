@@ -10,7 +10,8 @@ public enum DropAppConfigurationComponent {
     PODS("pods", "Pods", "POD и контейнеры с версиями и лимитами ресурсов"),
     DEPLOYMENTS("deployments", "Deployments", "Deployment с версиями и релизными метками"),
     CONFIGMAPS("configmaps", "ConfigMaps", "ConfigMap и количество ключей"),
-    SERVICES("services", "Services", "Сервисы Kubernetes, их тип и ClusterIP");
+    SERVICES("services", "Services", "Сервисы Kubernetes, их тип и ClusterIP"),
+    INGRESS("ingress", "Ingress", "Ingress с ingress class и хостами");
 
     private final String code;
     private final String label;
