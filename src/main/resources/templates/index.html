@@ -2,24 +2,178 @@
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Летописец</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
     <link
             href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
             rel="stylesheet"
             integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
             crossorigin="anonymous">
+    <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/app.css">
 </head>
 <body class="d-flex align-items-center justify-content-center min-vh-100 bg-white position-relative">
-<div class="position-absolute start-0 top-0 p-3 d-flex align-items-center gap-2">
+<a href="/"
+   class="position-absolute start-0 top-0 p-3 d-flex align-items-center gap-2 text-decoration-none">
     <img src="/img/chronicler-logo.png" alt="Летописец" class="rounded" style="height: 46px; width: 46px; object-fit: cover;">
     <span class="fw-semibold text-secondary">Летописец</span>
-</div>
+</a>
 <div class="text-center">
-    <button type="button" class="btn btn-success btn-xl px-5 py-4 fs-3 mb-3">Мне повезет!</button>
+    <button type="button"
+            class="btn btn-success btn-xl px-5 py-4 fs-3 mb-3"
+            id="luckyReportsButton">Мне повезет!</button>
     <div class="d-flex flex-column gap-1">
         <a href="/main" class="text-primary text-decoration-none">Ручное управление</a>
         <span class="text-muted small">(для опытных пользователей)</span>
     </div>
 </div>
+
+<div class="modal fade"
+     id="luckyReportsModal"
+     tabindex="-1"
+     aria-labelledby="luckyReportsModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content report-generation-modal">
+            <form id="luckyReportsModalForm" novalidate>
+                <div class="modal-header">
+                    <div class="d-flex flex-column gap-1">
+                        <span class="test-details-modal-kicker">Confluence</span>
+                        <h5 class="modal-title" id="luckyReportsModalLabel">Генерация отчетов</h5>
+                        <div class="text-muted small" id="luckyReportsModalSubtitle">
+                            Создайте страницы Confluence по всем тестам последнего релиза.
+                        </div>
+                    </div>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <section class="report-generation-section">
+                        <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                            <div>
+                                <h6 class="test-details-section-title mb-1">Родительская страница</h6>
+                                <p class="text-muted small mb-0">Выберите страницу из ветки Confluence, указанной в настройках подключения.</p>
+                            </div>
+                            <button type="button"
+                                    class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                                    id="luckyReportsParentPageRefreshButton"
+                                    title="Обновить список страниц из Confluence"
+                                    aria-label="Обновить список страниц из Confluence">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+
+                        <div>
+                            <label for="luckyReportsParentPageId" class="form-label">Страница в Confluence</label>
+                            <select class="form-select"
+                                    id="luckyReportsParentPageId"
+                                    size="8"
+                                    required>
+                                <option value="">Загружаем страницы Confluence…</option>
+                            </select>
+                        </div>
+                    </section>
+
+                    <section class="report-generation-section mt-3">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   value=""
+                                   id="luckyReportsCreateReleasePage">
+                            <label class="form-check-label" for="luckyReportsCreateReleasePage">
+                                Создать новую страницу с отчетом по НТ релиза, в которую будут добавлены отчеты по тестам
+                            </label>
+                        </div>
+
+                        <div class="row g-3 mb-1">
+                            <div class="col-12">
+                                <label for="luckyReportsReleasePageTemplate" class="form-label">Шаблон страницы</label>
+                                <select class="form-select"
+                                        id="luckyReportsReleasePageTemplate"
+                                        disabled>
+                                    <option value="">Выберите шаблон страницы</option>
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="report-generation-section mt-3">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                            <div>
+                                <h6 class="test-details-section-title mb-1">Выбранные тесты</h6>
+                                <p class="text-muted small mb-0" id="luckyReportsSelectedSubtitle">
+                                    Список тестов для формирования отчетов в Confluence.
+                                </p>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span id="luckyReportsSelectedCounter" class="tests-count">0</span>
+                                <span class="text-muted small">шт.</span>
+                            </div>
+                        </div>
+
+                        <div id="luckyReportsSelectedEmpty" class="text-muted small">Тесты не выбраны</div>
+                        <div id="luckyReportsSelectedWrapper" class="table-responsive d-none">
+                            <table class="table align-middle tests-table mb-0 report-generation-table">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Релиз</th>
+                                    <th scope="col">Тип теста</th>
+                                    <th scope="col">Шаблон</th>
+                                    <th scope="col">Начало</th>
+                                    <th scope="col">Окончание</th>
+                                </tr>
+                                </thead>
+                                <tbody id="luckyReportsSelectedBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section class="report-generation-section mt-3">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                            <div>
+                                <h6 class="test-details-section-title mb-1">Статус генерации</h6>
+                                <p class="text-muted small mb-0">Готовые отчеты появляются в списке по мере создания страниц.</p>
+                            </div>
+                        </div>
+
+                        <div id="luckyReportsResultsEmpty" class="text-muted small">Генерация еще не запускалась.</div>
+                        <div id="luckyReportsResultsWrapper" class="table-responsive d-none">
+                            <table class="table align-middle tests-table mb-0 report-generation-results-table">
+                                <thead>
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">Статус</th>
+                                    <th scope="col">Отчет</th>
+                                </tr>
+                                </thead>
+                                <tbody id="luckyReportsResultsBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit"
+                            class="btn btn-success"
+                            id="luckyReportsCreateButton"
+                            disabled>Создать отчеты по тестам</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
+        crossorigin="anonymous"></script>
+<script src="/js/background-errors.js"></script>
+<script src="/js/lucky-reports.js"></script>
 </body>
 </html>
