@@ -183,9 +183,6 @@ public class ConfluenceService {
         if (!StringUtils.hasText(request.parentPageId())) {
             throw new ConfluenceOperationException("parentPageId is required");
         }
-        if (!StringUtils.hasText(request.title())) {
-            throw new ConfluenceOperationException("title is required");
-        }
         if (request.templateId() == null) {
             throw new ConfluenceOperationException("templateId is required");
         }
@@ -206,7 +203,7 @@ public class ConfluenceService {
         }
 
         String releaseValue = resolveReleaseValueForTests(request.testUuids());
-        String pageTitle = buildReleasePageTitle(request.title(), releaseValue);
+        String pageTitle = buildReportTitle(template, releaseValue);
         String body = buildReportBody(template.text(), releaseValue, "", "");
         ConfluencePage createdPage = confluenceClient.createChildPage(
                 credentials,
@@ -530,18 +527,6 @@ public class ConfluenceService {
                 .trim()
                 .replaceAll("\\s{2,}", " ");
         return StringUtils.hasText(resolved) ? resolved : template.fullName();
-    }
-
-    private String buildReleasePageTitle(String titleTemplate, String releaseValue) {
-        String resolved = getSafeBody(titleTemplate)
-                .replace(RELEASE_PLACEHOLDER, releaseValue)
-                .replace(CONFIG_PLACEHOLDER, "")
-                .replace(GRAPHICS_PLACEHOLDER, "")
-                .replace('\n', ' ')
-                .replace('\r', ' ')
-                .trim()
-                .replaceAll("\\s{2,}", " ");
-        return StringUtils.hasText(resolved) ? resolved : "Отчет по НТ релиза";
     }
 
     private String buildReportBody(
