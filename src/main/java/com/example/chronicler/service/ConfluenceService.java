@@ -285,6 +285,7 @@ public class ConfluenceService {
         String templateBody = normalizeStorageMarkup(template.text());
         ConfluencePage reportPage = createReportPage(
                 credentials, parentPageId, spaceKey, pageTitle, templateBody, loadTest.id());
+        waitForPageAvailability(credentials, reportPage.id());
 
         List<String> attachmentNames = new ArrayList<>();
         List<RenderedChartAttachment> chartAttachments = new ArrayList<>();
@@ -293,7 +294,7 @@ public class ConfluenceService {
             GrafanaRenderedPanel panel = renderedPanels.get(index);
             byte[] imageBytes = decodePanelImage(panel);
             String attachmentName = generateAttachmentName(panel);
-            confluenceClient.uploadAttachment(credentials, reportPage.id(), attachmentName, imageBytes);
+            uploadAttachmentWithRetry(credentials, reportPage.id(), attachmentName, imageBytes);
             attachmentNames.add(attachmentName);
             chartAttachments.add(new RenderedChartAttachment(chart.title(), panel.description(), attachmentName));
         }
@@ -303,7 +304,7 @@ public class ConfluenceService {
                 releaseValue,
                 configurationSection,
                 buildChartsSection(chartAttachments));
-        confluenceClient.updatePage(credentials, reportPage, updatedBody);
+        updatePageWithRetry(credentials, reportPage, updatedBody);
 
         return new ConfluenceReportResponse.ReportPage(
                 testUuid,
@@ -662,6 +663,74 @@ public class ConfluenceService {
 
         if (lastError != null) {
             throw lastError;
+        }
+    }
+
+    private void uploadAttachmentWithRetry(
+            ConfluenceCredentials credentials,
+            String pageId,
+            String attachmentName,
+            byte[] imageBytes) {
+        final int maxAttempts = 5;
+        final long delayMillis = 700L;
+        ConfluenceClientException lastError = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                waitForPageAvailability(credentials, pageId);
+                confluenceClient.uploadAttachment(credentials, pageId, attachmentName, imageBytes);
+                return;
+            } catch (ConfluenceClientException ex) {
+                lastError = ex;
+                if (attempt == maxAttempts) {
+                    throw ex;
+                }
+                sleepBeforeRetry(delayMillis);
+            }
+        }
+
+        if (lastError != null) {
+            throw lastError;
+        }
+        throw new ConfluenceOperationException("Не удалось загрузить вложение в Confluence");
+    }
+
+    private void updatePageWithRetry(
+            ConfluenceCredentials credentials,
+            ConfluencePage page,
+            String updatedBody) {
+        final int maxAttempts = 5;
+        final long delayMillis = 700L;
+        ConfluenceClientException lastError = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                waitForPageAvailability(credentials, page.id());
+                confluenceClient.updatePage(credentials, page, updatedBody);
+                return;
+            } catch (ConfluenceClientException ex) {
+                lastError = ex;
+                if (attempt == maxAttempts) {
+                    throw ex;
+                }
+                sleepBeforeRetry(delayMillis);
+            }
+        }
+
+        if (lastError != null) {
+            throw lastError;
+        }
+        throw new ConfluenceOperationException("Не удалось обновить страницу отчета в Confluence");
+    }
+
+    private void sleepBeforeRetry(long delayMillis) {
+        try {
+            TimeUnit.MILLISECONDS.sleep(delayMillis);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new ConfluenceOperationException(
+                    "Ожидание повторной операции Confluence было прервано",
+                    interrupted);
         }
     }
 
