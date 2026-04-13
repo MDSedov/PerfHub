@@ -1,5 +1,6 @@
 package com.example.chronicler.client;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePageDescendant;
 import com.example.chronicler.dto.confluence.ConfluencePage;
@@ -194,36 +195,14 @@ public class ConfluenceClient {
         HttpHeaders headers = authorizationHeaders(credentials);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        URI uri = apiUriBuilder()
-                .pathSegment("content", rootPageId, "descendant", "page")
-                .queryParam("expand", "ancestors")
-                .queryParam("limit", 1000)
-                .build(true)
-                .toUri();
-
-        logConfluenceRequest("GET", uri, headers, "rootPageId=%s, expand=ancestors, limit=1000".formatted(rootPageId));
         try {
-            ResponseEntity<DescendantPagesResponse> response = restTemplate.exchange(
-                    uri, HttpMethod.GET, new HttpEntity<>(headers), DescendantPagesResponse.class);
-            DescendantPagesResponse body = response.getBody();
-            if (body == null || body.results() == null || body.results().isEmpty()) {
-                return List.of();
-            }
-            return body.results().stream()
-                    .map(page -> new ConfluencePageDescendant(
-                            page.id(),
-                            StringUtils.hasText(page.title()) ? page.title() : page.id(),
-                            page.ancestors() == null
-                                    ? List.of()
-                                    : page.ancestors().stream()
-                                            .map(AncestorResult::id)
-                                            .filter(StringUtils::hasText)
-                                            .toList()))
-                    .toList();
-        } catch (RestClientException ex) {
-            throw new ConfluenceClientException(
-                    buildErrorMessage("Failed to load Confluence descendant pages for " + rootPageId, ex),
-                    ex);
+            return loadDescendantsFromDescendantEndpoint(credentials, rootPageId, headers);
+        } catch (ConfluenceClientException ex) {
+            log.warn(
+                    "Confluence descendant endpoint failed for root page {}. Falling back to search API. Reason: {}",
+                    rootPageId,
+                    ex.getMessage());
+            return loadDescendantsFromSearchEndpoint(credentials, rootPageId, headers, ex);
         }
     }
 
@@ -424,12 +403,6 @@ public class ConfluenceClient {
 
     private record ChildPageResult(String id, String title) {}
 
-    private record DescendantPagesResponse(List<DescendantPageResult> results) {}
-
-    private record DescendantPageResult(String id, String title, List<AncestorResult> ancestors) {}
-
-    private record AncestorResult(String id) {}
-
     private record UpdateRequest(String id, String type, String title, Version version, Body body) {}
 
     private record CreateRequest(String title, String type, Space space, List<Ancestor> ancestors, Body body) {}
@@ -437,6 +410,130 @@ public class ConfluenceClient {
     private record Space(String key) {}
 
     private record Ancestor(String id) {}
+
+    private List<ConfluencePageDescendant> loadDescendantsFromDescendantEndpoint(
+            ConfluenceCredentials credentials, String rootPageId, HttpHeaders headers) {
+        URI uri = apiUriBuilder()
+                .pathSegment("content", rootPageId, "descendant", "page")
+                .queryParam("expand", "ancestors")
+                .queryParam("limit", 1000)
+                .build(true)
+                .toUri();
+        return executeDescendantsRequest(
+                credentials,
+                uri,
+                headers,
+                "rootPageId=%s, expand=ancestors, limit=1000".formatted(rootPageId),
+                "Failed to load Confluence descendant pages for " + rootPageId);
+    }
+
+    private List<ConfluencePageDescendant> loadDescendantsFromSearchEndpoint(
+            ConfluenceCredentials credentials,
+            String rootPageId,
+            HttpHeaders headers,
+            ConfluenceClientException originalError) {
+        URI uri = apiUriBuilder()
+                .pathSegment("content", "search")
+                .queryParam("cql", "ancestor=" + rootPageId + " and type=page")
+                .queryParam("expand", "ancestors")
+                .queryParam("limit", 1000)
+                .build(true)
+                .toUri();
+        try {
+            return executeDescendantsRequest(
+                    credentials,
+                    uri,
+                    headers,
+                    "rootPageId=%s, cql=ancestor=%s and type=page, expand=ancestors, limit=1000"
+                            .formatted(rootPageId, rootPageId),
+                    "Failed to load Confluence descendant pages for " + rootPageId + " via search");
+        } catch (ConfluenceClientException fallbackError) {
+            throw new ConfluenceClientException(
+                    fallbackError.getMessage() + " (primary error: " + originalError.getMessage() + ")",
+                    fallbackError);
+        }
+    }
+
+    private List<ConfluencePageDescendant> executeDescendantsRequest(
+            ConfluenceCredentials credentials,
+            URI uri,
+            HttpHeaders headers,
+            String requestContext,
+            String errorPrefix) {
+        logConfluenceRequest("GET", uri, headers, requestContext);
+        try {
+            ResponseEntity<JsonNode> response = restTemplate.exchange(
+                    uri, HttpMethod.GET, new HttpEntity<>(headers), JsonNode.class);
+            return parseDescendantPages(response.getBody());
+        } catch (RestClientException ex) {
+            throw new ConfluenceClientException(buildErrorMessage(errorPrefix, ex), ex);
+        }
+    }
+
+    private List<ConfluencePageDescendant> parseDescendantPages(JsonNode body) {
+        if (body == null || body.isNull()) {
+            return List.of();
+        }
+
+        JsonNode resultsNode = extractResultsNode(body);
+        if (resultsNode == null || resultsNode.isNull() || !resultsNode.isArray()) {
+            if (body.path("size").asInt(0) == 0) {
+                return List.of();
+            }
+            throw new ConfluenceClientException("Confluence returned an unsupported descendant pages response format");
+        }
+
+        List<ConfluencePageDescendant> descendants = new ArrayList<>();
+        for (JsonNode pageNode : resultsNode) {
+            String pageId = normalizeJsonText(pageNode.path("id"));
+            if (!StringUtils.hasText(pageId)) {
+                continue;
+            }
+            descendants.add(new ConfluencePageDescendant(
+                    pageId,
+                    StringUtils.hasText(normalizeJsonText(pageNode.path("title")))
+                            ? normalizeJsonText(pageNode.path("title"))
+                            : pageId,
+                    extractAncestorIds(pageNode.path("ancestors"))));
+        }
+        return List.copyOf(descendants);
+    }
+
+    private JsonNode extractResultsNode(JsonNode body) {
+        JsonNode directResults = body.path("results");
+        if (directResults.isArray()) {
+            return directResults;
+        }
+
+        JsonNode pagedPageResults = body.path("page").path("results");
+        if (pagedPageResults.isArray()) {
+            return pagedPageResults;
+        }
+
+        return null;
+    }
+
+    private List<String> extractAncestorIds(JsonNode ancestorsNode) {
+        if (ancestorsNode == null || !ancestorsNode.isArray()) {
+            return List.of();
+        }
+
+        List<String> ancestorIds = new ArrayList<>();
+        for (JsonNode ancestorNode : ancestorsNode) {
+            String ancestorId = normalizeJsonText(ancestorNode.path("id"));
+            if (StringUtils.hasText(ancestorId)) {
+                ancestorIds.add(ancestorId);
+            }
+        }
+        return List.copyOf(ancestorIds);
+    }
+
+    private String normalizeJsonText(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return "";
+        }
+        return node.asText("").trim();
+    }
 
     private void logConfluenceRequest(String method, URI uri, HttpHeaders headers, String context) {
         log.info(
