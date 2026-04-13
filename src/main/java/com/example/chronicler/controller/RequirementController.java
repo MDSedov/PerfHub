@@ -40,7 +40,7 @@ public class RequirementController {
 
     private RequirementEvaluationResponse buildResponse(
             java.util.UUID testUuid, List<RequirementEvaluationView> evaluations) {
-        boolean compliant = evaluations.stream()
+        boolean compliant = !evaluations.isEmpty() && evaluations.stream()
                 .allMatch(view -> view.status() == RequirementEvaluationStatus.PASS
                         || view.status() == RequirementEvaluationStatus.NOT_APPLICABLE);
         return new RequirementEvaluationResponse(testUuid, compliant, evaluations);

@@ -58,6 +58,11 @@ public class TestRequirementEvaluationRepository {
              ORDER BY dashboard_uid, panel_id
             """;
 
+    private static final String DELETE_BY_TEST_SQL = """
+            DELETE FROM test_requirement_evaluations
+             WHERE test_uuid = ?
+            """;
+
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
     private final RowMapper<TestRequirementEvaluation> rowMapper = this::mapRow;
@@ -104,6 +109,10 @@ public class TestRequirementEvaluationRepository {
 
     public List<TestRequirementEvaluation> findByTest(UUID testUuid) {
         return jdbcTemplate.query(SELECT_BY_TEST_SQL, rowMapper, testUuid);
+    }
+
+    public void deleteByTest(UUID testUuid) {
+        jdbcTemplate.update(DELETE_BY_TEST_SQL, testUuid);
     }
 
     private TestRequirementEvaluation mapRow(ResultSet rs, int rowNum) throws SQLException {

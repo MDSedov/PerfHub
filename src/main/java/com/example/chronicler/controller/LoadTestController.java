@@ -7,11 +7,9 @@ import com.example.chronicler.dto.tests.SaveTestCommentRequest;
 import com.example.chronicler.dto.tests.SaveTestTypeRequest;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
-import com.example.chronicler.model.RequirementEvaluationStatus;
-import com.example.chronicler.model.TestRequirementEvaluation;
 import com.example.chronicler.repository.LoadTestRepository;
-import com.example.chronicler.repository.TestRequirementEvaluationRepository;
 import com.example.chronicler.service.KubernetesConfigurationService;
+import com.example.chronicler.service.RequirementEvaluationService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -35,16 +33,16 @@ import org.springframework.web.server.ResponseStatusException;
 public class LoadTestController {
 
     private final LoadTestRepository loadTestRepository;
-    private final TestRequirementEvaluationRepository requirementEvaluationRepository;
     private final KubernetesConfigurationService kubernetesConfigurationService;
+    private final RequirementEvaluationService requirementEvaluationService;
 
     public LoadTestController(
             LoadTestRepository loadTestRepository,
-            TestRequirementEvaluationRepository requirementEvaluationRepository,
-            KubernetesConfigurationService kubernetesConfigurationService) {
+            KubernetesConfigurationService kubernetesConfigurationService,
+            RequirementEvaluationService requirementEvaluationService) {
         this.loadTestRepository = loadTestRepository;
-        this.requirementEvaluationRepository = requirementEvaluationRepository;
         this.kubernetesConfigurationService = kubernetesConfigurationService;
+        this.requirementEvaluationService = requirementEvaluationService;
     }
 
     @GetMapping
@@ -56,7 +54,7 @@ public class LoadTestController {
         return tests.stream()
                 .map(loadTest -> LoadTestView.fromModel(
                         loadTest,
-                        buildComplianceView(loadTest.id()),
+                        buildComplianceView(loadTest),
                         releases.get(loadTest.id()),
                         configuredTests.contains(loadTest.id())))
                 .collect(Collectors.toList());
@@ -83,7 +81,7 @@ public class LoadTestController {
         LoadTest updated = loadTestRepository.updateComment(testUuid, request != null ? request.comment() : null);
         return LoadTestView.fromModel(
                 updated,
-                buildComplianceView(updated.id()),
+                buildComplianceView(updated),
                 kubernetesConfigurationService.findMaxRelease(testUuid),
                 kubernetesConfigurationService.hasConfiguration(testUuid));
     }
@@ -104,25 +102,12 @@ public class LoadTestController {
         LoadTest updated = loadTestRepository.updateType(testUuid, type);
         return LoadTestView.fromModel(
                 updated,
-                buildComplianceView(updated.id()),
+                buildComplianceView(updated),
                 kubernetesConfigurationService.findMaxRelease(testUuid),
                 kubernetesConfigurationService.hasConfiguration(testUuid));
     }
 
-    private RequirementComplianceView buildComplianceView(UUID testUuid) {
-        List<TestRequirementEvaluation> evaluations = requirementEvaluationRepository.findByTest(testUuid);
-        if (evaluations.isEmpty()) {
-            return new RequirementComplianceView(false, null, null);
-        }
-        boolean compliant = evaluations.stream()
-                .allMatch(eval -> eval.status() == RequirementEvaluationStatus.PASS
-                        || eval.status() == RequirementEvaluationStatus.NOT_APPLICABLE);
-        Instant evaluatedAt = evaluations.stream()
-                .map(TestRequirementEvaluation::evaluatedAt)
-                .filter(Objects::nonNull)
-                .max(Instant::compareTo)
-                .orElse(null);
-        String formatted = evaluatedAt != null ? LoadTestView.formatInstant(evaluatedAt) : null;
-        return new RequirementComplianceView(true, compliant, formatted);
+    private RequirementComplianceView buildComplianceView(LoadTest loadTest) {
+        return requirementEvaluationService.buildComplianceView(loadTest);
     }
 }

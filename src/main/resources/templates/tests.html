@@ -2328,10 +2328,25 @@
             },
             body: JSON.stringify({ testUuid: testId })
         });
-        if (!response.ok) {
-            throw new Error('Ответ сервера: ' + response.status);
+        const raw = await response.text();
+        let payload = null;
+        if (raw) {
+            try {
+                payload = JSON.parse(raw);
+            } catch (error) {
+                payload = raw;
+            }
         }
-        return await response.json();
+        if (!response.ok) {
+            let message = 'Ответ сервера: ' + response.status;
+            if (payload && typeof payload === 'object' && payload.message) {
+                message += ' — ' + payload.message;
+            } else if (typeof payload === 'string' && payload.trim() !== '') {
+                message += ' — ' + payload.trim();
+            }
+            throw new Error(message);
+        }
+        return payload;
     }
 
     function ensureEvaluation(testId, mode = 'cached') {
@@ -2416,6 +2431,11 @@
             setComplianceStatus(statusElement, 'loading', testId);
             const evaluation = await ensureEvaluation(testId, mode);
             if (controller.signal.aborted) {
+                return;
+            }
+            const requirements = Array.isArray(evaluation?.requirements) ? evaluation.requirements : [];
+            if (!requirements.length) {
+                setComplianceStatus(statusElement, 'missing', testId);
                 return;
             }
             const compliant = Boolean(evaluation?.compliant);
@@ -2546,7 +2566,7 @@
         container.innerHTML = '';
         const requirements = evaluation?.requirements ?? [];
         if (!requirements.length) {
-            container.innerHTML = '<div class="text-muted small">Нет проведённых проверок.</div>';
+            container.innerHTML = '<div class="text-muted small">Для графиков шаблона этого типа теста пока не настроены требования.</div>';
             return;
         }
 

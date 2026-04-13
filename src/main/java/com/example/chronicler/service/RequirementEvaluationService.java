@@ -2,15 +2,19 @@ package com.example.chronicler.service;
 
 import com.example.chronicler.client.VictoriaMetricsClient;
 import com.example.chronicler.dto.RequirementEvaluationView;
+import com.example.chronicler.dto.tests.RequirementComplianceView;
 import com.example.chronicler.exception.RequirementEvaluationException;
-import com.example.chronicler.model.GrafanaDashboard;
+import com.example.chronicler.model.ConfluenceTemplate;
+import com.example.chronicler.model.ConfluenceTemplateChart;
+import com.example.chronicler.model.LoadTest;
+import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.model.RequirementEvaluationStatus;
 import com.example.chronicler.model.TestRequirementEvaluation;
-import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
-import com.example.chronicler.repository.GrafanaDashboardRepository;
 import com.example.chronicler.repository.LoadTestRepository;
+import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
 import com.example.chronicler.repository.TestRequirementEvaluationRepository;
 import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
+import com.example.chronicler.util.DateTimeViewUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,14 +22,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -37,50 +41,94 @@ public class RequirementEvaluationService {
 
     private final TestRequirementEvaluationRepository evaluationRepository;
     private final LoadTestRepository loadTestRepository;
-    private final GrafanaDashboardRepository grafanaDashboardRepository;
     private final GrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
     private final VictoriaMetricsClient victoriaMetricsClient;
     private final GrafanaVariableService grafanaVariableService;
+    private final ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
     private final ObjectMapper objectMapper;
 
     public RequirementEvaluationService(
             TestRequirementEvaluationRepository evaluationRepository,
             LoadTestRepository loadTestRepository,
-            GrafanaDashboardRepository grafanaDashboardRepository,
             GrafanaDashboardPanelRepository grafanaDashboardPanelRepository,
             VictoriaMetricsClient victoriaMetricsClient,
             GrafanaVariableService grafanaVariableService,
+            ConfluenceTemplateSettingsService confluenceTemplateSettingsService,
             ObjectMapper objectMapper) {
         this.evaluationRepository = evaluationRepository;
         this.loadTestRepository = loadTestRepository;
-        this.grafanaDashboardRepository = grafanaDashboardRepository;
         this.grafanaDashboardPanelRepository = grafanaDashboardPanelRepository;
         this.victoriaMetricsClient = victoriaMetricsClient;
         this.grafanaVariableService = grafanaVariableService;
+        this.confluenceTemplateSettingsService = confluenceTemplateSettingsService;
         this.objectMapper = objectMapper;
     }
 
     public List<RequirementEvaluationView> evaluate(UUID testUuid) {
-        var loadTest = loadTestRepository.findById(testUuid)
-                .orElseThrow(() -> new RequirementEvaluationException("Test with UUID " + testUuid + " not found"));
+        LoadTest loadTest = getLoadTest(testUuid);
+        List<PanelRequirement> requirements = resolvePanelRequirements(loadTest);
+        return evaluate(loadTest, requirements);
+    }
+
+    public RequirementComplianceView buildComplianceView(LoadTest loadTest) {
+        if (loadTest == null || loadTest.id() == null) {
+            return new RequirementComplianceView(false, null, null);
+        }
+        List<PanelRequirement> requirements = resolvePanelRequirements(loadTest);
+        if (requirements.isEmpty()) {
+            return new RequirementComplianceView(false, null, null);
+        }
+
+        Map<String, TestRequirementEvaluation> evaluationsByKey = evaluationRepository.findByTest(loadTest.id()).stream()
+                .collect(Collectors.toMap(
+                        evaluation -> requirementKey(evaluation.dashboardUid(), evaluation.panelId()),
+                        evaluation -> evaluation,
+                        (first, second) -> first,
+                        LinkedHashMap::new));
+        List<TestRequirementEvaluation> relevantEvaluations = requirements.stream()
+                .map(requirement -> evaluationsByKey.get(requirement.key()))
+                .filter(Objects::nonNull)
+                .toList();
+        if (relevantEvaluations.size() != requirements.size()) {
+            return new RequirementComplianceView(false, null, null);
+        }
+
+        boolean compliant = relevantEvaluations.stream()
+                .allMatch(evaluation -> evaluation.status() == RequirementEvaluationStatus.PASS
+                        || evaluation.status() == RequirementEvaluationStatus.NOT_APPLICABLE);
+        Instant evaluatedAt = relevantEvaluations.stream()
+                .map(TestRequirementEvaluation::evaluatedAt)
+                .filter(Objects::nonNull)
+                .max(Instant::compareTo)
+                .orElse(null);
+        return new RequirementComplianceView(
+                true,
+                compliant,
+                DateTimeViewUtils.formatInstant(evaluatedAt));
+    }
+
+    private List<RequirementEvaluationView> evaluate(LoadTest loadTest, List<PanelRequirement> requirements) {
+        if (loadTest == null || loadTest.id() == null) {
+            throw new RequirementEvaluationException("Test must be specified for requirement evaluation");
+        }
         Instant start = loadTest.start();
         Instant end = loadTest.end();
         if (start == null || end == null) {
-            throw new RequirementEvaluationException("Test " + testUuid + " must have start and end timestamps");
+            throw new RequirementEvaluationException("Test " + loadTest.id() + " must have start and end timestamps");
         }
         if (!end.isAfter(start)) {
-            throw new RequirementEvaluationException("Test " + testUuid + " end timestamp must be after start");
+            throw new RequirementEvaluationException("Test " + loadTest.id() + " end timestamp must be after start");
         }
 
-        List<PanelRequirement> requirements = loadPanelRequirements();
+        evaluationRepository.deleteByTest(loadTest.id());
         if (requirements.isEmpty()) {
-            throw new RequirementEvaluationException("No active panel requirements configured");
+            return List.of();
         }
 
         Instant evaluationStart = start.plus(TRIM_DURATION);
         Instant evaluationEnd = end.minus(TRIM_DURATION);
         if (!evaluationEnd.isAfter(evaluationStart)) {
-            throw new RequirementEvaluationException("Test " + testUuid + " duration must exceed "
+            throw new RequirementEvaluationException("Test " + loadTest.id() + " duration must exceed "
                     + MIN_EVALUATION_DURATION.toMinutes()
                     + " minutes to evaluate requirements");
         }
@@ -90,7 +138,7 @@ public class RequirementEvaluationService {
         for (PanelRequirement requirement : requirements) {
             RequirementResult result = evaluatePanel(requirement, evaluationStart, evaluationEnd);
             evaluationRepository.upsert(
-                    testUuid,
+                    loadTest.id(),
                     requirement.dashboardUid(),
                     requirement.panelId(),
                     result.status(),
@@ -104,21 +152,24 @@ public class RequirementEvaluationService {
     }
 
     public List<RequirementEvaluationView> getCachedOrEvaluate(UUID testUuid) {
-        List<PanelRequirement> requirements = loadPanelRequirements();
+        LoadTest loadTest = getLoadTest(testUuid);
+        List<PanelRequirement> requirements = resolvePanelRequirements(loadTest);
+        if (requirements.isEmpty()) {
+            evaluationRepository.deleteByTest(testUuid);
+            return List.of();
+        }
         List<TestRequirementEvaluation> stored = evaluationRepository.findByTest(testUuid);
         Map<String, TestRequirementEvaluation> storedByRequirement = stored.stream()
                 .collect(Collectors.toMap(
-                        eval -> eval.dashboardUid() + "#" + eval.panelId(),
+                        eval -> requirementKey(eval.dashboardUid(), eval.panelId()),
                         eval -> eval,
                         (first, second) -> first));
         boolean hasAllEvaluations = !stored.isEmpty()
-                && requirements.stream()
-                        .allMatch(req -> storedByRequirement.containsKey(req.dashboardUid() + "#" + req.panelId()));
+                && requirements.stream().allMatch(req -> storedByRequirement.containsKey(req.key()));
         if (hasAllEvaluations) {
             List<RequirementEvaluationView> views = new ArrayList<>(requirements.size());
             for (PanelRequirement requirement : requirements) {
-                TestRequirementEvaluation evaluation =
-                        storedByRequirement.get(requirement.dashboardUid() + "#" + requirement.panelId());
+                TestRequirementEvaluation evaluation = storedByRequirement.get(requirement.key());
                 views.add(toView(
                         requirement,
                         new RequirementResult(
@@ -130,7 +181,7 @@ public class RequirementEvaluationService {
             }
             return views;
         }
-        return evaluate(testUuid);
+        return evaluate(loadTest, requirements);
     }
 
     private RequirementEvaluationView toView(
@@ -235,39 +286,69 @@ public class RequirementEvaluationService {
         return Double.NaN;
     }
 
-    private List<PanelRequirement> loadPanelRequirements() {
-        Map<String, List<GrafanaDashboardPanelRecord>> panelsByUid =
-                grafanaDashboardPanelRepository.findAllGroupedByUid();
-        return grafanaDashboardRepository.findAll().stream()
-                .flatMap(dashboard -> {
-                    List<Integer> panels = dashboard.panels();
-                    if (panels == null || panels.isEmpty()) {
-                        return Stream.empty();
-                    }
-                    return panels.stream()
-                            .map(panelId -> findPanel(panelsByUid, dashboard.uid(), panelId));
-                })
-                .filter(Objects::nonNull)
-                .toList();
+    private LoadTest getLoadTest(UUID testUuid) {
+        return loadTestRepository.findById(testUuid)
+                .orElseThrow(() -> new RequirementEvaluationException("Test with UUID " + testUuid + " not found"));
     }
 
-    private PanelRequirement findPanel(Map<String, List<GrafanaDashboardPanelRecord>> panelsByUid, String uid, int panelId) {
-        List<GrafanaDashboardPanelRecord> panels = panelsByUid.getOrDefault(uid, List.of());
-        return panels.stream()
-                .filter(panel -> panel.panelId() == panelId)
-                .findFirst()
-                .map(panel -> new PanelRequirement(
-                        panel.dashboardUid(),
-                        panel.panelId(),
-                        panel.panelTitle(),
-                        grafanaVariableService.applyVariables(panel.panelQuery(), panel.dashboardUid()),
-                        panel.panelThreshold(),
-                        Boolean.TRUE.equals(panel.testQuery())))
-                .orElse(null);
+    private List<PanelRequirement> resolvePanelRequirements(LoadTest loadTest) {
+        if (loadTest == null) {
+            return List.of();
+        }
+        Optional<ConfluenceTemplate> template = resolveTemplate(loadTest.type());
+        if (template.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, PanelRequirement> requirementsByKey = new LinkedHashMap<>();
+        List<ConfluenceTemplateChart> charts = template.get().charts() == null ? List.of() : template.get().charts();
+        for (ConfluenceTemplateChart chart : charts) {
+            if (chart == null || !StringUtils.hasText(chart.dashboardUid()) || chart.panelId() <= 0) {
+                continue;
+            }
+            GrafanaDashboardPanelRecord panel = grafanaDashboardPanelRepository
+                    .findByUidAndPanelId(chart.dashboardUid(), chart.panelId())
+                    .orElse(null);
+            if (panel == null) {
+                continue;
+            }
+            String query = grafanaVariableService.applyVariables(panel.panelQuery(), panel.dashboardUid());
+            if (!StringUtils.hasText(query) || panel.panelThreshold() == null) {
+                continue;
+            }
+            String title = StringUtils.hasText(chart.title()) ? chart.title().trim() : panel.panelTitle();
+            PanelRequirement requirement = new PanelRequirement(
+                    panel.dashboardUid(),
+                    panel.panelId(),
+                    title,
+                    query,
+                    panel.panelThreshold());
+            requirementsByKey.putIfAbsent(requirement.key(), requirement);
+        }
+        return new ArrayList<>(requirementsByKey.values());
     }
 
-    private record PanelRequirement(
-            String dashboardUid, int panelId, String title, String query, Double threshold, boolean testQuery) {}
+    private Optional<ConfluenceTemplate> resolveTemplate(LoadTestType loadTestType) {
+        if (loadTestType == null) {
+            return Optional.empty();
+        }
+        return switch (loadTestType) {
+            case MAX -> confluenceTemplateSettingsService.findActiveTemplateByShortName("max");
+            case STABILITY -> confluenceTemplateSettingsService.findActiveTemplateByShortName("stability");
+            case SOAK -> confluenceTemplateSettingsService.findActiveTemplateByShortName("soak");
+            case PSU, DT, UNKNOWN -> Optional.empty();
+        };
+    }
+
+    private String requirementKey(String dashboardUid, int panelId) {
+        return dashboardUid + "#" + panelId;
+    }
+
+    private record PanelRequirement(String dashboardUid, int panelId, String title, String query, Double threshold) {
+        private String key() {
+            return dashboardUid + "#" + panelId;
+        }
+    }
 
     private record RequirementResult(
             RequirementEvaluationStatus status, Double measuredValue, String unit, JsonNode details) {}
