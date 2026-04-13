@@ -494,11 +494,10 @@ public class ConfluenceClient {
             if (!StringUtils.hasText(pageId)) {
                 continue;
             }
+            String pageTitle = extractPageTitle(pageNode);
             descendants.add(new ConfluencePageDescendant(
                     pageId,
-                    StringUtils.hasText(normalizeJsonText(pageNode.path("title")))
-                            ? normalizeJsonText(pageNode.path("title"))
-                            : pageId,
+                    StringUtils.hasText(pageTitle) ? pageTitle : pageId,
                     extractAncestorIds(pageNode.path("ancestors"))));
         }
         return List.copyOf(descendants);
@@ -531,6 +530,25 @@ public class ConfluenceClient {
             }
         }
         return List.copyOf(ancestorIds);
+    }
+
+    private String extractPageTitle(JsonNode pageNode) {
+        String directTitle = normalizeJsonText(pageNode.path("title"));
+        if (StringUtils.hasText(directTitle)) {
+            return directTitle;
+        }
+
+        String displayTitle = normalizeJsonText(pageNode.path("displayTitle"));
+        if (StringUtils.hasText(displayTitle)) {
+            return displayTitle;
+        }
+
+        String nestedContentTitle = normalizeJsonText(pageNode.path("content").path("title"));
+        if (StringUtils.hasText(nestedContentTitle)) {
+            return nestedContentTitle;
+        }
+
+        return normalizeJsonText(pageNode.path("page").path("title"));
     }
 
     private String normalizeJsonText(JsonNode node) {

@@ -569,7 +569,6 @@
             luckyReportsParentPageRefreshButton.disabled = confluenceParentPagesLoading;
         }
 
-        luckyReportsParentPageIdInput.size = 1;
         luckyReportsParentPageIdInput.innerHTML = '';
 
         if (confluenceParentPagesLoading) {
@@ -610,7 +609,6 @@
         });
 
         luckyReportsParentPageIdInput.disabled = false;
-        luckyReportsParentPageIdInput.size = Math.min(Math.max(confluenceParentPageOptions.length, 1), 10);
         const nextValue = confluenceParentPageOptions.some(page => page.id === selectedReportParentPageId)
                 ? selectedReportParentPageId
                 : confluenceParentPageOptions[0].id;
@@ -870,8 +868,29 @@
                 || !hasValidReleasePageConfig;
     }
 
+    async function fetchWithTimeout(url, options = {}, timeoutMs = 300000) {
+        if (typeof AbortController !== 'function') {
+            return fetch(url, options);
+        }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            return await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                throw new Error('Операция выполняется слишком долго. Попробуйте еще раз.');
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
     async function createSingleConfluenceReport(parentPageId, testId, templateId) {
-        const response = await fetch('/api/confluence/report/', {
+        const response = await fetchWithTimeout('/api/confluence/report/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -883,7 +902,7 @@
                     templateId
                 }]
             })
-        });
+        }, 300000);
         if (!response.ok) {
             const errorText = await response.text();
             throw new Error(extractReportCreationErrorMessage(errorText));
@@ -892,7 +911,7 @@
     }
 
     async function createReleaseReportPage(parentPageId, templateId, testIds) {
-        const response = await fetch('/api/confluence/report/release-page/', {
+        const response = await fetchWithTimeout('/api/confluence/report/release-page/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -902,7 +921,7 @@
                 templateId,
                 testUuids: testIds
             })
-        });
+        }, 180000);
         if (!response.ok) {
             const errorText = await response.text();
             throw new Error(extractReportCreationErrorMessage(errorText, 'Не удалось создать страницу отчета по НТ релиза'));

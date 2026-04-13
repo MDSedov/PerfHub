@@ -838,9 +838,9 @@ body {
             flex-shrink: 0;
         }
 
-        .report-generation-modal #generateReportsParentPageId[size] {
-            min-height: 15rem;
-            overflow-y: auto;
+        .report-generation-modal #generateReportsParentPageId,
+        .report-generation-modal #luckyReportsParentPageId {
+            min-height: auto;
         }
 
         .report-generation-section {

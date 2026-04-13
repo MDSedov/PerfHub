@@ -29,6 +29,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Objects;
@@ -211,6 +212,7 @@ public class ConfluenceService {
                 parentPage.spaceKey(),
                 pageTitle,
                 body);
+        waitForPageAvailability(credentials, createdPage.id());
 
         return new ConfluenceReleaseReportPageResponse(
                 createdPage.id(),
@@ -631,6 +633,36 @@ public class ConfluenceService {
             }
         }
         return rootNode;
+    }
+
+    private void waitForPageAvailability(ConfluenceCredentials credentials, String pageId) {
+        final int maxAttempts = 6;
+        final long delayMillis = 700L;
+        ConfluenceClientException lastError = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                confluenceClient.getPage(credentials, pageId);
+                return;
+            } catch (ConfluenceClientException ex) {
+                lastError = ex;
+                if (attempt == maxAttempts) {
+                    throw ex;
+                }
+                try {
+                    TimeUnit.MILLISECONDS.sleep(delayMillis);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new ConfluenceOperationException(
+                            "Ожидание доступности страницы Confluence было прервано",
+                            interrupted);
+                }
+            }
+        }
+
+        if (lastError != null) {
+            throw lastError;
+        }
     }
 
     private List<String> buildPageTitleCandidates(String baseTitle, UUID testUuid) {
