@@ -149,7 +149,7 @@
                     </div>
                 </form>
                 <p class="text-muted small mt-3 mb-0">
-                    Можно выбрать дату и время через календарь, ввести их вручную или вставить Unix timestamp в секундах либо миллисекундах.
+                    Можно выбрать дату и время через календарь, ввести их вручную, вставить Unix timestamp в секундах либо миллисекундах или вставить ссылку на Grafana, чтобы начало и конец заполнились автоматически.
                 </p>
             </div>
 
@@ -555,6 +555,104 @@
         return Number.isNaN(isoDate.getTime()) ? null : isoDate;
     }
 
+    function normalizeGrafanaQueryValue(value) {
+        const normalized = (value ?? '').trim();
+        if (!normalized) {
+            return '';
+        }
+        if (normalized.includes('T') && / \d{2}:\d{2}$/.test(normalized)) {
+            return normalized.replace(/ (\d{2}:\d{2})$/, '+$1');
+        }
+        return normalized;
+    }
+
+    function parseGrafanaRangeParamValue(value) {
+        const normalized = normalizeGrafanaQueryValue(value);
+        if (!normalized) {
+            return null;
+        }
+        const timestampDate = parseTimestampValue(normalized);
+        if (timestampDate) {
+            return timestampDate;
+        }
+        const localDate = parseLocalDateTimeValue(normalized);
+        if (localDate) {
+            return localDate;
+        }
+        const isoDate = new Date(normalized);
+        return Number.isNaN(isoDate.getTime()) ? null : isoDate;
+    }
+
+    function extractGrafanaQueryParams(value) {
+        const trimmed = (value ?? '').trim();
+        if (!trimmed || !/from=/i.test(trimmed) || !/to=/i.test(trimmed)) {
+            return null;
+        }
+        const queryCandidates = [];
+        const appendCandidate = candidate => {
+            const normalized = (candidate ?? '').trim().replace(/^[?#]/, '');
+            if (normalized) {
+                queryCandidates.push(normalized);
+            }
+        };
+
+        try {
+            const parsedUrl = new URL(trimmed, window.location.origin);
+            appendCandidate(parsedUrl.search);
+            const hashValue = parsedUrl.hash ?? '';
+            const hashQueryIndex = hashValue.indexOf('?');
+            if (hashQueryIndex >= 0) {
+                appendCandidate(hashValue.slice(hashQueryIndex + 1));
+            } else {
+                appendCandidate(hashValue);
+            }
+        } catch (error) {
+            // ignore URL parsing errors and fallback to raw query extraction below
+        }
+
+        const queryIndex = trimmed.indexOf('?');
+        if (queryIndex >= 0) {
+            appendCandidate(trimmed.slice(queryIndex + 1));
+        }
+
+        const hashIndex = trimmed.indexOf('#');
+        if (hashIndex >= 0) {
+            const hashValue = trimmed.slice(hashIndex + 1);
+            const hashQueryIndex = hashValue.indexOf('?');
+            if (hashQueryIndex >= 0) {
+                appendCandidate(hashValue.slice(hashQueryIndex + 1));
+            } else {
+                appendCandidate(hashValue);
+            }
+        }
+
+        if (!trimmed.includes('?') && !trimmed.includes('#')) {
+            appendCandidate(trimmed);
+        }
+
+        for (const candidate of queryCandidates) {
+            const params = new URLSearchParams(candidate);
+            if (params.has('from') && params.has('to')) {
+                return params;
+            }
+        }
+
+        return null;
+    }
+
+    function extractGrafanaRange(value) {
+        const params = extractGrafanaQueryParams(value);
+        if (!params) {
+            return null;
+        }
+        const fromDate = parseGrafanaRangeParamValue(params.get('from'));
+        const toDate = parseGrafanaRangeParamValue(params.get('to'));
+        if (!fromDate || !toDate) {
+            return null;
+        }
+        return { from: fromDate, to: toDate };
+    }
+
     function clearRangeInputError(input) {
         input?.classList.remove('is-invalid');
     }
@@ -570,6 +668,25 @@
         pickerInput.value = date ? formatRangePickerValue(date) : '';
     }
 
+    function applyRangeValue(textInput, pickerInput, date) {
+        if (!textInput) {
+            return;
+        }
+        textInput.value = date ? formatRangeDisplayValue(date) : '';
+        syncRangePickerValue(pickerInput, date);
+        clearRangeInputError(textInput);
+    }
+
+    function tryApplyGrafanaRangeValue(rawValue, sourceInput) {
+        const resolvedRange = extractGrafanaRange(rawValue);
+        if (!resolvedRange) {
+            return null;
+        }
+        applyRangeValue(rangeStartInput, rangeStartPickerInput, resolvedRange.from);
+        applyRangeValue(rangeEndInput, rangeEndPickerInput, resolvedRange.to);
+        return sourceInput === rangeEndInput ? resolvedRange.to : resolvedRange.from;
+    }
+
     function normalizeRangeInputValue(textInput, pickerInput) {
         if (!textInput) {
             return null;
@@ -580,6 +697,10 @@
             syncRangePickerValue(pickerInput, null);
             clearRangeInputError(textInput);
             return null;
+        }
+        const grafanaRangeDate = tryApplyGrafanaRangeValue(rawValue, textInput);
+        if (grafanaRangeDate) {
+            return grafanaRangeDate;
         }
         const parsedDate = parseRangeDateValue(rawValue);
         if (!parsedDate) {
@@ -627,7 +748,21 @@
         if (!textInput) {
             return;
         }
+        textInput.addEventListener('paste', event => {
+            const pastedText = event.clipboardData?.getData('text') ?? '';
+            const grafanaRangeDate = tryApplyGrafanaRangeValue(pastedText, textInput);
+            if (!grafanaRangeDate) {
+                return;
+            }
+            event.preventDefault();
+            updateExportButtonState();
+        });
         textInput.addEventListener('input', () => {
+            const grafanaRangeDate = tryApplyGrafanaRangeValue(textInput.value, textInput);
+            if (grafanaRangeDate) {
+                updateExportButtonState();
+                return;
+            }
             clearRangeInputError(textInput);
             updateExportButtonState();
         });
