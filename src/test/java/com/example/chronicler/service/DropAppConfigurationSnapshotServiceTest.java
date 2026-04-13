@@ -180,4 +180,13 @@ class DropAppConfigurationSnapshotServiceTest {
         assertThat(result.components()).containsExactly("pods", "services");
         assertThat(result.documents()).hasSize(1);
     }
+
+    @Test
+    void deleteSnapshotRemovesSavedConfiguration() {
+        when(repository.deleteSnapshot(91L)).thenReturn(1);
+
+        service.deleteSnapshot(91L);
+
+        verify(repository).deleteSnapshot(91L);
+    }
 }

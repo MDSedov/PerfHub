@@ -119,7 +119,7 @@
                             <th scope="col">Дата сохранения</th>
                             <th scope="col">Релиз</th>
                             <th scope="col">Комментарий</th>
-                            <th scope="col" class="text-center">Детали</th>
+                            <th scope="col" class="text-center">Действия</th>
                         </tr>
                         </thead>
                         <tbody id="savedDropAppConfigsTableBody"></tbody>
@@ -609,6 +609,41 @@
             link.remove();
         };
 
+        const deleteSavedConfiguration = async (snapshotId, triggerButton) => {
+            if (!snapshotId) {
+                showToast('Не удалось определить сохранённую конфигурацию для удаления.', 'danger');
+                return;
+            }
+            const confirmed = window.confirm('Удалить сохранённую конфигурацию DropApp? Это действие нельзя отменить.');
+            if (!confirmed) {
+                return;
+            }
+
+            const originalMarkup = triggerButton?.innerHTML ?? '';
+            if (triggerButton) {
+                triggerButton.disabled = true;
+                triggerButton.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            }
+
+            try {
+                await requestJson(`/api/dropapp/configuration/saved/${encodeURIComponent(snapshotId)}`, {
+                    method: 'DELETE'
+                });
+                if (configurationModalElement?.dataset.snapshotId === String(snapshotId)) {
+                    hideManagedModal(configurationModalElement, configurationModal);
+                    delete configurationModalElement.dataset.snapshotId;
+                }
+                await loadSavedConfigurations(false);
+                showToast('Сохранённая конфигурация DropApp удалена.', 'success');
+            } catch (error) {
+                showToast('Не удалось удалить сохранённую конфигурацию: ' + error.message, 'danger');
+                if (triggerButton) {
+                    triggerButton.disabled = false;
+                    triggerButton.innerHTML = originalMarkup;
+                }
+            }
+        };
+
         const saveSnapshotMetadata = async (snapshotId, release, comment, saveButton) => {
             if (!snapshotId) {
                 showToast('Не удалось определить сохранённую конфигурацию для сохранения.', 'danger');
@@ -672,6 +707,13 @@
             configurationModalTitle.textContent = normalizedMode === 'saved'
                     ? 'Сохраненная конфигурация DropApp'
                     : 'Текущая конфигурация DropApp';
+            if (configurationModalElement) {
+                if (normalizedMode === 'saved' && payload?.id) {
+                    configurationModalElement.dataset.snapshotId = String(payload.id);
+                } else {
+                    delete configurationModalElement.dataset.snapshotId;
+                }
+            }
 
             if (configurationModalSubtitle) {
                 const subtitle = buildModalSubtitle(payload, normalizedMode);
@@ -833,10 +875,14 @@
 
                 const actionsCell = document.createElement('td');
                 actionsCell.className = 'text-center';
+                const actionsRow = document.createElement('div');
+                actionsRow.className = 'd-inline-flex align-items-center justify-content-center gap-2';
+
                 const detailsButton = document.createElement('button');
                 detailsButton.type = 'button';
                 detailsButton.className = 'details-toggle';
                 detailsButton.setAttribute('aria-label', 'Открыть сохраненную конфигурацию');
+                detailsButton.title = 'Открыть детали';
                 detailsButton.innerHTML = '<i class="bi bi-arrows-angle-expand details-icon"></i>';
                 detailsButton.addEventListener('click', async () => {
                     detailsButton.disabled = true;
@@ -849,7 +895,29 @@
                         detailsButton.disabled = false;
                     }
                 });
-                actionsCell.appendChild(detailsButton);
+
+                const downloadButton = document.createElement('button');
+                downloadButton.type = 'button';
+                downloadButton.className = 'template-action-button';
+                downloadButton.setAttribute('aria-label', 'Скачать архив конфигурации');
+                downloadButton.title = 'Скачать ZIP';
+                downloadButton.innerHTML = '<i class="bi bi-download"></i>';
+                downloadButton.addEventListener('click', () => triggerSnapshotArchiveDownload(item?.id));
+
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.className = 'template-action-button danger';
+                deleteButton.setAttribute('aria-label', 'Удалить сохраненную конфигурацию');
+                deleteButton.title = 'Удалить';
+                deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
+                deleteButton.addEventListener('click', async () => {
+                    await deleteSavedConfiguration(item?.id, deleteButton);
+                });
+
+                actionsRow.appendChild(detailsButton);
+                actionsRow.appendChild(downloadButton);
+                actionsRow.appendChild(deleteButton);
+                actionsCell.appendChild(actionsRow);
                 row.appendChild(actionsCell);
                 savedConfigsTableBody.appendChild(row);
             });

@@ -164,6 +164,16 @@ public class DropAppConfigurationSnapshotService {
                         "Не удалось загрузить обновленную конфигурацию DropApp"));
     }
 
+    public void deleteSnapshot(Long snapshotId) {
+        if (snapshotId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Идентификатор снапшота DropApp не задан");
+        }
+        int deletedRows = repository.deleteSnapshot(snapshotId);
+        if (deletedRows == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Сохраненная конфигурация DropApp не найдена");
+        }
+    }
+
     public SnapshotArchive createSnapshotArchive(Long snapshotId) {
         DropAppConfigurationSnapshotDetailsDto details = findSnapshotDetails(snapshotId)
                 .orElseThrow(() -> new ResponseStatusException(

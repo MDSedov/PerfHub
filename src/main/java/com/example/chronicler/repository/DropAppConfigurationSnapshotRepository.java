@@ -44,6 +44,11 @@ public class DropAppConfigurationSnapshotRepository {
             WHERE id = ?
             """;
 
+    private static final String DELETE_SNAPSHOT_SQL = """
+            DELETE FROM dropapp_configuration_snapshots
+            WHERE id = ?
+            """;
+
     private static final String SELECT_ITEMS_BY_SNAPSHOT_SQL = """
             SELECT id, snapshot_id, namespace, service_name, pod_name, container_name, version, release,
                    request_cpu, limit_cpu, request_ram, limit_ram
@@ -146,6 +151,10 @@ public class DropAppConfigurationSnapshotRepository {
 
     public void updateSnapshot(long snapshotId, String release, String comment) {
         jdbcTemplate.update(UPDATE_SNAPSHOT_SQL, release, comment, snapshotId);
+    }
+
+    public int deleteSnapshot(long snapshotId) {
+        return jdbcTemplate.update(DELETE_SNAPSHOT_SQL, snapshotId);
     }
 
     public void saveItems(long snapshotId, List<DropAppConfigurationSnapshotItem> items) {
