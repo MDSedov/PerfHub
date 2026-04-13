@@ -2957,12 +2957,21 @@
 
         const requirementsSection = document.createElement('section');
         requirementsSection.className = 'test-details-section';
+        const requirementsHeader = document.createElement('div');
+        requirementsHeader.className = 'd-flex flex-wrap align-items-center justify-content-between gap-2 mb-3';
         const requirementsTitle = document.createElement('h6');
-        requirementsTitle.className = 'test-details-section-title mb-3';
+        requirementsTitle.className = 'test-details-section-title mb-0';
         requirementsTitle.textContent = 'Проверка на соответствие нефункциональным требованиям';
+        const refreshRequirementsButton = document.createElement('button');
+        refreshRequirementsButton.type = 'button';
+        refreshRequirementsButton.className = 'btn btn-outline-success btn-sm';
+        refreshRequirementsButton.textContent = 'Перепроверить';
+        refreshRequirementsButton.disabled = !evaluationsAllowed;
         const requirementsBox = document.createElement('div');
         requirementsBox.innerHTML = '<div class="text-muted small">Загружаем результаты проверок…</div>';
-        requirementsSection.appendChild(requirementsTitle);
+        requirementsHeader.appendChild(requirementsTitle);
+        requirementsHeader.appendChild(refreshRequirementsButton);
+        requirementsSection.appendChild(requirementsHeader);
         requirementsSection.appendChild(requirementsBox);
 
         const configurationSection = document.createElement('section');
@@ -3085,15 +3094,75 @@
         wrapper.appendChild(configurationSection);
         wrapper.appendChild(grafanaSection);
 
+        const loadRequirementResults = async (mode = 'cached', showNotification = false) => {
+            if (!requirementsBox.isConnected) {
+                return;
+            }
+            if (!evaluationsAllowed) {
+                requirementsBox.innerHTML = '<div class="text-muted small">Проверки станут доступны после завершения обновления данных.</div>';
+                refreshRequirementsButton.disabled = true;
+                refreshRequirementsButton.textContent = 'Перепроверить';
+                return;
+            }
+
+            refreshRequirementsButton.disabled = true;
+            refreshRequirementsButton.textContent = mode === 'fresh' ? 'Перепроверяем…' : 'Загружаем…';
+            requirementsBox.innerHTML = mode === 'fresh'
+                    ? '<div class="text-muted small">Подгружаем актуальные требования и перепроверяем тест…</div>'
+                    : '<div class="text-muted small">Загружаем результаты проверок…</div>';
+
+            try {
+                if (mode === 'fresh') {
+                    setComplianceStatus(testStatusElements.get(testId), 'loading', testId);
+                }
+                const evaluation = await ensureEvaluation(testId, mode);
+                if (!requirementsBox.isConnected || activeDetailsTestId !== testId) {
+                    return;
+                }
+                const requirements = Array.isArray(evaluation?.requirements) ? evaluation.requirements : [];
+                if (!requirements.length) {
+                    setComplianceStatus(testStatusElements.get(testId), 'missing', testId);
+                } else {
+                    const compliant = Boolean(evaluation?.compliant);
+                    setComplianceStatus(testStatusElements.get(testId), compliant ? 'pass' : 'fail', testId);
+                }
+                renderRequirementResults(requirementsBox, evaluation);
+                if (showNotification) {
+                    showToast(
+                            requirements.length > 0
+                                    ? 'Тест перепроверен на актуальные требования.'
+                                    : 'Для графиков шаблона этого типа теста требования пока не настроены.',
+                            requirements.length > 0 ? 'success' : 'warning',
+                            6000);
+                }
+            } catch (error) {
+                if (!requirementsBox.isConnected || activeDetailsTestId !== testId) {
+                    return;
+                }
+                setComplianceStatus(testStatusElements.get(testId), 'error', testId);
+                requirementsBox.innerHTML = `<div class="text-danger small">Не удалось получить результаты проверок: ${error.message}</div>`;
+                if (showNotification) {
+                    showToast('Не удалось перепроверить тест на требования: ' + error.message, 'danger', 12000);
+                }
+            } finally {
+                if (refreshRequirementsButton.isConnected) {
+                    refreshRequirementsButton.disabled = !evaluationsAllowed;
+                    refreshRequirementsButton.textContent = 'Перепроверить';
+                }
+                if (filterState.compliance) {
+                    applyFilters();
+                }
+            }
+        };
+
+        refreshRequirementsButton.addEventListener('click', () => {
+            void loadRequirementResults('fresh', true);
+        });
+
         if (!evaluationsAllowed) {
             requirementsBox.innerHTML = '<div class="text-muted small">Проверки станут доступны после завершения обновления данных.</div>';
         } else {
-            try {
-                const evaluation = await ensureEvaluation(testId);
-                renderRequirementResults(requirementsBox, evaluation);
-            } catch (error) {
-                requirementsBox.innerHTML = `<div class="text-danger small">Не удалось получить результаты проверок: ${error.message}</div>`;
-            }
+            await loadRequirementResults('cached', false);
         }
 
         try {
