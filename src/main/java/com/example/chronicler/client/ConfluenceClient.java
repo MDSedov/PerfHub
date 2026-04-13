@@ -8,6 +8,7 @@ import com.example.chronicler.dto.confluence.ConfluencePageSummary;
 import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -30,6 +31,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
 
 @Component
 public class ConfluenceClient {
@@ -432,9 +434,12 @@ public class ConfluenceClient {
             String rootPageId,
             HttpHeaders headers,
             ConfluenceClientException originalError) {
+        String cql = UriUtils.encodeQueryParam(
+                "ancestor=" + rootPageId + " and type=page",
+                StandardCharsets.UTF_8);
         URI uri = apiUriBuilder()
                 .pathSegment("content", "search")
-                .queryParam("cql", "ancestor=" + rootPageId + " and type=page")
+                .queryParam("cql", cql)
                 .queryParam("expand", "ancestors")
                 .queryParam("limit", 1000)
                 .build(true)
