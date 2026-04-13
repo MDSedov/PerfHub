@@ -809,21 +809,38 @@ body {
             box-shadow: 0 24px 60px rgba(15, 31, 22, 0.18);
         }
 
+        .report-generation-modal > form {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
         .report-generation-modal .modal-header {
             padding: 1.25rem 1.5rem 1rem;
             border-bottom: 1px solid #e5efe8;
             align-items: flex-start;
+            flex-shrink: 0;
         }
 
         .report-generation-modal .modal-body {
             padding: 1.25rem 1.5rem 1.5rem;
             background: #f7faf8;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
         }
 
         .report-generation-modal .modal-footer {
             padding: 1rem 1.5rem 1.25rem;
             border-top: 1px solid #e5efe8;
             background: #ffffff;
+            flex-shrink: 0;
+        }
+
+        .report-generation-modal #generateReportsParentPageId[size] {
+            min-height: 15rem;
+            overflow-y: auto;
         }
 
         .report-generation-section {

@@ -273,6 +273,7 @@
                                     <label for="generateReportsParentPageId" class="form-label">Страница в Confluence</label>
                                     <select class="form-select"
                                             id="generateReportsParentPageId"
+                                            size="8"
                                             required>
                                         <option value="">Загружаем страницы Confluence…</option>
                                     </select>
@@ -1301,6 +1302,7 @@
             generateReportsParentPageRefreshButton.disabled = confluenceParentPagesLoading;
         }
 
+        generateReportsParentPageIdInput.size = 1;
         generateReportsParentPageIdInput.innerHTML = '';
 
         if (confluenceParentPagesLoading) {
@@ -1341,6 +1343,7 @@
         });
 
         generateReportsParentPageIdInput.disabled = false;
+        generateReportsParentPageIdInput.size = Math.min(Math.max(confluenceParentPageOptions.length, 1), 10);
         const nextValue = confluenceParentPageOptions.some(page => page.id === selectedReportParentPageId)
                 ? selectedReportParentPageId
                 : confluenceParentPageOptions[0].id;
