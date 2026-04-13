@@ -5,6 +5,10 @@ import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
 import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePage;
+import com.example.chronicler.dto.confluence.ConfluencePageSummary;
+import com.example.chronicler.dto.confluence.ConfluencePageTreeNode;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageRequest;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
@@ -39,6 +43,8 @@ public class ConfluenceService {
     private static final String GRAFANA_SERVICE = "grafana";
     private static final String GRAFANA_IMAGE_WIDTH_KEY = "image-width";
     private static final String GRAFANA_IMAGE_HEIGHT_KEY = "image-height";
+    private static final String CONFLUENCE_SERVICE = "confluence";
+    private static final String REPORTS_PARENT_PAGE_ID_KEY = "reports-parent-page-id";
     private static final String RELEASE_PLACEHOLDER = "@release";
     private static final String CONFIG_PLACEHOLDER = "@config";
     private static final String GRAPHICS_PLACEHOLDER = "@graphics";
@@ -148,6 +154,68 @@ public class ConfluenceService {
         }
 
         return new ConfluenceReportHierarchyResponse(overviewPage.id(), List.copyOf(childPageIds));
+    }
+
+    public ConfluencePageTreeNode getReportParentPageTree(ConfluenceCredentials credentials) {
+        Objects.requireNonNull(credentials, "Confluence credentials must not be null");
+        validateCredentials(credentials);
+
+        String rootPageId = configurationProvider.findValue(CONFLUENCE_SERVICE, REPORTS_PARENT_PAGE_ID_KEY)
+                .map(StringUtils::trimWhitespace)
+                .filter(StringUtils::hasText)
+                .orElseThrow(() -> new ConfluenceOperationException(
+                        "В настройках Confluence не заполнено поле \"Номер родительской страницы для отчетов по НТ\""));
+
+        ConfluencePage rootPage = confluenceClient.getPage(credentials, rootPageId);
+        return buildPageTree(credentials, rootPage);
+    }
+
+    public ConfluenceReleaseReportPageResponse createReleaseReportPage(
+            ConfluenceCredentials credentials,
+            ConfluenceReleaseReportPageRequest request) {
+        Objects.requireNonNull(credentials, "Confluence credentials must not be null");
+        Objects.requireNonNull(request, "Confluence release report page request must not be null");
+        validateCredentials(credentials);
+
+        if (!StringUtils.hasText(request.parentPageId())) {
+            throw new ConfluenceOperationException("parentPageId is required");
+        }
+        if (!StringUtils.hasText(request.title())) {
+            throw new ConfluenceOperationException("title is required");
+        }
+        if (request.templateId() == null) {
+            throw new ConfluenceOperationException("templateId is required");
+        }
+        if (request.testUuids() == null || request.testUuids().isEmpty()) {
+            throw new ConfluenceOperationException("testUuids must not be empty");
+        }
+
+        ConfluencePage parentPage = confluenceClient.getPage(credentials, request.parentPageId());
+        if (!StringUtils.hasText(parentPage.spaceKey())) {
+            throw new ConfluenceOperationException("Parent page does not contain space key information");
+        }
+
+        ConfluenceTemplate template;
+        try {
+            template = confluenceTemplateSettingsService.getActiveTemplate(request.templateId());
+        } catch (IllegalArgumentException ex) {
+            throw new ConfluenceOperationException(ex.getMessage(), ex);
+        }
+
+        String releaseValue = resolveReleaseValueForTests(request.testUuids());
+        String pageTitle = buildReleasePageTitle(request.title(), releaseValue);
+        String body = buildReportBody(template.text(), releaseValue, "", "");
+        ConfluencePage createdPage = confluenceClient.createChildPage(
+                credentials,
+                request.parentPageId(),
+                parentPage.spaceKey(),
+                pageTitle,
+                body);
+
+        return new ConfluenceReleaseReportPageResponse(
+                createdPage.id(),
+                createdPage.title(),
+                confluenceClient.buildPageUrl(createdPage.id()));
     }
 
     public ConfluenceChartsAppendResponse appendChartsToPage(
@@ -461,6 +529,18 @@ public class ConfluenceService {
         return StringUtils.hasText(resolved) ? resolved : template.fullName();
     }
 
+    private String buildReleasePageTitle(String titleTemplate, String releaseValue) {
+        String resolved = getSafeBody(titleTemplate)
+                .replace(RELEASE_PLACEHOLDER, releaseValue)
+                .replace(CONFIG_PLACEHOLDER, "")
+                .replace(GRAPHICS_PLACEHOLDER, "")
+                .replace('\n', ' ')
+                .replace('\r', ' ')
+                .trim()
+                .replaceAll("\\s{2,}", " ");
+        return StringUtils.hasText(resolved) ? resolved : "Отчет по НТ релиза";
+    }
+
     private String buildReportBody(
             String templateBody,
             String releaseValue,
@@ -510,6 +590,28 @@ public class ConfluenceService {
             throw lastDuplicateError;
         }
         throw new ConfluenceOperationException("Не удалось создать страницу отчета в Confluence");
+    }
+
+    private ConfluencePageTreeNode buildPageTree(ConfluenceCredentials credentials, ConfluencePage page) {
+        List<ConfluencePageTreeNode> children = confluenceClient.listChildPages(credentials, page.id()).stream()
+                .map(childPage -> buildPageTree(credentials, childPage))
+                .toList();
+        return new ConfluencePageTreeNode(
+                page.id(),
+                StringUtils.hasText(page.title()) ? page.title() : page.id(),
+                confluenceClient.buildPageUrl(page.id()),
+                children);
+    }
+
+    private ConfluencePageTreeNode buildPageTree(ConfluenceCredentials credentials, ConfluencePageSummary page) {
+        List<ConfluencePageTreeNode> children = confluenceClient.listChildPages(credentials, page.id()).stream()
+                .map(childPage -> buildPageTree(credentials, childPage))
+                .toList();
+        return new ConfluencePageTreeNode(
+                page.id(),
+                StringUtils.hasText(page.title()) ? page.title() : page.id(),
+                confluenceClient.buildPageUrl(page.id()),
+                children);
     }
 
     private List<String> buildPageTitleCandidates(String baseTitle, UUID testUuid) {
@@ -574,6 +676,15 @@ public class ConfluenceService {
                 .toList();
         String release = ReleaseVersionUtils.findMaxRelease(releases);
         return StringUtils.hasText(release) ? release : "—";
+    }
+
+    private String resolveReleaseValueForTests(List<UUID> testUuids) {
+        List<KubernetesConfiguration> allConfigurations = (testUuids == null ? List.<UUID>of() : testUuids).stream()
+                .filter(Objects::nonNull)
+                .map(kubernetesConfigurationService::getConfigurations)
+                .flatMap(List::stream)
+                .toList();
+        return resolveReleaseValue(allConfigurations);
     }
 
     /**

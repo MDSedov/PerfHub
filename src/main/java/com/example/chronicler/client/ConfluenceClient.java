@@ -2,9 +2,11 @@ package com.example.chronicler.client;
 
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePage;
+import com.example.chronicler.dto.confluence.ConfluencePageSummary;
 import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -135,6 +137,53 @@ public class ConfluenceClient {
                     buildErrorMessage("Failed to create Confluence child page under " + parentPageId, ex),
                     ex);
         }
+    }
+
+    public List<ConfluencePageSummary> listChildPages(ConfluenceCredentials credentials, String parentPageId) {
+        Assert.notNull(credentials, "credentials must not be null");
+        Assert.hasText(parentPageId, "parentPageId must not be empty");
+
+        HttpHeaders headers = authorizationHeaders(credentials);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        int start = 0;
+        final int limit = 200;
+        List<ConfluencePageSummary> childPages = new ArrayList<>();
+
+        while (true) {
+            URI uri = apiUriBuilder()
+                    .pathSegment("content", parentPageId, "child", "page")
+                    .queryParam("limit", limit)
+                    .queryParam("start", start)
+                    .build(true)
+                    .toUri();
+            logConfluenceRequest(
+                    "GET",
+                    uri,
+                    headers,
+                    "parentPageId=%s, limit=%s, start=%s".formatted(parentPageId, limit, start));
+            try {
+                ResponseEntity<ChildPagesResponse> response = restTemplate.exchange(
+                        uri, HttpMethod.GET, new HttpEntity<>(headers), ChildPagesResponse.class);
+                ChildPagesResponse body = response.getBody();
+                if (body == null || body.results() == null || body.results().isEmpty()) {
+                    break;
+                }
+                body.results().forEach(page -> childPages.add(new ConfluencePageSummary(
+                        page.id(),
+                        StringUtils.hasText(page.title()) ? page.title() : page.id())));
+                if (body.results().size() < limit) {
+                    break;
+                }
+                start += body.results().size();
+            } catch (RestClientException ex) {
+                throw new ConfluenceClientException(
+                        buildErrorMessage("Failed to load Confluence child pages for " + parentPageId, ex),
+                        ex);
+            }
+        }
+
+        return List.copyOf(childPages);
     }
 
     public String uploadAttachment(
@@ -329,6 +378,10 @@ public class ConfluenceClient {
     private record AttachmentResponse(List<AttachmentResult> results) {}
 
     private record AttachmentResult(String id, String title) {}
+
+    private record ChildPagesResponse(List<ChildPageResult> results) {}
+
+    private record ChildPageResult(String id, String title) {}
 
     private record UpdateRequest(String id, String type, String title, Version version, Body body) {}
 

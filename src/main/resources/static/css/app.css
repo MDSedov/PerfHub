@@ -1762,34 +1762,42 @@ body {
             margin-bottom: 0.75rem;
         }
 
-        .settings-item + .settings-item {
-            border-top: 1px solid rgba(0, 152, 70, 0.08);
-            margin-top: 1rem;
-            padding-top: 1rem;
+        .settings-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
         }
 
-        .settings-key {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: #6a7c73;
+        .settings-item {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            align-items: center;
+            gap: 0.85rem 1rem;
         }
 
-        .settings-description {
+        .settings-label {
             font-weight: 500;
             color: #1d2822;
+            margin: 0;
         }
 
-        .settings-key {
-            font-size: 13px;
-            color: #7d7a75;
-            text-transform: none;
-            letter-spacing: 0;
-            margin-top: 0.25rem;
+        .settings-field-control {
+            min-width: 0;
+        }
+
+        .settings-field-control .form-control {
+            width: 100%;
         }
 
         .integration-card .btn {
             white-space: nowrap;
+        }
+
+        @media (max-width: 768px) {
+            .settings-item {
+                grid-template-columns: 1fr;
+                gap: 0.45rem;
+            }
         }
 
         @media (max-width: 576px) {
@@ -2236,6 +2244,15 @@ body {
 
         .template-chart-row.drag-over-bottom {
             box-shadow: inset 0 -3px 0 #3b8f61;
+        }
+
+        .template-editor-fallback-tooltip {
+            z-index: 1095;
+            pointer-events: none;
+        }
+
+        .template-editor-fallback-tooltip .tooltip-inner {
+            max-width: 260px;
         }
 
         .toast-container {

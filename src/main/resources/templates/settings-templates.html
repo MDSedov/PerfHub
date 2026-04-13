@@ -145,22 +145,22 @@
 
                     <div class="modal-body">
                         <div class="row g-3">
-                            <div class="col-12 col-lg-4">
-                                <label for="templateShortNameInput" class="form-label">Короткое имя</label>
+                            <div class="col-12 col-lg-6">
+                                <label for="templateShortNameInput" class="form-label">Сокрашенное название шаблона</label>
                                 <input type="text"
                                        class="form-control"
                                        id="templateShortNameInput"
                                        maxlength="12"
                                        placeholder="До 12 символов">
                             </div>
-                            <div class="col-12 col-lg-4">
-                                <label for="templateFullNameInput" class="form-label">Полное название</label>
+                            <div class="col-12 col-lg-6">
+                                <label for="templateFullNameInput" class="form-label">Полное название шаблона</label>
                                 <input type="text"
                                        class="form-control"
                                        id="templateFullNameInput"
                                        placeholder="Уникальное название шаблона">
                             </div>
-                            <div class="col-12 col-lg-4">
+                            <div class="col-12">
                                 <label for="templateReportTitleInput" class="form-label">Название отчета</label>
                                 <input type="text"
                                        class="form-control"
@@ -191,28 +191,31 @@
                                         <option value="h2">Заголовок H2</option>
                                         <option value="h3">Заголовок H3</option>
                                     </select>
-                                    <button type="button" class="template-editor-button" data-editor-command="bold" aria-label="Жирный">
+                                    <button type="button" class="template-editor-button" data-editor-command="bold" aria-label="Жирный шрифт" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Жирный шрифт">
                                         <i class="bi bi-type-bold"></i>
                                     </button>
-                                    <button type="button" class="template-editor-button" data-editor-command="italic" aria-label="Курсив">
+                                    <button type="button" class="template-editor-button" data-editor-command="italic" aria-label="Курсив" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Курсив">
                                         <i class="bi bi-type-italic"></i>
                                     </button>
-                                    <button type="button" class="template-editor-button" data-editor-command="underline" aria-label="Подчеркивание">
+                                    <button type="button" class="template-editor-button" data-editor-command="underline" aria-label="Подчеркнутый текст" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Подчеркнутый текст">
                                         <i class="bi bi-type-underline"></i>
                                     </button>
-                                    <button type="button" class="template-editor-button" data-editor-command="justifyLeft" aria-label="По левому краю">
+                                    <button type="button" class="template-editor-button" data-editor-command="removeFormat" aria-label="Удалить форматирование" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Удалить форматирование">
+                                        <i class="bi bi-eraser"></i>
+                                    </button>
+                                    <button type="button" class="template-editor-button" data-editor-command="justifyLeft" aria-label="Выровнять по левому краю" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Выровнять по левому краю">
                                         <i class="bi bi-text-left"></i>
                                     </button>
-                                    <button type="button" class="template-editor-button" data-editor-command="justifyCenter" aria-label="По центру">
+                                    <button type="button" class="template-editor-button" data-editor-command="justifyCenter" aria-label="Выровнять по центру" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Выровнять по центру">
                                         <i class="bi bi-text-center"></i>
                                     </button>
-                                    <button type="button" class="template-editor-button" data-editor-command="justifyRight" aria-label="По правому краю">
+                                    <button type="button" class="template-editor-button" data-editor-command="justifyRight" aria-label="Выровнять по правому краю" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Выровнять по правому краю">
                                         <i class="bi bi-text-right"></i>
                                     </button>
-                                    <button type="button" class="template-editor-button" data-editor-command="insertUnorderedList" aria-label="Маркированный список">
+                                    <button type="button" class="template-editor-button" data-editor-command="insertUnorderedList" aria-label="Маркированный список" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Маркированный список">
                                         <i class="bi bi-list-ul"></i>
                                     </button>
-                                    <button type="button" class="template-editor-button" data-editor-command="insertOrderedList" aria-label="Нумерованный список">
+                                    <button type="button" class="template-editor-button" data-editor-command="insertOrderedList" aria-label="Нумерованный список" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Нумерованный список">
                                         <i class="bi bi-list-ol"></i>
                                     </button>
                                 </div>
@@ -313,6 +316,7 @@
     let isDeleting = false;
     let templateDetailsModalBackdrop = null;
     let draggedChartIndex = null;
+    let templateEditorTooltipElement = null;
 
     function createEmptyTemplateDraft() {
         return {
@@ -463,6 +467,94 @@
         return toast;
     }
 
+    function ensureTemplateEditorTooltipElement() {
+        if (templateEditorTooltipElement?.isConnected) {
+            return templateEditorTooltipElement;
+        }
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip bs-tooltip-bottom show template-editor-fallback-tooltip';
+        tooltip.setAttribute('role', 'tooltip');
+        tooltip.innerHTML = '<div class="tooltip-arrow"></div><div class="tooltip-inner"></div>';
+        tooltip.style.position = 'fixed';
+        tooltip.style.display = 'none';
+        document.body.appendChild(tooltip);
+        templateEditorTooltipElement = tooltip;
+        return tooltip;
+    }
+
+    function getTemplateEditorTooltipText(element) {
+        return element?.getAttribute('data-bs-title') || element?.getAttribute('aria-label') || '';
+    }
+
+    function hideTemplateEditorTooltip(element = null) {
+        if (window.bootstrap?.Tooltip && element) {
+            bootstrap.Tooltip.getInstance(element)?.hide();
+        }
+        if (templateEditorTooltipElement) {
+            templateEditorTooltipElement.style.display = 'none';
+        }
+    }
+
+    function showTemplateEditorTooltipFallback(element) {
+        const text = getTemplateEditorTooltipText(element);
+        if (!text) {
+            return;
+        }
+        const tooltip = ensureTemplateEditorTooltipElement();
+        const inner = tooltip.querySelector('.tooltip-inner');
+        if (!inner) {
+            return;
+        }
+        inner.textContent = text;
+        tooltip.style.display = 'block';
+        tooltip.className = `tooltip bs-tooltip-${element.dataset.bsPlacement || 'bottom'} show template-editor-fallback-tooltip`;
+        const rect = element.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+        const top = rect.bottom + 10;
+        tooltip.style.left = `${Math.max(8, Math.min(left, window.innerWidth - tooltipRect.width - 8))}px`;
+        tooltip.style.top = `${top}px`;
+    }
+
+    function showTemplateEditorTooltip(element) {
+        if (!element) {
+            return;
+        }
+        if (window.bootstrap?.Tooltip) {
+            bootstrap.Tooltip.getOrCreateInstance(element, {
+                placement: element.dataset.bsPlacement || 'bottom',
+                trigger: 'manual',
+                container: 'body'
+            }).show();
+            return;
+        }
+        showTemplateEditorTooltipFallback(element);
+    }
+
+    function initTemplateEditorTooltips() {
+        if (!templateEditorToolbar) {
+            return;
+        }
+        templateEditorToolbar.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+            if (element.dataset.tooltipBound === 'true') {
+                return;
+            }
+            element.dataset.tooltipBound = 'true';
+            if (window.bootstrap?.Tooltip) {
+                bootstrap.Tooltip.getOrCreateInstance(element, {
+                    placement: element.dataset.bsPlacement || 'bottom',
+                    trigger: 'manual',
+                    container: 'body'
+                });
+            }
+            element.addEventListener('mouseenter', () => showTemplateEditorTooltip(element));
+            element.addEventListener('mouseleave', () => hideTemplateEditorTooltip(element));
+            element.addEventListener('focus', () => showTemplateEditorTooltip(element));
+            element.addEventListener('blur', () => hideTemplateEditorTooltip(element));
+            element.addEventListener('click', () => hideTemplateEditorTooltip(element));
+        });
+    }
+
     if (toastContainer) {
         toastContainer.addEventListener('click', event => {
             const closeButton = event.target.closest('.toast-close');
@@ -502,6 +594,11 @@
             dashboardUid,
             panelId: panelId ? Number(panelId) : ''
         };
+    }
+
+    function findPanelOptionByValue(value) {
+        return panelOptionsCache.find(option =>
+            normalizePanelOptionValue(option.dashboardUid, option.panelId) === value);
     }
 
     function syncTemplateTextInput() {
@@ -552,6 +649,9 @@
         focusTemplateEditor();
         if (command === 'formatBlock' && value) {
             document.execCommand(command, false, `<${value}>`);
+        } else if (command === 'removeFormat') {
+            document.execCommand('removeFormat', false);
+            document.execCommand('unlink', false);
         } else {
             document.execCommand(command, false, value);
         }
@@ -605,6 +705,40 @@
         range.insertNode(textNode);
         range.setStartAfter(textNode);
         range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        activeTemplateDraft.text = getTemplateEditorHtml();
+    }
+
+    function insertPlainTextIntoEditor(text) {
+        if (!templateTextEditor) {
+            return;
+        }
+        const normalizedText = typeof text === 'string' ? text.replace(/\r\n?/g, '\n') : '';
+        focusTemplateEditor();
+        if (document.execCommand) {
+            document.execCommand('insertText', false, normalizedText);
+            activeTemplateDraft.text = getTemplateEditorHtml();
+            return;
+        }
+
+        const selection = window.getSelection();
+        if (!selectionInsideEditor()) {
+            moveCaretToEditorEnd();
+        }
+        const range = selection.rangeCount ? selection.getRangeAt(0) : document.createRange();
+        range.deleteContents();
+
+        const fragment = document.createDocumentFragment();
+        normalizedText.split('\n').forEach((line, index, lines) => {
+            fragment.appendChild(document.createTextNode(line));
+            if (index < lines.length - 1) {
+                fragment.appendChild(document.createElement('br'));
+            }
+        });
+
+        range.insertNode(fragment);
+        range.collapse(false);
         selection.removeAllRanges();
         selection.addRange(range);
         activeTemplateDraft.text = getTemplateEditorHtml();
@@ -796,6 +930,11 @@
                 const selected = parsePanelOptionValue(codeSelect.value);
                 activeTemplateDraft.charts[index].dashboardUid = selected.dashboardUid;
                 activeTemplateDraft.charts[index].panelId = selected.panelId;
+                const selectedOption = findPanelOptionByValue(codeSelect.value);
+                if (selectedOption?.panelTitle) {
+                    titleInput.value = selectedOption.panelTitle;
+                    activeTemplateDraft.charts[index].title = selectedOption.panelTitle;
+                }
             });
             codeCell.appendChild(codeSelect);
 
@@ -1031,6 +1170,12 @@
         templateTextEditor.addEventListener('input', () => {
             activeTemplateDraft.text = getTemplateEditorHtml();
         });
+
+        templateTextEditor.addEventListener('paste', event => {
+            event.preventDefault();
+            const pastedText = event.clipboardData?.getData('text/plain') ?? '';
+            insertPlainTextIntoEditor(pastedText);
+        });
     }
 
     if (templateEditorToolbar) {
@@ -1042,6 +1187,8 @@
             applyTemplateEditorCommand(button.dataset.editorCommand);
         });
     }
+
+    initTemplateEditorTooltips();
 
     if (templateEditorBlockFormat) {
         templateEditorBlockFormat.addEventListener('change', () => {
@@ -1087,7 +1234,12 @@
     }
 
     if (templateDetailsModalElement) {
+        templateDetailsModalElement.addEventListener('shown.bs.modal', () => {
+            initTemplateEditorTooltips();
+        });
+
         templateDetailsModalElement.addEventListener('hidden.bs.modal', () => {
+            hideTemplateEditorTooltip();
             resetTemplateModalState();
         });
 

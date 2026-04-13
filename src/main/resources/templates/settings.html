@@ -740,7 +740,7 @@
         status.className = 'small text-muted mb-2 d-none';
 
         const fields = document.createElement('div');
-        fields.className = 'd-flex flex-column';
+        fields.className = 'settings-fields';
 
         const cardState = {
             element: card,
@@ -755,16 +755,9 @@
             const entry = document.createElement('div');
             entry.className = 'settings-item';
 
-            const meta = document.createElement('div');
-            meta.className = 'mb-2';
-            const description = document.createElement('div');
-            description.className = 'settings-description';
-            description.textContent = item.description ?? '—';
-            meta.appendChild(description);
-            const keyLabel = document.createElement('div');
-            keyLabel.className = 'settings-key';
-            keyLabel.textContent = item.key;
-            meta.appendChild(keyLabel);
+            const label = document.createElement('label');
+            label.className = 'settings-label';
+            label.textContent = (item.description ?? '').trim() || 'Параметр';
 
             const input = document.createElement('input');
             input.type = 'text';
@@ -773,6 +766,9 @@
             input.dataset.service = item.service;
             input.dataset.key = item.key;
             input.dataset.originalValue = input.value;
+            input.id = `settings-${item.service}-${item.key}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+            input.setAttribute('aria-label', label.textContent);
+            label.setAttribute('for', input.id);
 
             input.addEventListener('input', () => {
                 setInputValueAndTrackChange(input, input.value);
@@ -782,8 +778,12 @@
 
             cardState.inputs.push(input);
 
-            entry.appendChild(meta);
-            entry.appendChild(input);
+            const control = document.createElement('div');
+            control.className = 'settings-field-control';
+            control.appendChild(input);
+
+            entry.appendChild(label);
+            entry.appendChild(control);
             fields.appendChild(entry);
         });
 
