@@ -28,6 +28,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -152,8 +153,55 @@ public class GrafanaClient {
                 return new byte[0];
             }
             return body;
+        } catch (RestClientResponseException ex) {
+            String message = "Failed to render Grafana panel %d for dashboard '%s' (%s): %s"
+                    .formatted(panelId, dashboardSlug, dashboardUid, describeHttpFailure(ex));
+            log.error("{} via {}", message, uri, ex);
+            throw new GrafanaClientException(message, ex);
         } catch (RestClientException ex) {
-            throw new GrafanaClientException("Failed to render Grafana panel", ex);
+            String message = "Failed to render Grafana panel %d for dashboard '%s' (%s): %s"
+                    .formatted(panelId, dashboardSlug, dashboardUid, describeClientFailure(ex));
+            log.error("{} via {}", message, uri, ex);
+            throw new GrafanaClientException(message, ex);
+        }
+    }
+
+    public String loadDashboardSlug(String dashboardUid) {
+        requireText(dashboardUid, "dashboardUid must not be empty");
+
+        URI uri = UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
+                .pathSegment("api", "dashboards", "uid", dashboardUid)
+                .build(true)
+                .toUri();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON, MediaType.ALL));
+        headers.setBearerAuth(required(API_KEY_KEY));
+
+        try {
+            ResponseEntity<GrafanaDashboardResponse> response = restTemplate.exchange(
+                    uri, HttpMethod.GET, new HttpEntity<>(null, headers), GrafanaDashboardResponse.class);
+            GrafanaDashboardResponse body = response.getBody();
+            if (body == null) {
+                throw new GrafanaClientException("Grafana dashboard response is empty for " + dashboardUid, null);
+            }
+            String slug = resolveDashboardSlug(body.meta(), null);
+            if (!StringUtils.hasText(slug)) {
+                throw new GrafanaClientException(
+                        "Grafana dashboard " + dashboardUid + " does not contain slug metadata",
+                        null);
+            }
+            return slug;
+        } catch (RestClientResponseException ex) {
+            throw new GrafanaClientException(
+                    "Failed to load Grafana dashboard slug for '%s': %s"
+                            .formatted(dashboardUid, describeHttpFailure(ex)),
+                    ex);
+        } catch (RestClientException ex) {
+            throw new GrafanaClientException(
+                    "Failed to load Grafana dashboard slug for '%s': %s"
+                            .formatted(dashboardUid, describeClientFailure(ex)),
+                    ex);
         }
     }
 
@@ -247,24 +295,44 @@ public class GrafanaClient {
             ResponseEntity<GrafanaDashboardResponse> response = restTemplate.exchange(
                     uri, HttpMethod.GET, new HttpEntity<>(null, headers), GrafanaDashboardResponse.class);
             GrafanaDashboardResponse body = response.getBody();
+            String resolvedSlug = resolveDashboardSlug(body != null ? body.meta() : null, slug);
             if (body == null || body.dashboard() == null) {
                 return new GrafanaDashboardDefinition(
-                        dashboardUid, slug, fallbackTitle, List.of(), List.of());
+                        dashboardUid, requireDashboardSlug(dashboardUid, resolvedSlug), fallbackTitle, List.of(), List.of());
             }
 
-            String title = resolveDashboardTitle(body.dashboard().title(), fallbackTitle, slug);
+            String title = resolveDashboardTitle(body.dashboard().title(), fallbackTitle, resolvedSlug);
             List<GrafanaPanelDefinition> panels = extractPanels(body.dashboard());
             List<GrafanaVariableDefinition> variables = extractVariables(body.dashboard());
 
             return new GrafanaDashboardDefinition(
                     dashboardUid,
-                    slug,
+                    requireDashboardSlug(dashboardUid, resolvedSlug),
                     title,
                     panels,
                     variables);
         } catch (RestClientException ex) {
             throw new GrafanaClientException("Failed to load Grafana dashboard " + dashboardUid, ex);
         }
+    }
+
+    private String requireDashboardSlug(String dashboardUid, String slug) {
+        if (!StringUtils.hasText(slug)) {
+            throw new GrafanaClientException("Grafana dashboard slug is missing for " + dashboardUid, null);
+        }
+        return slug;
+    }
+
+    private String resolveDashboardSlug(GrafanaDashboardMeta meta, String fallbackSlug) {
+        if (meta != null) {
+            if (StringUtils.hasText(meta.slug())) {
+                return meta.slug();
+            }
+            if (StringUtils.hasText(meta.url())) {
+                return extractSlug(meta.url());
+            }
+        }
+        return fallbackSlug;
     }
 
     private String resolveDashboardTitle(String title, String fallbackTitle, String slug) {
@@ -406,6 +474,33 @@ public class GrafanaClient {
         return url.substring(lastSlash + 1);
     }
 
+    private String describeHttpFailure(RestClientResponseException ex) {
+        String responseBody = abbreviateResponseBody(ex.getResponseBodyAsString());
+        if (StringUtils.hasText(responseBody)) {
+            return "HTTP %d %s. Response: %s"
+                    .formatted(ex.getStatusCode().value(), ex.getStatusText(), responseBody);
+        }
+        return "HTTP %d %s".formatted(ex.getStatusCode().value(), ex.getStatusText());
+    }
+
+    private String describeClientFailure(RestClientException ex) {
+        if (StringUtils.hasText(ex.getMessage())) {
+            return ex.getMessage();
+        }
+        return ex.getClass().getSimpleName();
+    }
+
+    private String abbreviateResponseBody(String responseBody) {
+        if (!StringUtils.hasText(responseBody)) {
+            return "";
+        }
+        String normalized = responseBody.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 300) {
+            return normalized;
+        }
+        return normalized.substring(0, 300) + "...";
+    }
+
     /**
      * Гарантирует наличие завершающего слэша в пути к API рендеринга.
      */
@@ -455,7 +550,10 @@ public class GrafanaClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record GrafanaDashboardResponse(GrafanaDashboard dashboard) {}
+    private record GrafanaDashboardResponse(GrafanaDashboard dashboard, GrafanaDashboardMeta meta) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GrafanaDashboardMeta(String slug, String url) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaDashboard(

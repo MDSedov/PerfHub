@@ -234,6 +234,37 @@ class GrafanaServiceTest {
     }
 
     @Test
+    void renderPanelsRetriesWithRefreshedDashboardSlugWhenCachedSlugIsStale() {
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.MAX, null));
+        confluenceTemplateSettingsService.registerDefaultTemplate(
+                LoadTestType.MAX,
+                new ConfluenceTemplate(
+                        1,
+                        "max",
+                        "MAX report",
+                        "MAX report",
+                        "<p>Body</p>",
+                        List.of(new ConfluenceTemplateChart(1L, 1, "Panel 21", "uid", 21, 0))));
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "old-slug", List.of(21), true)));
+        grafanaClient.setCurrentSlug("uid", "new-slug");
+        grafanaClient.setRenderedPanel(21, new byte[] {4});
+        grafanaClient.setPanelMetadata(21, new GrafanaPanelMetadata("Panel 21", ""));
+
+        GrafanaRenderResponse response = grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
+
+        assertThat(response.dashboards()).hasSize(1);
+        assertThat(response.dashboards().get(0).slug()).isEqualTo("new-slug");
+        assertThat(grafanaDashboardRepository.findByUid("uid")).hasValueSatisfying(dashboard ->
+                assertThat(dashboard.slug()).isEqualTo("new-slug"));
+        assertThat(grafanaClient.renderSlugs(21)).containsExactly("old-slug", "new-slug");
+    }
+
+    @Test
     void renderPanelsSkipsGrafanaVariablesWithoutResolvedValue() {
         UUID testUuid = UUID.randomUUID();
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
@@ -374,7 +405,9 @@ class GrafanaServiceTest {
         private final Map<Integer, GrafanaPanelMetadata> metadata = new HashMap<>();
         private final List<Integer> renderCalls = new ArrayList<>();
         private final Map<Integer, Map<String, String>> renderVariablesByPanel = new HashMap<>();
+        private final Map<Integer, List<String>> renderSlugsByPanel = new HashMap<>();
         private final List<Integer> metadataFailures = new ArrayList<>();
+        private final Map<String, String> currentSlugsByDashboard = new HashMap<>();
 
         private StubGrafanaClient() {
             super(new RestTemplate(), new com.example.chronicler.service.ConfigurationProvider() {
@@ -407,13 +440,31 @@ class GrafanaServiceTest {
             return renderVariablesByPanel.getOrDefault(panelId, Map.of());
         }
 
+        List<String> renderSlugs(int panelId) {
+            return renderSlugsByPanel.getOrDefault(panelId, List.of());
+        }
+
         void failMetadataForPanel(int panelId) {
             metadataFailures.add(panelId);
+        }
+
+        void setCurrentSlug(String dashboardUid, String slug) {
+            currentSlugsByDashboard.put(dashboardUid, slug);
         }
 
         @Override
         public byte[] renderPanel(String dashboardUid, String dashboardSlug, int panelId, Instant from, Instant to) {
             renderCalls.add(panelId);
+            renderSlugsByPanel
+                    .computeIfAbsent(panelId, ignored -> new ArrayList<>())
+                    .add(dashboardSlug);
+            String currentSlug = currentSlugsByDashboard.get(dashboardUid);
+            if (currentSlug != null && !currentSlug.equals(dashboardSlug)) {
+                throw new GrafanaClientException(
+                        "Failed to render Grafana panel %d for dashboard '%s' (%s): HTTP 404 Not Found"
+                                .formatted(panelId, dashboardSlug, dashboardUid),
+                        null);
+            }
             return rendered.getOrDefault(panelId, new byte[0]);
         }
 
@@ -435,6 +486,11 @@ class GrafanaServiceTest {
                 throw new GrafanaClientException("Metadata request failed", null);
             }
             return metadata.get(panelId);
+        }
+
+        @Override
+        public String loadDashboardSlug(String dashboardUid) {
+            return currentSlugsByDashboard.get(dashboardUid);
         }
     }
 

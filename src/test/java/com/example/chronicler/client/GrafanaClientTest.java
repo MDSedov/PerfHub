@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.match.MockRestRequestMatchers;
@@ -117,6 +118,25 @@ class GrafanaClientTest {
                         Instant.parse("2024-05-01T01:00:00Z")))
                 .isInstanceOf(GrafanaClientException.class)
                 .hasMessage("dashboardSlug must not be empty");
+    }
+
+    @Test
+    void renderPanelShouldExposeHttpStatusAndResponseBody() {
+        Instant from = Instant.parse("2024-05-01T00:00:00Z");
+        Instant to = Instant.parse("2024-05-01T01:00:00Z");
+
+        mockServer.expect(MockRestRequestMatchers.requestTo(
+                        "http://localhost:3000/render/d-solo/dashboard-uid/dashboard-slug"
+                                + "?panelId=1&from=1714521600000&to=1714525200000&width=1000&height=500&tz=UTC"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andRespond(MockRestResponseCreators.withStatus(HttpStatus.NOT_FOUND)
+                        .body("renderer route not found")
+                        .contentType(MediaType.TEXT_PLAIN));
+
+        assertThatThrownBy(() -> grafanaClient.renderPanel("dashboard-uid", "dashboard-slug", 1, from, to))
+                .isInstanceOf(GrafanaClientException.class)
+                .hasMessageContaining("HTTP 404")
+                .hasMessageContaining("renderer route not found");
     }
 
     private static String key(String key) {

@@ -148,8 +148,14 @@ public class GrafanaService {
                     .map(GrafanaDashboardPanelRecord::panelTitle)
                     .filter(StringUtils::hasText)
                     .orElse("Панель " + selection.panelId());
-            byte[] imageBytes =
-                    grafanaClient.renderPanel(selection.dashboardUid(), slug, selection.panelId(), from, to, variableValues);
+            RenderedPanelImage renderedPanel = renderPanelWithFallback(
+                    selection.dashboardUid(),
+                    slug,
+                    selection.panelId(),
+                    from,
+                    to,
+                    variableValues);
+            byte[] imageBytes = renderedPanel.imageBytes();
             String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
             renderedPanels.add(new GrafanaRenderedPanel(selection.panelId(), title, "", encodedImage));
         }
@@ -214,21 +220,86 @@ public class GrafanaService {
                     dashboardUid,
                     chart.panelId(),
                     context.cachedPanelsById().get(chart.panelId()));
-            byte[] imageBytes = grafanaClient.renderPanel(
+            RenderedPanelImage renderedPanel = renderPanelWithFallback(
                     dashboardUid,
                     context.dashboardSlug(),
                     chart.panelId(),
                     from,
                     to,
                     context.variableValues());
-            String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
+            if (!Objects.equals(renderedPanel.dashboardSlug(), context.dashboardSlug())) {
+                context = new DashboardRenderContext(
+                        renderedPanel.dashboardSlug(),
+                        context.variableValues(),
+                        context.cachedPanelsById());
+                contextByDashboardUid.put(dashboardUid, context);
+            }
+            String encodedImage = Base64.getEncoder().encodeToString(renderedPanel.imageBytes());
             String title = StringUtils.hasText(chart.title()) ? chart.title().trim() : metadata.title();
             renderedPanels.add(new TemplateRenderedPanel(
                     dashboardUid,
-                    context.dashboardSlug(),
+                    renderedPanel.dashboardSlug(),
                     new GrafanaRenderedPanel(chart.panelId(), title, metadata.description(), encodedImage)));
         }
         return List.copyOf(renderedPanels);
+    }
+
+    private RenderedPanelImage renderPanelWithFallback(
+            String dashboardUid,
+            String dashboardSlug,
+            int panelId,
+            Instant from,
+            Instant to,
+            Map<String, String> variableValues) {
+        try {
+            return new RenderedPanelImage(
+                    dashboardSlug,
+                    grafanaClient.renderPanel(dashboardUid, dashboardSlug, panelId, from, to, variableValues));
+        } catch (GrafanaClientException ex) {
+            String refreshedSlug = refreshDashboardSlug(dashboardUid, dashboardSlug, panelId, ex);
+            if (!StringUtils.hasText(refreshedSlug) || Objects.equals(refreshedSlug, dashboardSlug)) {
+                throw ex;
+            }
+            return new RenderedPanelImage(
+                    refreshedSlug,
+                    grafanaClient.renderPanel(dashboardUid, refreshedSlug, panelId, from, to, variableValues));
+        }
+    }
+
+    private String refreshDashboardSlug(
+            String dashboardUid,
+            String currentSlug,
+            int panelId,
+            GrafanaClientException renderFailure) {
+        try {
+            String refreshedSlug = grafanaClient.loadDashboardSlug(dashboardUid);
+            if (!StringUtils.hasText(refreshedSlug) || Objects.equals(refreshedSlug, currentSlug)) {
+                log.warn(
+                        "Grafana render failed for dashboard '{}' panel {} with slug '{}': {}",
+                        dashboardUid,
+                        panelId,
+                        currentSlug,
+                        renderFailure.getMessage());
+                return currentSlug;
+            }
+            grafanaDashboardRepository.findByUid(dashboardUid).ifPresent(dashboard -> grafanaDashboardRepository.upsert(
+                    new GrafanaDashboard(dashboard.uid(), refreshedSlug, dashboard.panels(), dashboard.enabled())));
+            log.warn(
+                    "Grafana render failed for dashboard '{}' panel {} with cached slug '{}'. Refreshed slug to '{}' and retrying once. Cause: {}",
+                    dashboardUid,
+                    panelId,
+                    currentSlug,
+                    refreshedSlug,
+                    renderFailure.getMessage());
+            return refreshedSlug;
+        } catch (GrafanaClientException refreshFailure) {
+            log.warn(
+                    "Grafana render failed for dashboard '{}' panel {} and slug refresh also failed: {}",
+                    dashboardUid,
+                    panelId,
+                    refreshFailure.getMessage());
+            return currentSlug;
+        }
     }
 
     private ConfluenceTemplate resolveDefaultTemplate(LoadTest loadTest) {
@@ -346,4 +417,6 @@ public class GrafanaService {
             String dashboardUid,
             String dashboardSlug,
             GrafanaRenderedPanel panel) {}
+
+    private record RenderedPanelImage(String dashboardSlug, byte[] imageBytes) {}
 }
