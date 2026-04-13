@@ -1,6 +1,7 @@
 package com.example.chronicler.client;
 
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
+import com.example.chronicler.dto.confluence.ConfluencePageDescendant;
 import com.example.chronicler.dto.confluence.ConfluencePage;
 import com.example.chronicler.dto.confluence.ConfluencePageSummary;
 import com.example.chronicler.exception.ConfluenceClientException;
@@ -184,6 +185,46 @@ public class ConfluenceClient {
         }
 
         return List.copyOf(childPages);
+    }
+
+    public List<ConfluencePageDescendant> listPageDescendants(ConfluenceCredentials credentials, String rootPageId) {
+        Assert.notNull(credentials, "credentials must not be null");
+        Assert.hasText(rootPageId, "rootPageId must not be empty");
+
+        HttpHeaders headers = authorizationHeaders(credentials);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        URI uri = apiUriBuilder()
+                .pathSegment("content", rootPageId, "descendant", "page")
+                .queryParam("expand", "ancestors")
+                .queryParam("limit", 1000)
+                .build(true)
+                .toUri();
+
+        logConfluenceRequest("GET", uri, headers, "rootPageId=%s, expand=ancestors, limit=1000".formatted(rootPageId));
+        try {
+            ResponseEntity<DescendantPagesResponse> response = restTemplate.exchange(
+                    uri, HttpMethod.GET, new HttpEntity<>(headers), DescendantPagesResponse.class);
+            DescendantPagesResponse body = response.getBody();
+            if (body == null || body.results() == null || body.results().isEmpty()) {
+                return List.of();
+            }
+            return body.results().stream()
+                    .map(page -> new ConfluencePageDescendant(
+                            page.id(),
+                            StringUtils.hasText(page.title()) ? page.title() : page.id(),
+                            page.ancestors() == null
+                                    ? List.of()
+                                    : page.ancestors().stream()
+                                            .map(AncestorResult::id)
+                                            .filter(StringUtils::hasText)
+                                            .toList()))
+                    .toList();
+        } catch (RestClientException ex) {
+            throw new ConfluenceClientException(
+                    buildErrorMessage("Failed to load Confluence descendant pages for " + rootPageId, ex),
+                    ex);
+        }
     }
 
     public String uploadAttachment(
@@ -382,6 +423,12 @@ public class ConfluenceClient {
     private record ChildPagesResponse(List<ChildPageResult> results) {}
 
     private record ChildPageResult(String id, String title) {}
+
+    private record DescendantPagesResponse(List<DescendantPageResult> results) {}
+
+    private record DescendantPageResult(String id, String title, List<AncestorResult> ancestors) {}
+
+    private record AncestorResult(String id) {}
 
     private record UpdateRequest(String id, String type, String title, Version version, Body body) {}
 

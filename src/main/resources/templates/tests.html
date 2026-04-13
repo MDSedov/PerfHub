@@ -255,9 +255,18 @@
                         </div>
                         <div class="modal-body">
                             <section class="report-generation-section">
-                                <div class="mb-3">
-                                    <h6 class="test-details-section-title mb-1">Родительская страница</h6>
-                                    <p class="text-muted small mb-0">Выберите страницу из ветки Confluence, указанной в настройках подключения.</p>
+                                <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                                    <div>
+                                        <h6 class="test-details-section-title mb-1">Родительская страница</h6>
+                                        <p class="text-muted small mb-0">Выберите страницу из ветки Confluence, указанной в настройках подключения.</p>
+                                    </div>
+                                    <button type="button"
+                                            class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                                            id="generateReportsParentPageRefreshButton"
+                                            title="Обновить список страниц из Confluence"
+                                            aria-label="Обновить список страниц из Confluence">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
                                 </div>
 
                                 <div>
@@ -398,6 +407,7 @@
     const generateReportsModalElement = document.getElementById('generateReportsModal');
     const generateReportsModalForm = document.getElementById('generateReportsModalForm');
     const generateReportsParentPageIdInput = document.getElementById('generateReportsParentPageId');
+    const generateReportsParentPageRefreshButton = document.getElementById('generateReportsParentPageRefreshButton');
     const generateReportsCreateReleasePageCheckbox = document.getElementById('generateReportsCreateReleasePage');
     const generateReportsReleasePageTitleInput = document.getElementById('generateReportsReleasePageTitle');
     const generateReportsReleasePageTemplateSelect = document.getElementById('generateReportsReleasePageTemplate');
@@ -1287,6 +1297,10 @@
             return;
         }
 
+        if (generateReportsParentPageRefreshButton) {
+            generateReportsParentPageRefreshButton.disabled = confluenceParentPagesLoading;
+        }
+
         generateReportsParentPageIdInput.innerHTML = '';
 
         if (confluenceParentPagesLoading) {
@@ -1596,7 +1610,7 @@
         renderGenerateReportsResults();
         const modalApi = showGenerateReportsModalDialog();
         window.requestAnimationFrame(() => modalApi?.handleUpdate?.());
-        void loadConfluenceParentPages(true).finally(() => {
+        void loadConfluenceParentPages().finally(() => {
             modalApi?.handleUpdate?.();
             if (generateReportsModalElement?.classList.contains('show')) {
                 generateReportsParentPageIdInput?.focus();
@@ -1778,6 +1792,16 @@
         generateReportsParentPageIdInput.addEventListener('change', () => {
             selectedReportParentPageId = (generateReportsParentPageIdInput.value ?? '').trim();
             updateGenerateReportsSubmitState();
+        });
+    }
+
+    if (generateReportsParentPageRefreshButton) {
+        generateReportsParentPageRefreshButton.addEventListener('click', () => {
+            void loadConfluenceParentPages(true).finally(() => {
+                if (generateReportsModalElement?.classList.contains('show')) {
+                    generateReportsParentPageIdInput?.focus();
+                }
+            });
         });
     }
 

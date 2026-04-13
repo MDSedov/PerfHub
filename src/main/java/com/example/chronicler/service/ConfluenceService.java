@@ -4,8 +4,8 @@ import com.example.chronicler.client.ConfluenceClient;
 import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
 import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
+import com.example.chronicler.dto.confluence.ConfluencePageDescendant;
 import com.example.chronicler.dto.confluence.ConfluencePage;
-import com.example.chronicler.dto.confluence.ConfluencePageSummary;
 import com.example.chronicler.dto.confluence.ConfluencePageTreeNode;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageResponse;
@@ -26,7 +26,9 @@ import com.example.chronicler.repository.LoadTestRepository;
 import com.example.chronicler.util.ReleaseVersionUtils;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Objects;
@@ -167,7 +169,8 @@ public class ConfluenceService {
                         "В настройках Confluence не заполнено поле \"Номер родительской страницы для отчетов по НТ\""));
 
         ConfluencePage rootPage = confluenceClient.getPage(credentials, rootPageId);
-        return buildPageTree(credentials, rootPage);
+        List<ConfluencePageDescendant> descendants = confluenceClient.listPageDescendants(credentials, rootPageId);
+        return buildPageTree(rootPage, descendants);
     }
 
     public ConfluenceReleaseReportPageResponse createReleaseReportPage(
@@ -592,26 +595,57 @@ public class ConfluenceService {
         throw new ConfluenceOperationException("Не удалось создать страницу отчета в Confluence");
     }
 
-    private ConfluencePageTreeNode buildPageTree(ConfluenceCredentials credentials, ConfluencePage page) {
-        List<ConfluencePageTreeNode> children = confluenceClient.listChildPages(credentials, page.id()).stream()
-                .map(childPage -> buildPageTree(credentials, childPage))
-                .toList();
-        return new ConfluencePageTreeNode(
-                page.id(),
-                StringUtils.hasText(page.title()) ? page.title() : page.id(),
-                confluenceClient.buildPageUrl(page.id()),
-                children);
+    private ConfluencePageTreeNode buildPageTree(ConfluencePage rootPage, List<ConfluencePageDescendant> descendants) {
+        PageTreeAccumulator rootNode = new PageTreeAccumulator(
+                rootPage.id(),
+                StringUtils.hasText(rootPage.title()) ? rootPage.title() : rootPage.id(),
+                confluenceClient.buildPageUrl(rootPage.id()));
+        Map<String, PageTreeAccumulator> nodesById = new LinkedHashMap<>();
+        nodesById.put(rootNode.id(), rootNode);
+
+        for (ConfluencePageDescendant descendant : descendants) {
+            if (!StringUtils.hasText(descendant.id()) || descendant.id().equals(rootNode.id())) {
+                continue;
+            }
+            nodesById.put(
+                    descendant.id(),
+                    new PageTreeAccumulator(
+                            descendant.id(),
+                            StringUtils.hasText(descendant.title()) ? descendant.title() : descendant.id(),
+                            confluenceClient.buildPageUrl(descendant.id())));
+        }
+
+        for (ConfluencePageDescendant descendant : descendants) {
+            PageTreeAccumulator childNode = nodesById.get(descendant.id());
+            if (childNode == null || childNode.id().equals(rootNode.id())) {
+                continue;
+            }
+            PageTreeAccumulator parentNode = resolveParentNode(rootNode, descendant, nodesById);
+            parentNode.children().add(childNode);
+        }
+
+        return rootNode.toTreeNode();
     }
 
-    private ConfluencePageTreeNode buildPageTree(ConfluenceCredentials credentials, ConfluencePageSummary page) {
-        List<ConfluencePageTreeNode> children = confluenceClient.listChildPages(credentials, page.id()).stream()
-                .map(childPage -> buildPageTree(credentials, childPage))
-                .toList();
-        return new ConfluencePageTreeNode(
-                page.id(),
-                StringUtils.hasText(page.title()) ? page.title() : page.id(),
-                confluenceClient.buildPageUrl(page.id()),
-                children);
+    private PageTreeAccumulator resolveParentNode(
+            PageTreeAccumulator rootNode,
+            ConfluencePageDescendant descendant,
+            Map<String, PageTreeAccumulator> nodesById) {
+        List<String> ancestorIds = descendant.ancestorIds();
+        if (ancestorIds == null || ancestorIds.isEmpty()) {
+            return rootNode;
+        }
+        for (int index = ancestorIds.size() - 1; index >= 0; index--) {
+            String ancestorId = ancestorIds.get(index);
+            if (!StringUtils.hasText(ancestorId) || ancestorId.equals(descendant.id())) {
+                continue;
+            }
+            PageTreeAccumulator parentNode = nodesById.get(ancestorId);
+            if (parentNode != null) {
+                return parentNode;
+            }
+        }
+        return rootNode;
     }
 
     private List<String> buildPageTitleCandidates(String baseTitle, UUID testUuid) {
@@ -704,6 +738,35 @@ public class ConfluenceService {
     }
 
     private record SubReportTemplate(String templateName, String pageTitle) {}
+
+    private static final class PageTreeAccumulator {
+        private final String id;
+        private final String title;
+        private final String pageUrl;
+        private final List<PageTreeAccumulator> children = new ArrayList<>();
+
+        private PageTreeAccumulator(String id, String title, String pageUrl) {
+            this.id = id;
+            this.title = title;
+            this.pageUrl = pageUrl;
+        }
+
+        private String id() {
+            return id;
+        }
+
+        private List<PageTreeAccumulator> children() {
+            return children;
+        }
+
+        private ConfluencePageTreeNode toTreeNode() {
+            return new ConfluencePageTreeNode(
+                    id,
+                    title,
+                    pageUrl,
+                    children.stream().map(PageTreeAccumulator::toTreeNode).toList());
+        }
+    }
 
     private record ResolvedReportItem(LoadTest loadTest, ConfluenceTemplate template) {}
 
