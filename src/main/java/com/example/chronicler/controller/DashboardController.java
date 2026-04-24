@@ -19,7 +19,7 @@ public class DashboardController {
 
     @GetMapping("/")
     public String index() {
-        return "index";
+        return "redirect:/main";
     }
 
     @GetMapping("/main")
