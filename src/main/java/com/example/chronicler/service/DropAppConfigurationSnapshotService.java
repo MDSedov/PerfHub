@@ -11,6 +11,7 @@ import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotUpdateRequ
 import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
 import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
+import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
@@ -34,6 +35,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -42,6 +45,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class DropAppConfigurationSnapshotService {
 
+    private static final Logger log = LoggerFactory.getLogger(DropAppConfigurationSnapshotService.class);
     private static final String ARCHIVE_MEDIA_TYPE = "application/zip";
 
     private final DropAppConfigurationSnapshotRepository repository;
@@ -55,7 +59,18 @@ public class DropAppConfigurationSnapshotService {
 
     public DropAppNamespaceOptionsDto getNamespaceOptions() {
         List<String> configuredNamespaces = normalizeNamespaces(dropAppService.getConfiguredNamespaces());
-        Set<String> availableNamespaces = new LinkedHashSet<>(normalizeNamespaces(dropAppService.listNamespaces()));
+        Set<String> availableNamespaces;
+        try {
+            availableNamespaces = new LinkedHashSet<>(normalizeNamespaces(dropAppService.listNamespaces()));
+        } catch (DropAppClientException ex) {
+            if (configuredNamespaces.isEmpty()) {
+                throw ex;
+            }
+            log.warn(
+                    "Не удалось получить список namespace из DropApp. Используем namespace из настроек подключения. Причина: {}",
+                    ex.getMessage());
+            availableNamespaces = new LinkedHashSet<>(configuredNamespaces);
+        }
         availableNamespaces.addAll(configuredNamespaces);
         List<String> mergedNamespaces = new ArrayList<>(availableNamespaces);
         mergedNamespaces.sort(String.CASE_INSENSITIVE_ORDER);

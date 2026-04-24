@@ -125,7 +125,7 @@ Confluence, помогает находить проведённые тесты,
 
 - VictoriaMetrics: базовый URL, путь API, шаг агрегации, запрос поиска тестов;
 - Grafana: базовый URL, путь рендера, API-ключ, размеры изображений, таймзона;
-- DropApp: базовый URL, токен, список namespace;
+- DropApp: базовый URL, токен, список namespace. Несколько namespace можно указать через запятую или пробел;
 - Confluence: базовый URL, путь API, токен, родительская страница отчётов;
 - GigaChat: параметры API и OAuth для вспомогательного анализа данных.
 
@@ -193,4 +193,85 @@ mvn spring-boot:run
 
 ```text
 http://localhost:6500/main
+```
+
+## Сборка JAR и запуск на Linux
+
+Для сборки нужен JDK 17 или новее и Maven.
+
+Собрать исполняемый JAR:
+
+```bash
+mvn clean package
+```
+
+Если нужно только собрать артефакт для выкладки, без запуска тестов:
+
+```bash
+mvn -DskipTests clean package
+```
+
+После сборки файл появится в каталоге `target`:
+
+```text
+target/chronicler-0.0.1-SNAPSHOT.jar
+```
+
+На Linux-сервере можно разместить приложение, например, в каталоге
+`/opt/chronicler`:
+
+```bash
+sudo mkdir -p /opt/chronicler/config /opt/chronicler/logs
+sudo cp target/chronicler-0.0.1-SNAPSHOT.jar /opt/chronicler/
+sudo cp config/application.properties /opt/chronicler/config/
+```
+
+Если приложение запускается не от `root`, нужно выдать права пользователю,
+который будет его запускать:
+
+```bash
+sudo chown -R chronicler:chronicler /opt/chronicler
+```
+
+Пример небольшого скрипта для запуска через `tmux`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_DIR="/opt/chronicler"
+JAR_NAME="chronicler-0.0.1-SNAPSHOT.jar"
+SESSION_NAME="chronicler"
+JAVA_OPTS="${JAVA_OPTS:--Xms256m -Xmx1024m}"
+SPRING_OPTS="${SPRING_OPTS:---server.port=6500}"
+
+cd "$APP_DIR"
+mkdir -p logs config
+
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+  tmux kill-session -t "$SESSION_NAME"
+fi
+
+tmux new-session -d -s "$SESSION_NAME" \
+  "java $JAVA_OPTS -jar '$APP_DIR/$JAR_NAME' $SPRING_OPTS 2>&1 | tee -a '$APP_DIR/logs/chronicler.log'"
+
+echo "Летописец запущен в tmux-сессии: $SESSION_NAME"
+echo "Открыть консоль: tmux attach -t $SESSION_NAME"
+echo "Выйти из консоли без остановки приложения: Ctrl+B, затем D"
+```
+
+Сохранить скрипт можно как `/opt/chronicler/run-chronicler.sh`, затем сделать
+его исполняемым и запустить:
+
+```bash
+chmod +x /opt/chronicler/run-chronicler.sh
+/opt/chronicler/run-chronicler.sh
+```
+
+Полезные команды `tmux`:
+
+```bash
+tmux attach -t chronicler      # открыть консоль приложения
+tmux ls                        # посмотреть активные сессии
+tmux kill-session -t chronicler # остановить приложение
 ```

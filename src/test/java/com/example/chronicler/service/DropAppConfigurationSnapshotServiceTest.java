@@ -14,6 +14,8 @@ import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSaveReques
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotUpdateRequest;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
+import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
+import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
 import com.example.chronicler.model.DropAppConfigurationSnapshotItem;
@@ -41,6 +43,17 @@ class DropAppConfigurationSnapshotServiceTest {
     @BeforeEach
     void setUp() {
         service = new DropAppConfigurationSnapshotService(repository, dropAppService);
+    }
+
+    @Test
+    void getNamespaceOptionsFallsBackToConfiguredNamespacesWhenDropAppListFails() {
+        when(dropAppService.getConfiguredNamespaces()).thenReturn(List.of("ns-b", "ns-a"));
+        when(dropAppService.listNamespaces()).thenThrow(new DropAppClientException("Forbidden"));
+
+        DropAppNamespaceOptionsDto result = service.getNamespaceOptions();
+
+        assertThat(result.available()).containsExactly("ns-a", "ns-b");
+        assertThat(result.selected()).containsExactly("ns-b", "ns-a");
     }
 
     @Test

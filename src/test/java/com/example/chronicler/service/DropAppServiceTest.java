@@ -51,9 +51,9 @@ class DropAppServiceTest {
     @Test
     void getConfiguredNamespacesReturnsTrimmedDistinctValues() {
         when(configurationProvider.findValue("dropapp", "namespaces"))
-                .thenReturn(Optional.of(" ns-a,ns-b , ns-a ,, "));
+                .thenReturn(Optional.of(" ns-a,ns-b ns-c\nns-a ,, "));
 
-        assertThat(dropAppService.getConfiguredNamespaces()).containsExactly("ns-a", "ns-b");
+        assertThat(dropAppService.getConfiguredNamespaces()).containsExactly("ns-a", "ns-b", "ns-c");
     }
 
     @Test

@@ -114,7 +114,7 @@ public class DropAppService {
         if (!StringUtils.hasText(rawNamespaces)) {
             return List.of();
         }
-        return Arrays.stream(rawNamespaces.split(","))
+        return Arrays.stream(rawNamespaces.split("[,\\s]+"))
                 .map(String::trim)
                 .filter(StringUtils::hasText)
                 .distinct()
