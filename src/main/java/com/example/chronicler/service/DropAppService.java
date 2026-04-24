@@ -42,12 +42,7 @@ public class DropAppService {
                 .orElse(List.of());
     }
 
-    /** Выполняет легкий запрос к DropApp, чтобы токен не простаивал. */
-    public void keepAlive() {
-        dropAppClient.fetchNamespaces();
-    }
-
-    /** Проверяет, что для фонового запроса DropApp настроены URL и токен. */
+    /** Проверяет, что для обращения к DropApp настроены URL и токен. */
     public boolean isConfigured() {
         return hasTextValue(BASE_URL_KEY) && hasTextValue(TOKEN_KEY);
     }

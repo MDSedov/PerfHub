@@ -49,13 +49,6 @@ class DropAppServiceTest {
     }
 
     @Test
-    void keepAliveRequestsNamespacesFromDropApp() {
-        dropAppService.keepAlive();
-
-        verify(dropAppClient).fetchNamespaces();
-    }
-
-    @Test
     void getConfiguredNamespacesReturnsTrimmedDistinctValues() {
         when(configurationProvider.findValue("dropapp", "namespaces"))
                 .thenReturn(Optional.of(" ns-a,ns-b , ns-a ,, "));

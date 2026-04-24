@@ -2696,10 +2696,13 @@
                 });
         thead.appendChild(headerRow);
         const tbody = document.createElement('tbody');
-        items.forEach(item => {
+        items.forEach((item, index) => {
             const row = document.createElement('tr');
-            appendConfigCell(row, item?.serviceName ?? item?.podName);
-            appendConfigCell(row, item?.podCount);
+            const serviceRowSpan = resolveConfigurationServiceRowSpan(items, index);
+            if (serviceRowSpan > 0) {
+                appendConfigCell(row, item?.serviceName ?? item?.podName, serviceRowSpan);
+                appendConfigCell(row, item?.podCount, serviceRowSpan);
+            }
             appendConfigCell(row, item?.release);
             appendConfigCell(row, item?.containerName);
             appendConfigCell(row, item?.version);
@@ -2715,8 +2718,39 @@
         container.appendChild(table);
     }
 
-    function appendConfigCell(row, value) {
+    function getConfigurationServiceValue(item) {
+        return normalizeReleaseValue(item?.serviceName) ?? normalizeReleaseValue(item?.podName);
+    }
+
+    function getConfigurationPodCountValue(item) {
+        return normalizeReleaseValue(item?.podCount);
+    }
+
+    function isSameConfigurationServiceGroup(left, right) {
+        return getConfigurationServiceValue(left) === getConfigurationServiceValue(right)
+                && getConfigurationPodCountValue(left) === getConfigurationPodCountValue(right);
+    }
+
+    function resolveConfigurationServiceRowSpan(items, index) {
+        const current = items[index];
+        if (index > 0 && isSameConfigurationServiceGroup(items[index - 1], current)) {
+            return 0;
+        }
+        let rowSpan = 1;
+        for (let nextIndex = index + 1; nextIndex < items.length; nextIndex += 1) {
+            if (!isSameConfigurationServiceGroup(current, items[nextIndex])) {
+                break;
+            }
+            rowSpan += 1;
+        }
+        return rowSpan;
+    }
+
+    function appendConfigCell(row, value, rowSpan = 1) {
         const cell = document.createElement('td');
+        if (rowSpan > 1) {
+            cell.rowSpan = rowSpan;
+        }
         cell.textContent = normalizeReleaseValue(value) ?? (value ?? '');
         if (!cell.textContent || cell.textContent.trim() === '') {
             cell.textContent = '—';

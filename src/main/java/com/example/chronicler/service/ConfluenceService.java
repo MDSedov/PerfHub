@@ -444,10 +444,12 @@ public class ConfluenceService {
                 .append("<th>Request RAM</th>")
                 .append("<th>Limit RAM</th>")
                 .append("</tr>\n");
-        for (KubernetesConfiguration config : configurations) {
+        for (int index = 0; index < configurations.size(); index++) {
+            KubernetesConfiguration config = configurations.get(index);
+            int serviceRowSpan = resolveServiceRowSpan(configurations, index);
             bodyBuilder.append("<tr>")
-                    .append("<td>").append(escape(config.serviceName())).append("</td>")
-                    .append("<td>").append(escape(config.podCount())).append("</td>")
+                    .append(buildRowSpanCell(config.serviceName(), serviceRowSpan))
+                    .append(buildRowSpanCell(config.podCount(), serviceRowSpan))
                     .append("<td>").append(escape(config.release())).append("</td>")
                     .append("<td>").append(escape(config.containerName())).append("</td>")
                     .append("<td>").append(escape(config.version())).append("</td>")
@@ -459,6 +461,37 @@ public class ConfluenceService {
         }
         bodyBuilder.append("</table>\n");
         return bodyBuilder.toString();
+    }
+
+    private String buildRowSpanCell(Object value, int rowSpan) {
+        if (rowSpan == 0) {
+            return "";
+        }
+        String rowSpanAttribute = rowSpan > 1 ? " rowspan=\"" + rowSpan + "\"" : "";
+        return "<td" + rowSpanAttribute + ">" + escape(value) + "</td>";
+    }
+
+    private int resolveServiceRowSpan(List<KubernetesConfiguration> configurations, int index) {
+        KubernetesConfiguration current = configurations.get(index);
+        if (index > 0 && sameServiceGroup(configurations.get(index - 1), current)) {
+            return 0;
+        }
+        int rowSpan = 1;
+        for (int nextIndex = index + 1; nextIndex < configurations.size(); nextIndex++) {
+            if (!sameServiceGroup(current, configurations.get(nextIndex))) {
+                break;
+            }
+            rowSpan++;
+        }
+        return rowSpan;
+    }
+
+    private boolean sameServiceGroup(KubernetesConfiguration left, KubernetesConfiguration right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return Objects.equals(left.serviceName(), right.serviceName())
+                && Objects.equals(left.podCount(), right.podCount());
     }
 
     private String escape(String value) {

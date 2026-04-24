@@ -481,10 +481,13 @@
             );
         };
 
-        const appendCell = (row, value, className = '') => {
+        const appendCell = (row, value, className = '', rowSpan = 1) => {
             const cell = document.createElement('td');
             if (className) {
                 cell.className = className;
+            }
+            if (rowSpan > 1) {
+                cell.rowSpan = rowSpan;
             }
             cell.textContent = valueOrDash(value);
             row.appendChild(cell);
@@ -503,6 +506,34 @@
             return hasPodCount || serviceName === 'pod' || serviceName === 'pods' || hasResourceValues;
         };
 
+        const getConfigurationServiceValue = (item) => {
+            return normalizeText(item?.serviceName) ?? normalizeText(item?.podName);
+        };
+
+        const getConfigurationPodCountValue = (item) => {
+            return normalizeText(item?.podCount);
+        };
+
+        const sameServiceGroup = (left, right) => {
+            return getConfigurationServiceValue(left) === getConfigurationServiceValue(right)
+                    && getConfigurationPodCountValue(left) === getConfigurationPodCountValue(right);
+        };
+
+        const resolveServiceRowSpan = (items, index) => {
+            const current = items[index];
+            if (index > 0 && sameServiceGroup(items[index - 1], current)) {
+                return 0;
+            }
+            let rowSpan = 1;
+            for (let nextIndex = index + 1; nextIndex < items.length; nextIndex += 1) {
+                if (!sameServiceGroup(current, items[nextIndex])) {
+                    break;
+                }
+                rowSpan += 1;
+            }
+            return rowSpan;
+        };
+
         const buildConfigurationTable = (items) => {
             const table = document.createElement('table');
             table.className = 'table table-sm align-middle mb-0';
@@ -519,10 +550,14 @@
             thead.appendChild(headerRow);
 
             const tbody = document.createElement('tbody');
-            (Array.isArray(items) ? items : []).forEach(item => {
+            const rows = Array.isArray(items) ? items : [];
+            rows.forEach((item, index) => {
                 const row = document.createElement('tr');
-                appendCell(row, item?.serviceName ?? item?.podName);
-                appendCell(row, item?.podCount);
+                const serviceRowSpan = resolveServiceRowSpan(rows, index);
+                if (serviceRowSpan > 0) {
+                    appendCell(row, item?.serviceName ?? item?.podName, '', serviceRowSpan);
+                    appendCell(row, item?.podCount, '', serviceRowSpan);
+                }
                 appendCell(row, item?.release);
                 appendCell(row, item?.containerName);
                 appendCell(row, item?.version);
