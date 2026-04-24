@@ -23,11 +23,11 @@ import org.springframework.util.CollectionUtils;
 public class KubernetesConfigurationRepository {
 
     private static final String SELECT_BY_TEST_SQL = """
-            SELECT id, test_uuid, namespace, service_name, pod_name, container_name, version, release,
+            SELECT id, test_uuid, namespace, service_name, pod_name, pod_count, container_name, version, release,
                    request_cpu, limit_cpu, request_ram, limit_ram, captured_at
             FROM kubernetes_configurations
             WHERE test_uuid = ?
-            ORDER BY namespace NULLS FIRST, pod_name NULLS FIRST, container_name NULLS FIRST
+            ORDER BY namespace NULLS FIRST, service_name NULLS FIRST, container_name NULLS FIRST, pod_name NULLS FIRST
             """;
 
     private static final String EXISTS_SQL =
@@ -35,9 +35,9 @@ public class KubernetesConfigurationRepository {
 
     private static final String INSERT_SQL = """
             INSERT INTO kubernetes_configurations
-                (test_uuid, namespace, service_name, pod_name, container_name, version, release,
+                (test_uuid, namespace, service_name, pod_name, pod_count, container_name, version, release,
                  request_cpu, limit_cpu, request_ram, limit_ram, captured_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -129,14 +129,19 @@ public class KubernetesConfigurationRepository {
                     ps.setString(2, config.namespace());
                     ps.setString(3, config.serviceName());
                     ps.setString(4, config.podName());
-                    ps.setString(5, config.containerName());
-                    ps.setString(6, config.version());
-                    ps.setString(7, config.release());
-                    ps.setString(8, config.requestCpu());
-                    ps.setString(9, config.limitCpu());
-                    ps.setString(10, config.requestRam());
-                    ps.setString(11, config.limitRam());
-                    ps.setTimestamp(12, toTimestamp(config.capturedAt()));
+                    if (config.podCount() != null) {
+                        ps.setInt(5, config.podCount());
+                    } else {
+                        ps.setObject(5, null);
+                    }
+                    ps.setString(6, config.containerName());
+                    ps.setString(7, config.version());
+                    ps.setString(8, config.release());
+                    ps.setString(9, config.requestCpu());
+                    ps.setString(10, config.limitCpu());
+                    ps.setString(11, config.requestRam());
+                    ps.setString(12, config.limitRam());
+                    ps.setTimestamp(13, toTimestamp(config.capturedAt()));
                 });
     }
 
@@ -153,6 +158,7 @@ public class KubernetesConfigurationRepository {
                 rs.getString("namespace"),
                 rs.getString("service_name"),
                 rs.getString("pod_name"),
+                readInteger(rs, "pod_count"),
                 rs.getString("container_name"),
                 rs.getString("version"),
                 rs.getString("release"),
@@ -161,5 +167,10 @@ public class KubernetesConfigurationRepository {
                 rs.getString("request_ram"),
                 rs.getString("limit_ram"),
                 capturedAt);
+    }
+
+    private static Integer readInteger(ResultSet rs, String column) throws SQLException {
+        Object value = rs.getObject(column);
+        return value instanceof Number number ? number.intValue() : null;
     }
 }

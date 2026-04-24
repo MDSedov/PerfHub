@@ -17,6 +17,7 @@ import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
 import com.example.chronicler.model.DropAppConfigurationSnapshotItem;
 import com.example.chronicler.repository.DropAppConfigurationSnapshotRepository;
 import com.example.chronicler.util.DateTimeViewUtils;
+import com.example.chronicler.util.DropAppConfigurationUtils;
 import com.example.chronicler.util.ReleaseVersionUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -63,9 +64,10 @@ public class DropAppConfigurationSnapshotService {
 
     public DropAppConfigurationViewDto loadCurrentConfiguration(List<String> namespaces) {
         List<String> resolvedNamespaces = dropAppService.resolveNamespaces(namespaces);
-        List<DropAppConfigurationItemDto> items = dropAppService.loadConfiguration(resolvedNamespaces).stream()
-                .map(this::toDto)
-                .toList();
+        List<DropAppConfigurationItemDto> items = DropAppConfigurationUtils.groupPodItems(
+                dropAppService.loadConfiguration(resolvedNamespaces).stream()
+                        .map(this::toDto)
+                        .toList());
         return new DropAppConfigurationViewDto(resolvedNamespaces, resolveRelease(items), items);
     }
 
@@ -78,10 +80,10 @@ public class DropAppConfigurationSnapshotService {
                 requestedComponents,
                 DropAppConfigurationComponent.defaultSelection());
         List<String> resolvedNamespaces = dropAppService.resolveNamespaces(requestedNamespaces);
-        List<DropAppConfigurationItemDto> items = dropAppService.loadConfiguration(resolvedNamespaces, resolvedComponents)
-                .stream()
-                .map(this::toDto)
-                .toList();
+        List<DropAppConfigurationItemDto> items = DropAppConfigurationUtils.groupPodItems(
+                dropAppService.loadConfiguration(resolvedNamespaces, resolvedComponents).stream()
+                        .map(this::toDto)
+                        .toList());
         if (items.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Конфигурация DropApp пуста");
         }
@@ -120,9 +122,10 @@ public class DropAppConfigurationSnapshotService {
         if (snapshotOpt.isEmpty()) {
             return Optional.empty();
         }
-        List<DropAppConfigurationItemDto> items = repository.findItemsBySnapshotId(snapshotId).stream()
-                .map(this::toDto)
-                .toList();
+        List<DropAppConfigurationItemDto> items = DropAppConfigurationUtils.groupPodItems(
+                repository.findItemsBySnapshotId(snapshotId).stream()
+                        .map(this::toDto)
+                        .toList());
         List<DropAppConfigurationDocumentDto> documents = repository.findDocumentsBySnapshotId(snapshotId).stream()
                 .map(this::toDocumentDto)
                 .toList();
@@ -212,10 +215,10 @@ public class DropAppConfigurationSnapshotService {
                     HttpStatus.BAD_REQUEST, "Нет данных текущей конфигурации DropApp для сохранения");
         }
 
-        List<DropAppConfigurationItemDto> items = requestedItems.stream()
+        List<DropAppConfigurationItemDto> items = DropAppConfigurationUtils.groupPodItems(requestedItems.stream()
                 .filter(Objects::nonNull)
                 .map(this::normalizeItem)
-                .toList();
+                .toList());
         if (items.isEmpty()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Нет данных текущей конфигурации DropApp для сохранения");
@@ -316,6 +319,7 @@ public class DropAppConfigurationSnapshotService {
                 item.namespace(),
                 item.serviceName(),
                 item.podName(),
+                item.podCount(),
                 item.containerName(),
                 item.version(),
                 item.release(),
@@ -330,6 +334,7 @@ public class DropAppConfigurationSnapshotService {
                 item.namespace(),
                 item.serviceName(),
                 item.podName(),
+                item.podCount(),
                 item.containerName(),
                 item.version(),
                 item.release(),
@@ -352,6 +357,7 @@ public class DropAppConfigurationSnapshotService {
                 normalizeText(item.namespace()),
                 normalizeText(item.serviceName()),
                 normalizeText(item.podName()),
+                item.podCount() != null && item.podCount() > 0 ? item.podCount() : null,
                 normalizeText(item.containerName()),
                 normalizeText(item.version()),
                 normalizeText(item.release()),
@@ -368,6 +374,7 @@ public class DropAppConfigurationSnapshotService {
                 item.namespace(),
                 item.serviceName(),
                 item.podName(),
+                item.podCount(),
                 item.containerName(),
                 item.version(),
                 item.release(),
@@ -463,14 +470,14 @@ public class DropAppConfigurationSnapshotService {
 
     private String buildResourcesCsv(List<DropAppConfigurationItemDto> items) {
         StringBuilder builder = new StringBuilder();
-        builder.append("Namespace,Component,Resource,Details,Version,Release,Request CPU,Limit CPU,Request RAM,Limit RAM\n");
+        builder.append("Namespace,Service,Pod Count,Release,Container,Version,Request CPU,Limit CPU,Request RAM,Limit RAM\n");
         for (DropAppConfigurationItemDto item : items) {
             builder.append(csv(item.namespace())).append(',')
                     .append(csv(item.serviceName())).append(',')
-                    .append(csv(item.podName())).append(',')
+                    .append(csv(item.podCount() != null ? item.podCount().toString() : "")).append(',')
+                    .append(csv(item.release())).append(',')
                     .append(csv(item.containerName())).append(',')
                     .append(csv(item.version())).append(',')
-                    .append(csv(item.release())).append(',')
                     .append(csv(item.requestCpu())).append(',')
                     .append(csv(item.limitCpu())).append(',')
                     .append(csv(item.requestRam())).append(',')

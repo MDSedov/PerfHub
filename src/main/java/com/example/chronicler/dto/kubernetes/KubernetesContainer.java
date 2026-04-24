@@ -5,7 +5,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /** Контейнер внутри Pod с данными о ресурсах. */
 public record KubernetesContainer(
         @JsonProperty("name") String name,
+        @JsonProperty("image") String image,
         @JsonProperty("resources") KubernetesResourceRequirements resources) {
+
+    public KubernetesContainer(String name, KubernetesResourceRequirements resources) {
+        this(name, null, resources);
+    }
 
     public String requestCpu() {
         return get(resources != null ? resources.requests() : null, "cpu");

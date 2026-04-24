@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS kubernetes_configurations (
     namespace VARCHAR(128),
     service_name VARCHAR(256),
     pod_name VARCHAR(256),
+    pod_count INTEGER,
     container_name VARCHAR(256),
     version VARCHAR(256),
     release VARCHAR(64),
@@ -61,6 +62,8 @@ CREATE TABLE IF NOT EXISTS kubernetes_configurations (
     CONSTRAINT fk_kubernetes_config_test
         FOREIGN KEY (test_uuid) REFERENCES tests(test_uuid) ON DELETE CASCADE
 );
+
+ALTER TABLE kubernetes_configurations ADD COLUMN IF NOT EXISTS pod_count INTEGER;
 
 CREATE INDEX IF NOT EXISTS idx_kubernetes_config_test
     ON kubernetes_configurations (test_uuid);
@@ -83,6 +86,7 @@ CREATE TABLE IF NOT EXISTS dropapp_configuration_snapshot_items (
     namespace VARCHAR(128),
     service_name VARCHAR(256),
     pod_name VARCHAR(256),
+    pod_count INTEGER,
     container_name VARCHAR(256),
     version VARCHAR(256),
     release VARCHAR(64),
@@ -93,6 +97,8 @@ CREATE TABLE IF NOT EXISTS dropapp_configuration_snapshot_items (
     CONSTRAINT fk_dropapp_configuration_snapshot_items_snapshot
         FOREIGN KEY (snapshot_id) REFERENCES dropapp_configuration_snapshots(id) ON DELETE CASCADE
 );
+
+ALTER TABLE dropapp_configuration_snapshot_items ADD COLUMN IF NOT EXISTS pod_count INTEGER;
 
 CREATE INDEX IF NOT EXISTS idx_dropapp_configuration_snapshot_items_snapshot
     ON dropapp_configuration_snapshot_items (snapshot_id);

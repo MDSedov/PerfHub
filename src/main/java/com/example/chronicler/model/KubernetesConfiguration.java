@@ -10,6 +10,7 @@ public record KubernetesConfiguration(
         String namespace,
         String serviceName,
         String podName,
+        Integer podCount,
         String containerName,
         String version,
         String release,
@@ -17,4 +18,36 @@ public record KubernetesConfiguration(
         String limitCpu,
         String requestRam,
         String limitRam,
-        Instant capturedAt) {}
+        Instant capturedAt) {
+
+    public KubernetesConfiguration(
+            Long id,
+            UUID testUuid,
+            String namespace,
+            String serviceName,
+            String podName,
+            String containerName,
+            String version,
+            String release,
+            String requestCpu,
+            String limitCpu,
+            String requestRam,
+            String limitRam,
+            Instant capturedAt) {
+        this(
+                id,
+                testUuid,
+                namespace,
+                serviceName,
+                podName,
+                null,
+                containerName,
+                version,
+                release,
+                requestCpu,
+                limitCpu,
+                requestRam,
+                limitRam,
+                capturedAt);
+    }
+}

@@ -5,10 +5,37 @@ public record DropAppConfigurationItemDto(
         String namespace,
         String serviceName,
         String podName,
+        Integer podCount,
         String containerName,
         String version,
         String release,
         String requestCpu,
         String limitCpu,
         String requestRam,
-        String limitRam) {}
+        String limitRam) {
+
+    public DropAppConfigurationItemDto(
+            String namespace,
+            String serviceName,
+            String podName,
+            String containerName,
+            String version,
+            String release,
+            String requestCpu,
+            String limitCpu,
+            String requestRam,
+            String limitRam) {
+        this(
+                namespace,
+                serviceName,
+                podName,
+                null,
+                containerName,
+                version,
+                release,
+                requestCpu,
+                limitCpu,
+                requestRam,
+                limitRam);
+    }
+}

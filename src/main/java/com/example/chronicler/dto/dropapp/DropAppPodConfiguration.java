@@ -8,10 +8,37 @@ public record DropAppPodConfiguration(
         @JsonProperty("namespace") String namespace,
         @JsonProperty("service_name") @JsonAlias("serviceName") String serviceName,
         @JsonProperty("pod_name") @JsonAlias("podName") String podName,
+        @JsonProperty("pod_count") @JsonAlias("podCount") Integer podCount,
         @JsonProperty("container_name") @JsonAlias("containerName") String containerName,
         @JsonProperty("version") String version,
         @JsonProperty("release") String release,
         @JsonProperty("request_cpu") @JsonAlias("requestCpu") String requestCpu,
         @JsonProperty("limit_cpu") @JsonAlias("limitCpu") String limitCpu,
         @JsonProperty("request_ram") @JsonAlias("requestRam") String requestRam,
-        @JsonProperty("limit_ram") @JsonAlias("limitRam") String limitRam) {}
+        @JsonProperty("limit_ram") @JsonAlias("limitRam") String limitRam) {
+
+    public DropAppPodConfiguration(
+            String namespace,
+            String serviceName,
+            String podName,
+            String containerName,
+            String version,
+            String release,
+            String requestCpu,
+            String limitCpu,
+            String requestRam,
+            String limitRam) {
+        this(
+                namespace,
+                serviceName,
+                podName,
+                null,
+                containerName,
+                version,
+                release,
+                requestCpu,
+                limitCpu,
+                requestRam,
+                limitRam);
+    }
+}

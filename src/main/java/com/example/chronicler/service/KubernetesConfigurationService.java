@@ -5,6 +5,7 @@ import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.repository.KubernetesConfigurationRepository;
+import com.example.chronicler.util.DropAppConfigurationUtils;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -32,7 +33,7 @@ public class KubernetesConfigurationService {
 
     /** Возвращает сохраненную конфигурацию для указанного теста в формате DTO. */
     public List<DropAppConfigurationItemDto> getConfigurationItems(UUID testUuid) {
-        return repository.findByTest(testUuid).stream()
+        return getConfigurations(testUuid).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -78,7 +79,21 @@ public class KubernetesConfigurationService {
 
     /** Возвращает сохраненную конфигурацию Kubernetes по идентификатору теста. */
     public List<KubernetesConfiguration> getConfigurations(UUID testUuid) {
-        return repository.findByTest(testUuid);
+        List<KubernetesConfiguration> configurations = repository.findByTest(testUuid);
+        if (configurations == null || configurations.isEmpty()) {
+            return List.of();
+        }
+        Instant capturedAt = configurations.stream()
+                .map(KubernetesConfiguration::capturedAt)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        return DropAppConfigurationUtils.groupPodItems(configurations.stream()
+                        .map(this::toDto)
+                        .toList())
+                .stream()
+                .map(item -> toRecord(testUuid, item, capturedAt))
+                .toList();
     }
 
     /**
@@ -126,6 +141,7 @@ public class KubernetesConfigurationService {
                 item.namespace(),
                 item.serviceName(),
                 item.podName(),
+                item.podCount(),
                 item.containerName(),
                 item.version(),
                 item.release(),
@@ -141,6 +157,7 @@ public class KubernetesConfigurationService {
                 configuration.namespace(),
                 configuration.serviceName(),
                 configuration.podName(),
+                configuration.podCount(),
                 configuration.containerName(),
                 configuration.version(),
                 configuration.release(),
@@ -148,5 +165,23 @@ public class KubernetesConfigurationService {
                 configuration.limitCpu(),
                 configuration.requestRam(),
                 configuration.limitRam());
+    }
+
+    private KubernetesConfiguration toRecord(UUID testUuid, DropAppConfigurationItemDto item, Instant capturedAt) {
+        return new KubernetesConfiguration(
+                null,
+                testUuid,
+                item.namespace(),
+                item.serviceName(),
+                item.podName(),
+                item.podCount(),
+                item.containerName(),
+                item.version(),
+                item.release(),
+                item.requestCpu(),
+                item.limitCpu(),
+                item.requestRam(),
+                item.limitRam(),
+                capturedAt);
     }
 }

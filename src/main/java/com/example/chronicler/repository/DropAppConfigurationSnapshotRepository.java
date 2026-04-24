@@ -50,18 +50,18 @@ public class DropAppConfigurationSnapshotRepository {
             """;
 
     private static final String SELECT_ITEMS_BY_SNAPSHOT_SQL = """
-            SELECT id, snapshot_id, namespace, service_name, pod_name, container_name, version, release,
+            SELECT id, snapshot_id, namespace, service_name, pod_name, pod_count, container_name, version, release,
                    request_cpu, limit_cpu, request_ram, limit_ram
             FROM dropapp_configuration_snapshot_items
             WHERE snapshot_id = ?
-            ORDER BY namespace NULLS FIRST, pod_name NULLS FIRST, container_name NULLS FIRST
+            ORDER BY namespace NULLS FIRST, service_name NULLS FIRST, container_name NULLS FIRST, pod_name NULLS FIRST
             """;
 
     private static final String INSERT_ITEM_SQL = """
             INSERT INTO dropapp_configuration_snapshot_items
-                (snapshot_id, namespace, service_name, pod_name, container_name, version, release,
+                (snapshot_id, namespace, service_name, pod_name, pod_count, container_name, version, release,
                  request_cpu, limit_cpu, request_ram, limit_ram)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String SELECT_DOCUMENTS_BY_SNAPSHOT_SQL = """
@@ -170,13 +170,18 @@ public class DropAppConfigurationSnapshotRepository {
                     ps.setString(2, item.namespace());
                     ps.setString(3, item.serviceName());
                     ps.setString(4, item.podName());
-                    ps.setString(5, item.containerName());
-                    ps.setString(6, item.version());
-                    ps.setString(7, item.release());
-                    ps.setString(8, item.requestCpu());
-                    ps.setString(9, item.limitCpu());
-                    ps.setString(10, item.requestRam());
-                    ps.setString(11, item.limitRam());
+                    if (item.podCount() != null) {
+                        ps.setInt(5, item.podCount());
+                    } else {
+                        ps.setObject(5, null);
+                    }
+                    ps.setString(6, item.containerName());
+                    ps.setString(7, item.version());
+                    ps.setString(8, item.release());
+                    ps.setString(9, item.requestCpu());
+                    ps.setString(10, item.limitCpu());
+                    ps.setString(11, item.requestRam());
+                    ps.setString(12, item.limitRam());
                 });
     }
 
@@ -215,6 +220,7 @@ public class DropAppConfigurationSnapshotRepository {
                 rs.getString("namespace"),
                 rs.getString("service_name"),
                 rs.getString("pod_name"),
+                readInteger(rs, "pod_count"),
                 rs.getString("container_name"),
                 rs.getString("version"),
                 rs.getString("release"),
@@ -232,5 +238,10 @@ public class DropAppConfigurationSnapshotRepository {
                 rs.getString("component_code"),
                 rs.getString("resource_name"),
                 rs.getString("content"));
+    }
+
+    private static Integer readInteger(ResultSet rs, String column) throws SQLException {
+        Object value = rs.getObject(column);
+        return value instanceof Number number ? number.intValue() : null;
     }
 }

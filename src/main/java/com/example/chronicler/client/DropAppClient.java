@@ -1,7 +1,7 @@
 package com.example.chronicler.client;
 
-import com.example.chronicler.dto.kubernetes.KubernetesConfigMap;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
+import com.example.chronicler.dto.kubernetes.KubernetesConfigMap;
 import com.example.chronicler.dto.kubernetes.KubernetesConfigMapListResponse;
 import com.example.chronicler.dto.kubernetes.KubernetesContainer;
 import com.example.chronicler.dto.kubernetes.KubernetesDeployment;
@@ -20,22 +20,24 @@ import com.example.chronicler.dto.kubernetes.KubernetesServiceSpec;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
+import com.example.chronicler.service.ConfigurationProvider;
+import com.example.chronicler.util.DropAppConfigurationUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.Locale;
 import java.util.function.Function;
-import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
@@ -324,16 +326,20 @@ public class DropAppClient {
                 Map<String, String> podLabels = metadata != null && metadata.labels() != null
                         ? metadata.labels()
                         : Collections.emptyMap();
-                String version = resolveVersion(podLabels, deployments);
+                DeploymentDescriptor deployment = findMatchingDeployment(podLabels, deployments);
+                String serviceName = resolvePodServiceName(metadata, deployment);
+                String deploymentVersion = resolveVersion(metadata, deployment);
                 String release = resolveRelease(podLabels, deployments);
                 if (pod.spec() == null || pod.spec().containers() == null) {
                     continue;
                 }
                 for (KubernetesContainer container : pod.spec().containers()) {
+                    String version = resolveContainerVersion(container, deploymentVersion);
                     result.add(new DropAppPodConfiguration(
                             namespace,
-                            DropAppConfigurationComponent.PODS.label(),
+                            serviceName,
                             podName,
+                            1,
                             container.name(),
                             version,
                             release,
@@ -601,16 +607,76 @@ public class DropAppClient {
         }
     }
 
-    private String resolveVersion(Map<String, String> podLabels, List<DeploymentDescriptor> deployments) {
-        if (podLabels == null || podLabels.isEmpty() || deployments.isEmpty()) {
-            return "";
+    private DeploymentDescriptor findMatchingDeployment(
+            Map<String, String> podLabels,
+            List<DeploymentDescriptor> deployments) {
+        if (podLabels == null || podLabels.isEmpty() || deployments == null || deployments.isEmpty()) {
+            return null;
         }
         for (DeploymentDescriptor descriptor : deployments) {
             if (matchesAll(podLabels, descriptor.selector())) {
-                return descriptor.version();
+                return descriptor;
             }
         }
-        return "";
+        return null;
+    }
+
+    private String resolveVersion(KubernetesPodMetadata metadata, DeploymentDescriptor deployment) {
+        if (deployment != null && StringUtils.hasText(deployment.version())) {
+            return deployment.version();
+        }
+        return extractVersion(metadata);
+    }
+
+    private String resolvePodServiceName(KubernetesPodMetadata metadata, DeploymentDescriptor deployment) {
+        if (deployment != null && StringUtils.hasText(deployment.name())) {
+            return deployment.name().trim();
+        }
+        String labelServiceName = extractServiceNameFromLabels(metadata != null ? metadata.labels() : null);
+        if (StringUtils.hasText(labelServiceName)) {
+            return labelServiceName;
+        }
+        return DropAppConfigurationUtils.deriveServiceNameFromPodName(metadata != null ? metadata.name() : null);
+    }
+
+    private String extractServiceNameFromLabels(Map<String, String> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return "";
+        }
+        return Stream.of(
+                        labels.get("app.kubernetes.io/name"),
+                        labels.get("app"),
+                        labels.get("k8s-app"),
+                        labels.get("name"))
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .findFirst()
+                .orElse("");
+    }
+
+    private String resolveContainerVersion(KubernetesContainer container, String fallbackVersion) {
+        String imageTag = extractImageTag(container != null ? container.image() : null);
+        if (StringUtils.hasText(imageTag)) {
+            return imageTag;
+        }
+        return fallbackVersion != null ? fallbackVersion : "";
+    }
+
+    private String extractImageTag(String image) {
+        if (!StringUtils.hasText(image)) {
+            return "";
+        }
+        String normalized = image.trim();
+        int digestIndex = normalized.indexOf('@');
+        if (digestIndex >= 0) {
+            normalized = normalized.substring(0, digestIndex);
+        }
+        int lastSlashIndex = normalized.lastIndexOf('/');
+        int lastColonIndex = normalized.lastIndexOf(':');
+        if (lastColonIndex <= lastSlashIndex || lastColonIndex == normalized.length() - 1) {
+            return "";
+        }
+        return normalized.substring(lastColonIndex + 1).trim();
     }
 
     private boolean matchesAll(Map<String, String> podLabels, Map<String, String> selector) {

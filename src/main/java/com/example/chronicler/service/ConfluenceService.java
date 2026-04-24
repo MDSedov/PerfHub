@@ -434,10 +434,11 @@ public class ConfluenceService {
         }
         bodyBuilder.append("<table>\n")
                 .append("<tr>")
-                .append("<th>POD</th>")
+                .append("<th>Сервис</th>")
+                .append("<th>Количество POD</th>")
+                .append("<th>Релиз</th>")
                 .append("<th>Контейнер</th>")
                 .append("<th>Версия</th>")
-                .append("<th>Релиз</th>")
                 .append("<th>Request CPU</th>")
                 .append("<th>Limit CPU</th>")
                 .append("<th>Request RAM</th>")
@@ -445,10 +446,11 @@ public class ConfluenceService {
                 .append("</tr>\n");
         for (KubernetesConfiguration config : configurations) {
             bodyBuilder.append("<tr>")
-                    .append("<td>").append(escape(config.podName())).append("</td>")
+                    .append("<td>").append(escape(config.serviceName())).append("</td>")
+                    .append("<td>").append(escape(config.podCount())).append("</td>")
+                    .append("<td>").append(escape(config.release())).append("</td>")
                     .append("<td>").append(escape(config.containerName())).append("</td>")
                     .append("<td>").append(escape(config.version())).append("</td>")
-                    .append("<td>").append(escape(config.release())).append("</td>")
                     .append("<td>").append(escape(config.requestCpu())).append("</td>")
                     .append("<td>").append(escape(config.limitCpu())).append("</td>")
                     .append("<td>").append(escape(config.requestRam())).append("</td>")
@@ -461,6 +463,10 @@ public class ConfluenceService {
 
     private String escape(String value) {
         return HtmlUtils.htmlEscape(value == null ? "" : value);
+    }
+
+    private String escape(Object value) {
+        return escape(value != null ? value.toString() : null);
     }
 
     private String buildChartsSection(List<RenderedChartAttachment> chartAttachments) {

@@ -1,10 +1,12 @@
 package com.example.chronicler.service;
 
 import com.example.chronicler.client.DropAppClient;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
+import com.example.chronicler.util.DropAppConfigurationUtils;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -52,12 +54,12 @@ public class DropAppService {
 
     /** Возвращает актуальную конфигурацию DropApp для namespace, перечисленных в настройках. */
     public List<DropAppPodConfiguration> loadCurrentConfiguration() {
-        return dropAppClient.fetchConfiguration(resolveNamespaces(null));
+        return groupPodItems(dropAppClient.fetchConfiguration(resolveNamespaces(null)));
     }
 
     /** Возвращает конфигурацию DropApp для указанного списка namespace. */
     public List<DropAppPodConfiguration> loadConfiguration(List<String> namespaces) {
-        return dropAppClient.fetchConfiguration(resolveNamespaces(namespaces));
+        return groupPodItems(dropAppClient.fetchConfiguration(resolveNamespaces(namespaces)));
     }
 
     /** Возвращает конфигурацию DropApp для указанного списка namespace и типов ресурсов. */
@@ -67,7 +69,7 @@ public class DropAppService {
         List<DropAppConfigurationComponent> resolvedComponents = components == null || components.isEmpty()
                 ? List.of(DropAppConfigurationComponent.PODS)
                 : components.stream().distinct().toList();
-        return dropAppClient.fetchConfiguration(resolveNamespaces(namespaces), resolvedComponents);
+        return groupPodItems(dropAppClient.fetchConfiguration(resolveNamespaces(namespaces), resolvedComponents));
     }
 
     /** Возвращает YAML-документы выбранных ресурсов Kubernetes для указанных namespace. */
@@ -122,5 +124,47 @@ public class DropAppService {
                 .filter(StringUtils::hasText)
                 .distinct()
                 .collect(Collectors.toList());
+    }
+
+    private List<DropAppPodConfiguration> groupPodItems(List<DropAppPodConfiguration> items) {
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+        return DropAppConfigurationUtils.groupPodItems(items.stream()
+                        .map(this::toDto)
+                        .toList())
+                .stream()
+                .map(this::toDropAppConfiguration)
+                .toList();
+    }
+
+    private DropAppConfigurationItemDto toDto(DropAppPodConfiguration item) {
+        return new DropAppConfigurationItemDto(
+                item.namespace(),
+                item.serviceName(),
+                item.podName(),
+                item.podCount(),
+                item.containerName(),
+                item.version(),
+                item.release(),
+                item.requestCpu(),
+                item.limitCpu(),
+                item.requestRam(),
+                item.limitRam());
+    }
+
+    private DropAppPodConfiguration toDropAppConfiguration(DropAppConfigurationItemDto item) {
+        return new DropAppPodConfiguration(
+                item.namespace(),
+                item.serviceName(),
+                item.podName(),
+                item.podCount(),
+                item.containerName(),
+                item.version(),
+                item.release(),
+                item.requestCpu(),
+                item.limitCpu(),
+                item.requestRam(),
+                item.limitRam());
     }
 }
