@@ -416,12 +416,7 @@ body {
         .grafana-result-header {
             display: flex;
             align-items: flex-start;
-            justify-content: space-between;
-            gap: 1rem;
-        }
-
-        .grafana-result-title-group {
-            min-width: 0;
+            justify-content: flex-start;
         }
 
         .grafana-result-title {
@@ -430,45 +425,6 @@ body {
             font-size: 0.98rem;
             font-weight: 600;
             line-height: 1.35;
-        }
-
-        .grafana-result-meta {
-            margin-top: 0.2rem;
-            color: #5f5e5b;
-            font-size: 0.82rem;
-        }
-
-        .grafana-result-status {
-            flex: 0 0 auto;
-            display: inline-flex;
-            align-items: center;
-            min-height: 28px;
-            padding: 0 10px;
-            border: 1px solid #e5efe8;
-            border-radius: 6px;
-            background: #ffffff;
-            color: #5f5e5b;
-            font-size: 0.78rem;
-            font-weight: 500;
-            white-space: nowrap;
-        }
-
-        .grafana-result-status.is-loading {
-            border-color: #c2d7ff;
-            background: #f3f7ff;
-            color: #244f8f;
-        }
-
-        .grafana-result-status.is-ready {
-            border-color: #b7e3c9;
-            background: #f4fbf7;
-            color: #0b6b3c;
-        }
-
-        .grafana-result-status.is-failed {
-            border-color: #e5efe8;
-            background: #ffffff;
-            color: #5f5e5b;
         }
 
         .grafana-result-media {
@@ -486,12 +442,22 @@ body {
             background: #f8faf9;
         }
 
+        .grafana-result-media.is-error {
+            border-color: #f3c1b8;
+            background: #fff4f2;
+        }
+
         .grafana-result-placeholder {
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
             color: #5f5e5b;
             font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .grafana-result-placeholder.is-error {
+            color: #8a3126;
         }
 
         .grafana-result-image {
@@ -2526,10 +2492,6 @@ body {
                 align-items: stretch;
                 flex-direction: column;
                 gap: 0.5rem;
-            }
-
-            .grafana-result-status {
-                width: fit-content;
             }
 
             .grafana-result-media,

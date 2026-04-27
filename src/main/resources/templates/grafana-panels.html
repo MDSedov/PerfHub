@@ -314,6 +314,7 @@
             ? bootstrap.Modal.getOrCreateInstance(exportPanelsModalElement)
             : null;
     const EXPORT_BEFORE_GRAPHS_HINT = 'Нужно сначала показать графики прежде чем ыгружать их Confluence';
+    const CHART_RENDER_TIMEOUT_MS = 30000;
     let templatesCache = [];
     let exportInProgress = false;
     let renderInProgress = false;
@@ -527,32 +528,15 @@
         const row = document.createElement('article');
         row.className = 'grafana-result-row';
         row.dataset.chartKey = getChartKey(chart, index);
-        row.dataset.dashboardUid = chart?.dashboardUid ?? '';
-        row.dataset.panelId = String(chart?.panelId ?? '');
 
         const header = document.createElement('div');
         header.className = 'grafana-result-header';
-
-        const titleGroup = document.createElement('div');
-        titleGroup.className = 'grafana-result-title-group';
 
         const title = document.createElement('h6');
         title.className = 'grafana-result-title';
         title.textContent = getChartTitle(chart, index);
 
-        const meta = document.createElement('div');
-        meta.className = 'grafana-result-meta';
-        meta.textContent = `${chart?.dashboardUid ?? '—'} · панель ${chart?.panelId ?? '—'}`;
-
-        const status = document.createElement('span');
-        status.className = 'grafana-result-status is-pending';
-        status.dataset.chartStatus = '';
-        status.textContent = 'Ожидает';
-
-        titleGroup.appendChild(title);
-        titleGroup.appendChild(meta);
-        header.appendChild(titleGroup);
-        header.appendChild(status);
+        header.appendChild(title);
 
         const media = document.createElement('div');
         media.className = 'grafana-result-media is-placeholder';
@@ -587,16 +571,6 @@
                 .find(row => row.dataset.chartKey === chartKey) ?? null;
     }
 
-    function updateChartStatus(chartKey, label, state) {
-        const row = findChartRow(chartKey);
-        const status = row?.querySelector('[data-chart-status]');
-        if (!status) {
-            return;
-        }
-        status.textContent = label;
-        status.className = `grafana-result-status is-${state}`;
-    }
-
     function renderChartImage(chartKey, panel) {
         const row = findChartRow(chartKey);
         const media = row?.querySelector('[data-chart-media]');
@@ -604,12 +578,31 @@
             return;
         }
         media.innerHTML = '';
-        media.classList.remove('is-placeholder');
+        media.classList.remove('is-placeholder', 'is-error');
         const image = document.createElement('img');
         image.className = 'grafana-result-image';
         image.src = `data:image/png;base64,${panel.imageBase64}`;
         image.alt = panel?.title ? `График ${panel.title}` : 'График';
         media.appendChild(image);
+    }
+
+    function renderChartPlaceholderError(chartKey, message) {
+        const row = findChartRow(chartKey);
+        const media = row?.querySelector('[data-chart-media]');
+        if (!media) {
+            return;
+        }
+        media.innerHTML = '';
+        media.classList.add('is-placeholder', 'is-error');
+        const placeholder = document.createElement('div');
+        placeholder.className = 'grafana-result-placeholder is-error';
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-exclamation-triangle';
+        const text = document.createElement('span');
+        text.textContent = message;
+        placeholder.appendChild(icon);
+        placeholder.appendChild(text);
+        media.appendChild(placeholder);
     }
 
     const createSpinner = () =>
@@ -1126,23 +1119,35 @@
     });
 
     async function renderChartByRange(from, to, templateId, chart) {
-        const response = await fetch('/api/grafana/panels/range/panel', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                from,
-                to,
-                templateId,
-                dashboardUid: chart?.dashboardUid,
-                panelId: chart?.panelId
-            })
-        });
-        if (!response.ok) {
-            throw new Error(extractErrorMessage(await response.text(), 'Не удалось получить график'));
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), CHART_RENDER_TIMEOUT_MS);
+        try {
+            const response = await fetch('/api/grafana/panels/range/panel', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                signal: controller.signal,
+                body: JSON.stringify({
+                    from,
+                    to,
+                    templateId,
+                    dashboardUid: chart?.dashboardUid,
+                    panelId: chart?.panelId
+                })
+            });
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось получить график'));
+            }
+            return response.json();
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                throw new Error('График не загрузился за 30 секунд.');
+            }
+            throw error;
+        } finally {
+            window.clearTimeout(timeoutId);
         }
-        return response.json();
     }
 
     async function renderByRange(from, to, template) {
@@ -1169,14 +1174,12 @@
                 }
                 const chartKey = getChartKey(chart, index);
                 const chartTitle = getChartTitle(chart, index);
-                updateChartStatus(chartKey, 'Загружается', 'loading');
                 try {
                     const panel = await renderChartByRange(from, to, templateId, chart);
                     if (renderRunId !== activeRenderRunId) {
                         return;
                     }
                     renderChartImage(chartKey, panel);
-                    updateChartStatus(chartKey, 'Готово', 'ready');
                     loadedCount += 1;
                     setExportLaunchState(true);
                     updateExportButtonState();
@@ -1184,9 +1187,10 @@
                     if (renderRunId !== activeRenderRunId) {
                         return;
                     }
-                    updateChartStatus(chartKey, 'Заглушка', 'failed');
+                    const errorMessage = error.message || 'Не удалось загрузить график.';
+                    renderChartPlaceholderError(chartKey, errorMessage);
                     showToast(
-                            `Не удалось загрузить график «${chartTitle}»: ${error.message || 'ошибка Grafana'}`,
+                            `Не удалось загрузить график «${chartTitle}»: ${errorMessage}`,
                             'danger',
                             7000
                     );
