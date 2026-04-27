@@ -45,6 +45,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.HttpClientErrorException;
 
 @ExtendWith(MockitoExtension.class)
@@ -333,13 +334,30 @@ class ConfluenceServiceTest {
                 .thenReturn(createdPage);
         when(confluenceClient.uploadAttachment(eq(credentials), eq("555"), anyString(), eq(image)))
                 .thenReturn("grafana-panel-7.png");
+        byte[] archive = new byte[] {4, 5, 6};
+        when(kubernetesConfigurationService.createConfigurationArchive(testUuid))
+                .thenReturn(new DropAppConfigurationSnapshotService.SnapshotArchive(
+                        "dropapp-configuration-55.zip",
+                        archive,
+                        "application/zip"));
+        when(confluenceClient.uploadAttachment(
+                        eq(credentials),
+                        eq("555"),
+                        eq("dropapp-configuration-55.zip"),
+                        eq(archive),
+                        eq(MediaType.parseMediaType("application/zip"))))
+                .thenReturn("dropapp-configuration-55.zip");
 
-        confluenceService.createReports(credentials, request);
+        ConfluenceReportResponse response = confluenceService.createReports(credentials, request);
 
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
         verify(confluenceClient).updatePage(eq(credentials), eq(createdPage), bodyCaptor.capture());
         String body = bodyCaptor.getValue();
         assertThat(body).contains("<p>24.1.7</p>");
+        assertThat(body).contains("<ac:structured-macro ac:name=\"expand\">");
+        assertThat(body).contains("<ac:parameter ac:name=\"title\">Конфигурация стенда</ac:parameter>");
+        assertThat(body).contains("ri:attachment ri:filename=\"dropapp-configuration-55.zip\"");
+        assertThat(body).contains("Скачать ZIP с полной конфигурацией");
         assertThat(body).contains("<table>");
         assertThat(body).contains("<td>24.1.7</td>");
         assertThat(body).contains("<h3>CPU</h3>");
@@ -349,6 +367,8 @@ class ConfluenceServiceTest {
         assertThat(body).doesNotContain("@release");
         assertThat(body).doesNotContain("@config");
         assertThat(body).doesNotContain("@graphics");
+        assertThat(response.reports().get(0).attachmentNames())
+                .contains("dropapp-configuration-55.zip");
     }
 
     @Test

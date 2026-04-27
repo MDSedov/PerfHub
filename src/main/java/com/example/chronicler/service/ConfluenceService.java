@@ -35,9 +35,11 @@ import java.util.regex.Pattern;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.HtmlUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ConfluenceService {
@@ -280,7 +282,6 @@ public class ConfluenceService {
             throw new ConfluenceOperationException("Не удалось подготовить все графики для выбранного шаблона");
         }
 
-        String configurationSection = buildConfigurationSection(configurations);
         String pageTitle = buildReportTitle(template, releaseValue);
         String templateBody = normalizeStorageMarkup(template.text());
         ConfluencePage reportPage = createReportPage(
@@ -299,6 +300,12 @@ public class ConfluenceService {
             chartAttachments.add(new RenderedChartAttachment(chart.title(), panel.description(), attachmentName));
         }
 
+        ConfigurationArchiveAttachment configurationArchive = uploadConfigurationArchiveIfAvailable(
+                credentials,
+                reportPage.id(),
+                testUuid,
+                attachmentNames);
+        String configurationSection = buildConfigurationSection(configurations, configurationArchive);
         String updatedBody = buildReportBody(
                 template.text(),
                 releaseValue,
@@ -426,11 +433,16 @@ public class ConfluenceService {
                 .append("\" /></ac:image></p>");
     }
 
-    private String buildConfigurationSection(List<KubernetesConfiguration> configurations) {
+    private String buildConfigurationSection(
+            List<KubernetesConfiguration> configurations,
+            ConfigurationArchiveAttachment archiveAttachment) {
         StringBuilder bodyBuilder = new StringBuilder();
+        if (archiveAttachment != null) {
+            bodyBuilder.append(buildConfigurationArchiveLink(archiveAttachment));
+        }
         if (configurations.isEmpty()) {
             bodyBuilder.append("<p>Конфигурация стенда для данного теста отсутствует.</p>\n");
-            return bodyBuilder.toString();
+            return buildExpandBlock("Конфигурация стенда", bodyBuilder.toString());
         }
         bodyBuilder.append("<table>\n")
                 .append("<tr>")
@@ -460,7 +472,23 @@ public class ConfluenceService {
                     .append("</tr>\n");
         }
         bodyBuilder.append("</table>\n");
-        return bodyBuilder.toString();
+        return buildExpandBlock("Конфигурация стенда", bodyBuilder.toString());
+    }
+
+    private String buildExpandBlock(String title, String body) {
+        return "<ac:structured-macro ac:name=\"expand\">\n"
+                + "<ac:parameter ac:name=\"title\">" + escape(title) + "</ac:parameter>\n"
+                + "<ac:rich-text-body>\n"
+                + getSafeBody(body)
+                + "</ac:rich-text-body>\n"
+                + "</ac:structured-macro>\n";
+    }
+
+    private String buildConfigurationArchiveLink(ConfigurationArchiveAttachment archiveAttachment) {
+        return "<p><ac:link><ri:attachment ri:filename=\""
+                + escape(archiveAttachment.attachmentName())
+                + "\" /><ac:plain-text-link-body><![CDATA[Скачать ZIP с полной конфигурацией]]>"
+                + "</ac:plain-text-link-body></ac:link></p>\n";
     }
 
     private String buildRowSpanCell(Object value, int rowSpan) {
@@ -710,6 +738,28 @@ public class ConfluenceService {
             String pageId,
             String attachmentName,
             byte[] imageBytes) {
+        uploadAttachmentWithRetry(
+                credentials,
+                pageId,
+                () -> confluenceClient.uploadAttachment(credentials, pageId, attachmentName, imageBytes));
+    }
+
+    private void uploadAttachmentWithRetry(
+            ConfluenceCredentials credentials,
+            String pageId,
+            String attachmentName,
+            byte[] bytes,
+            MediaType mediaType) {
+        uploadAttachmentWithRetry(
+                credentials,
+                pageId,
+                () -> confluenceClient.uploadAttachment(credentials, pageId, attachmentName, bytes, mediaType));
+    }
+
+    private void uploadAttachmentWithRetry(
+            ConfluenceCredentials credentials,
+            String pageId,
+            AttachmentUpload upload) {
         final int maxAttempts = 5;
         final long delayMillis = 700L;
         ConfluenceClientException lastError = null;
@@ -717,7 +767,7 @@ public class ConfluenceService {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 waitForPageAvailability(credentials, pageId);
-                confluenceClient.uploadAttachment(credentials, pageId, attachmentName, imageBytes);
+                upload.upload();
                 return;
             } catch (ConfluenceClientException ex) {
                 lastError = ex;
@@ -732,6 +782,45 @@ public class ConfluenceService {
             throw lastError;
         }
         throw new ConfluenceOperationException("Не удалось загрузить вложение в Confluence");
+    }
+
+    private ConfigurationArchiveAttachment uploadConfigurationArchiveIfAvailable(
+            ConfluenceCredentials credentials,
+            String pageId,
+            UUID testUuid,
+            List<String> attachmentNames) {
+        DropAppConfigurationSnapshotService.SnapshotArchive archive;
+        try {
+            archive = kubernetesConfigurationService.createConfigurationArchive(testUuid);
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                return null;
+            }
+            throw ex;
+        }
+        if (archive == null || archive.content() == null || archive.content().length == 0
+                || !StringUtils.hasText(archive.fileName())) {
+            return null;
+        }
+        uploadAttachmentWithRetry(
+                credentials,
+                pageId,
+                archive.fileName(),
+                archive.content(),
+                resolveArchiveMediaType(archive.contentType()));
+        attachmentNames.add(archive.fileName());
+        return new ConfigurationArchiveAttachment(archive.fileName());
+    }
+
+    private MediaType resolveArchiveMediaType(String contentType) {
+        if (!StringUtils.hasText(contentType)) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(contentType);
+        } catch (IllegalArgumentException ex) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     private void updatePageWithRetry(
@@ -898,4 +987,11 @@ public class ConfluenceService {
     private record GrafanaImageDimensions(int width, int height) {}
 
     private record RenderedChartAttachment(String title, String description, String attachmentName) {}
+
+    private record ConfigurationArchiveAttachment(String attachmentName) {}
+
+    @FunctionalInterface
+    private interface AttachmentUpload {
+        void upload();
+    }
 }

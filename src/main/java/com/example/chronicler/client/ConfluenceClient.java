@@ -210,6 +210,15 @@ public class ConfluenceClient {
 
     public String uploadAttachment(
             ConfluenceCredentials credentials, String pageId, String fileName, byte[] fileContents) {
+        return uploadAttachment(credentials, pageId, fileName, fileContents, MediaType.IMAGE_PNG);
+    }
+
+    public String uploadAttachment(
+            ConfluenceCredentials credentials,
+            String pageId,
+            String fileName,
+            byte[] fileContents,
+            MediaType mediaType) {
         Assert.notNull(credentials, "credentials must not be null");
         Assert.hasText(pageId, "pageId must not be empty");
         Assert.hasText(fileName, "fileName must not be empty");
@@ -223,7 +232,7 @@ public class ConfluenceClient {
 
         HttpHeaders fileHeaders = new HttpHeaders();
         fileHeaders.setContentDispositionFormData("file", fileName);
-        fileHeaders.setContentType(MediaType.IMAGE_PNG);
+        fileHeaders.setContentType(mediaType != null ? mediaType : MediaType.APPLICATION_OCTET_STREAM);
         ByteArrayResource resource = new ByteArrayResource(fileContents) {
             @Override
             public String getFilename() {
