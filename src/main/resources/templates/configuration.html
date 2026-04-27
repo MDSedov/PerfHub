@@ -91,37 +91,78 @@
 
     <div class="page-content" style="background: #ffffff; min-height: 100vh;">
 <main class="container-fluid py-5 px-4 px-lg-5">
-    <div class="card card-config">
-        <div class="card-body">
-            <div class="d-flex flex-column align-items-center text-center gap-3">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-gear home-card-icon" style="margin: 0;"></i>
-                    <h5 class="card-title mb-0 home-card-title" style="margin: 0;">Сохранить конфигурацию</h5>
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="data-panel d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-start">
+                    <a class="btn btn-outline-success"
+                       th:href="@{/settings/stand-configuration}">
+                        Настроить конфигурацию стенда
+                    </a>
                 </div>
-                <p class="text-muted mb-0" style="max-width: 640px;">
-                    Выгружайте текущую конфигурацию DropApp по выбранным namespace и компонентам.<br>
-                    Снапшот сохраняется в БД и появляется в таблице сохранённых конфигураций.
-                </p>
-                <div class="d-flex flex-wrap justify-content-center align-items-center gap-3">
+                <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-end">
                     <button type="button"
-                            class="btn btn-outline-success"
+                            class="btn btn-success report-generate-button"
                             id="loadDropAppConfig">
                         Получить конфигурацию
                     </button>
                 </div>
             </div>
-            <div class="saved-configurations-section mt-4 pt-4 border-top">
-                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
-                    <div>
-                        <h6 class="mb-1">Сохраненные конфигурации</h6>
-                        <p class="text-muted mb-0">
-                            История ранее сохранённых конфигураций DropApp. Каждую запись можно открыть в модальном окне.
-                        </p>
+        </div>
+    </div>
+
+    <section class="tests-content saved-configurations-section flex-grow-1 mt-3">
+        <div class="card border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="tests-meta">
+                        <h5 class="mb-0">Сохраненные конфигурации</h5>
+                        <span class="tests-count" id="savedConfigsCounter">0</span>
                     </div>
-                    <span class="saved-configurations-counter text-muted small" id="savedConfigsCounter"></span>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle" id="savedDropAppConfigsTable">
+                <div id="savedConfigsStatus" class="alert alert-info d-none" role="alert"></div>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                    <div class="filters-bar">
+                        <div class="dropdown" data-bs-auto-close="outside">
+                            <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-tags"></i> Релиз
+                            </a>
+                            <div class="dropdown-menu filter-dropdown">
+                                <p class="form-label small text-muted mb-2">Релизы</p>
+                                <div id="savedReleaseFilterList" class="filter-list"></div>
+                            </div>
+                        </div>
+                        <div class="dropdown" data-bs-auto-close="outside">
+                            <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-calendar-event"></i> Дата сохранения
+                            </a>
+                            <div class="dropdown-menu filter-dropdown">
+                                <label class="form-label small text-muted mb-2" for="savedAtStart">Начало</label>
+                                <input type="datetime-local" class="form-control form-control-sm mb-2" id="savedAtStart">
+                                <label class="form-label small text-muted mb-2" for="savedAtEnd">Конец</label>
+                                <input type="datetime-local" class="form-control form-control-sm" id="savedAtEnd">
+                            </div>
+                        </div>
+                        <div class="dropdown" data-bs-auto-close="outside">
+                            <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-chat-left-text"></i> Комментарий
+                            </a>
+                            <div class="dropdown-menu filter-dropdown">
+                                <label class="form-label small text-muted mb-2" for="savedCommentSearch">Комментарий</label>
+                                <input type="search"
+                                       class="form-control form-control-sm"
+                                       id="savedCommentSearch"
+                                       placeholder="Поиск по комментарию">
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-link px-2 reset-filters-btn" id="resetSavedConfigFiltersButton">
+                        <i class="bi bi-x-lg"></i>
+                        <span>Сбросить фильтры</span>
+                    </button>
+                </div>
+                <div class="tests-table-wrapper table-responsive">
+                    <table class="table align-middle tests-table saved-configurations-table" id="savedDropAppConfigsTable">
                         <thead>
                         <tr>
                             <th scope="col">Дата сохранения</th>
@@ -135,7 +176,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 </main>
 
 <div class="modal fade test-details-modal"
@@ -255,7 +296,13 @@
 
         const toastContainer = document.getElementById('toastContainer');
         const savedConfigsCounter = document.getElementById('savedConfigsCounter');
+        const savedConfigsStatus = document.getElementById('savedConfigsStatus');
         const savedConfigsTableBody = document.getElementById('savedDropAppConfigsTableBody');
+        const savedReleaseFilterList = document.getElementById('savedReleaseFilterList');
+        const savedAtStartInput = document.getElementById('savedAtStart');
+        const savedAtEndInput = document.getElementById('savedAtEnd');
+        const savedCommentSearchInput = document.getElementById('savedCommentSearch');
+        const resetSavedConfigFiltersButton = document.getElementById('resetSavedConfigFiltersButton');
         const captureOpenButton = document.getElementById('loadDropAppConfig');
         const captureModalElement = document.getElementById('dropAppCaptureModal');
         const captureNamespaceList = document.getElementById('captureNamespaceList');
@@ -274,10 +321,19 @@
         const configurationModal = configurationModalElement && bootstrapModalApi
                 ? bootstrapModalApi.getOrCreateInstance(configurationModalElement)
                 : null;
+        const MISSING_RELEASE_VALUE = '__missing__';
 
         let namespaceOptions = {
             available: [],
             selected: []
+        };
+        let savedConfigurations = [];
+        let savedConfigFilterDropdownsInitialized = false;
+        let savedConfigFilterState = {
+            releases: [],
+            savedAtStart: '',
+            savedAtEnd: '',
+            comment: ''
         };
         let standConfigurationSettings = {
             namespaces: [],
@@ -337,6 +393,51 @@
             }
             const text = String(value).trim();
             return text === '' ? null : text;
+        };
+
+        const normalizeSearchText = (value) => (value ?? '').toString().trim().toLowerCase();
+
+        const normalizeReleaseValue = (value) => normalizeText(value);
+
+        const compareReleaseValues = (left, right) => {
+            const normalizedLeft = normalizeReleaseValue(left);
+            const normalizedRight = normalizeReleaseValue(right);
+            if (normalizedLeft === null) {
+                return normalizedRight === null ? 0 : 1;
+            }
+            if (normalizedRight === null) {
+                return -1;
+            }
+            return normalizedLeft.localeCompare(
+                    normalizedRight,
+                    'ru',
+                    {numeric: true, sensitivity: 'base'}
+            );
+        };
+
+        const parseDateTimeValue = (value) => {
+            const text = normalizeText(value);
+            if (!text) {
+                return null;
+            }
+            const normalized = text.includes('T') ? text : text.replace(' ', 'T');
+            const withSeconds = normalized.length === 16 ? `${normalized}:00` : normalized;
+            const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(withSeconds);
+            const date = new Date(hasTimezone ? withSeconds : `${withSeconds}+03:00`);
+            return Number.isNaN(date.getTime()) ? null : date;
+        };
+
+        const setSavedConfigsStatus = (message, type = 'info') => {
+            if (!savedConfigsStatus) {
+                return;
+            }
+            savedConfigsStatus.textContent = message;
+            savedConfigsStatus.className = `alert alert-${type}`;
+            savedConfigsStatus.classList.remove('d-none');
+        };
+
+        const clearSavedConfigsStatus = () => {
+            savedConfigsStatus?.classList.add('d-none');
         };
 
         const ensureFallbackBackdrop = () => {
@@ -407,6 +508,128 @@
                     hideManagedModal(element, null);
                 }
             });
+        };
+
+        const initSavedConfigFilterDropdowns = () => {
+            if (savedConfigFilterDropdownsInitialized) {
+                return;
+            }
+            const dropdowns = Array.from(document.querySelectorAll('.saved-configurations-section .filters-bar .dropdown'));
+            if (dropdowns.length === 0) {
+                return;
+            }
+
+            if (window.bootstrap?.Dropdown) {
+                dropdowns.forEach(dropdown => {
+                    const toggle = dropdown.querySelector('[data-bs-toggle="dropdown"]');
+                    if (toggle) {
+                        bootstrap.Dropdown.getOrCreateInstance(toggle, {autoClose: 'outside'});
+                    }
+                });
+                savedConfigFilterDropdownsInitialized = true;
+                return;
+            }
+
+            const closeAll = (except = null) => {
+                dropdowns.forEach(dropdown => {
+                    if (dropdown === except) {
+                        return;
+                    }
+                    const toggle = dropdown.querySelector('[data-bs-toggle="dropdown"]');
+                    const menu = dropdown.querySelector('.dropdown-menu');
+                    toggle?.setAttribute('aria-expanded', 'false');
+                    menu?.classList.remove('show');
+                });
+            };
+
+            dropdowns.forEach(dropdown => {
+                const toggle = dropdown.querySelector('[data-bs-toggle="dropdown"]');
+                const menu = dropdown.querySelector('.dropdown-menu');
+                if (!toggle || !menu) {
+                    return;
+                }
+                toggle.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const isOpen = menu.classList.contains('show');
+                    closeAll(isOpen ? null : dropdown);
+                    if (!isOpen) {
+                        menu.classList.add('show');
+                        toggle.setAttribute('aria-expanded', 'true');
+                    }
+                });
+            });
+
+            document.addEventListener('click', event => {
+                if (!event.target.closest('.saved-configurations-section .filters-bar .dropdown')) {
+                    closeAll();
+                }
+            });
+
+            savedConfigFilterDropdownsInitialized = true;
+        };
+
+        const collectCheckedValues = (container) => {
+            if (!container) {
+                return [];
+            }
+            return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(input => input.value);
+        };
+
+        const renderSavedReleaseCheckboxes = (values) => {
+            if (!savedReleaseFilterList) {
+                return;
+            }
+            savedReleaseFilterList.innerHTML = '';
+            if (!values.length) {
+                savedReleaseFilterList.innerHTML = '<div class="text-muted small">Релизы пока отсутствуют.</div>';
+                return;
+            }
+
+            values.forEach((value, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'form-check';
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.className = 'form-check-input';
+                input.id = `saved-release-filter-${index}`;
+                input.value = value;
+                input.checked = savedConfigFilterState.releases.includes(value);
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.setAttribute('for', input.id);
+                label.textContent = value === MISSING_RELEASE_VALUE ? 'Не указан' : value;
+                wrapper.appendChild(input);
+                wrapper.appendChild(label);
+                savedReleaseFilterList.appendChild(wrapper);
+            });
+
+            savedReleaseFilterList.querySelectorAll('input[type="checkbox"]').forEach(input => {
+                input.addEventListener('change', () => {
+                    savedConfigFilterState.releases = collectCheckedValues(savedReleaseFilterList);
+                    applySavedConfigurationFilters();
+                });
+            });
+        };
+
+        const updateSavedReleaseOptions = (items) => {
+            const releases = new Set();
+            (Array.isArray(items) ? items : []).forEach(item => {
+                releases.add(normalizeReleaseValue(item?.release) ?? MISSING_RELEASE_VALUE);
+            });
+            savedConfigFilterState.releases = savedConfigFilterState.releases
+                    .filter(value => releases.has(value));
+            const sorted = Array.from(releases).sort((left, right) => {
+                if (left === MISSING_RELEASE_VALUE) {
+                    return 1;
+                }
+                if (right === MISSING_RELEASE_VALUE) {
+                    return -1;
+                }
+                return compareReleaseValues(left, right);
+            });
+            renderSavedReleaseCheckboxes(sorted);
         };
 
         const resolveComponentLabel = (item) => {
@@ -981,7 +1204,11 @@
             showManagedModal(configurationModalElement, configurationModal);
         };
 
-        const renderSavedConfigurationsTable = (items) => {
+        const getSavedConfigurationReleaseValue = (item) => {
+            return normalizeReleaseValue(item?.release) ?? MISSING_RELEASE_VALUE;
+        };
+
+        const renderSavedConfigurationsRows = (items, emptyMessage = 'Сохранённые конфигурации пока отсутствуют.') => {
             if (!savedConfigsTableBody) {
                 return;
             }
@@ -989,9 +1216,7 @@
             savedConfigsTableBody.innerHTML = '';
             const savedItems = Array.isArray(items) ? items : [];
             if (savedConfigsCounter) {
-                savedConfigsCounter.textContent = savedItems.length === 0
-                        ? 'Сохранённых конфигураций пока нет'
-                        : `Сохранено конфигураций: ${savedItems.length}`;
+                savedConfigsCounter.textContent = savedItems.length.toString();
             }
 
             if (savedItems.length === 0) {
@@ -999,7 +1224,7 @@
                 const emptyCell = document.createElement('td');
                 emptyCell.colSpan = 4;
                 emptyCell.className = 'text-center text-muted py-4';
-                emptyCell.textContent = 'Сохранённые конфигурации пока отсутствуют.';
+                emptyCell.textContent = emptyMessage;
                 emptyRow.appendChild(emptyCell);
                 savedConfigsTableBody.appendChild(emptyRow);
                 return;
@@ -1059,6 +1284,102 @@
                 row.appendChild(actionsCell);
                 savedConfigsTableBody.appendChild(row);
             });
+        };
+
+        const applySavedConfigurationFilters = () => {
+            const selectedReleases = savedConfigFilterState.releases ?? [];
+            const startRaw = savedConfigFilterState.savedAtStart ?? '';
+            const endRaw = savedConfigFilterState.savedAtEnd ?? '';
+            const savedAtStart = parseDateTimeValue(startRaw);
+            const savedAtEnd = parseDateTimeValue(endRaw);
+            const commentQuery = normalizeSearchText(savedConfigFilterState.comment);
+
+            if (startRaw && !savedAtStart) {
+                setSavedConfigsStatus('Не удалось распознать дату начала периода сохранения.', 'warning');
+                renderSavedConfigurationsRows([], 'Исправьте дату начала периода сохранения.');
+                return;
+            }
+            if (endRaw && !savedAtEnd) {
+                setSavedConfigsStatus('Не удалось распознать дату окончания периода сохранения.', 'warning');
+                renderSavedConfigurationsRows([], 'Исправьте дату окончания периода сохранения.');
+                return;
+            }
+            if (savedAtStart && savedAtEnd && savedAtEnd < savedAtStart) {
+                setSavedConfigsStatus('Дата начала периода позже даты окончания. Исправьте границы.', 'warning');
+                renderSavedConfigurationsRows([], 'Исправьте период сохранения конфигураций.');
+                return;
+            }
+            if (savedConfigsStatus?.classList.contains('alert-warning')) {
+                clearSavedConfigsStatus();
+            }
+
+            const filtered = savedConfigurations.filter(item => {
+                if (selectedReleases.length > 0 && !selectedReleases.includes(getSavedConfigurationReleaseValue(item))) {
+                    return false;
+                }
+
+                if (savedAtStart || savedAtEnd) {
+                    const savedAt = parseDateTimeValue(item?.savedAt);
+                    if (!savedAt) {
+                        return false;
+                    }
+                    if (savedAtStart && savedAt < savedAtStart) {
+                        return false;
+                    }
+                    if (savedAtEnd && savedAt > savedAtEnd) {
+                        return false;
+                    }
+                }
+
+                if (commentQuery) {
+                    const comment = normalizeSearchText(item?.comment);
+                    if (!comment.includes(commentQuery)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+            const hasActiveFilters = selectedReleases.length > 0
+                    || Boolean(startRaw)
+                    || Boolean(endRaw)
+                    || Boolean(commentQuery);
+            renderSavedConfigurationsRows(
+                    filtered,
+                    hasActiveFilters
+                            ? 'По выбранным фильтрам конфигурации не найдены.'
+                            : 'Сохранённые конфигурации пока отсутствуют.'
+            );
+        };
+
+        const renderSavedConfigurationsTable = (items) => {
+            savedConfigurations = Array.isArray(items) ? items : [];
+            updateSavedReleaseOptions(savedConfigurations);
+            applySavedConfigurationFilters();
+        };
+
+        const resetSavedConfigurationFilters = () => {
+            savedConfigFilterState = {
+                releases: [],
+                savedAtStart: '',
+                savedAtEnd: '',
+                comment: ''
+            };
+            savedReleaseFilterList?.querySelectorAll('input[type="checkbox"]').forEach(input => {
+                input.checked = false;
+            });
+            if (savedAtStartInput) {
+                savedAtStartInput.value = '';
+            }
+            if (savedAtEndInput) {
+                savedAtEndInput.value = '';
+            }
+            if (savedCommentSearchInput) {
+                savedCommentSearchInput.value = '';
+            }
+            clearSavedConfigsStatus();
+            applySavedConfigurationFilters();
         };
 
         const requestJson = async (url, options = {}) => {
@@ -1218,6 +1539,7 @@
 
         bindFallbackDismiss(captureModalElement, captureModal);
         bindFallbackDismiss(configurationModalElement, configurationModal);
+        initSavedConfigFilterDropdowns();
 
         const prepareCaptureModal = () => {
             captureCommentInput.value = '';
@@ -1235,6 +1557,23 @@
         });
 
         captureModalElement?.addEventListener('show.bs.modal', prepareCaptureModal);
+
+        savedAtStartInput?.addEventListener('change', () => {
+            savedConfigFilterState.savedAtStart = savedAtStartInput.value;
+            applySavedConfigurationFilters();
+        });
+
+        savedAtEndInput?.addEventListener('change', () => {
+            savedConfigFilterState.savedAtEnd = savedAtEndInput.value;
+            applySavedConfigurationFilters();
+        });
+
+        savedCommentSearchInput?.addEventListener('input', () => {
+            savedConfigFilterState.comment = savedCommentSearchInput.value;
+            applySavedConfigurationFilters();
+        });
+
+        resetSavedConfigFiltersButton?.addEventListener('click', resetSavedConfigurationFilters);
 
         captureSubmitButton?.addEventListener('click', async () => {
             const selectedNamespaces = readCheckedValues(captureNamespaceList);

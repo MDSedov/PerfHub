@@ -1468,6 +1468,49 @@ body {
             position: relative;
         }
 
+        .saved-configurations-section .card {
+            box-shadow: none;
+            border: none;
+            background: #ffffff;
+            border-radius: 0;
+        }
+
+        .saved-configurations-table {
+            width: 100%;
+            margin: 0;
+            border-collapse: collapse;
+            color: #1c231f;
+            font-size: 0.94rem;
+        }
+
+        .saved-configurations-table thead th {
+            background-color: #f3f4f6 !important;
+            border-bottom: 1px solid #e5efe8;
+            border-color: #e5efe8;
+            color: #5f5e5b !important;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .saved-configurations-table thead tr {
+            background-color: #f3f4f6 !important;
+        }
+
+        .saved-configurations-table tbody td {
+            border-color: #e5efe8;
+            border-top: 1px solid #e5efe8;
+            color: #5f5e5b;
+            font-size: 0.94rem;
+            padding: 0.5rem 0.75rem;
+            vertical-align: middle;
+        }
+
+        .saved-configurations-table tbody tr:hover {
+            background-color: rgba(0, 152, 70, 0.04);
+        }
+
         .current-configuration-section {
             position: relative;
         }
@@ -1574,7 +1617,7 @@ body {
             resize: vertical;
         }
 
-        #savedDropAppConfigsTable td:nth-child(3) {
+        .saved-configurations-table td:nth-child(3) {
             min-width: 240px;
             white-space: pre-wrap;
             word-break: break-word;
