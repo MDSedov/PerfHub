@@ -1,6 +1,6 @@
 package com.example.chronicler.controller;
 
-import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
 import com.example.chronicler.dto.tests.LoadTestView;
 import com.example.chronicler.dto.tests.RequirementComplianceView;
 import com.example.chronicler.dto.tests.SaveTestCommentRequest;
@@ -17,8 +17,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -61,16 +63,27 @@ public class LoadTestController {
     }
 
     @GetMapping("/{testUuid}/configuration")
-    public List<DropAppConfigurationItemDto> getTestConfiguration(@PathVariable("testUuid") UUID testUuid) {
+    public DropAppConfigurationSnapshotDetailsDto getTestConfiguration(@PathVariable("testUuid") UUID testUuid) {
         Objects.requireNonNull(testUuid, "testUuid must not be null");
-        return kubernetesConfigurationService.getConfigurationItems(testUuid);
+        return kubernetesConfigurationService.getConfigurationDetails(testUuid);
     }
 
-    /** Запрашивает и сохраняет текущую конфигурацию DropApp для теста, если она отсутствует. */
+    /** Запрашивает и сохраняет текущую конфигурацию стенда для теста. */
     @PostMapping("/{testUuid}/configuration/capture")
-    public List<DropAppConfigurationItemDto> captureConfiguration(@PathVariable("testUuid") UUID testUuid) {
+    public DropAppConfigurationSnapshotDetailsDto captureConfiguration(@PathVariable("testUuid") UUID testUuid) {
         Objects.requireNonNull(testUuid, "testUuid must not be null");
-        return kubernetesConfigurationService.captureAndGetConfiguration(testUuid);
+        return kubernetesConfigurationService.captureAndGetConfigurationDetails(testUuid);
+    }
+
+    /** Скачивает ZIP-архив конфигурации стенда, сохраненной для теста. */
+    @GetMapping(path = "/{testUuid}/configuration/archive", produces = "application/zip")
+    public ResponseEntity<byte[]> downloadConfigurationArchive(@PathVariable("testUuid") UUID testUuid) {
+        Objects.requireNonNull(testUuid, "testUuid must not be null");
+        var archive = kubernetesConfigurationService.createConfigurationArchive(testUuid);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + archive.fileName() + "\"")
+                .contentType(MediaType.parseMediaType(archive.contentType()))
+                .body(archive.content());
     }
 
     /** Сохраняет комментарий для теста и возвращает обновленную информацию. */

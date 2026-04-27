@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -22,20 +23,29 @@ import org.springframework.util.CollectionUtils;
 public class DropAppConfigurationSnapshotRepository {
 
     private static final String SELECT_ALL_SNAPSHOTS_SQL = """
-            SELECT id, release, comment, namespaces, components, saved_at
+            SELECT id, test_uuid, release, comment, namespaces, components, saved_at
             FROM dropapp_configuration_snapshots
+            WHERE test_uuid IS NULL
             ORDER BY saved_at DESC, id DESC
             """;
 
     private static final String SELECT_SNAPSHOT_BY_ID_SQL = """
-            SELECT id, release, comment, namespaces, components, saved_at
+            SELECT id, test_uuid, release, comment, namespaces, components, saved_at
             FROM dropapp_configuration_snapshots
             WHERE id = ?
             """;
 
+    private static final String SELECT_LATEST_SNAPSHOT_BY_TEST_SQL = """
+            SELECT id, test_uuid, release, comment, namespaces, components, saved_at
+            FROM dropapp_configuration_snapshots
+            WHERE test_uuid = ?
+            ORDER BY saved_at DESC, id DESC
+            LIMIT 1
+            """;
+
     private static final String INSERT_SNAPSHOT_SQL = """
-            INSERT INTO dropapp_configuration_snapshots (release, comment, namespaces, components, saved_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO dropapp_configuration_snapshots (test_uuid, release, comment, namespaces, components, saved_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """;
 
     private static final String UPDATE_SNAPSHOT_SQL = """
@@ -47,6 +57,11 @@ public class DropAppConfigurationSnapshotRepository {
     private static final String DELETE_SNAPSHOT_SQL = """
             DELETE FROM dropapp_configuration_snapshots
             WHERE id = ?
+            """;
+
+    private static final String DELETE_SNAPSHOTS_BY_TEST_SQL = """
+            DELETE FROM dropapp_configuration_snapshots
+            WHERE test_uuid = ?
             """;
 
     private static final String SELECT_ITEMS_BY_SNAPSHOT_SQL = """
@@ -102,6 +117,15 @@ public class DropAppConfigurationSnapshotRepository {
                 .findFirst();
     }
 
+    public Optional<DropAppConfigurationSnapshot> findLatestSnapshotByTestUuid(UUID testUuid) {
+        return jdbcTemplate.query(
+                        SELECT_LATEST_SNAPSHOT_BY_TEST_SQL,
+                        ps -> ps.setObject(1, testUuid),
+                        snapshotRowMapper)
+                .stream()
+                .findFirst();
+    }
+
     public List<DropAppConfigurationSnapshotItem> findItemsBySnapshotId(Long snapshotId) {
         return jdbcTemplate.query(
                 SELECT_ITEMS_BY_SNAPSHOT_SQL,
@@ -117,14 +141,25 @@ public class DropAppConfigurationSnapshotRepository {
     }
 
     public long insertSnapshot(String release, String comment, String namespaces, String components, Instant savedAt) {
+        return insertSnapshot(null, release, comment, namespaces, components, savedAt);
+    }
+
+    public long insertSnapshot(
+            UUID testUuid,
+            String release,
+            String comment,
+            String namespaces,
+            String components,
+            Instant savedAt) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(INSERT_SNAPSHOT_SQL, new String[] {"id"});
-            ps.setString(1, release);
-            ps.setString(2, comment);
-            ps.setString(3, namespaces);
-            ps.setString(4, components);
-            ps.setTimestamp(5, savedAt != null ? Timestamp.from(savedAt) : Timestamp.from(Instant.now()));
+            ps.setObject(1, testUuid);
+            ps.setString(2, release);
+            ps.setString(3, comment);
+            ps.setString(4, namespaces);
+            ps.setString(5, components);
+            ps.setTimestamp(6, savedAt != null ? Timestamp.from(savedAt) : Timestamp.from(Instant.now()));
             return ps;
         }, keyHolder);
         Number key = null;
@@ -155,6 +190,10 @@ public class DropAppConfigurationSnapshotRepository {
 
     public int deleteSnapshot(long snapshotId) {
         return jdbcTemplate.update(DELETE_SNAPSHOT_SQL, snapshotId);
+    }
+
+    public int deleteSnapshotsByTestUuid(UUID testUuid) {
+        return jdbcTemplate.update(DELETE_SNAPSHOTS_BY_TEST_SQL, ps -> ps.setObject(1, testUuid));
     }
 
     public void saveItems(long snapshotId, List<DropAppConfigurationSnapshotItem> items) {
@@ -206,6 +245,7 @@ public class DropAppConfigurationSnapshotRepository {
         Timestamp savedAt = rs.getTimestamp("saved_at");
         return new DropAppConfigurationSnapshot(
                 rs.getObject("id", Long.class),
+                rs.getObject("test_uuid", UUID.class),
                 rs.getString("release"),
                 rs.getString("comment"),
                 rs.getString("namespaces"),

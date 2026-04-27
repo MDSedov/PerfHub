@@ -1,13 +1,13 @@
 package com.example.chronicler.service;
 
 import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
-import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
-import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
 import com.example.chronicler.exception.DropAppClientException;
-import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.repository.KubernetesConfigurationRepository;
+import com.example.chronicler.util.DateTimeViewUtils;
 import com.example.chronicler.util.DropAppConfigurationUtils;
+import com.example.chronicler.util.ReleaseVersionUtils;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class KubernetesConfigurationService {
@@ -26,23 +27,24 @@ public class KubernetesConfigurationService {
     private static final Logger log = LoggerFactory.getLogger(KubernetesConfigurationService.class);
 
     private final KubernetesConfigurationRepository repository;
-    private final DropAppService dropAppService;
-    private final StandConfigurationSettingsService standConfigurationSettingsService;
+    private final DropAppConfigurationSnapshotService snapshotService;
 
     public KubernetesConfigurationService(
             KubernetesConfigurationRepository repository,
-            DropAppService dropAppService,
-            StandConfigurationSettingsService standConfigurationSettingsService) {
+            DropAppConfigurationSnapshotService snapshotService) {
         this.repository = repository;
-        this.dropAppService = dropAppService;
-        this.standConfigurationSettingsService = standConfigurationSettingsService;
+        this.snapshotService = snapshotService;
     }
 
     /** Возвращает сохраненную конфигурацию для указанного теста в формате DTO. */
     public List<DropAppConfigurationItemDto> getConfigurationItems(UUID testUuid) {
-        return getConfigurations(testUuid).stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+        return getConfigurationDetails(testUuid).items();
+    }
+
+    /** Возвращает детальное представление конфигурации стенда для карточки теста. */
+    public DropAppConfigurationSnapshotDetailsDto getConfigurationDetails(UUID testUuid) {
+        return snapshotService.findLatestTestSnapshotDetails(testUuid)
+                .orElseGet(() -> buildLegacyDetails(testUuid));
     }
 
     public Map<UUID, String> findMaxReleases(Collection<UUID> testUuids) {
@@ -62,25 +64,27 @@ public class KubernetesConfigurationService {
     }
 
     /**
-     * Запрашивает актуальную конфигурацию DropApp и сохраняет её для теста, если записи отсутствуют.
+     * Запрашивает актуальную конфигурацию стенда и сохраняет её для теста.
      * Возвращает сохранённые (или уже существующие) элементы в формате DTO.
      */
     @Transactional
     public List<DropAppConfigurationItemDto> captureAndGetConfiguration(UUID testUuid) {
+        return captureAndGetConfigurationDetails(testUuid).items();
+    }
+
+    @Transactional
+    public DropAppConfigurationSnapshotDetailsDto captureAndGetConfigurationDetails(UUID testUuid) {
         if (testUuid == null) {
             throw new DropAppClientException("testUuid must not be null");
         }
-        List<DropAppPodConfiguration> currentConfig = loadStandConfiguration();
-        if (currentConfig == null || currentConfig.isEmpty()) {
-            throw new DropAppClientException("Конфигурация стенда пуста");
-        }
+        DropAppConfigurationSnapshotDetailsDto details = snapshotService.captureTestConfiguration(testUuid);
         Instant now = Instant.now();
-        List<KubernetesConfiguration> records = currentConfig.stream()
+        List<KubernetesConfiguration> records = details.items().stream()
                 .map(item -> toRecord(testUuid, item, now))
                 .toList();
         repository.deleteByTest(testUuid);
         repository.saveAll(testUuid, records);
-        return records.stream().map(this::toDto).toList();
+        return details;
     }
 
     /** Возвращает сохраненную конфигурацию Kubernetes по идентификатору теста. */
@@ -103,9 +107,10 @@ public class KubernetesConfigurationService {
     }
 
     /**
-     * Загружает текущую конфигурацию DropApp и сохраняет ее для теста, если ранее конфигурация не
+     * Загружает текущую конфигурацию стенда и сохраняет ее для теста, если ранее конфигурация не
      * была зафиксирована.
      */
+    @Transactional
     public void captureCurrentConfigurationIfAbsent(UUID testUuid) {
         if (testUuid == null) {
             return;
@@ -113,17 +118,17 @@ public class KubernetesConfigurationService {
         if (repository.existsForTest(testUuid)) {
             return;
         }
-        List<DropAppPodConfiguration> currentConfig = loadStandConfiguration();
-        if (currentConfig == null || currentConfig.isEmpty()) {
+        try {
+            DropAppConfigurationSnapshotDetailsDto details = snapshotService.captureTestConfiguration(testUuid);
+            Instant now = Instant.now();
+            List<KubernetesConfiguration> records = details.items().stream()
+                    .map(item -> toRecord(testUuid, item, now))
+                    .toList();
+            repository.saveAll(testUuid, records);
+            log.info("Зафиксирована конфигурация Kubernetes для теста {} ({} записей)", testUuid, records.size());
+        } catch (ResponseStatusException ex) {
             log.info("Конфигурация стенда пуста для теста {}", testUuid);
-            return;
         }
-        Instant now = Instant.now();
-        List<KubernetesConfiguration> records = currentConfig.stream()
-                .map(item -> toRecord(testUuid, item, now))
-                .toList();
-        repository.saveAll(testUuid, records);
-        log.info("Зафиксирована конфигурация Kubernetes для теста {} ({} записей)", testUuid, records.size());
     }
 
     /** Пытается сохранить конфигурацию для каждого теста, у которого она отсутствует. */
@@ -135,34 +140,44 @@ public class KubernetesConfigurationService {
             try {
                 captureCurrentConfigurationIfAbsent(testUuid);
             } catch (Exception ex) {
-                log.warn("Не удалось сохранить конфигурацию DropApp для теста {}", testUuid, ex);
+                log.warn("Не удалось сохранить конфигурацию стенда для теста {}", testUuid, ex);
             }
         }
     }
 
-    private List<DropAppPodConfiguration> loadStandConfiguration() {
-        List<String> namespaces = standConfigurationSettingsService.resolveNamespaces();
-        List<DropAppConfigurationComponent> components = standConfigurationSettingsService.resolveComponents();
-        List<DropAppServiceSelectionDto> services = standConfigurationSettingsService.resolveServices(namespaces);
-        return dropAppService.loadConfiguration(namespaces, components, services);
+    public DropAppConfigurationSnapshotService.SnapshotArchive createConfigurationArchive(UUID testUuid) {
+        return snapshotService.createTestSnapshotArchive(testUuid);
     }
 
-    private KubernetesConfiguration toRecord(UUID testUuid, DropAppPodConfiguration item, Instant capturedAt) {
-        return new KubernetesConfiguration(
+    private DropAppConfigurationSnapshotDetailsDto buildLegacyDetails(UUID testUuid) {
+        List<KubernetesConfiguration> configurations = getConfigurations(testUuid);
+        List<DropAppConfigurationItemDto> items = configurations.stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+        Instant capturedAt = configurations.stream()
+                .map(KubernetesConfiguration::capturedAt)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        List<String> namespaces = items.stream()
+                .map(DropAppConfigurationItemDto::namespace)
+                .filter(java.util.Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .toList();
+        String release = ReleaseVersionUtils.findMaxRelease(items.stream()
+                .map(DropAppConfigurationItemDto::release)
+                .toList());
+        return new DropAppConfigurationSnapshotDetailsDto(
                 null,
-                testUuid,
-                item.namespace(),
-                item.serviceName(),
-                item.podName(),
-                item.podCount(),
-                item.containerName(),
-                item.version(),
-                item.release(),
-                item.requestCpu(),
-                item.limitCpu(),
-                item.requestRam(),
-                item.limitRam(),
-                capturedAt);
+                DateTimeViewUtils.formatInstant(capturedAt),
+                release,
+                null,
+                namespaces,
+                List.of(),
+                items,
+                List.of());
     }
 
     private DropAppConfigurationItemDto toDto(KubernetesConfiguration configuration) {

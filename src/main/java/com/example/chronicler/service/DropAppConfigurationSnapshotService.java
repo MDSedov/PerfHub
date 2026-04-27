@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -41,6 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -96,6 +98,7 @@ public class DropAppConfigurationSnapshotService {
         return new DropAppConfigurationViewDto(resolvedNamespaces, resolveRelease(items), items);
     }
 
+    @Transactional
     public DropAppConfigurationCaptureResponse captureCurrentConfiguration(DropAppConfigurationCaptureRequest request) {
         List<String> requestedNamespaces = request != null ? request.namespaces() : List.of();
         List<String> requestedComponents = request != null ? request.components() : List.of();
@@ -123,6 +126,7 @@ public class DropAppConfigurationSnapshotService {
                 dropAppService.loadConfigurationDocuments(resolvedNamespaces, resolvedComponents, resolvedServices);
 
         DropAppConfigurationSnapshotDetailsDto savedSnapshot = persistSnapshot(
+                null,
                 resolvedNamespaces,
                 resolveRelease(items),
                 comment,
@@ -138,6 +142,37 @@ public class DropAppConfigurationSnapshotService {
                 savedSnapshot.namespaces(),
                 savedSnapshot.components(),
                 savedSnapshot.items());
+    }
+
+    @Transactional
+    public DropAppConfigurationSnapshotDetailsDto captureTestConfiguration(UUID testUuid) {
+        if (testUuid == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Идентификатор теста не задан");
+        }
+        List<String> resolvedNamespaces = dropAppService.resolveNamespaces(
+                standConfigurationSettingsService.resolveNamespaces());
+        List<DropAppConfigurationComponent> resolvedComponents = standConfigurationSettingsService.resolveComponents();
+        List<DropAppServiceSelectionDto> resolvedServices =
+                standConfigurationSettingsService.resolveServices(resolvedNamespaces);
+        List<DropAppConfigurationItemDto> items = DropAppConfigurationUtils.groupPodItems(
+                dropAppService.loadConfiguration(resolvedNamespaces, resolvedComponents, resolvedServices).stream()
+                        .map(this::toDto)
+                        .toList());
+        if (items.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Конфигурация стенда пуста");
+        }
+        List<DropAppConfigurationSnapshotDocument> documents =
+                dropAppService.loadConfigurationDocuments(resolvedNamespaces, resolvedComponents, resolvedServices);
+
+        repository.deleteSnapshotsByTestUuid(testUuid);
+        return persistSnapshot(
+                testUuid,
+                resolvedNamespaces,
+                resolveRelease(items),
+                null,
+                resolvedComponents.stream().map(DropAppConfigurationComponent::code).toList(),
+                items,
+                documents);
     }
 
     public List<DropAppConfigurationSnapshotSummaryDto> listSnapshots() {
@@ -164,12 +199,21 @@ public class DropAppConfigurationSnapshotService {
         return Optional.of(toDetailsDto(snapshotOpt.get(), items, documents));
     }
 
+    public Optional<DropAppConfigurationSnapshotDetailsDto> findLatestTestSnapshotDetails(UUID testUuid) {
+        if (testUuid == null) {
+            return Optional.empty();
+        }
+        return repository.findLatestSnapshotByTestUuid(testUuid)
+                .flatMap(snapshot -> findSnapshotDetails(snapshot.id()));
+    }
+
     public DropAppConfigurationSnapshotDetailsDto saveSnapshot(DropAppConfigurationSnapshotSaveRequest request) {
         if (request == null) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Нет данных текущей конфигурации DropApp для сохранения");
         }
         return persistSnapshot(
+                null,
                 request.namespaces(),
                 request.release(),
                 request.comment(),
@@ -235,7 +279,15 @@ public class DropAppConfigurationSnapshotService {
         }
     }
 
+    public SnapshotArchive createTestSnapshotArchive(UUID testUuid) {
+        DropAppConfigurationSnapshotDetailsDto details = findLatestTestSnapshotDetails(testUuid)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Конфигурация стенда для теста не найдена"));
+        return createSnapshotArchive(details.id());
+    }
+
     private DropAppConfigurationSnapshotDetailsDto persistSnapshot(
+            UUID testUuid,
             List<String> requestedNamespaces,
             String requestedRelease,
             String requestedComment,
@@ -273,7 +325,13 @@ public class DropAppConfigurationSnapshotService {
         String serializedComponents = componentCodes.isEmpty() ? null : String.join(", ", componentCodes);
         Instant now = Instant.now();
 
-        long snapshotId = repository.insertSnapshot(release, comment, serializedNamespaces, serializedComponents, now);
+        long snapshotId = repository.insertSnapshot(
+                testUuid,
+                release,
+                comment,
+                serializedNamespaces,
+                serializedComponents,
+                now);
         repository.saveItems(
                 snapshotId,
                 items.stream()

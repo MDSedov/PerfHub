@@ -3,6 +3,7 @@ package com.example.chronicler.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -109,11 +110,11 @@ class DropAppConfigurationSnapshotServiceTest {
         DropAppConfigurationItemDto item = new DropAppConfigurationItemDto(
                 "ns-a", null, "pod-1", "container-1", "1.0.0", "2.12.1", "100m", "200m", "256Mi", "512Mi");
         Instant savedAt = Instant.parse("2026-04-03T10:15:30Z");
-        when(repository.insertSnapshot(eq("2.12.7"), eq("комментарий"), eq("ns-a"), eq(null), any(Instant.class)))
+        when(repository.insertSnapshot(isNull(), eq("2.12.7"), eq("комментарий"), eq("ns-a"), eq(null), any(Instant.class)))
                 .thenReturn(42L);
         when(repository.findSnapshotById(42L))
                 .thenReturn(Optional.of(new DropAppConfigurationSnapshot(
-                        42L, "2.12.7", "комментарий", "ns-a", null, savedAt)));
+                        42L, null, "2.12.7", "комментарий", "ns-a", null, savedAt)));
         when(repository.findItemsBySnapshotId(42L))
                 .thenReturn(List.of(new DropAppConfigurationSnapshotItem(
                         1L, 42L, "ns-a", null, "pod-1", "container-1", "1.0.0", "2.12.1", "100m", "200m", "256Mi", "512Mi")));
@@ -151,11 +152,11 @@ class DropAppConfigurationSnapshotServiceTest {
                         "configmaps",
                         "cm-main",
                         "apiVersion: v1\nkind: ConfigMap")));
-        when(repository.insertSnapshot(eq("2.12.7"), eq("для стенда A"), eq("ns-a"), eq("pods, configmaps"), any(Instant.class)))
+        when(repository.insertSnapshot(isNull(), eq("2.12.7"), eq("для стенда A"), eq("ns-a"), eq("pods, configmaps"), any(Instant.class)))
                 .thenReturn(55L);
         when(repository.findSnapshotById(55L))
                 .thenReturn(Optional.of(new DropAppConfigurationSnapshot(
-                        55L, "2.12.7", "для стенда A", "ns-a", "pods, configmaps", savedAt)));
+                        55L, null, "2.12.7", "для стенда A", "ns-a", "pods, configmaps", savedAt)));
         when(repository.findItemsBySnapshotId(55L))
                 .thenReturn(List.of(
                         new DropAppConfigurationSnapshotItem(
@@ -206,11 +207,11 @@ class DropAppConfigurationSnapshotServiceTest {
                         "configmaps",
                         "billing-config",
                         "apiVersion: v1\nkind: ConfigMap")));
-        when(repository.insertSnapshot(eq("2.12.7"), eq(null), eq("ns-a"), eq("pods, configmaps"), any(Instant.class)))
+        when(repository.insertSnapshot(isNull(), eq("2.12.7"), eq(null), eq("ns-a"), eq("pods, configmaps"), any(Instant.class)))
                 .thenReturn(56L);
         when(repository.findSnapshotById(56L))
                 .thenReturn(Optional.of(new DropAppConfigurationSnapshot(
-                        56L, "2.12.7", null, "ns-a", "pods, configmaps", savedAt)));
+                        56L, null, "2.12.7", null, "ns-a", "pods, configmaps", savedAt)));
         when(repository.findItemsBySnapshotId(56L))
                 .thenReturn(List.of(
                         new DropAppConfigurationSnapshotItem(
@@ -249,6 +250,7 @@ class DropAppConfigurationSnapshotServiceTest {
                 .thenReturn(
                         Optional.of(new DropAppConfigurationSnapshot(
                                 77L,
+                                null,
                                 "2.12.7",
                                 "старый комментарий",
                                 "ns-a",
@@ -256,6 +258,7 @@ class DropAppConfigurationSnapshotServiceTest {
                                 savedAt)),
                         Optional.of(new DropAppConfigurationSnapshot(
                                 77L,
+                                null,
                                 "2.12.8",
                                 "новый комментарий",
                                 "ns-a",

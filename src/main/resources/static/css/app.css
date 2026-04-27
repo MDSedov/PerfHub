@@ -1478,6 +1478,11 @@ body {
             gap: 1rem;
         }
 
+        .configuration-details-block + .configuration-details-block {
+            border-top: 1px solid #e5efe8;
+            padding-top: 1rem;
+        }
+
         .configuration-meta-card {
             min-height: 100%;
             border: 1px solid #e5efe8;
