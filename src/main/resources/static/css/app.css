@@ -496,6 +496,11 @@ body {
             pointer-events: none;
         }
 
+        .modal-footer .grafana-action {
+            width: auto;
+            margin-top: 0;
+        }
+
         .sidebar-title {
             font-size: 0.95rem;
             font-weight: 500;

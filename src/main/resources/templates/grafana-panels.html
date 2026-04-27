@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Летописец — Выгрузка графиков</title>
+    <title>Летописец — Выгрузить графики</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link
             href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -34,7 +34,7 @@
                th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
-                    <span>Выгрузка графиков</span>
+                    <span>Выгрузить графики</span>
                 </span>
             </a>
             <a class="sidebar-link" th:href="@{/configuration}"
@@ -92,105 +92,189 @@
     <div class="page-content" style="background: #ffffff; min-height: 100vh;">
 <main class="container-fluid py-5 px-4 px-lg-5 grafana-wrapper">
     <div class="grafana-layout">
-        <div class="grafana-actions-row">
-            <div class="home-card reports-card grafana-action-card">
-                <div class="grafana-card-header">
-                    <div class="home-card-icon"><i class="bi bi-clock-history"></i></div>
-                    <h5 class="home-card-title mb-0">Показать графики</h5>
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="data-panel d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-start">
+                        <a class="btn btn-outline-success"
+                           th:href="@{/settings/grafana-dashboards}">
+                            Настроить графики
+                        </a>
+                        <a class="btn btn-outline-success"
+                           th:href="@{/settings/templates}">
+                            Настроить шаблоны
+                        </a>
+                    </div>
+                    <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-end">
+                        <button type="button"
+                                class="btn btn-success report-generate-button"
+                                id="openShowPanelsModalButton"
+                                aria-haspopup="dialog"
+                                aria-controls="showPanelsModal">
+                            Показать графики
+                        </button>
+                        <button type="button"
+                                class="btn btn-success report-generate-button"
+                                id="openExportPanelsModalButton"
+                                aria-haspopup="dialog"
+                                aria-controls="exportPanelsModal"
+                                aria-disabled="true">
+                            Выгрузить графики
+                        </button>
+                    </div>
                 </div>
-                <p class="text-muted mb-0">Отобразить графики из Grafana за указанный период.</p>
-                <form class="grafana-form">
-                    <div class="grafana-field">
-                        <label for="templateId" class="form-label mb-0">Шаблон</label>
-                        <select class="form-select" id="templateId">
-                            <option value="">Загрузка шаблонов...</option>
-                        </select>
-                    </div>
-                    <div class="grafana-field">
-                        <label for="rangeStart" class="form-label mb-0">Начало</label>
-                        <div class="input-group">
-                            <input type="text"
-                                   class="form-control"
-                                   id="rangeStart"
-                                   placeholder="2026-04-03 14:30:00 или 1712143800"
-                                   autocomplete="off"
-                                   spellcheck="false">
-                            <button type="button"
-                                    class="btn btn-outline-secondary"
-                                    id="rangeStartPickerButton"
-                                    aria-label="Выбрать дату и время начала">
-                                <i class="bi bi-calendar3"></i>
-                            </button>
-                        </div>
-                        <input type="datetime-local"
-                               class="visually-hidden"
-                               id="rangeStartPicker"
-                               step="1"
-                               tabindex="-1"
-                               aria-hidden="true">
-                    </div>
-                    <div class="grafana-field">
-                        <label for="rangeEnd" class="form-label mb-0">Конец</label>
-                        <div class="input-group">
-                            <input type="text"
-                                   class="form-control"
-                                   id="rangeEnd"
-                                   placeholder="2026-04-03 15:30:00 или 1712147400000"
-                                   autocomplete="off"
-                                   spellcheck="false">
-                            <button type="button"
-                                    class="btn btn-outline-secondary"
-                                    id="rangeEndPickerButton"
-                                    aria-label="Выбрать дату и время окончания">
-                                <i class="bi bi-calendar3"></i>
-                            </button>
-                        </div>
-                        <input type="datetime-local"
-                               class="visually-hidden"
-                               id="rangeEndPicker"
-                               step="1"
-                               tabindex="-1"
-                               aria-hidden="true">
-                    </div>
-                    <div class="grafana-action">
-                        <button type="button" class="btn btn-outline-success" id="showPanelsButton">Показать графики</button>
-                    </div>
-                </form>
-                <p class="text-muted small mt-3 mb-0">
-                    Можно выбрать дату и время через календарь, ввести их вручную, вставить Unix timestamp в секундах либо миллисекундах или вставить ссылку на Grafana, чтобы начало и конец заполнились автоматически.
-                </p>
-            </div>
-
-            <div class="home-card reports-card grafana-action-card">
-                <div class="grafana-card-header">
-                    <div class="home-card-icon"><i class="bi bi-upload"></i></div>
-                    <h5 class="home-card-title mb-0">Выгрузить графики</h5>
-                </div>
-                <p class="text-muted mb-0">Отправить графики на страницу в Confluence.</p>
-                <form class="grafana-form">
-                    <div class="grafana-field">
-                        <label for="exportPageId" class="form-label mb-0">ID страницы для выгрузки графиков</label>
-                        <input type="text" class="form-control" id="exportPageId" placeholder="Например, 1234567">
-                    </div>
-                    <div class="grafana-action is-disabled" id="exportPanelsAction">
-                        <button type="button" class="btn btn-outline-success" id="exportPanelsButton" disabled>Выгрузить графики</button>
-                    </div>
-                </form>
             </div>
         </div>
 
-        <div id="dashboardsCard" class="home-card reports-card d-none">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-                <div>
-                    <h5 class="mb-1">Графики</h5>
+        <section id="dashboardsCard" class="tests-content grafana-results-section flex-grow-1">
+            <div class="card border-0">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+                        <div class="tests-meta">
+                            <h5 class="mb-0">Графики</h5>
+                        </div>
+                    </div>
+                    <div id="dashboardsStatus" class="alert d-none" role="alert"></div>
+                    <div id="dashboardsList" class="d-flex flex-column gap-3"></div>
+                    <div id="dashboardsEmpty" class="text-muted">Нажмите «Показать графики», чтобы подтянуть их из Grafana.</div>
                 </div>
             </div>
-            <div id="dashboardsStatus" class="alert d-none" role="alert"></div>
-            <div id="dashboardsList" class="d-flex flex-column gap-3"></div>
-            <div id="dashboardsEmpty" class="text-muted">Нажмите «Показать графики», чтобы подтянуть их из Grafana.</div>
-        </div>
+        </section>
     </div>
 </main>
+
+<div class="modal fade test-details-modal"
+     id="showPanelsModal"
+     tabindex="-1"
+     aria-labelledby="showPanelsModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="d-flex flex-column gap-1">
+                    <span class="test-details-modal-kicker">Grafana</span>
+                    <h5 class="modal-title" id="showPanelsModalLabel">Показать графики</h5>
+                    <div class="test-details-modal-subtitle text-muted small">
+                        Отобразить графики из Grafana за указанный период.
+                    </div>
+                </div>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <div class="test-details test-details-modal-content test-details-stack">
+                    <section class="test-details-section">
+                        <form class="grafana-form">
+                            <div class="grafana-field">
+                                <label for="templateId" class="form-label mb-0">Шаблон</label>
+                                <select class="form-select" id="templateId">
+                                    <option value="">Загрузка шаблонов...</option>
+                                </select>
+                            </div>
+                            <div class="grafana-field">
+                                <label for="rangeStart" class="form-label mb-0">Начало</label>
+                                <div class="input-group">
+                                    <input type="text"
+                                           class="form-control"
+                                           id="rangeStart"
+                                           placeholder="2026-04-03 14:30:00 или 1712143800"
+                                           autocomplete="off"
+                                           spellcheck="false">
+                                    <button type="button"
+                                            class="btn btn-outline-secondary"
+                                            id="rangeStartPickerButton"
+                                            aria-label="Выбрать дату и время начала">
+                                        <i class="bi bi-calendar3"></i>
+                                    </button>
+                                </div>
+                                <input type="datetime-local"
+                                       class="visually-hidden"
+                                       id="rangeStartPicker"
+                                       step="1"
+                                       tabindex="-1"
+                                       aria-hidden="true">
+                            </div>
+                            <div class="grafana-field">
+                                <label for="rangeEnd" class="form-label mb-0">Конец</label>
+                                <div class="input-group">
+                                    <input type="text"
+                                           class="form-control"
+                                           id="rangeEnd"
+                                           placeholder="2026-04-03 15:30:00 или 1712147400000"
+                                           autocomplete="off"
+                                           spellcheck="false">
+                                    <button type="button"
+                                            class="btn btn-outline-secondary"
+                                            id="rangeEndPickerButton"
+                                            aria-label="Выбрать дату и время окончания">
+                                        <i class="bi bi-calendar3"></i>
+                                    </button>
+                                </div>
+                                <input type="datetime-local"
+                                       class="visually-hidden"
+                                       id="rangeEndPicker"
+                                       step="1"
+                                       tabindex="-1"
+                                       aria-hidden="true">
+                            </div>
+                            <p class="text-muted small mb-0">
+                                Можно выбрать дату и время через календарь, ввести их вручную, вставить Unix timestamp в секундах либо миллисекундах или вставить ссылку на Grafana, чтобы начало и конец заполнились автоматически.
+                            </p>
+                        </form>
+                    </section>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-success" id="showPanelsButton">Показать графики</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade test-details-modal"
+     id="exportPanelsModal"
+     tabindex="-1"
+     aria-labelledby="exportPanelsModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="d-flex flex-column gap-1">
+                    <span class="test-details-modal-kicker">Confluence</span>
+                    <h5 class="modal-title" id="exportPanelsModalLabel">Выгрузить графики</h5>
+                    <div class="test-details-modal-subtitle text-muted small">
+                        Отправить графики на страницу в Confluence.
+                    </div>
+                </div>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <div class="test-details test-details-modal-content test-details-stack">
+                    <section class="test-details-section">
+                        <form class="grafana-form">
+                            <div class="grafana-field">
+                                <label for="exportPageId" class="form-label mb-0">ID страницы для выгрузки графиков</label>
+                                <input type="text" class="form-control" id="exportPageId" placeholder="Например, 1234567">
+                            </div>
+                        </form>
+                    </section>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                <div class="grafana-action is-disabled justify-content-end mb-0" id="exportPanelsAction">
+                    <button type="button" class="btn btn-success" id="exportPanelsButton" disabled>Выгрузить графики</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div id="toastContainer" class="toast-container"></div>
 
@@ -207,6 +291,10 @@
     const dashboardsList = document.getElementById('dashboardsList');
     const dashboardsEmpty = document.getElementById('dashboardsEmpty');
     const dashboardsStatus = document.getElementById('dashboardsStatus');
+    const openShowPanelsModalButton = document.getElementById('openShowPanelsModalButton');
+    const openExportPanelsModalButton = document.getElementById('openExportPanelsModalButton');
+    const showPanelsModalElement = document.getElementById('showPanelsModal');
+    const exportPanelsModalElement = document.getElementById('exportPanelsModal');
     const showPanelsButton = document.getElementById('showPanelsButton');
     const exportPanelsButton = document.getElementById('exportPanelsButton');
     const exportPanelsAction = document.getElementById('exportPanelsAction');
@@ -219,8 +307,17 @@
     const templateIdInput = document.getElementById('templateId');
     const exportPageIdInput = document.getElementById('exportPageId');
     const toastContainer = document.getElementById('toastContainer');
+    const showPanelsModal = showPanelsModalElement && window.bootstrap?.Modal
+            ? bootstrap.Modal.getOrCreateInstance(showPanelsModalElement)
+            : null;
+    const exportPanelsModal = exportPanelsModalElement && window.bootstrap?.Modal
+            ? bootstrap.Modal.getOrCreateInstance(exportPanelsModalElement)
+            : null;
+    const EXPORT_BEFORE_GRAPHS_HINT = 'Нужно сначала показать графики прежде чем ыгружать их Confluence';
     let exportInProgress = false;
     let exportDisabledHintAt = 0;
+    let exportBeforeGraphsHintAt = 0;
+    let hasDisplayedGraphs = false;
 
     const removeToast = (toast) => {
         if (!toast) {
@@ -269,6 +366,113 @@
             removeToast(toast);
         });
     }
+
+    function ensureFallbackBackdrop() {
+        let backdrop = document.querySelector('.modal-backdrop.chronicler-fallback-backdrop');
+        if (backdrop) {
+            return backdrop;
+        }
+        backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show chronicler-fallback-backdrop';
+        document.body.appendChild(backdrop);
+        return backdrop;
+    }
+
+    function removeFallbackBackdropIfUnused() {
+        if (document.querySelector('.modal.show')) {
+            return;
+        }
+        const backdrop = document.querySelector('.modal-backdrop.chronicler-fallback-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('paddingRight');
+    }
+
+    function showManagedModal(element, modalInstance) {
+        if (!element) {
+            return;
+        }
+        if (modalInstance) {
+            modalInstance.show();
+            return;
+        }
+        element.style.display = 'block';
+        element.removeAttribute('aria-hidden');
+        element.setAttribute('aria-modal', 'true');
+        element.classList.add('show');
+        document.body.classList.add('modal-open');
+        document.body.style.overflow = 'hidden';
+        ensureFallbackBackdrop();
+    }
+
+    function hideManagedModal(element, modalInstance) {
+        if (!element) {
+            return;
+        }
+        if (modalInstance) {
+            modalInstance.hide();
+            return;
+        }
+        element.classList.remove('show');
+        element.style.display = 'none';
+        element.setAttribute('aria-hidden', 'true');
+        element.removeAttribute('aria-modal');
+        removeFallbackBackdropIfUnused();
+    }
+
+    function bindFallbackDismiss(element, modalInstance) {
+        if (!element || modalInstance) {
+            return;
+        }
+        element.querySelectorAll('[data-bs-dismiss="modal"]').forEach(button => {
+            button.addEventListener('click', () => hideManagedModal(element, null));
+        });
+        element.addEventListener('click', event => {
+            if (event.target === element) {
+                hideManagedModal(element, null);
+            }
+        });
+    }
+
+    function setExportLaunchState(enabled) {
+        hasDisplayedGraphs = Boolean(enabled);
+        openExportPanelsModalButton?.setAttribute('aria-disabled', hasDisplayedGraphs ? 'false' : 'true');
+    }
+
+    function showExportBeforeGraphsHint() {
+        if (hasDisplayedGraphs) {
+            return;
+        }
+        const now = Date.now();
+        if (now - exportBeforeGraphsHintAt < 3000) {
+            return;
+        }
+        exportBeforeGraphsHintAt = now;
+        showToast(EXPORT_BEFORE_GRAPHS_HINT, 'warning', 5000);
+    }
+
+    bindFallbackDismiss(showPanelsModalElement, showPanelsModal);
+    bindFallbackDismiss(exportPanelsModalElement, exportPanelsModal);
+    setExportLaunchState(false);
+
+    openShowPanelsModalButton?.addEventListener('click', async () => {
+        showManagedModal(showPanelsModalElement, showPanelsModal);
+        await applyGrafanaRangeFromClipboard();
+    });
+
+    openExportPanelsModalButton?.addEventListener('mouseenter', showExportBeforeGraphsHint);
+    openExportPanelsModalButton?.addEventListener('focus', showExportBeforeGraphsHint);
+    openExportPanelsModalButton?.addEventListener('click', event => {
+        if (!hasDisplayedGraphs) {
+            event.preventDefault();
+            showExportBeforeGraphsHint();
+            return;
+        }
+        showManagedModal(exportPanelsModalElement, exportPanelsModal);
+    });
 
     function setDashboardsStatus(message, type = 'info') {
         dashboardsStatus.textContent = message;
@@ -444,11 +648,15 @@
         if (!exportPanelsButton) {
             return;
         }
-        exportPanelsButton.disabled = exportInProgress || !canExportPanels();
+        exportPanelsButton.disabled = exportInProgress || !hasDisplayedGraphs || !canExportPanels();
         exportPanelsAction?.classList.toggle('is-disabled', exportPanelsButton.disabled && !exportInProgress);
     }
 
     function showExportDisabledHint() {
+        if (!hasDisplayedGraphs) {
+            showExportBeforeGraphsHint();
+            return;
+        }
         if (exportInProgress || canExportPanels()) {
             return;
         }
@@ -661,6 +869,64 @@
         return { from: fromDate, to: toDate };
     }
 
+    function extractClipboardUrlCandidates(value) {
+        const trimmed = (value ?? '').trim();
+        if (!trimmed) {
+            return [];
+        }
+        const explicitUrls = trimmed.match(/https?:\/\/[^\s<>"']+/gi);
+        const candidates = explicitUrls && explicitUrls.length > 0 ? explicitUrls : [trimmed];
+        return candidates.map(candidate => candidate.replace(/[),.;]+$/g, ''));
+    }
+
+    function looksLikeGrafanaLink(value) {
+        const trimmed = (value ?? '').trim();
+        if (!trimmed) {
+            return false;
+        }
+        try {
+            const parsedUrl = new URL(trimmed, window.location.origin);
+            const searchableParts = [
+                parsedUrl.hostname,
+                parsedUrl.pathname,
+                parsedUrl.hash
+            ].join(' ').toLowerCase();
+            return searchableParts.includes('grafana')
+                || /(^|\/)(d|d-solo|dashboard|render)(\/|$)/i.test(parsedUrl.pathname)
+                || /(^|\/)(d|d-solo|dashboard|render)(\/|$)/i.test(parsedUrl.hash);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function extractGrafanaLinkFromText(value) {
+        return extractClipboardUrlCandidates(value).find(looksLikeGrafanaLink) ?? '';
+    }
+
+    async function applyGrafanaRangeFromClipboard() {
+        if (!navigator.clipboard?.readText) {
+            return false;
+        }
+        let clipboardText = '';
+        try {
+            clipboardText = await navigator.clipboard.readText();
+        } catch (error) {
+            return false;
+        }
+        const grafanaLink = extractGrafanaLinkFromText(clipboardText);
+        if (!grafanaLink) {
+            return false;
+        }
+        const range = extractGrafanaRange(grafanaLink);
+        if (!range) {
+            return false;
+        }
+        applyRangeValue(rangeStartInput, rangeStartPickerInput, range.from);
+        applyRangeValue(rangeEndInput, rangeEndPickerInput, range.to);
+        updateExportButtonState();
+        return true;
+    }
+
     function clearRangeInputError(input) {
         input?.classList.remove('is-invalid');
     }
@@ -825,6 +1091,8 @@
         dashboardsEmpty.classList.add('d-none');
         dashboardsEmpty.innerHTML = '';
         dashboardsList.innerHTML = '';
+        setExportLaunchState(false);
+        updateExportButtonState();
         try {
             const response = await fetch('/api/grafana/panels/range', {
                 method: 'POST',
@@ -856,8 +1124,13 @@
                 dashboardsEmpty.classList.remove('d-none');
                 dashboardsEmpty.textContent = 'Панели не найдены для выбранного диапазона.';
             }
+            setExportLaunchState(dashboards.length > 0);
+            updateExportButtonState();
+            hideManagedModal(showPanelsModalElement, showPanelsModal);
             showToast('Графики загружены.', 'success');
         } catch (error) {
+            setExportLaunchState(false);
+            updateExportButtonState();
             setDashboardsStatus('Не удалось получить дашборды: ' + error.message, 'danger');
             dashboardsEmpty.classList.remove('d-none');
             dashboardsEmpty.textContent = 'Графики не удалось получить.';
@@ -893,6 +1166,7 @@
             const successMessage = chartsCount && chartsCount > 0
                     ? `Графики (${chartsCount}) добавлены в конец страницы ${targetPageId}.`
                     : `Графики добавлены в конец страницы ${targetPageId}.`;
+            hideManagedModal(exportPanelsModalElement, exportPanelsModal);
             showToast(successMessage, 'success');
         } catch (error) {
             showToast(error.message || 'Не удалось выгрузить графики в Confluence', 'danger');
