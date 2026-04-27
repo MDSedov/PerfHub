@@ -6,6 +6,7 @@ import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
+import com.example.chronicler.dto.grafana.GrafanaRenderPanelRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
@@ -116,6 +117,33 @@ public class GrafanaService {
         }
 
         return renderTemplatePanels(resolveTemplate(request.templateId()), from, to);
+    }
+
+    public GrafanaRenderedPanel renderPanelByRange(GrafanaRenderPanelRangeRequest request) {
+        Objects.requireNonNull(request, "Grafana render panel range request must not be null");
+        Instant from = parseInstant(request.from(), "from");
+        Instant to = parseInstant(request.to(), "to");
+        if (!to.isAfter(from)) {
+            throw new GrafanaInvalidTimeRangeException("End time must be after start time");
+        }
+
+        ConfluenceTemplate template = resolveTemplate(request.templateId());
+        ConfluenceTemplateChart chart = findTemplateChart(template, request.dashboardUid(), request.panelId());
+        DashboardRenderContext context = loadDashboardRenderContext(chart.dashboardUid());
+        ResolvedPanelMetadata metadata = resolvePanelMetadata(
+                chart.dashboardUid(),
+                chart.panelId(),
+                context.cachedPanelsById().get(chart.panelId()));
+        RenderedPanelImage renderedPanel = renderPanelWithFallback(
+                chart.dashboardUid(),
+                context.dashboardSlug(),
+                chart.panelId(),
+                from,
+                to,
+                context.variableValues());
+        String encodedImage = Base64.getEncoder().encodeToString(renderedPanel.imageBytes());
+        String title = StringUtils.hasText(chart.title()) ? chart.title().trim() : metadata.title();
+        return new GrafanaRenderedPanel(chart.panelId(), title, metadata.description(), encodedImage);
     }
 
     public List<GrafanaRenderedPanel> renderSelectedPanels(
@@ -242,6 +270,22 @@ public class GrafanaService {
                     new GrafanaRenderedPanel(chart.panelId(), title, metadata.description(), encodedImage)));
         }
         return List.copyOf(renderedPanels);
+    }
+
+    private ConfluenceTemplateChart findTemplateChart(ConfluenceTemplate template, String dashboardUid, int panelId) {
+        String normalizedDashboardUid = requireText(dashboardUid, "dashboardUid");
+        if (panelId <= 0) {
+            throw new GrafanaRenderingException("panelId must be positive");
+        }
+        List<ConfluenceTemplateChart> templateCharts = template.charts() == null ? List.of() : template.charts();
+        return templateCharts.stream()
+                .filter(chart -> chart != null
+                        && chart.panelId() == panelId
+                        && Objects.equals(chart.dashboardUid(), normalizedDashboardUid))
+                .findFirst()
+                .orElseThrow(() -> new GrafanaRenderingException(
+                        "Панель Grafana %s:%d не найдена в шаблоне '%s'"
+                                .formatted(normalizedDashboardUid, panelId, template.fullName())));
     }
 
     private RenderedPanelImage renderPanelWithFallback(

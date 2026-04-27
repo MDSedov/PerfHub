@@ -314,10 +314,13 @@
             ? bootstrap.Modal.getOrCreateInstance(exportPanelsModalElement)
             : null;
     const EXPORT_BEFORE_GRAPHS_HINT = 'Нужно сначала показать графики прежде чем ыгружать их Confluence';
+    let templatesCache = [];
     let exportInProgress = false;
+    let renderInProgress = false;
     let exportDisabledHintAt = 0;
     let exportBeforeGraphsHintAt = 0;
     let hasDisplayedGraphs = false;
+    let activeRenderRunId = 0;
 
     const removeToast = (toast) => {
         if (!toast) {
@@ -439,18 +442,23 @@
 
     function setExportLaunchState(enabled) {
         hasDisplayedGraphs = Boolean(enabled);
-        openExportPanelsModalButton?.setAttribute('aria-disabled', hasDisplayedGraphs ? 'false' : 'true');
+        const canOpenExport = hasDisplayedGraphs && !renderInProgress;
+        openExportPanelsModalButton?.setAttribute('aria-disabled', canOpenExport ? 'false' : 'true');
     }
 
     function showExportBeforeGraphsHint() {
-        if (hasDisplayedGraphs) {
-            return;
-        }
         const now = Date.now();
         if (now - exportBeforeGraphsHintAt < 3000) {
             return;
         }
         exportBeforeGraphsHintAt = now;
+        if (renderInProgress) {
+            showToast('Дождитесь завершения загрузки графиков.', 'info', 4000);
+            return;
+        }
+        if (hasDisplayedGraphs) {
+            return;
+        }
         showToast(EXPORT_BEFORE_GRAPHS_HINT, 'warning', 5000);
     }
 
@@ -466,7 +474,7 @@
     openExportPanelsModalButton?.addEventListener('mouseenter', showExportBeforeGraphsHint);
     openExportPanelsModalButton?.addEventListener('focus', showExportBeforeGraphsHint);
     openExportPanelsModalButton?.addEventListener('click', event => {
-        if (!hasDisplayedGraphs) {
+        if (!hasDisplayedGraphs || renderInProgress) {
             event.preventDefault();
             showExportBeforeGraphsHint();
             return;
@@ -475,8 +483,7 @@
     });
 
     function setDashboardsStatus(message, type = 'info') {
-        dashboardsStatus.textContent = message;
-        dashboardsStatus.className = `alert alert-${type}`;
+        clearDashboardsStatus();
         showToast(message, type);
     }
 
@@ -485,90 +492,124 @@
         dashboardsStatus.textContent = '';
     }
 
-    function renderDashboards(items) {
+    function getChartKey(chart, index) {
+        return [
+            chart?.dashboardUid ?? 'dashboard',
+            chart?.panelId ?? 'panel',
+            index
+        ].join(':');
+    }
+
+    function getChartTitle(chart, index) {
+        const title = (chart?.title ?? '').trim();
+        if (title) {
+            return title;
+        }
+        const code = (chart?.code ?? '').trim();
+        if (code) {
+            return code;
+        }
+        return `График ${index + 1}`;
+    }
+
+    function getTemplateCharts(template) {
+        return Array.isArray(template?.charts)
+                ? template.charts.filter(chart => chart?.dashboardUid && Number(chart?.panelId) > 0)
+                : [];
+    }
+
+    function getSelectedTemplate(templateId) {
+        const normalizedTemplateId = Number(templateId);
+        return templatesCache.find(template => Number(template?.id) === normalizedTemplateId) ?? null;
+    }
+
+    function buildChartPlaceholder(chart, index) {
+        const row = document.createElement('article');
+        row.className = 'grafana-result-row';
+        row.dataset.chartKey = getChartKey(chart, index);
+        row.dataset.dashboardUid = chart?.dashboardUid ?? '';
+        row.dataset.panelId = String(chart?.panelId ?? '');
+
+        const header = document.createElement('div');
+        header.className = 'grafana-result-header';
+
+        const titleGroup = document.createElement('div');
+        titleGroup.className = 'grafana-result-title-group';
+
+        const title = document.createElement('h6');
+        title.className = 'grafana-result-title';
+        title.textContent = getChartTitle(chart, index);
+
+        const meta = document.createElement('div');
+        meta.className = 'grafana-result-meta';
+        meta.textContent = `${chart?.dashboardUid ?? '—'} · панель ${chart?.panelId ?? '—'}`;
+
+        const status = document.createElement('span');
+        status.className = 'grafana-result-status is-pending';
+        status.dataset.chartStatus = '';
+        status.textContent = 'Ожидает';
+
+        titleGroup.appendChild(title);
+        titleGroup.appendChild(meta);
+        header.appendChild(titleGroup);
+        header.appendChild(status);
+
+        const media = document.createElement('div');
+        media.className = 'grafana-result-media is-placeholder';
+        media.dataset.chartMedia = '';
+        media.innerHTML = '<div class="grafana-result-placeholder"><span class="spinner-border spinner-border-sm" role="status" aria-label="Загружаем график"></span><span>Загружаем график…</span></div>';
+
+        row.appendChild(header);
+        row.appendChild(media);
+        return row;
+    }
+
+    function renderChartPlaceholders(template) {
+        const charts = getTemplateCharts(template);
         dashboardsList.innerHTML = '';
-        if (!items || !items.length) {
+        clearDashboardsStatus();
+        if (charts.length === 0) {
             dashboardsEmpty.classList.remove('d-none');
-            dashboardsEmpty.innerHTML = createSpinner();
-            return;
+            dashboardsEmpty.textContent = 'Для выбранного шаблона графики не настроены.';
+            return charts;
         }
         dashboardsEmpty.classList.add('d-none');
         dashboardsEmpty.innerHTML = '';
-        items.forEach(item => dashboardsList.appendChild(buildDashboardCard(item)));
+        const list = document.createElement('div');
+        list.className = 'grafana-results-list';
+        charts.forEach((chart, index) => list.appendChild(buildChartPlaceholder(chart, index)));
+        dashboardsList.appendChild(list);
+        return charts;
     }
 
-    function buildDashboardCard(item) {
-        const card = document.createElement('div');
-        card.className = 'card dashboard-card';
-        card.dataset.dashboardUid = item?.uid ?? '';
-        card.dataset.dashboardSlug = item?.slug ?? '';
-
-        const body = document.createElement('div');
-        body.className = 'card-body';
-
-        const titleRow = document.createElement('div');
-        titleRow.className = 'd-flex align-items-center justify-content-between gap-3 mb-2 flex-wrap';
-
-        const title = document.createElement('h6');
-        title.className = 'mb-0';
-        title.textContent = item?.title || item?.slug || item?.uid || 'Без названия';
-
-        const source = document.createElement('div');
-        source.className = 'text-muted small';
-        source.textContent = `UID: ${item?.uid ?? '—'}`;
-
-        titleRow.appendChild(title);
-        titleRow.appendChild(source);
-
-        const panelsContainer = document.createElement('div');
-        panelsContainer.className = 'grafana-panels-container';
-
-        body.appendChild(titleRow);
-        body.appendChild(panelsContainer);
-        card.appendChild(body);
-        return card;
+    function findChartRow(chartKey) {
+        return Array.from(dashboardsList.querySelectorAll('[data-chart-key]'))
+                .find(row => row.dataset.chartKey === chartKey) ?? null;
     }
 
-    function renderPanels(card, panels) {
-        const container = card.querySelector('.grafana-panels-container');
-        container.innerHTML = '';
-        if (!panels || !panels.length) {
-            const empty = document.createElement('div');
-            empty.className = 'text-muted small';
-            empty.textContent = 'Панели не найдены';
-            container.appendChild(empty);
+    function updateChartStatus(chartKey, label, state) {
+        const row = findChartRow(chartKey);
+        const status = row?.querySelector('[data-chart-status]');
+        if (!status) {
             return;
         }
-        panels.forEach(panel => {
-            const box = document.createElement('div');
-            box.className = 'dashboard-panel';
-            const title = document.createElement('div');
-            title.className = 'fw-semibold mb-1';
-            title.textContent = panel?.title ?? 'Без названия';
-            const descr = document.createElement('div');
-            descr.className = 'text-muted small';
-            descr.textContent = panel?.description ?? '';
+        status.textContent = label;
+        status.className = `grafana-result-status is-${state}`;
+    }
 
-            if (panel?.imageBase64) {
-                const image = document.createElement('img');
-                image.className = 'img-fluid rounded border mb-2';
-                image.src = `data:image/png;base64,${panel.imageBase64}`;
-                image.alt = panel?.title ? `График ${panel.title}` : 'График';
-            }
-
-            box.appendChild(title);
-            if (descr.textContent) {
-                box.appendChild(descr);
-            }
-            if (panel?.imageBase64) {
-                const image = document.createElement('img');
-                image.className = 'img-fluid rounded border mb-2';
-                image.src = `data:image/png;base64,${panel.imageBase64}`;
-                image.alt = panel?.title ? `График ${panel.title}` : 'График';
-                box.appendChild(image);
-            }
-            container.appendChild(box);
-        });
+    function renderChartImage(chartKey, panel) {
+        const row = findChartRow(chartKey);
+        const media = row?.querySelector('[data-chart-media]');
+        if (!media || !panel?.imageBase64) {
+            return;
+        }
+        media.innerHTML = '';
+        media.classList.remove('is-placeholder');
+        const image = document.createElement('img');
+        image.className = 'grafana-result-image';
+        image.src = `data:image/png;base64,${panel.imageBase64}`;
+        image.alt = panel?.title ? `График ${panel.title}` : 'График';
+        media.appendChild(image);
     }
 
     const createSpinner = () =>
@@ -594,20 +635,21 @@
         if (!templateIdInput) {
             return;
         }
+        templatesCache = Array.isArray(templates) ? templates : [];
         templateIdInput.innerHTML = '';
         const placeholder = document.createElement('option');
         placeholder.value = '';
-        placeholder.textContent = templates.length > 0
+        placeholder.textContent = templatesCache.length > 0
                 ? 'Выберите шаблон отчета'
                 : 'Нет доступных шаблонов';
         templateIdInput.appendChild(placeholder);
-        templates.forEach(template => {
+        templatesCache.forEach(template => {
             const option = document.createElement('option');
             option.value = String(template?.id ?? '');
             option.textContent = template?.fullName || template?.shortName || `Шаблон #${template?.id ?? ''}`;
             templateIdInput.appendChild(option);
         });
-        templateIdInput.disabled = templates.length === 0;
+        templateIdInput.disabled = templatesCache.length === 0;
         updateExportButtonState();
     }
 
@@ -648,7 +690,7 @@
         if (!exportPanelsButton) {
             return;
         }
-        exportPanelsButton.disabled = exportInProgress || !hasDisplayedGraphs || !canExportPanels();
+        exportPanelsButton.disabled = exportInProgress || renderInProgress || !hasDisplayedGraphs || !canExportPanels();
         exportPanelsAction?.classList.toggle('is-disabled', exportPanelsButton.disabled && !exportInProgress);
     }
 
@@ -932,7 +974,7 @@
     }
 
     function setRangeInputError(input) {
-        input?.classList.add('is-invalid');
+        clearRangeInputError(input);
     }
 
     function syncRangePickerValue(pickerInput, date) {
@@ -1083,60 +1125,89 @@
         showExportDisabledHint();
     });
 
-    async function renderByRange(from, to, templateId) {
-        showPanelsButton.disabled = true;
-        showPanelsButton.textContent = 'Запрашиваем…';
-        dashboardsStatus.className = 'alert alert-info d-flex justify-content-center';
-        dashboardsStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-label="Загружаем графики"></span><span>Графики загружаются…</span>';
-        dashboardsEmpty.classList.add('d-none');
-        dashboardsEmpty.innerHTML = '';
-        dashboardsList.innerHTML = '';
-        setExportLaunchState(false);
-        updateExportButtonState();
-        try {
-            const response = await fetch('/api/grafana/panels/range', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ from, to, templateId })
-            });
-            if (!response.ok) {
-                throw new Error(extractErrorMessage(await response.text(), 'Не удалось получить графики'));
-            }
-            const payload = await response.json();
-            const dashboards = Array.isArray(payload?.dashboards) ? payload.dashboards : [];
-            dashboardsList.innerHTML = '';
-            dashboardsEmpty.classList.add('d-none');
-            if (dashboards.length === 0) {
-                dashboardsEmpty.classList.remove('d-none');
-                dashboardsEmpty.textContent = 'Панели не найдены для выбранного диапазона.';
-            } else {
-                dashboards.forEach(dashboard => {
-                    const card = buildDashboardCard(dashboard);
-                    renderPanels(card, dashboard?.panels);
-                    dashboardsList.appendChild(card);
-                });
-            }
-            dashboardsStatus.className = 'alert d-none';
-            dashboardsStatus.innerHTML = '';
-            if (!dashboards.length) {
-                dashboardsEmpty.classList.remove('d-none');
-                dashboardsEmpty.textContent = 'Панели не найдены для выбранного диапазона.';
-            }
-            setExportLaunchState(dashboards.length > 0);
-            updateExportButtonState();
-            hideManagedModal(showPanelsModalElement, showPanelsModal);
-            showToast('Графики загружены.', 'success');
-        } catch (error) {
+    async function renderChartByRange(from, to, templateId, chart) {
+        const response = await fetch('/api/grafana/panels/range/panel', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                from,
+                to,
+                templateId,
+                dashboardUid: chart?.dashboardUid,
+                panelId: chart?.panelId
+            })
+        });
+        if (!response.ok) {
+            throw new Error(extractErrorMessage(await response.text(), 'Не удалось получить график'));
+        }
+        return response.json();
+    }
+
+    async function renderByRange(from, to, template) {
+        const templateId = Number(template?.id);
+        const charts = renderChartPlaceholders(template);
+        if (charts.length === 0) {
+            showToast('Для выбранного шаблона графики не настроены.', 'warning');
             setExportLaunchState(false);
             updateExportButtonState();
-            setDashboardsStatus('Не удалось получить дашборды: ' + error.message, 'danger');
-            dashboardsEmpty.classList.remove('d-none');
-            dashboardsEmpty.textContent = 'Графики не удалось получить.';
+            return;
+        }
+        const renderRunId = ++activeRenderRunId;
+        renderInProgress = true;
+        showPanelsButton.disabled = true;
+        showPanelsButton.textContent = 'Запрашиваем…';
+        setExportLaunchState(false);
+        updateExportButtonState();
+        showToast(`Запрашиваем графики: ${charts.length}`, 'info', 3000);
+        let loadedCount = 0;
+        try {
+            for (const [index, chart] of charts.entries()) {
+                if (renderRunId !== activeRenderRunId) {
+                    return;
+                }
+                const chartKey = getChartKey(chart, index);
+                const chartTitle = getChartTitle(chart, index);
+                updateChartStatus(chartKey, 'Загружается', 'loading');
+                try {
+                    const panel = await renderChartByRange(from, to, templateId, chart);
+                    if (renderRunId !== activeRenderRunId) {
+                        return;
+                    }
+                    renderChartImage(chartKey, panel);
+                    updateChartStatus(chartKey, 'Готово', 'ready');
+                    loadedCount += 1;
+                    setExportLaunchState(true);
+                    updateExportButtonState();
+                } catch (error) {
+                    if (renderRunId !== activeRenderRunId) {
+                        return;
+                    }
+                    updateChartStatus(chartKey, 'Заглушка', 'failed');
+                    showToast(
+                            `Не удалось загрузить график «${chartTitle}»: ${error.message || 'ошибка Grafana'}`,
+                            'danger',
+                            7000
+                    );
+                }
+            }
+            if (renderRunId !== activeRenderRunId) {
+                return;
+            }
+            if (loadedCount > 0) {
+                showToast(`Графики загружены: ${loadedCount} из ${charts.length}.`, 'success');
+            } else {
+                showToast('Не удалось загрузить ни одного графика.', 'danger');
+            }
         } finally {
-            showPanelsButton.disabled = false;
-            showPanelsButton.textContent = 'Показать графики';
+            if (renderRunId === activeRenderRunId) {
+                renderInProgress = false;
+                setExportLaunchState(loadedCount > 0);
+                updateExportButtonState();
+                showPanelsButton.disabled = false;
+                showPanelsButton.textContent = 'Показать графики';
+            }
         }
     }
 
@@ -1182,31 +1253,32 @@
             if (dashboardsCard?.classList.contains('d-none')) {
                 dashboardsCard.classList.remove('d-none');
             }
-            dashboardsStatus.className = 'alert alert-info d-flex justify-content-center';
-            dashboardsStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-label="Загружаем графики"></span><span>Графики загружаются…</span>';
-            dashboardsEmpty.classList.add('d-none');
-            dashboardsEmpty.innerHTML = '';
-            showToast('Графики загружаются…', 'info');
+            clearDashboardsStatus();
             const from = serializeRangeInputValue(rangeStartInput, rangeStartPickerInput);
             const to = serializeRangeInputValue(rangeEndInput, rangeEndPickerInput);
             const templateId = Number.parseInt((templateIdInput?.value ?? '').trim(), 10);
             if (!from || !to) {
-                setDashboardsStatus(
+                showToast(
                         'Укажите корректные значения начала и конца диапазона. Поддерживаются дата и время либо Unix timestamp.',
                         'warning'
                 );
-                showPanelsButton.disabled = false;
-                showPanelsButton.textContent = 'Показать графики';
                 return;
             }
             if (!Number.isInteger(templateId) || templateId <= 0) {
-                setDashboardsStatus('Выберите шаблон отчета, для которого нужно показать графики.', 'warning');
-                showPanelsButton.disabled = false;
-                showPanelsButton.textContent = 'Показать графики';
-                templateIdInput?.focus();
+                showToast('Выберите шаблон отчета, для которого нужно показать графики.', 'warning');
                 return;
             }
-            renderByRange(from, to, templateId);
+            const template = getSelectedTemplate(templateId);
+            if (!template) {
+                showToast('Выбранный шаблон отчета не найден. Обновите список шаблонов.', 'warning');
+                return;
+            }
+            if (getTemplateCharts(template).length === 0) {
+                showToast('Для выбранного шаблона графики не настроены.', 'warning');
+                return;
+            }
+            hideManagedModal(showPanelsModalElement, showPanelsModal);
+            renderByRange(from, to, template);
         });
     }
 

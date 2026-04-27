@@ -1,8 +1,10 @@
 package com.example.chronicler.controller;
 
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
+import com.example.chronicler.dto.grafana.GrafanaRenderPanelRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
 import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
+import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.service.GrafanaService;
 import jakarta.validation.Valid;
 
@@ -34,6 +36,13 @@ public class GrafanaController {
     public ResponseEntity<GrafanaRenderResponse> renderPanelsByRange(
             @Valid @RequestBody GrafanaRenderRangeRequest request) {
         GrafanaRenderResponse response = grafanaService.renderPanelsByRange(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(path = "/panels/range/panel", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<GrafanaRenderedPanel> renderPanelByRange(
+            @Valid @RequestBody GrafanaRenderPanelRangeRequest request) {
+        GrafanaRenderedPanel response = grafanaService.renderPanelByRange(request);
         return ResponseEntity.ok(response);
     }
 }
