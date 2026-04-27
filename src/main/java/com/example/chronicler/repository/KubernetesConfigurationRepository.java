@@ -32,6 +32,8 @@ public class KubernetesConfigurationRepository {
 
     private static final String EXISTS_SQL =
             "SELECT 1 FROM kubernetes_configurations WHERE test_uuid = ? LIMIT 1";
+    private static final String DELETE_BY_TEST_SQL =
+            "DELETE FROM kubernetes_configurations WHERE test_uuid = ?";
 
     private static final String INSERT_SQL = """
             INSERT INTO kubernetes_configurations
@@ -54,6 +56,10 @@ public class KubernetesConfigurationRepository {
     public boolean existsForTest(UUID testUuid) {
         List<Integer> result = jdbcTemplate.query(EXISTS_SQL, ps -> ps.setObject(1, testUuid), (rs, rowNum) -> 1);
         return !result.isEmpty();
+    }
+
+    public int deleteByTest(UUID testUuid) {
+        return jdbcTemplate.update(DELETE_BY_TEST_SQL, ps -> ps.setObject(1, testUuid));
     }
 
     public Set<UUID> findConfiguredTestIds(Collection<UUID> testUuids) {

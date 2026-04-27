@@ -41,7 +41,7 @@
                th:classappend="${activePage} == 'configuration' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-gear"></i></span>
-                    <span>Конфигурация DropApp</span>
+                    <span>Сохранить конфигурацию</span>
                 </span>
             </a>
             <a class="sidebar-link"
@@ -59,6 +59,14 @@
                     <span class="sidebar-item">
                         <span class="menu-icon"><i class="bi bi-plug"></i></span>
                         <span>Подключения</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/stand-configuration}"
+                   th:classappend="${activeSettingsSection} == 'stand-configuration' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-box-seam"></i></span>
+                        <span>Конфигурация стенда</span>
                     </span>
                 </a>
                 <a class="sidebar-sublink"
@@ -125,6 +133,7 @@
         'confluence',
         'gigachat'
     ];
+    const CONNECTION_SERVICE_NAMES = new Set(SERVICE_ORDER);
     const servicePriority = new Map(SERVICE_ORDER.map((name, index) => [name, index]));
 
     const settingsChanges = new Map();
@@ -865,7 +874,9 @@
                 throw new Error('Ответ сервера: ' + response.status);
             }
             const data = await response.json();
-            settingsCache = data;
+            settingsCache = Array.isArray(data)
+                    ? data.filter(item => CONNECTION_SERVICE_NAMES.has(item?.service))
+                    : [];
             renderSettings(settingsCache);
             clearSettingsStatus();
         } catch (error) {

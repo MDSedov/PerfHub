@@ -6,6 +6,8 @@ import static org.mockito.Mockito.when;
 
 import com.example.chronicler.client.DropAppClient;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
+import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
+import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
 import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
 import java.util.List;
@@ -87,6 +89,51 @@ class DropAppServiceTest {
 
         verify(dropAppClient).fetchConfiguration(List.of("ns-x"), components);
         assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void loadConfigurationWithServicesFiltersSelectedServiceAndRelatedResources() {
+        List<DropAppConfigurationComponent> components = List.of(
+                DropAppConfigurationComponent.PODS,
+                DropAppConfigurationComponent.CONFIGMAPS);
+        when(dropAppClient.fetchConfiguration(List.of("ns-x"), components))
+                .thenReturn(List.of(
+                        new DropAppPodConfiguration(
+                                "ns-x", "billing", "billing-1", 1, "app", "1.0.0", "2.12.7", "100m", "200m", "256Mi", "512Mi"),
+                        new DropAppPodConfiguration(
+                                "ns-x", "orders", "orders-1", 1, "app", "1.1.0", "2.12.8", "100m", "200m", "256Mi", "512Mi"),
+                        new DropAppPodConfiguration(
+                                "ns-x", "ConfigMap", "billing-config", null, "Ключей: 2", "", "2.12.7", "", "", "", ""),
+                        new DropAppPodConfiguration(
+                                "ns-x", "ConfigMap", "orders-config", null, "Ключей: 2", "", "2.12.8", "", "", "", "")));
+
+        List<DropAppPodConfiguration> result = dropAppService.loadConfiguration(
+                List.of("ns-x"),
+                components,
+                List.of(new DropAppServiceSelectionDto("ns-x", "billing")));
+
+        assertThat(result)
+                .extracting(DropAppPodConfiguration::serviceName)
+                .containsExactly("billing", "ConfigMap");
+        assertThat(result)
+                .extracting(DropAppPodConfiguration::podName)
+                .containsExactly(null, "billing-config");
+    }
+
+    @Test
+    void listServiceOptionsReturnsGroupedPodServices() {
+        when(dropAppClient.fetchConfiguration(List.of("ns-x"), List.of(DropAppConfigurationComponent.PODS)))
+                .thenReturn(List.of(
+                        new DropAppPodConfiguration(
+                                "ns-x", "billing", "billing-1", 1, "app", "1.0.0", "2.12.7", "100m", "200m", "256Mi", "512Mi"),
+                        new DropAppPodConfiguration(
+                                "ns-x", "orders", "orders-1", 1, "app", "1.1.0", "2.12.8", "100m", "200m", "256Mi", "512Mi")));
+
+        List<DropAppServiceOptionDto> result = dropAppService.listServiceOptions(List.of("ns-x"));
+
+        assertThat(result)
+                .extracting(DropAppServiceOptionDto::serviceName)
+                .containsExactly("billing", "orders");
     }
 
     @Test

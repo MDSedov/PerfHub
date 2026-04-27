@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Летописец — Конфигурация DropApp</title>
+    <title>Летописец — Сохранить конфигурацию</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link
             href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -41,7 +41,7 @@
                th:classappend="${activePage} == 'configuration' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-gear"></i></span>
-                    <span>Конфигурация DropApp</span>
+                    <span>Сохранить конфигурацию</span>
                 </span>
             </a>
             <a class="sidebar-link"
@@ -59,6 +59,14 @@
                     <span class="sidebar-item">
                         <span class="menu-icon"><i class="bi bi-plug"></i></span>
                         <span>Подключения</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/stand-configuration}"
+                   th:classappend="${activeSettingsSection} == 'stand-configuration' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-box-seam"></i></span>
+                        <span>Конфигурация стенда</span>
                     </span>
                 </a>
                 <a class="sidebar-sublink"
@@ -88,7 +96,7 @@
             <div class="d-flex flex-column align-items-center text-center gap-3">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-gear home-card-icon" style="margin: 0;"></i>
-                    <h5 class="card-title mb-0 home-card-title" style="margin: 0;">Конфигурация DropApp</h5>
+                    <h5 class="card-title mb-0 home-card-title" style="margin: 0;">Сохранить конфигурацию</h5>
                 </div>
                 <p class="text-muted mb-0" style="max-width: 640px;">
                     Выгружайте текущую конфигурацию DropApp по выбранным namespace и компонентам.<br>
@@ -142,7 +150,7 @@
                     <span class="test-details-modal-kicker">DropApp</span>
                     <h5 class="modal-title" id="dropAppCaptureModalLabel">Параметры выгрузки конфигурации</h5>
                     <div class="test-details-modal-subtitle text-muted small">
-                        Выберите namespace, типы ресурсов и добавьте комментарий к сохраняемому снапшоту.
+                        Выберите namespace, сервисы, типы ресурсов и добавьте комментарий к сохраняемому снапшоту.
                     </div>
                 </div>
                 <button type="button"
@@ -155,6 +163,10 @@
                     <section class="test-details-section">
                         <h6 class="test-details-section-title mb-3">Namespace</h6>
                         <div class="configuration-option-list" id="captureNamespaceList"></div>
+                    </section>
+                    <section class="test-details-section">
+                        <h6 class="test-details-section-title mb-3">Сервисы</h6>
+                        <div class="configuration-option-list configuration-service-list" id="captureServiceList"></div>
                     </section>
                     <section class="test-details-section">
                         <h6 class="test-details-section-title mb-3">Компоненты</h6>
@@ -187,7 +199,7 @@
             <div class="modal-header">
                 <div class="d-flex flex-column gap-1">
                     <span class="test-details-modal-kicker">DropApp</span>
-                    <h5 class="modal-title" id="dropAppConfigurationModalLabel">Конфигурация DropApp</h5>
+                    <h5 class="modal-title" id="dropAppConfigurationModalLabel">Конфигурация стенда</h5>
                     <div id="dropAppConfigurationModalSubtitle"
                          class="test-details-modal-subtitle text-muted small d-none"></div>
                 </div>
@@ -247,6 +259,7 @@
         const captureOpenButton = document.getElementById('loadDropAppConfig');
         const captureModalElement = document.getElementById('dropAppCaptureModal');
         const captureNamespaceList = document.getElementById('captureNamespaceList');
+        const captureServiceList = document.getElementById('captureServiceList');
         const captureComponentList = document.getElementById('captureComponentList');
         const captureCommentInput = document.getElementById('captureCommentInput');
         const captureSubmitButton = document.getElementById('submitDropAppCapture');
@@ -266,6 +279,12 @@
             available: [],
             selected: []
         };
+        let standConfigurationSettings = {
+            namespaces: [],
+            components: [],
+            services: []
+        };
+        let serviceOptionsRequestId = 0;
 
         const removeToast = (toast) => {
             if (!toast) {
@@ -406,6 +425,30 @@
             return `${prefix}-${normalizedValue.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
         };
 
+        const buildServiceSelectionValue = (namespace, serviceName) => {
+            return JSON.stringify({
+                namespace: normalizeText(namespace),
+                serviceName: normalizeText(serviceName)
+            });
+        };
+
+        const parseServiceSelectionValue = (value) => {
+            try {
+                const parsed = JSON.parse(value);
+                const namespace = normalizeText(parsed?.namespace);
+                const serviceName = normalizeText(parsed?.serviceName);
+                return namespace && serviceName ? {namespace, serviceName} : null;
+            } catch (error) {
+                return null;
+            }
+        };
+
+        const serviceSelectionKey = (selection) => {
+            const namespace = normalizeText(selection?.namespace) ?? '';
+            const serviceName = normalizeText(selection?.serviceName) ?? '';
+            return `${namespace}\n${serviceName}`.toLowerCase();
+        };
+
         const buildOptionList = (container, options, selectedValues) => {
             if (!container) {
                 return;
@@ -461,7 +504,10 @@
             const available = Array.isArray(payload?.available)
                     ? payload.available
                     : (Array.isArray(payload) ? payload : []);
-            const selected = Array.isArray(payload?.selected) ? payload.selected : [];
+            const selected = Array.isArray(standConfigurationSettings.namespaces)
+                    && standConfigurationSettings.namespaces.length > 0
+                    ? standConfigurationSettings.namespaces
+                    : (Array.isArray(payload?.selected) ? payload.selected : []);
 
             namespaceOptions = {
                 available: available
@@ -479,6 +525,60 @@
                     })),
                     namespaceOptions.selected
             );
+        };
+
+        const formatServiceOptionDescription = (option) => {
+            const parts = [];
+            const namespace = normalizeText(option?.namespace);
+            const podCount = Number(option?.podCount);
+            const release = normalizeText(option?.release);
+            if (namespace) {
+                parts.push(`Namespace: ${namespace}`);
+            }
+            if (Number.isFinite(podCount) && podCount > 0) {
+                parts.push(`POD: ${podCount}`);
+            }
+            if (release) {
+                parts.push(`Релиз ${release}`);
+            }
+            return parts.join(' · ');
+        };
+
+        const renderServiceOptions = (payload) => {
+            if (!captureServiceList) {
+                return;
+            }
+            const options = Array.isArray(payload) ? payload : [];
+            if (options.length === 0) {
+                captureServiceList.innerHTML = '<div class="text-muted small">Для выбранных namespace сервисы не найдены.</div>';
+                return;
+            }
+            const optionItems = options
+                    .map(option => {
+                        const namespace = normalizeText(option?.namespace);
+                        const serviceName = normalizeText(option?.serviceName);
+                        if (!namespace || !serviceName) {
+                            return null;
+                        }
+                        const value = buildServiceSelectionValue(namespace, serviceName);
+                        return {
+                            value,
+                            label: serviceName,
+                            description: formatServiceOptionDescription(option)
+                        };
+                    })
+                    .filter(Boolean);
+            const configuredServiceKeys = new Set((Array.isArray(standConfigurationSettings.services)
+                    ? standConfigurationSettings.services
+                    : [])
+                    .map(serviceSelectionKey)
+                    .filter(Boolean));
+            const selectedValues = configuredServiceKeys.size > 0
+                    ? optionItems
+                            .filter(option => configuredServiceKeys.has(serviceSelectionKey(parseServiceSelectionValue(option.value))))
+                            .map(option => option.value)
+                    : optionItems.map(option => option.value);
+            buildOptionList(captureServiceList, optionItems, selectedValues);
         };
 
         const appendCell = (row, value, className = '', rowSpan = 1) => {
@@ -991,6 +1091,55 @@
             return data;
         };
 
+        const loadStandConfigurationSettings = async () => {
+            try {
+                const payload = await requestJson('/api/settings/stand-configuration');
+                standConfigurationSettings = {
+                    namespaces: Array.isArray(payload?.namespaces) ? payload.namespaces : [],
+                    components: Array.isArray(payload?.components) ? payload.components : [],
+                    services: Array.isArray(payload?.services) ? payload.services : []
+                };
+            } catch (error) {
+                standConfigurationSettings = {
+                    namespaces: [],
+                    components: [],
+                    services: []
+                };
+                showToast('Не удалось загрузить настройки конфигурации стенда: ' + error.message, 'warning');
+            }
+        };
+
+        const loadServicesForSelectedNamespaces = async () => {
+            if (!captureServiceList) {
+                return;
+            }
+            const selectedNamespaces = readCheckedValues(captureNamespaceList);
+            if (!selectedNamespaces.length) {
+                serviceOptionsRequestId += 1;
+                captureServiceList.innerHTML = '<div class="text-muted small">Выберите namespace, чтобы загрузить сервисы.</div>';
+                return;
+            }
+
+            const currentRequestId = serviceOptionsRequestId + 1;
+            serviceOptionsRequestId = currentRequestId;
+            captureServiceList.innerHTML = '<div class="text-muted small">Загружаем сервисы…</div>';
+            const params = new URLSearchParams();
+            selectedNamespaces.forEach(namespace => params.append('namespace', namespace));
+            try {
+                const data = await requestJson(`/api/dropapp/services?${params.toString()}`);
+                if (currentRequestId !== serviceOptionsRequestId) {
+                    return;
+                }
+                renderServiceOptions(data);
+            } catch (error) {
+                if (currentRequestId !== serviceOptionsRequestId) {
+                    return;
+                }
+                captureServiceList.innerHTML = '<div class="text-muted small">Не удалось загрузить сервисы.</div>';
+                showToast('Не удалось получить список сервисов: ' + error.message, 'danger');
+            }
+        };
+
         const loadNamespaces = async () => {
             if (!captureNamespaceList) {
                 return;
@@ -999,13 +1148,21 @@
             try {
                 const data = await requestJson('/api/dropapp/namespaces');
                 renderNamespaceOptions(data);
+                await loadServicesForSelectedNamespaces();
             } catch (error) {
                 captureNamespaceList.innerHTML = '<div class="text-muted small">Не удалось загрузить namespace</div>';
+                if (captureServiceList) {
+                    captureServiceList.innerHTML = '<div class="text-muted small">Сервисы недоступны без namespace.</div>';
+                }
                 showToast('Не удалось получить список namespace: ' + error.message, 'danger');
             }
         };
 
         const renderComponentOptions = () => {
+            const selectedComponents = Array.isArray(standConfigurationSettings.components)
+                    && standConfigurationSettings.components.length > 0
+                    ? standConfigurationSettings.components
+                    : COMPONENT_OPTIONS.map(option => option.code);
             buildOptionList(
                     captureComponentList,
                     COMPONENT_OPTIONS.map(option => ({
@@ -1013,7 +1170,7 @@
                         label: option.label,
                         description: option.description
                     })),
-                    COMPONENT_OPTIONS.map(option => option.code)
+                    selectedComponents
             );
         };
 
@@ -1023,6 +1180,12 @@
             }
             return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
                     .map(input => normalizeText(input.value))
+                    .filter(Boolean);
+        };
+
+        const readCheckedServiceSelections = () => {
+            return readCheckedValues(captureServiceList)
+                    .map(parseServiceSelectionValue)
                     .filter(Boolean);
         };
 
@@ -1065,13 +1228,24 @@
             showManagedModal(captureModalElement, captureModal);
         });
 
+        captureNamespaceList?.addEventListener('change', event => {
+            if (event.target?.matches('input[type="checkbox"]')) {
+                loadServicesForSelectedNamespaces();
+            }
+        });
+
         captureModalElement?.addEventListener('show.bs.modal', prepareCaptureModal);
 
         captureSubmitButton?.addEventListener('click', async () => {
             const selectedNamespaces = readCheckedValues(captureNamespaceList);
+            const selectedServices = readCheckedServiceSelections();
             const selectedComponents = readCheckedValues(captureComponentList);
             if (!selectedNamespaces.length) {
                 showToast('Выберите хотя бы один namespace.', 'warning');
+                return;
+            }
+            if (!selectedServices.length) {
+                showToast('Выберите хотя бы один сервис для выгрузки.', 'warning');
                 return;
             }
             if (!selectedComponents.length) {
@@ -1081,30 +1255,34 @@
 
             captureSubmitButton.disabled = true;
             captureSubmitButton.textContent = 'Выгружаем…';
-            const progressToast = showToast('Запрашиваем текущую конфигурацию DropApp и сохраняем снапшот…', 'info', 10000);
+            const progressToast = showToast('Запрашиваем текущую конфигурацию стенда и сохраняем снапшот…', 'info', 10000);
             try {
                 await requestJson('/api/dropapp/configuration/capture', {
                     method: 'POST',
                     body: JSON.stringify({
                         namespaces: selectedNamespaces,
+                        services: selectedServices,
                         components: selectedComponents,
                         comment: captureCommentInput?.value ?? ''
                     })
                 });
                 await loadSavedConfigurations(false);
                 hideManagedModal(captureModalElement, captureModal);
-                showToast('Конфигурация DropApp выгружена и добавлена в таблицу сохранённых конфигураций.', 'success');
+                showToast('Конфигурация стенда выгружена и добавлена в таблицу сохранённых конфигураций.', 'success');
             } catch (error) {
-                showToast('Не удалось загрузить конфигурацию DropApp: ' + error.message, 'danger');
+                showToast('Не удалось загрузить конфигурацию стенда: ' + error.message, 'danger');
             } finally {
                 removeToast(progressToast);
                 captureSubmitButton.disabled = false;
                 captureSubmitButton.textContent = 'Выгрузить конфигурацию';
             }
         });
-        renderComponentOptions();
-        loadNamespaces();
-        loadSavedConfigurations(false);
+        (async () => {
+            await loadStandConfigurationSettings();
+            renderComponentOptions();
+            await loadNamespaces();
+            loadSavedConfigurations(false);
+        })();
     });
 </script>
 </body>

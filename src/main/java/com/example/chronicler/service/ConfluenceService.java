@@ -429,7 +429,7 @@ public class ConfluenceService {
     private String buildConfigurationSection(List<KubernetesConfiguration> configurations) {
         StringBuilder bodyBuilder = new StringBuilder();
         if (configurations.isEmpty()) {
-            bodyBuilder.append("<p>Конфигурация DropApp для данного теста отсутствует.</p>\n");
+            bodyBuilder.append("<p>Конфигурация стенда для данного теста отсутствует.</p>\n");
             return bodyBuilder.toString();
         }
         bodyBuilder.append("<table>\n")

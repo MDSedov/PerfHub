@@ -8,6 +8,7 @@ import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSummaryDto
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotUpdateRequest;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
 import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
+import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
 import com.example.chronicler.service.DropAppConfigurationSnapshotService;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -97,5 +98,12 @@ public class DropAppController {
     @GetMapping("/namespaces")
     public DropAppNamespaceOptionsDto listNamespaces() {
         return snapshotService.getNamespaceOptions();
+    }
+
+    /** Возвращает список сервисов, доступных для выгрузки в выбранных namespace. */
+    @GetMapping("/services")
+    public List<DropAppServiceOptionDto> listServices(
+            @RequestParam(value = "namespace", required = false) List<String> namespaces) {
+        return snapshotService.getServiceOptions(namespaces);
     }
 }

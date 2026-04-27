@@ -66,6 +66,13 @@ public class DashboardController {
         return "settings-templates";
     }
 
+    @GetMapping("/settings/stand-configuration")
+    public String settingsStandConfiguration(Model model) {
+        model.addAttribute("activePage", "settings");
+        model.addAttribute("activeSettingsSection", "stand-configuration");
+        return "settings-stand-configuration";
+    }
+
     @GetMapping("/settings/requirements")
     public String settingsRequirements(Model model) {
         model.addAttribute("activePage", "settings");

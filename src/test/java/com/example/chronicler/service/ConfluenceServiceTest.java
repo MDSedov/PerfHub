@@ -343,7 +343,7 @@ class ConfluenceServiceTest {
         assertThat(body).contains("<table>");
         assertThat(body).contains("<td>24.1.7</td>");
         assertThat(body).contains("<h3>CPU</h3>");
-        assertThat(body).doesNotContain("<h2>Конфигурация DropApp</h2>");
+        assertThat(body).doesNotContain("<h2>Конфигурация стенда</h2>");
         assertThat(body).doesNotContain("<p><h2>");
         assertThat(body).doesNotContain("<p><h3>");
         assertThat(body).doesNotContain("@release");

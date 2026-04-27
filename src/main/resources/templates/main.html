@@ -41,7 +41,7 @@
                th:classappend="${activePage} == 'configuration' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-gear"></i></span>
-                    <span>Конфигурация DropApp</span>
+                    <span>Сохранить конфигурацию</span>
                 </span>
             </a>
             <a class="sidebar-link"
@@ -59,6 +59,14 @@
                     <span class="sidebar-item">
                         <span class="menu-icon"><i class="bi bi-plug"></i></span>
                         <span>Подключения</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/stand-configuration}"
+                   th:classappend="${activeSettingsSection} == 'stand-configuration' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-box-seam"></i></span>
+                        <span>Конфигурация стенда</span>
                     </span>
                 </a>
                 <a class="sidebar-sublink"
@@ -95,11 +103,11 @@
 
                 <div class="home-card">
                     <div class="home-card-icon"><i class="bi bi-gear"></i></div>
-                    <h5 class="home-card-title">Конфигурация DropApp</h5>
+                    <h5 class="home-card-title">Сохранить конфигурацию</h5>
                     <p class="home-card-text">
                         Проверяйте и обновляйте настройки DropApp: namespace, сервисы, ресурсы и версии релизов.
                     </p>
-                    <a class="home-card-link" th:href="@{/configuration}">Открыть конфигурацию</a>
+                    <a class="home-card-link" th:href="@{/configuration}">Сохранить конфигурацию</a>
                 </div>
 
                 <div class="home-card wide">

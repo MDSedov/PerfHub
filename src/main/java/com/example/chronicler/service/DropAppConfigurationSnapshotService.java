@@ -11,6 +11,8 @@ import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotUpdateRequ
 import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
 import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
+import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
+import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
@@ -50,11 +52,15 @@ public class DropAppConfigurationSnapshotService {
 
     private final DropAppConfigurationSnapshotRepository repository;
     private final DropAppService dropAppService;
+    private final StandConfigurationSettingsService standConfigurationSettingsService;
 
     public DropAppConfigurationSnapshotService(
-            DropAppConfigurationSnapshotRepository repository, DropAppService dropAppService) {
+            DropAppConfigurationSnapshotRepository repository,
+            DropAppService dropAppService,
+            StandConfigurationSettingsService standConfigurationSettingsService) {
         this.repository = repository;
         this.dropAppService = dropAppService;
+        this.standConfigurationSettingsService = standConfigurationSettingsService;
     }
 
     public DropAppNamespaceOptionsDto getNamespaceOptions() {
@@ -77,6 +83,10 @@ public class DropAppConfigurationSnapshotService {
         return new DropAppNamespaceOptionsDto(mergedNamespaces, configuredNamespaces);
     }
 
+    public List<DropAppServiceOptionDto> getServiceOptions(List<String> namespaces) {
+        return dropAppService.listServiceOptions(namespaces);
+    }
+
     public DropAppConfigurationViewDto loadCurrentConfiguration(List<String> namespaces) {
         List<String> resolvedNamespaces = dropAppService.resolveNamespaces(namespaces);
         List<DropAppConfigurationItemDto> items = DropAppConfigurationUtils.groupPodItems(
@@ -89,21 +99,28 @@ public class DropAppConfigurationSnapshotService {
     public DropAppConfigurationCaptureResponse captureCurrentConfiguration(DropAppConfigurationCaptureRequest request) {
         List<String> requestedNamespaces = request != null ? request.namespaces() : List.of();
         List<String> requestedComponents = request != null ? request.components() : List.of();
+        List<DropAppServiceSelectionDto> requestedServices = request != null ? request.services() : List.of();
         String comment = request != null ? request.comment() : null;
 
         List<DropAppConfigurationComponent> resolvedComponents = DropAppConfigurationComponent.resolve(
                 requestedComponents,
-                DropAppConfigurationComponent.defaultSelection());
-        List<String> resolvedNamespaces = dropAppService.resolveNamespaces(requestedNamespaces);
+                standConfigurationSettingsService.resolveComponents());
+        List<String> resolvedNamespaces = dropAppService.resolveNamespaces(
+                requestedNamespaces == null || requestedNamespaces.isEmpty()
+                        ? standConfigurationSettingsService.resolveNamespaces()
+                        : requestedNamespaces);
+        List<DropAppServiceSelectionDto> resolvedServices = requestedServices == null || requestedServices.isEmpty()
+                ? standConfigurationSettingsService.resolveServices(resolvedNamespaces)
+                : requestedServices;
         List<DropAppConfigurationItemDto> items = DropAppConfigurationUtils.groupPodItems(
-                dropAppService.loadConfiguration(resolvedNamespaces, resolvedComponents).stream()
+                dropAppService.loadConfiguration(resolvedNamespaces, resolvedComponents, resolvedServices).stream()
                         .map(this::toDto)
                         .toList());
         if (items.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Конфигурация DropApp пуста");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Конфигурация стенда пуста");
         }
         List<DropAppConfigurationSnapshotDocument> documents =
-                dropAppService.loadConfigurationDocuments(resolvedNamespaces, resolvedComponents);
+                dropAppService.loadConfigurationDocuments(resolvedNamespaces, resolvedComponents, resolvedServices);
 
         DropAppConfigurationSnapshotDetailsDto savedSnapshot = persistSnapshot(
                 resolvedNamespaces,

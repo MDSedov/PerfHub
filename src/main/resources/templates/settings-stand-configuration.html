@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Летописец — Конфигурация стенда</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            crossorigin="anonymous">
+    <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="sidebar-brand" th:href="@{/main}">
+            <img src="/img/chronicler-logo.png" alt="Летописец" class="brand-logo" loading="lazy">
+            <span>Летописец</span>
+        </a>
+        <div class="sidebar-menu">
+            <a class="sidebar-link" th:href="@{/tests}"
+               th:classappend="${activePage} == 'tests' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-activity"></i></span>
+                    <span>Тесты и отчеты</span>
+                </span>
+            </a>
+            <a class="sidebar-link" th:href="@{/grafana-panels}"
+               th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                    <span>Выгрузка графиков</span>
+                </span>
+            </a>
+            <a class="sidebar-link" th:href="@{/configuration}"
+               th:classappend="${activePage} == 'configuration' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-gear"></i></span>
+                    <span>Сохранить конфигурацию</span>
+                </span>
+            </a>
+            <a class="sidebar-link"
+               th:href="@{/settings/connections}"
+               th:classappend="${activePage} == 'settings' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-sliders"></i></span>
+                    <span>Настройки</span>
+                </span>
+            </a>
+            <div class="sidebar-submenu">
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/connections}"
+                   th:classappend="${activeSettingsSection} == 'connections' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-plug"></i></span>
+                        <span>Подключения</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/stand-configuration}"
+                   th:classappend="${activeSettingsSection} == 'stand-configuration' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-box-seam"></i></span>
+                        <span>Конфигурация стенда</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/templates}"
+                   th:classappend="${activeSettingsSection} == 'templates' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-file-earmark-text"></i></span>
+                        <span>Шаблоны отчетов</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/grafana-dashboards}"
+                   th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                        <span>Графики и требования</span>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <div class="page-content" style="background: #ffffff; min-height: 100vh;">
+        <main class="container-fluid py-5 px-4 px-lg-5">
+            <div class="card settings-card integration-card">
+                <div class="card-body">
+                    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-4">
+                        <div>
+                            <h5 class="settings-service-title mb-1">Конфигурация стенда</h5>
+                            <p class="settings-service-description text-muted mb-0">
+                                Эти параметры используются при сохранении конфигурации и при запросе конфигурации из карточки теста.
+                            </p>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-outline-secondary" id="reloadStandServices">
+                                Обновить сервисы
+                            </button>
+                            <button type="button" class="btn btn-success" id="saveStandConfiguration">
+                                Сохранить настройки
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="test-details test-details-stack">
+                        <section class="test-details-section">
+                            <h6 class="test-details-section-title mb-3">Namespace</h6>
+                            <input type="text"
+                                   class="form-control"
+                                   id="standNamespacesInput"
+                                   placeholder="Например: nt-prod">
+                            <div class="form-text">
+                                По умолчанию используется namespace из настроек подключения DropApp.
+                            </div>
+                        </section>
+
+                        <section class="test-details-section">
+                            <h6 class="test-details-section-title mb-3">Компоненты</h6>
+                            <div class="configuration-option-list" id="standComponentList"></div>
+                        </section>
+
+                        <section class="test-details-section">
+                            <h6 class="test-details-section-title mb-3">Сервисы</h6>
+                            <div class="configuration-option-list configuration-service-list" id="standServiceList"></div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
+        crossorigin="anonymous"></script>
+<script src="/js/background-errors.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const COMPONENT_OPTIONS = [
+            {code: 'pods', label: 'Pods', description: 'POD и контейнеры с версиями и ресурсными лимитами'},
+            {code: 'deployments', label: 'Deployments', description: 'Deployment с версиями и релизными метками'},
+            {code: 'configmaps', label: 'ConfigMaps', description: 'ConfigMap и количество ключей'},
+            {code: 'services', label: 'Services', description: 'Сервисы Kubernetes с типом и ClusterIP'},
+            {code: 'ingress', label: 'Ingress', description: 'Ingress с ingress class и хостами'}
+        ];
+
+        const toastContainer = document.getElementById('toastContainer');
+        const namespaceInput = document.getElementById('standNamespacesInput');
+        const componentList = document.getElementById('standComponentList');
+        const serviceList = document.getElementById('standServiceList');
+        const reloadButton = document.getElementById('reloadStandServices');
+        const saveButton = document.getElementById('saveStandConfiguration');
+        let currentServiceOptions = [];
+        let savedServiceSelections = [];
+
+        const normalizeText = (value) => {
+            if (value === undefined || value === null) {
+                return null;
+            }
+            const text = String(value).trim();
+            return text === '' ? null : text;
+        };
+
+        const parseNamespaces = () => {
+            const raw = normalizeText(namespaceInput?.value);
+            return raw ? raw.split(/[,\s]+/).map(normalizeText).filter(Boolean) : [];
+        };
+
+        const removeToast = (toast) => {
+            const timerId = toast?.dataset.timerId;
+            if (timerId) {
+                clearTimeout(Number(timerId));
+            }
+            toast?.remove();
+        };
+
+        const showToast = (message, type = 'info', durationMs = 10000) => {
+            if (!toastContainer) {
+                return null;
+            }
+            const toast = document.createElement('div');
+            toast.className = `toast-item ${type}`;
+            const body = document.createElement('p');
+            body.className = 'toast-body';
+            body.textContent = message;
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'toast-close';
+            close.setAttribute('aria-label', 'Закрыть уведомление');
+            close.innerHTML = '&times;';
+            close.addEventListener('click', () => removeToast(toast));
+            toast.appendChild(body);
+            toast.appendChild(close);
+            toastContainer.appendChild(toast);
+            const timer = setTimeout(() => removeToast(toast), durationMs);
+            toast.dataset.timerId = timer.toString();
+            return toast;
+        };
+
+        const requestJson = async (url, options = {}) => {
+            const headers = {
+                Accept: 'application/json',
+                ...(options.body ? {'Content-Type': 'application/json'} : {}),
+                ...(options.headers || {})
+            };
+            const response = await fetch(url, {...options, headers});
+            const raw = await response.text();
+            let data = null;
+            if (raw) {
+                try {
+                    data = JSON.parse(raw);
+                } catch (error) {
+                    data = raw;
+                }
+            }
+            if (!response.ok) {
+                throw new Error(data?.message || (typeof data === 'string' && data.trim()) || `Ответ сервера: ${response.status}`);
+            }
+            return data;
+        };
+
+        const buildOptionId = (prefix, value) => {
+            const normalized = normalizeText(value) ?? prefix;
+            return `${prefix}-${normalized.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+        };
+
+        const buildServiceSelectionValue = (namespace, serviceName) => JSON.stringify({
+            namespace: normalizeText(namespace),
+            serviceName: normalizeText(serviceName)
+        });
+
+        const parseServiceSelectionValue = (value) => {
+            try {
+                const parsed = JSON.parse(value);
+                const namespace = normalizeText(parsed?.namespace);
+                const serviceName = normalizeText(parsed?.serviceName);
+                return namespace && serviceName ? {namespace, serviceName} : null;
+            } catch (error) {
+                return null;
+            }
+        };
+
+        const buildOptionList = (container, options, selectedValues) => {
+            const selectedSet = new Set((Array.isArray(selectedValues) ? selectedValues : [])
+                    .map(normalizeText)
+                    .filter(Boolean));
+            container.innerHTML = '';
+            if (!Array.isArray(options) || options.length === 0) {
+                container.innerHTML = '<div class="text-muted small">Список пока пуст.</div>';
+                return;
+            }
+            options.forEach(option => {
+                const value = normalizeText(option?.value);
+                const label = normalizeText(option?.label);
+                if (!value || !label) {
+                    return;
+                }
+                const wrapper = document.createElement('label');
+                wrapper.className = 'configuration-option-item';
+                const input = document.createElement('input');
+                input.className = 'form-check-input mt-0';
+                input.type = 'checkbox';
+                input.value = value;
+                input.id = buildOptionId(container.id, value);
+                input.checked = selectedSet.has(value);
+                const content = document.createElement('div');
+                content.className = 'configuration-option-content';
+                const title = document.createElement('div');
+                title.className = 'configuration-option-title';
+                title.textContent = label;
+                const description = document.createElement('div');
+                description.className = 'configuration-option-description';
+                description.textContent = normalizeText(option?.description) ?? '';
+                content.appendChild(title);
+                if (description.textContent) {
+                    content.appendChild(description);
+                }
+                wrapper.appendChild(input);
+                wrapper.appendChild(content);
+                container.appendChild(wrapper);
+            });
+        };
+
+        const formatServiceDescription = (option) => {
+            const parts = [];
+            const namespace = normalizeText(option?.namespace);
+            const release = normalizeText(option?.release);
+            const podCount = Number(option?.podCount);
+            if (namespace) {
+                parts.push(`Namespace: ${namespace}`);
+            }
+            if (Number.isFinite(podCount) && podCount > 0) {
+                parts.push(`POD: ${podCount}`);
+            }
+            if (release) {
+                parts.push(`Релиз ${release}`);
+            }
+            return parts.join(' · ');
+        };
+
+        const serviceKey = (selection) => `${normalizeText(selection?.namespace) ?? ''}\n${normalizeText(selection?.serviceName) ?? ''}`.toLowerCase();
+
+        const renderComponents = (selectedComponents) => {
+            buildOptionList(
+                    componentList,
+                    COMPONENT_OPTIONS.map(option => ({
+                        value: option.code,
+                        label: option.label,
+                        description: option.description
+                    })),
+                    Array.isArray(selectedComponents) && selectedComponents.length > 0
+                            ? selectedComponents
+                            : COMPONENT_OPTIONS.map(option => option.code)
+            );
+        };
+
+        const renderServices = (availableServices, selectedServices) => {
+            currentServiceOptions = Array.isArray(availableServices) ? availableServices : [];
+            savedServiceSelections = Array.isArray(selectedServices) ? selectedServices : [];
+            if (currentServiceOptions.length === 0) {
+                serviceList.innerHTML = '<div class="text-muted small">Сервисы не загружены. Проверьте namespace и подключение DropApp.</div>';
+                return;
+            }
+            const selectedKeys = new Set(savedServiceSelections.map(serviceKey).filter(Boolean));
+            const optionItems = currentServiceOptions
+                    .map(option => {
+                        const namespace = normalizeText(option?.namespace);
+                        const serviceName = normalizeText(option?.serviceName);
+                        if (!namespace || !serviceName) {
+                            return null;
+                        }
+                        const value = buildServiceSelectionValue(namespace, serviceName);
+                        return {
+                            value,
+                            label: serviceName,
+                            description: formatServiceDescription(option)
+                        };
+                    })
+                    .filter(Boolean);
+            const selectedValues = selectedKeys.size > 0
+                    ? optionItems
+                            .filter(option => selectedKeys.has(serviceKey(parseServiceSelectionValue(option.value))))
+                            .map(option => option.value)
+                    : optionItems.map(option => option.value);
+            buildOptionList(serviceList, optionItems, selectedValues);
+        };
+
+        const readCheckedValues = (container) => {
+            return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(input => normalizeText(input.value))
+                    .filter(Boolean);
+        };
+
+        const readCheckedServices = () => readCheckedValues(serviceList)
+                .map(parseServiceSelectionValue)
+                .filter(Boolean);
+
+        const reloadServices = async () => {
+            const namespaces = parseNamespaces();
+            if (!namespaces.length) {
+                serviceList.innerHTML = '<div class="text-muted small">Укажите namespace, чтобы загрузить сервисы.</div>';
+                return;
+            }
+            reloadButton.disabled = true;
+            serviceList.innerHTML = '<div class="text-muted small">Загружаем сервисы…</div>';
+            const params = new URLSearchParams();
+            namespaces.forEach(namespace => params.append('namespace', namespace));
+            try {
+                const services = await requestJson(`/api/dropapp/services?${params.toString()}`);
+                renderServices(services, savedServiceSelections);
+                showToast('Список сервисов обновлен.', 'success', 5000);
+            } catch (error) {
+                serviceList.innerHTML = '<div class="text-muted small">Не удалось загрузить сервисы.</div>';
+                showToast('Не удалось загрузить сервисы: ' + error.message, 'danger');
+            } finally {
+                reloadButton.disabled = false;
+            }
+        };
+
+        const loadSettings = async () => {
+            renderComponents([]);
+            serviceList.innerHTML = '<div class="text-muted small">Загружаем настройки…</div>';
+            try {
+                const payload = await requestJson('/api/settings/stand-configuration');
+                namespaceInput.value = Array.isArray(payload?.namespaces) ? payload.namespaces.join(', ') : '';
+                renderComponents(payload?.components);
+                renderServices(payload?.availableServices, payload?.services);
+            } catch (error) {
+                serviceList.innerHTML = '<div class="text-muted small">Не удалось загрузить настройки.</div>';
+                showToast('Не удалось загрузить настройки конфигурации стенда: ' + error.message, 'danger');
+            }
+        };
+
+        const saveSettings = async () => {
+            const namespaces = parseNamespaces();
+            const components = readCheckedValues(componentList);
+            const services = readCheckedServices();
+            if (!namespaces.length) {
+                showToast('Укажите namespace стенда.', 'warning');
+                return;
+            }
+            if (!components.length) {
+                showToast('Выберите хотя бы один компонент.', 'warning');
+                return;
+            }
+            if (currentServiceOptions.length > 0 && !services.length) {
+                showToast('Выберите хотя бы один сервис.', 'warning');
+                return;
+            }
+
+            saveButton.disabled = true;
+            saveButton.textContent = 'Сохраняем…';
+            try {
+                const payload = await requestJson('/api/settings/stand-configuration', {
+                    method: 'PATCH',
+                    body: JSON.stringify({namespaces, components, services})
+                });
+                namespaceInput.value = Array.isArray(payload?.namespaces) ? payload.namespaces.join(', ') : '';
+                renderComponents(payload?.components);
+                renderServices(payload?.availableServices, payload?.services);
+                showToast('Настройки конфигурации стенда сохранены.', 'success');
+            } catch (error) {
+                showToast('Не удалось сохранить настройки: ' + error.message, 'danger');
+            } finally {
+                saveButton.disabled = false;
+                saveButton.textContent = 'Сохранить настройки';
+            }
+        };
+
+        reloadButton.addEventListener('click', reloadServices);
+        saveButton.addEventListener('click', saveSettings);
+        namespaceInput.addEventListener('change', reloadServices);
+
+        if (typeof startBackgroundErrorPolling === 'function') {
+            startBackgroundErrorPolling(showToast);
+        }
+        loadSettings();
+    });
+</script>
+</body>
+</html>

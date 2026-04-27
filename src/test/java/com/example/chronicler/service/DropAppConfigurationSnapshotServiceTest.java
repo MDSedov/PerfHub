@@ -3,6 +3,7 @@ package com.example.chronicler.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,7 +16,10 @@ import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotUpdateRequ
 import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
+import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
+import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
 import com.example.chronicler.exception.DropAppClientException;
+import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
 import com.example.chronicler.model.DropAppConfigurationSnapshotItem;
@@ -38,11 +42,21 @@ class DropAppConfigurationSnapshotServiceTest {
     @Mock
     private DropAppService dropAppService;
 
+    @Mock
+    private StandConfigurationSettingsService standConfigurationSettingsService;
+
     private DropAppConfigurationSnapshotService service;
 
     @BeforeEach
     void setUp() {
-        service = new DropAppConfigurationSnapshotService(repository, dropAppService);
+        lenient().when(standConfigurationSettingsService.resolveComponents())
+                .thenReturn(DropAppConfigurationComponent.defaultSelection());
+        lenient().when(standConfigurationSettingsService.resolveServices(any())).thenReturn(List.of());
+        lenient().when(standConfigurationSettingsService.resolveNamespaces()).thenReturn(List.of("ns-a"));
+        service = new DropAppConfigurationSnapshotService(
+                repository,
+                dropAppService,
+                standConfigurationSettingsService);
     }
 
     @Test
@@ -71,6 +85,23 @@ class DropAppConfigurationSnapshotServiceTest {
         assertThat(result.namespaces()).containsExactly("ns-b");
         assertThat(result.release()).isEqualTo("2.12.10");
         assertThat(result.items()).hasSize(2);
+    }
+
+    @Test
+    void getServiceOptionsReturnsGroupedServicesForResolvedNamespaces() {
+        when(dropAppService.listServiceOptions(List.of("ns-a")))
+                .thenReturn(List.of(
+                        new DropAppServiceOptionDto("ns-a", "billing", 1, "2.12.7"),
+                        new DropAppServiceOptionDto("ns-a", "orders", 1, "2.12.8")));
+
+        List<DropAppServiceOptionDto> result = service.getServiceOptions(List.of("ns-a"));
+
+        assertThat(result)
+                .extracting(DropAppServiceOptionDto::serviceName)
+                .containsExactly("billing", "orders");
+        assertThat(result)
+                .extracting(DropAppServiceOptionDto::release)
+                .containsExactly("2.12.7", "2.12.8");
     }
 
     @Test
@@ -106,13 +137,13 @@ class DropAppConfigurationSnapshotServiceTest {
     void captureCurrentConfigurationLoadsItemsSavesSnapshotAndReturnsSavedPayload() {
         Instant savedAt = Instant.parse("2026-04-03T10:15:30Z");
         when(dropAppService.resolveNamespaces(List.of("ns-a"))).thenReturn(List.of("ns-a"));
-        when(dropAppService.loadConfiguration(any(), any()))
+        when(dropAppService.loadConfiguration(any(), any(), any()))
                 .thenReturn(List.of(
                         new DropAppPodConfiguration(
                                 "ns-a", "Pod", "pod-1", "container-1", "1.0.0", "2.12.7", "100m", "200m", "256Mi", "512Mi"),
                         new DropAppPodConfiguration(
                                 "ns-a", "ConfigMap", "cm-main", "Ключей: 4", "", "", "", "", "", "")));
-        when(dropAppService.loadConfigurationDocuments(any(), any()))
+        when(dropAppService.loadConfigurationDocuments(any(), any(), any()))
                 .thenReturn(List.of(new DropAppConfigurationSnapshotDocument(
                         null,
                         null,
@@ -155,6 +186,60 @@ class DropAppConfigurationSnapshotServiceTest {
         assertThat(result.namespaces()).containsExactly("ns-a");
         assertThat(result.components()).containsExactly("pods", "configmaps");
         assertThat(result.items()).hasSize(2);
+    }
+
+    @Test
+    void captureCurrentConfigurationFiltersSelectedServicesBeforeResolvingRelease() {
+        Instant savedAt = Instant.parse("2026-04-03T10:15:30Z");
+        when(dropAppService.resolveNamespaces(List.of("ns-a"))).thenReturn(List.of("ns-a"));
+        when(dropAppService.loadConfiguration(any(), any(), any()))
+                .thenReturn(List.of(
+                        new DropAppPodConfiguration(
+                                "ns-a", "billing", "billing-1", 1, "app", "1.0.0", "2.12.7", "100m", "200m", "256Mi", "512Mi"),
+                        new DropAppPodConfiguration(
+                                "ns-a", "ConfigMap", "billing-config", null, "Ключей: 2", "", "2.12.7", "", "", "", "")));
+        when(dropAppService.loadConfigurationDocuments(any(), any(), any()))
+                .thenReturn(List.of(new DropAppConfigurationSnapshotDocument(
+                        null,
+                        null,
+                        "ns-a",
+                        "configmaps",
+                        "billing-config",
+                        "apiVersion: v1\nkind: ConfigMap")));
+        when(repository.insertSnapshot(eq("2.12.7"), eq(null), eq("ns-a"), eq("pods, configmaps"), any(Instant.class)))
+                .thenReturn(56L);
+        when(repository.findSnapshotById(56L))
+                .thenReturn(Optional.of(new DropAppConfigurationSnapshot(
+                        56L, "2.12.7", null, "ns-a", "pods, configmaps", savedAt)));
+        when(repository.findItemsBySnapshotId(56L))
+                .thenReturn(List.of(
+                        new DropAppConfigurationSnapshotItem(
+                                1L, 56L, "ns-a", "billing", null, 1, "app", "1.0.0", "2.12.7", "100m", "200m", "256Mi", "512Mi"),
+                        new DropAppConfigurationSnapshotItem(
+                                2L, 56L, "ns-a", "ConfigMap", "billing-config", null, "Ключей: 2", "", "2.12.7", "", "", "", "")));
+        when(repository.findDocumentsBySnapshotId(56L))
+                .thenReturn(List.of(new DropAppConfigurationSnapshotDocument(
+                        8L,
+                        56L,
+                        "ns-a",
+                        "configmaps",
+                        "billing-config",
+                        "apiVersion: v1\nkind: ConfigMap")));
+
+        DropAppConfigurationCaptureResponse result = service.captureCurrentConfiguration(
+                new DropAppConfigurationCaptureRequest(
+                        List.of("ns-a"),
+                        List.of("pods", "configmaps"),
+                        null,
+                        List.of(new DropAppServiceSelectionDto("ns-a", "billing"))));
+
+        assertThat(result.release()).isEqualTo("2.12.7");
+        assertThat(result.items())
+                .extracting(DropAppConfigurationItemDto::serviceName)
+                .containsExactly("billing", "ConfigMap");
+        assertThat(result.items())
+                .extracting(DropAppConfigurationItemDto::podName)
+                .containsExactly(null, "billing-config");
     }
 
     @Test

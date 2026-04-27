@@ -41,7 +41,7 @@
                th:classappend="${activePage} == 'configuration' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-gear"></i></span>
-                    <span>Конфигурация DropApp</span>
+                    <span>Сохранить конфигурацию</span>
                 </span>
             </a>
             <a class="sidebar-link"
@@ -59,6 +59,14 @@
                     <span class="sidebar-item">
                         <span class="menu-icon"><i class="bi bi-plug"></i></span>
                         <span>Подключения</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/stand-configuration}"
+                   th:classappend="${activeSettingsSection} == 'stand-configuration' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-box-seam"></i></span>
+                        <span>Конфигурация стенда</span>
                     </span>
                 </a>
                 <a class="sidebar-sublink"
@@ -173,7 +181,7 @@
                                         <i class="bi bi-hdd-network"></i> Конфигурация
                                     </a>
                                     <div class="dropdown-menu filter-dropdown">
-                                        <label class="form-label small text-muted mb-2" for="configFilter">Конфигурация DropApp</label>
+                                        <label class="form-label small text-muted mb-2" for="configFilter">Конфигурация стенда</label>
                                         <select id="configFilter" class="form-select form-select-sm">
                                             <option value="">Любая</option>
                                             <option value="has">Есть конфигурация</option>
@@ -628,7 +636,7 @@
         filterDropdownsInitialized = true;
     }
 
-    const NO_CONFIG_MESSAGE = 'Конфигурация DropApp для данного теста отсутствует';
+    const NO_CONFIG_MESSAGE = 'Конфигурация стенда для данного теста отсутствует';
     const MISSING_RELEASE_VALUE = '__missing__';
     const AUTO_REFRESH_MS = 60_000;
     const ACTIVE_TEST_END_GRACE_MS = 3 * 60 * 1000;
@@ -2642,6 +2650,28 @@
         if (!container) {
             return;
         }
+        const createCaptureButton = () => {
+            const requestButton = document.createElement('button');
+            requestButton.type = 'button';
+            requestButton.className = 'btn btn-outline-success btn-sm';
+            requestButton.textContent = 'Получить конфигурацию стенда';
+            requestButton.addEventListener('click', async () => {
+                requestButton.disabled = true;
+                requestButton.textContent = 'Запрашиваем…';
+                try {
+                    const captured = await captureConfiguration(testId);
+                    updateConfigurationStatusIcon(testId, captured);
+                    updateTestReleaseFromConfiguration(testId, captured);
+                    renderConfiguration(container, captured, testId);
+                    showToast('Получена конфигурация стенда для теста', 'success');
+                } catch (error) {
+                    showToast('Не удалось получить конфигурацию стенда для теста', 'danger');
+                    requestButton.disabled = false;
+                    requestButton.textContent = 'Получить конфигурацию стенда';
+                }
+            });
+            return requestButton;
+        };
         if (!Array.isArray(items) || items.length === 0) {
             const wrapper = document.createElement('div');
             wrapper.className = 'd-flex flex-column align-items-start gap-2';
@@ -2657,26 +2687,7 @@
             }
 
             if (allowManualCapture) {
-                const requestButton = document.createElement('button');
-                requestButton.type = 'button';
-                requestButton.className = 'btn btn-outline-success btn-sm';
-                requestButton.textContent = 'Запросить текущую конфигурацию DropApp для данного теста';
-                requestButton.addEventListener('click', async () => {
-                    requestButton.disabled = true;
-                    requestButton.textContent = 'Запрашиваем…';
-                    try {
-                        const captured = await ensureCapturedConfiguration(testId);
-                        updateConfigurationStatusIcon(testId, captured);
-                        updateTestReleaseFromConfiguration(testId, captured);
-                        renderConfiguration(container, captured, testId);
-                        showToast('Получена конфигурация DropApp для теста', 'success');
-                    } catch (error) {
-                        showToast('Не удалось получить конфигурацию DropApp для теста', 'danger');
-                        requestButton.disabled = false;
-                        requestButton.textContent = 'Запросить текущую конфигурацию DropApp для данного теста';
-                    }
-                });
-                wrapper.appendChild(requestButton);
+                wrapper.appendChild(createCaptureButton());
             }
 
             container.innerHTML = '';
@@ -2714,8 +2725,17 @@
         });
         table.appendChild(thead);
         table.appendChild(tbody);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'd-flex flex-column align-items-start gap-3';
+        const tableWrapper = document.createElement('div');
+        tableWrapper.className = 'table-responsive w-100';
+        tableWrapper.appendChild(table);
+        wrapper.appendChild(tableWrapper);
+        if (testId) {
+            wrapper.appendChild(createCaptureButton());
+        }
         container.innerHTML = '';
-        container.appendChild(table);
+        container.appendChild(wrapper);
     }
 
     function getConfigurationServiceValue(item) {
@@ -3013,7 +3033,7 @@
         configurationSection.className = 'test-details-section';
         const configurationTitle = document.createElement('h6');
         configurationTitle.className = 'test-details-section-title mb-3';
-        configurationTitle.textContent = 'Конфигурация DropApp';
+        configurationTitle.textContent = 'Конфигурация стенда';
         const configurationBox = document.createElement('div');
         configurationBox.innerHTML = '<div class="text-muted small">Загружаем конфигурацию…</div>';
         configurationSection.appendChild(configurationTitle);
