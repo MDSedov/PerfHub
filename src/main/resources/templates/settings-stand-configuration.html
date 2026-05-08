@@ -90,16 +90,16 @@
 
     <div class="page-content" style="background: #ffffff; min-height: 100vh;">
         <main class="container-fluid py-5 px-4 px-lg-5">
-            <div class="card settings-card integration-card">
-                <div class="card-body">
-                    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-4">
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="data-panel d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3">
                         <div>
-                            <h5 class="settings-service-title mb-1">Конфигурация стенда</h5>
+                            <h5 class="mb-1">Конфигурация стенда</h5>
                             <p class="settings-service-description text-muted mb-0">
                                 Эти параметры используются при сохранении конфигурации и при запросе конфигурации из карточки теста.
                             </p>
                         </div>
-                        <div class="d-flex flex-wrap gap-2">
+                        <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-end">
                             <button type="button" class="btn btn-outline-secondary" id="reloadStandServices">
                                 Обновить сервисы
                             </button>
@@ -108,31 +108,61 @@
                             </button>
                         </div>
                     </div>
-
-                    <div class="test-details test-details-stack">
-                        <section class="test-details-section">
-                            <h6 class="test-details-section-title mb-3">Namespace</h6>
-                            <input type="text"
-                                   class="form-control"
-                                   id="standNamespacesInput"
-                                   placeholder="Например: nt-prod">
-                            <div class="form-text">
-                                По умолчанию используется namespace из настроек подключения DropApp.
-                            </div>
-                        </section>
-
-                        <section class="test-details-section">
-                            <h6 class="test-details-section-title mb-3">Компоненты</h6>
-                            <div class="configuration-option-list" id="standComponentList"></div>
-                        </section>
-
-                        <section class="test-details-section">
-                            <h6 class="test-details-section-title mb-3">Сервисы</h6>
-                            <div class="configuration-option-list configuration-service-list" id="standServiceList"></div>
-                        </section>
-                    </div>
                 </div>
             </div>
+
+            <section class="tests-content stand-configuration-section flex-grow-1 mt-3">
+                <div class="card border-0">
+                    <div class="card-body">
+                        <div class="stand-configuration-form-grid">
+                            <section class="stand-configuration-block">
+                                <h6 class="test-details-section-title mb-3">Namespace</h6>
+                                <input type="text"
+                                       class="form-control"
+                                       id="standNamespacesInput"
+                                       placeholder="Например: nt-prod">
+                                <div class="form-text">
+                                    По умолчанию используется namespace из настроек подключения DropApp.
+                                </div>
+                            </section>
+
+                            <section class="stand-configuration-block">
+                                <h6 class="test-details-section-title mb-3">Компоненты</h6>
+                                <div class="tests-table-wrapper table-responsive">
+                                    <table class="table align-middle tests-table stand-configuration-table">
+                                        <thead>
+                                        <tr>
+                                            <th scope="col" class="stand-configuration-check-cell text-center">Выбор</th>
+                                            <th scope="col">Компонент</th>
+                                            <th scope="col">Описание</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody id="standComponentList"></tbody>
+                                    </table>
+                                </div>
+                            </section>
+
+                            <section class="stand-configuration-block">
+                                <h6 class="test-details-section-title mb-3">Сервисы</h6>
+                                <div class="tests-table-wrapper table-responsive">
+                                    <table class="table align-middle tests-table stand-configuration-table">
+                                        <thead>
+                                        <tr>
+                                            <th scope="col" class="stand-configuration-check-cell text-center">Выбор</th>
+                                            <th scope="col">Сервис</th>
+                                            <th scope="col">Namespace</th>
+                                            <th scope="col">POD</th>
+                                            <th scope="col">Релиз</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody id="standServiceList"></tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 </div>
@@ -160,6 +190,8 @@
         const serviceList = document.getElementById('standServiceList');
         const reloadButton = document.getElementById('reloadStandServices');
         const saveButton = document.getElementById('saveStandConfiguration');
+        const COMPONENT_TABLE_COLSPAN = 3;
+        const SERVICE_TABLE_COLSPAN = 5;
         let currentServiceOptions = [];
         let savedServiceSelections = [];
 
@@ -250,68 +282,85 @@
             }
         };
 
-        const buildOptionList = (container, options, selectedValues) => {
+        const setTableMessage = (container, message, colspan) => {
+            container.innerHTML = '';
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = colspan;
+            cell.className = 'text-muted small py-3';
+            cell.textContent = message;
+            row.appendChild(cell);
+            container.appendChild(row);
+        };
+
+        const appendCellContent = (cell, content) => {
+            if (content instanceof Node) {
+                cell.appendChild(content);
+                return;
+            }
+            const text = normalizeText(content);
+            cell.textContent = text ?? '—';
+        };
+
+        const buildSelectableTable = (container, options, selectedValues, columns, emptyMessage = 'Список пока пуст.') => {
             const selectedSet = new Set((Array.isArray(selectedValues) ? selectedValues : [])
                     .map(normalizeText)
                     .filter(Boolean));
             container.innerHTML = '';
             if (!Array.isArray(options) || options.length === 0) {
-                container.innerHTML = '<div class="text-muted small">Список пока пуст.</div>';
+                setTableMessage(container, emptyMessage, columns.length + 1);
                 return;
             }
+            let renderedRows = 0;
             options.forEach(option => {
                 const value = normalizeText(option?.value);
                 const label = normalizeText(option?.label);
                 if (!value || !label) {
                     return;
                 }
-                const wrapper = document.createElement('label');
-                wrapper.className = 'configuration-option-item';
+                const row = document.createElement('tr');
+                row.className = 'stand-configuration-selectable-row';
+                const checkCell = document.createElement('td');
+                checkCell.className = 'stand-configuration-check-cell text-center';
                 const input = document.createElement('input');
                 input.className = 'form-check-input mt-0';
                 input.type = 'checkbox';
                 input.value = value;
                 input.id = buildOptionId(container.id, value);
                 input.checked = selectedSet.has(value);
-                const content = document.createElement('div');
-                content.className = 'configuration-option-content';
-                const title = document.createElement('div');
-                title.className = 'configuration-option-title';
-                title.textContent = label;
-                const description = document.createElement('div');
-                description.className = 'configuration-option-description';
-                description.textContent = normalizeText(option?.description) ?? '';
-                content.appendChild(title);
-                if (description.textContent) {
-                    content.appendChild(description);
-                }
-                wrapper.appendChild(input);
-                wrapper.appendChild(content);
-                container.appendChild(wrapper);
+                input.setAttribute('aria-label', `Выбрать ${label}`);
+                checkCell.appendChild(input);
+                row.appendChild(checkCell);
+                columns.forEach(column => {
+                    const cell = document.createElement('td');
+                    if (column.className) {
+                        cell.className = column.className;
+                    }
+                    const content = typeof column.render === 'function'
+                            ? column.render(option)
+                            : option?.[column.key];
+                    appendCellContent(cell, content);
+                    row.appendChild(cell);
+                });
+                row.addEventListener('click', event => {
+                    if (event.target === input) {
+                        return;
+                    }
+                    input.checked = !input.checked;
+                    input.dispatchEvent(new Event('change', {bubbles: true}));
+                });
+                container.appendChild(row);
+                renderedRows += 1;
             });
-        };
-
-        const formatServiceDescription = (option) => {
-            const parts = [];
-            const namespace = normalizeText(option?.namespace);
-            const release = normalizeText(option?.release);
-            const podCount = Number(option?.podCount);
-            if (namespace) {
-                parts.push(`Namespace: ${namespace}`);
+            if (renderedRows === 0) {
+                setTableMessage(container, emptyMessage, columns.length + 1);
             }
-            if (Number.isFinite(podCount) && podCount > 0) {
-                parts.push(`POD: ${podCount}`);
-            }
-            if (release) {
-                parts.push(`Релиз ${release}`);
-            }
-            return parts.join(' · ');
         };
 
         const serviceKey = (selection) => `${normalizeText(selection?.namespace) ?? ''}\n${normalizeText(selection?.serviceName) ?? ''}`.toLowerCase();
 
         const renderComponents = (selectedComponents) => {
-            buildOptionList(
+            buildSelectableTable(
                     componentList,
                     COMPONENT_OPTIONS.map(option => ({
                         value: option.code,
@@ -320,7 +369,12 @@
                     })),
                     Array.isArray(selectedComponents) && selectedComponents.length > 0
                             ? selectedComponents
-                            : COMPONENT_OPTIONS.map(option => option.code)
+                            : COMPONENT_OPTIONS.map(option => option.code),
+                    [
+                        {key: 'label', className: 'stand-configuration-primary-cell'},
+                        {key: 'description', className: 'stand-configuration-description-cell'}
+                    ],
+                    'Список компонентов пуст.'
             );
         };
 
@@ -328,7 +382,7 @@
             currentServiceOptions = Array.isArray(availableServices) ? availableServices : [];
             savedServiceSelections = Array.isArray(selectedServices) ? selectedServices : [];
             if (currentServiceOptions.length === 0) {
-                serviceList.innerHTML = '<div class="text-muted small">Сервисы не загружены. Проверьте namespace и подключение DropApp.</div>';
+                setTableMessage(serviceList, 'Сервисы не загружены. Проверьте namespace и подключение DropApp.', SERVICE_TABLE_COLSPAN);
                 return;
             }
             const selectedKeys = new Set(savedServiceSelections.map(serviceKey).filter(Boolean));
@@ -340,10 +394,14 @@
                             return null;
                         }
                         const value = buildServiceSelectionValue(namespace, serviceName);
+                        const podCount = Number(option?.podCount);
                         return {
                             value,
                             label: serviceName,
-                            description: formatServiceDescription(option)
+                            serviceName,
+                            namespace,
+                            podCount: Number.isFinite(podCount) && podCount > 0 ? podCount : null,
+                            release: normalizeText(option?.release)
                         };
                     })
                     .filter(Boolean);
@@ -352,7 +410,18 @@
                             .filter(option => selectedKeys.has(serviceKey(parseServiceSelectionValue(option.value))))
                             .map(option => option.value)
                     : optionItems.map(option => option.value);
-            buildOptionList(serviceList, optionItems, selectedValues);
+            buildSelectableTable(
+                    serviceList,
+                    optionItems,
+                    selectedValues,
+                    [
+                        {key: 'serviceName', className: 'stand-configuration-primary-cell'},
+                        {key: 'namespace'},
+                        {key: 'podCount'},
+                        {key: 'release'}
+                    ],
+                    'Список сервисов пуст.'
+            );
         };
 
         const readCheckedValues = (container) => {
@@ -368,11 +437,11 @@
         const reloadServices = async () => {
             const namespaces = parseNamespaces();
             if (!namespaces.length) {
-                serviceList.innerHTML = '<div class="text-muted small">Укажите namespace, чтобы загрузить сервисы.</div>';
+                setTableMessage(serviceList, 'Укажите namespace, чтобы загрузить сервисы.', SERVICE_TABLE_COLSPAN);
                 return;
             }
             reloadButton.disabled = true;
-            serviceList.innerHTML = '<div class="text-muted small">Загружаем сервисы…</div>';
+            setTableMessage(serviceList, 'Загружаем сервисы…', SERVICE_TABLE_COLSPAN);
             const params = new URLSearchParams();
             namespaces.forEach(namespace => params.append('namespace', namespace));
             try {
@@ -380,7 +449,7 @@
                 renderServices(services, savedServiceSelections);
                 showToast('Список сервисов обновлен.', 'success', 5000);
             } catch (error) {
-                serviceList.innerHTML = '<div class="text-muted small">Не удалось загрузить сервисы.</div>';
+                setTableMessage(serviceList, 'Не удалось загрузить сервисы.', SERVICE_TABLE_COLSPAN);
                 showToast('Не удалось загрузить сервисы: ' + error.message, 'danger');
             } finally {
                 reloadButton.disabled = false;
@@ -389,14 +458,14 @@
 
         const loadSettings = async () => {
             renderComponents([]);
-            serviceList.innerHTML = '<div class="text-muted small">Загружаем настройки…</div>';
+            setTableMessage(serviceList, 'Загружаем настройки…', SERVICE_TABLE_COLSPAN);
             try {
                 const payload = await requestJson('/api/settings/stand-configuration');
                 namespaceInput.value = Array.isArray(payload?.namespaces) ? payload.namespaces.join(', ') : '';
                 renderComponents(payload?.components);
                 renderServices(payload?.availableServices, payload?.services);
             } catch (error) {
-                serviceList.innerHTML = '<div class="text-muted small">Не удалось загрузить настройки.</div>';
+                setTableMessage(serviceList, 'Не удалось загрузить настройки.', SERVICE_TABLE_COLSPAN);
                 showToast('Не удалось загрузить настройки конфигурации стенда: ' + error.message, 'danger');
             }
         };

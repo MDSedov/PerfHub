@@ -1699,6 +1699,55 @@ body {
             resize: vertical;
         }
 
+        .stand-configuration-section .card {
+            box-shadow: none;
+            border: none;
+            background: #ffffff;
+            border-radius: 0;
+        }
+
+        .stand-configuration-form-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .stand-configuration-block {
+            background: #ffffff;
+        }
+
+        .stand-configuration-table {
+            margin-bottom: 0;
+        }
+
+        .stand-configuration-table tbody tr:hover {
+            background-color: rgba(0, 152, 70, 0.04);
+        }
+
+        .stand-configuration-selectable-row {
+            cursor: pointer;
+        }
+
+        .stand-configuration-check-cell {
+            width: 84px;
+            min-width: 84px;
+        }
+
+        .stand-configuration-table .form-check-input {
+            cursor: pointer;
+        }
+
+        .stand-configuration-primary-cell {
+            color: #1c231f !important;
+            font-weight: 600;
+        }
+
+        .stand-configuration-description-cell {
+            min-width: 260px;
+            color: #6a7c73 !important;
+            line-height: 1.45;
+        }
+
         .saved-configurations-table td:nth-child(3) {
             min-width: 240px;
             white-space: pre-wrap;
