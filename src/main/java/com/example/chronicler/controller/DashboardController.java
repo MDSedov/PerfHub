@@ -48,15 +48,16 @@ public class DashboardController {
     }
 
     @GetMapping("/settings")
-    public String settingsRoot() {
-        return "redirect:/settings/connections";
+    public String settingsRoot(Model model) {
+        model.addAttribute("activePage", "settings");
+        return "settings";
     }
 
     @GetMapping("/settings/connections")
     public String settingsConnections(Model model) {
         model.addAttribute("activePage", "settings");
         model.addAttribute("activeSettingsSection", "connections");
-        return "settings";
+        return "settings-connections";
     }
 
     @GetMapping("/settings/templates")

@@ -44,7 +44,7 @@
                 </span>
             </a>
             <a class="sidebar-link"
-               th:href="@{/settings/connections}"
+               th:href="@{/settings}"
                th:classappend="${activePage} == 'settings' ? ' active' : ''">
                 <span class="sidebar-item">
                     <span class="menu-icon"><i class="bi bi-sliders"></i></span>
@@ -101,8 +101,6 @@
             <input id="importConnectionsInput" type="file" accept=".json,application/json" class="d-none">
         </div>
     </div>
-    <div id="settingsList" class="settings-menu"></div>
-    <div id="settingsEmpty" class="text-muted d-none">Настройки не найдены.</div>
 </main>
 
 <div id="toastContainer" class="toast-container"></div>
@@ -117,9 +115,6 @@
 <script src="/js/background-errors.js"></script>
 
 <script>
-    const settingsList = document.getElementById('settingsList');
-    const settingsEmpty = document.getElementById('settingsEmpty');
-    const settingsCount = document.getElementById('settingsCount');
     const toastContainer = document.getElementById('toastContainer');
     const exportConnectionsButton = document.getElementById('exportConnectionsButton');
     const importConnectionsButton = document.getElementById('importConnectionsButton');
@@ -135,10 +130,6 @@
     const CONNECTION_SERVICE_NAMES = new Set(SERVICE_ORDER);
     const servicePriority = new Map(SERVICE_ORDER.map((name, index) => [name, index]));
 
-    const settingsChanges = new Map();
-    const connectionStatuses = new Map();
-    const serviceCards = new Map();
-    const serviceSaving = new Set();
     let settingsCache = [];
     let settingsImportInProgress = false;
     let settingsStatusToast = null;
@@ -283,60 +274,7 @@
         settingsStatusToast = null;
     }
 
-    function applyStoredConnectionStatus(service, element) {
-        const stored = connectionStatuses.get(service);
-        if (!stored) {
-            element.textContent = '';
-            element.className = 'small text-muted visually-hidden';
-            return;
-        }
-        element.textContent = stored.text;
-        element.className = stored.className;
-    }
-
-    function rememberConnectionStatus(service, text, isSuccess) {
-        const className = isSuccess ? 'small text-success visually-hidden' : 'small text-danger visually-hidden';
-        connectionStatuses.set(service, {text, className});
-        return className;
-    }
-
-    function setServiceMessage(service, message, tone = 'muted') {
-        const card = serviceCards.get(service);
-        if (!card) {
-            return;
-        }
-        const baseClass = `small text-${tone} mb-2`;
-        if (!message) {
-            card.status.textContent = '';
-            card.status.className = `${baseClass} d-none`;
-            return;
-        }
-        card.status.textContent = message;
-        card.status.className = baseClass;
-    }
-
-    function getServiceChanges(service) {
-        return Array.from(settingsChanges.values()).filter(item => item.service === service);
-    }
-
-    function refreshServiceActions(service) {
-        const card = serviceCards.get(service);
-        if (!card) {
-            return;
-        }
-        const hasChanges = getServiceChanges(service).length > 0;
-        const isSaving = serviceSaving.has(service);
-        card.saveTestButton.disabled = isSaving;
-        card.resetButton.disabled = !hasChanges || isSaving;
-    }
-
-    async function checkConnection(service, button, statusElement, {showToastOnResult = false, showToastOnStart = false} = {}) {
-        statusElement.className = 'small text-muted visually-hidden';
-        statusElement.textContent = 'Проверяем соединение…';
-        if (showToastOnStart) {
-            showToast('Проверяем соединение…', 'info', 6000);
-        }
-        button.disabled = true;
+    async function testConnection(service) {
         try {
             const response = await fetch(`/api/chronicler/connections/${encodeURIComponent(service)}/test`, {
                 method: 'POST'
@@ -347,22 +285,10 @@
             const result = await response.json();
             const success = Boolean(result.success);
             const message = result.message || (success ? 'Соединение успешно' : 'Соединение не установлено');
-            statusElement.className = rememberConnectionStatus(service, message, success);
-            statusElement.textContent = message;
-            if (showToastOnResult) {
-                showToast(message, success ? 'success' : 'danger');
-            }
             return {success, message};
         } catch (error) {
             const message = 'Ошибка проверки: ' + error.message;
-            statusElement.className = rememberConnectionStatus(service, message, false);
-            statusElement.textContent = message;
-            if (showToastOnResult) {
-                showToast(message, 'danger');
-            }
             return {success: false, message};
-        } finally {
-            button.disabled = false;
         }
     }
 
@@ -370,39 +296,14 @@
         return settingsCache.filter(item => item.service === service);
     }
 
-    function setInputValueAndTrackChange(input, nextValue) {
-        const normalizedValue = normalizeSettingValue(nextValue);
-        const service = input.dataset.service;
-        const key = input.dataset.key;
-        const originalValue = input.dataset.originalValue ?? '';
-        const compoundKey = getCompoundKey(service, key);
-        input.value = normalizedValue;
-        if (normalizedValue === originalValue) {
-            settingsChanges.delete(compoundKey);
-        } else {
-            settingsChanges.set(compoundKey, {
-                service,
-                key,
-                value: normalizedValue
-            });
-        }
-    }
-
     function collectCurrentConnectionSettings() {
         const grouped = {};
-        const serviceNames = serviceCards.size
-            ? Array.from(serviceCards.keys()).sort(compareServices)
-            : Array.from(new Set(settingsCache.map(item => item.service))).sort(compareServices);
+        const serviceNames = Array.from(new Set(settingsCache
+                .filter(item => CONNECTION_SERVICE_NAMES.has(item?.service))
+                .map(item => item.service)))
+                .sort(compareServices);
 
         serviceNames.forEach(service => {
-            const card = serviceCards.get(service);
-            if (card) {
-                grouped[service] = {};
-                card.inputs.forEach(input => {
-                    grouped[service][input.dataset.key] = input.value ?? '';
-                });
-                return;
-            }
             const items = getServiceItemsFromCache(service);
             if (!items.length) {
                 return;
@@ -488,45 +389,45 @@
         return entries;
     }
 
-    function applyImportedConnectionEntries(entries) {
-        const serviceEntries = new Map();
+    async function saveImportedConnectionEntries(entries) {
+        const knownKeys = new Set(settingsCache
+                .filter(item => CONNECTION_SERVICE_NAMES.has(item?.service))
+                .map(item => getCompoundKey(item.service, item.key)));
+        const parameters = [];
         const skipped = [];
+        const services = new Set();
 
         entries.forEach(entry => {
-            if (!serviceEntries.has(entry.service)) {
-                serviceEntries.set(entry.service, new Map());
+            const compoundKey = getCompoundKey(entry.service, entry.key);
+            if (!CONNECTION_SERVICE_NAMES.has(entry.service) || !knownKeys.has(compoundKey)) {
+                skipped.push(`${entry.service}.${entry.key}`);
+                return;
             }
-            serviceEntries.get(entry.service).set(entry.key, entry.value);
+            parameters.push(entry);
+            services.add(entry.service);
         });
 
-        const servicesToProcess = [];
-        serviceEntries.forEach((valuesByKey, service) => {
-            const card = serviceCards.get(service);
-            if (!card) {
-                skipped.push(service);
-                return;
-            }
-            const inputsByKey = new Map(card.inputs.map(input => [input.dataset.key, input]));
-            let hasMatchedFields = false;
-            valuesByKey.forEach((value, key) => {
-                const input = inputsByKey.get(key);
-                if (!input) {
-                    skipped.push(`${service}.${key}`);
-                    return;
-                }
-                setInputValueAndTrackChange(input, value);
-                hasMatchedFields = true;
-            });
-            if (!hasMatchedFields) {
-                return;
-            }
-            servicesToProcess.push(service);
-            setServiceMessage(service, '', 'muted');
-            refreshServiceActions(service);
+        if (!parameters.length) {
+            throw new Error('Не найдено совпадающих настроек для импорта.');
+        }
+
+        const response = await fetch('/api/chronicler/properties/', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({parameters})
         });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        const data = await response.json();
+        settingsCache = Array.isArray(data)
+                ? data.filter(item => CONNECTION_SERVICE_NAMES.has(item?.service))
+                : [];
 
         return {
-            services: servicesToProcess.sort(compareServices),
+            services: Array.from(services).sort(compareServices),
             skipped
         };
     }
@@ -546,18 +447,18 @@
                 throw new Error('В файле не найдено ни одной настройки подключений.');
             }
 
-            const applied = applyImportedConnectionEntries(entries);
-            if (!applied.services.length) {
-                throw new Error('Не найдено совпадающих настроек для импорта на этой странице.');
-            }
+            const applied = await saveImportedConnectionEntries(entries);
 
             for (let index = 0; index < applied.services.length; index += 1) {
                 const service = applied.services[index];
                 setSettingsStatus(
-                    `Сохраняем и проверяем подключение ${service} (${index + 1}/${applied.services.length})…`,
+                    `Проверяем подключение ${service} (${index + 1}/${applied.services.length})…`,
                     'info'
                 );
-                await saveAndTest(service);
+                const result = await testConnection(service);
+                if (!result.success) {
+                    showToast(`${service}: ${result.message}`, 'danger');
+                }
             }
 
             if (applied.skipped.length) {
@@ -566,7 +467,7 @@
                 showToast(`Пропущены неизвестные настройки: ${skippedPreview}${suffix}.`, 'info');
             }
 
-            setSettingsStatus('Настройки подключений загружены из JSON и сохранены.', 'success');
+            setSettingsStatus('Настройки подключений загружены из JSON.', 'success');
         } catch (error) {
             setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');
             showToast('Не удалось загрузить настройки: ' + error.message, 'danger');
@@ -577,291 +478,6 @@
             }
             setSettingsActionsDisabled(false);
         }
-    }
-
-    function resetService(service) {
-        const card = serviceCards.get(service);
-        if (!card) {
-            return;
-        }
-        const originals = new Map(getServiceItemsFromCache(service).map(item => [item.key, item.value ?? '']));
-        card.inputs.forEach(input => {
-            const originalValue = originals.get(input.dataset.key) ?? '';
-            input.value = originalValue;
-            input.dataset.originalValue = originalValue;
-            settingsChanges.delete(getCompoundKey(service, input.dataset.key));
-        });
-        setServiceMessage(service, '', 'muted');
-        showToast('Изменения отменены.', 'info');
-        refreshServiceActions(service);
-    }
-
-    function updateSettingsCount() {
-        // removed counter display per new design
-    }
-
-    async function saveService(service) {
-        const changes = getServiceChanges(service);
-        if (!changes.length) {
-            return true;
-        }
-        serviceSaving.add(service);
-        refreshServiceActions(service);
-        setServiceMessage(service, 'Сохраняем изменения…', 'info');
-        const payload = {
-            parameters: changes.map(item => ({
-                service: item.service,
-                key: item.key,
-                value: item.value
-            }))
-        };
-        try {
-            const response = await fetch('/api/chronicler/properties/', {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-            if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
-            }
-            settingsCache = await response.json();
-            const keysToDelete = [];
-            settingsChanges.forEach((value, key) => {
-                if (value.service === service) {
-                    keysToDelete.push(key);
-                }
-            });
-            keysToDelete.forEach(key => settingsChanges.delete(key));
-            updateSettingsCount();
-            rebuildServiceCard(service);
-            setServiceMessage(service, 'Настройки сохранены.', 'success');
-            return true;
-        } catch (error) {
-            setServiceMessage(service, 'Не удалось сохранить: ' + error.message, 'danger');
-            showToast('Не удалось сохранить: ' + error.message, 'danger');
-            return false;
-        } finally {
-            serviceSaving.delete(service);
-            refreshServiceActions(service);
-        }
-    }
-
-    async function saveAndTest(service) {
-        const card = serviceCards.get(service);
-        if (!card) {
-            return;
-        }
-        const hasChanges = getServiceChanges(service).length > 0;
-        if (hasChanges) {
-            const saved = await saveService(service);
-            if (!saved) {
-                return;
-            }
-        }
-        const latestCard = serviceCards.get(service) || card;
-        await checkConnection(
-            service,
-            latestCard.saveTestButton,
-            latestCard.connectionStatus,
-            {showToastOnResult: true, showToastOnStart: true}
-        );
-    }
-
-    function createServiceCard(service, groupItems) {
-        const sortedItems = (groupItems || []).slice().sort((a, b) => {
-            const orderA = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : null;
-            const orderB = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : null;
-            if (orderA !== null || orderB !== null) {
-                if (orderA === null) return 1;
-                if (orderB === null) return -1;
-                if (orderA !== orderB) return orderA - orderB;
-            }
-            const keyA = (a.key || '').toLowerCase();
-            const keyB = (b.key || '').toLowerCase();
-            const priority = (key) => {
-                if (key.includes('base-url')) return 0;
-                if (key.includes('path')) return 1;
-                if (key.includes('token') || key.includes('key')) return 2;
-                return 3;
-            };
-            const pA = priority(keyA);
-            const pB = priority(keyB);
-            if (pA !== pB) {
-                return pA - pB;
-            }
-            return (a.key || '').localeCompare(b.key || '');
-        });
-        const card = document.createElement('div');
-        card.className = 'card settings-card integration-card h-100';
-
-        const body = document.createElement('div');
-        body.className = 'card-body d-flex flex-column';
-
-        const header = document.createElement('div');
-        header.className = 'd-flex flex-wrap justify-content-between align-items-start gap-3 mb-3';
-
-        const titleBox = document.createElement('div');
-        const title = document.createElement('div');
-        title.className = 'settings-service-title mb-1';
-        title.textContent = service;
-        const serviceDescriptions = {
-            'victoria-metrics': 'Получение данных о нагрузочных метриках',
-            'grafana': 'Получение графиков о нагрузке и стенде',
-            'dropapp': 'Получение конфигурации с данными о стенде',
-            'confluence': 'Отправка данных по отчетам, графикам и конфигурации',
-            'gigachat': 'Подключение нейросети для решения нестандартных задач (пока не используется)'
-        };
-        const serviceDescriptionText = serviceDescriptions[service] ?? '';
-        const subtitle = document.createElement('div');
-        subtitle.className = 'settings-service-description text-muted mb-3';
-        subtitle.textContent = serviceDescriptionText;
-        titleBox.appendChild(title);
-        titleBox.appendChild(subtitle);
-
-        const actions = document.createElement('div');
-        actions.className = 'd-flex flex-wrap align-items-center gap-2';
-
-        const resetButton = document.createElement('button');
-        resetButton.type = 'button';
-        resetButton.className = 'btn btn-outline-secondary btn-sm';
-        resetButton.textContent = 'Сбросить';
-
-        const saveTestButton = document.createElement('button');
-        saveTestButton.type = 'button';
-        saveTestButton.className = 'btn btn-success btn-sm';
-        saveTestButton.textContent = 'Сохранить и проверить';
-
-        const connectionStatus = document.createElement('div');
-        connectionStatus.className = 'small text-muted';
-        applyStoredConnectionStatus(service, connectionStatus);
-
-        actions.appendChild(resetButton);
-        actions.appendChild(saveTestButton);
-        actions.appendChild(connectionStatus);
-
-        header.appendChild(titleBox);
-        header.appendChild(actions);
-
-        const status = document.createElement('div');
-        status.className = 'small text-muted mb-2 d-none';
-
-        const fields = document.createElement('div');
-        fields.className = 'settings-fields';
-
-        const cardState = {
-            element: card,
-            saveTestButton,
-            resetButton,
-            status,
-            connectionStatus,
-            inputs: []
-        };
-
-        sortedItems.forEach(item => {
-            const entry = document.createElement('div');
-            entry.className = 'settings-item';
-
-            const label = document.createElement('label');
-            label.className = 'settings-label';
-            label.textContent = (item.description ?? '').trim() || 'Параметр';
-
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'form-control';
-            input.value = item.value ?? '';
-            input.dataset.service = item.service;
-            input.dataset.key = item.key;
-            input.dataset.originalValue = input.value;
-            input.id = `settings-${item.service}-${item.key}`.replace(/[^a-zA-Z0-9_-]/g, '-');
-            input.setAttribute('aria-label', label.textContent);
-            label.setAttribute('for', input.id);
-
-            input.addEventListener('input', () => {
-                setInputValueAndTrackChange(input, input.value);
-                setServiceMessage(service, '', 'muted');
-                refreshServiceActions(item.service);
-            });
-
-            cardState.inputs.push(input);
-
-            const control = document.createElement('div');
-            control.className = 'settings-field-control';
-            control.appendChild(input);
-
-            entry.appendChild(label);
-            entry.appendChild(control);
-            fields.appendChild(entry);
-        });
-
-        resetButton.addEventListener('click', () => resetService(service));
-        saveTestButton.addEventListener('click', () => saveAndTest(service));
-
-        body.appendChild(header);
-        body.appendChild(status);
-        body.appendChild(fields);
-        card.appendChild(body);
-
-        return cardState;
-    }
-
-    function rebuildServiceCard(service) {
-        const serviceItems = getServiceItemsFromCache(service);
-        const newCard = createServiceCard(service, serviceItems);
-        const existing = serviceCards.get(service);
-        if (existing) {
-            settingsList.replaceChild(newCard.element, existing.element);
-        } else {
-            const services = Array.from(serviceCards.keys()).sort(compareServices);
-            const insertBeforeService = services.find(other => compareServices(service, other) < 0);
-            if (insertBeforeService) {
-                const target = serviceCards.get(insertBeforeService);
-                settingsList.insertBefore(newCard.element, target.element);
-            } else {
-                settingsList.appendChild(newCard.element);
-            }
-        }
-        serviceCards.set(service, newCard);
-        setServiceMessage(service, '', 'muted');
-        refreshServiceActions(service);
-    }
-
-    function renderSettings(items) {
-        settingsList.innerHTML = '';
-        settingsChanges.clear();
-        serviceCards.clear();
-
-        if (!items.length) {
-            if (settingsCount) {
-                settingsCount.textContent = '0';
-            }
-            settingsList.classList.add('d-none');
-            settingsEmpty.classList.remove('d-none');
-            return;
-        }
-
-        settingsList.classList.remove('d-none');
-        settingsEmpty.classList.add('d-none');
-
-        const groups = new Map();
-        items.forEach(item => {
-            if (!groups.has(item.service)) {
-                groups.set(item.service, []);
-            }
-            groups.get(item.service).push(item);
-        });
-
-        const services = Array.from(groups.keys()).sort(compareServices);
-        settingsCache = items;
-        updateSettingsCount();
-
-        services.forEach(service => {
-            const card = createServiceCard(service, groups.get(service));
-            serviceCards.set(service, card);
-            settingsList.appendChild(card.element);
-            refreshServiceActions(service);
-        });
     }
 
     async function loadSettings() {
@@ -876,7 +492,6 @@
             settingsCache = Array.isArray(data)
                     ? data.filter(item => CONNECTION_SERVICE_NAMES.has(item?.service))
                     : [];
-            renderSettings(settingsCache);
             clearSettingsStatus();
         } catch (error) {
             setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');

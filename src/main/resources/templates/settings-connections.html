@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PerfHub — Подключения</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            crossorigin="anonymous">
+    <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/app.css?v=perfhub-4">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="sidebar-brand" th:href="@{/main}">
+            <img src="/img/chronicler-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
+        </a>
+        <div class="sidebar-menu">
+            <a class="sidebar-link" th:href="@{/tests}"
+               th:classappend="${activePage} == 'tests' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-activity"></i></span>
+                    <span>Тесты и отчеты</span>
+                </span>
+            </a>
+            <a class="sidebar-link" th:href="@{/grafana-panels}"
+               th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                    <span>Выгрузить графики</span>
+                </span>
+            </a>
+            <a class="sidebar-link" th:href="@{/configuration}"
+               th:classappend="${activePage} == 'configuration' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-gear"></i></span>
+                    <span>Сохранить конфигурацию</span>
+                </span>
+            </a>
+            <a class="sidebar-link"
+               th:href="@{/settings}"
+               th:classappend="${activePage} == 'settings' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-sliders"></i></span>
+                    <span>Настройки</span>
+                </span>
+            </a>
+            <div class="sidebar-submenu">
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/connections}"
+                   th:classappend="${activeSettingsSection} == 'connections' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-plug"></i></span>
+                        <span>Подключения</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/stand-configuration}"
+                   th:classappend="${activeSettingsSection} == 'stand-configuration' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-box-seam"></i></span>
+                        <span>Конфигурация стенда</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/templates}"
+                   th:classappend="${activeSettingsSection} == 'templates' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-file-earmark-text"></i></span>
+                        <span>Шаблоны отчетов</span>
+                    </span>
+                </a>
+                <a class="sidebar-sublink"
+                   th:href="@{/settings/grafana-dashboards}"
+                   th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                    <span class="sidebar-item">
+                        <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                        <span>Графики и требования</span>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <div class="page-content" style="background: #ffffff; min-height: 100vh;">
+<main class="container-fluid py-5 px-4 px-lg-5">
+    <div class="data-panel d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-start">
+            <button id="checkAllConnectionsButton" type="button" class="btn btn-outline-success">
+                Проверить все подключения
+            </button>
+        </div>
+        <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-end">
+            <button id="addConnectionButton" type="button" class="btn btn-success">
+                Добавить подключение
+            </button>
+        </div>
+    </div>
+
+    <section class="tests-content connections-section flex-grow-1 mt-3">
+        <div class="card border-0">
+            <div class="card-body">
+                <div id="connectionsStatus" class="alert alert-info d-none" role="alert"></div>
+                <div class="table-responsive">
+                    <table class="table align-middle tests-table connections-table">
+                        <thead>
+                        <tr>
+                            <th scope="col">
+                                <span class="connections-column-label">
+                                    Система
+                                    <span class="connections-column-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Автоматизированная система к которой произведено подключение">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                            <th scope="col">
+                                <span class="connections-column-label">
+                                    Примечание
+                                    <span class="connections-column-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Информация о назначении подключения">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                            <th scope="col">
+                                <span class="connections-column-label">
+                                    Статус
+                                    <span class="connections-column-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Состояние подключения">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                            <th scope="col" class="text-center">
+                                <span class="connections-column-label">
+                                    Детали подключения
+                                    <span class="connections-column-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Показать детальные настройки подключения">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                            <th scope="col" class="text-center">
+                                <span class="connections-column-label">
+                                    Удалить
+                                    <span class="connections-column-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Удалить подключение">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                        </tr>
+                        </thead>
+                        <tbody id="connectionsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<div class="modal fade connection-modal" id="connectionSelectModal" tabindex="-1" aria-labelledby="connectionSelectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="connectionSelectModalLabel">Добавить подключение</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <div id="connectionServiceChoices" class="connection-service-grid"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade connection-modal" id="connectionFormModal" tabindex="-1" aria-labelledby="connectionFormModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <form id="connectionForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="connectionFormModalLabel">Новое подключение</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="connectionFormFields" class="settings-fields connection-form-fields"></div>
+                    <div id="connectionFormMessage" class="small text-muted mt-3 d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success" id="saveConnectionButton">Сохранить и проверить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade connection-modal" id="connectionDetailsModal" tabindex="-1" aria-labelledby="connectionDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <form id="connectionDetailsForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="connectionDetailsModalLabel">Детали подключения</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="connectionDetailsList" class="settings-fields connection-details-fields"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success" id="saveDetailsConnectionButton">Сохранить и проверить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade connection-modal" id="connectionDeleteModal" tabindex="-1" aria-labelledby="connectionDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="connectionDeleteModalLabel">Удалить подключение</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <p id="connectionDeleteText" class="mb-0"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteConnectionButton">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+    </div>
+</div>
+
+<script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
+        crossorigin="anonymous"></script>
+<script src="/js/background-errors.js"></script>
+
+<script>
+    const checkAllConnectionsButton = document.getElementById('checkAllConnectionsButton');
+    const addConnectionButton = document.getElementById('addConnectionButton');
+    const connectionsStatus = document.getElementById('connectionsStatus');
+    const connectionsTableBody = document.getElementById('connectionsTableBody');
+    const connectionServiceChoices = document.getElementById('connectionServiceChoices');
+    const connectionSelectModalElement = document.getElementById('connectionSelectModal');
+    const connectionFormModalElement = document.getElementById('connectionFormModal');
+    const connectionDetailsModalElement = document.getElementById('connectionDetailsModal');
+    const connectionDeleteModalElement = document.getElementById('connectionDeleteModal');
+    const connectionForm = document.getElementById('connectionForm');
+    const connectionDetailsForm = document.getElementById('connectionDetailsForm');
+    const connectionFormFields = document.getElementById('connectionFormFields');
+    const connectionFormMessage = document.getElementById('connectionFormMessage');
+    const connectionFormModalLabel = document.getElementById('connectionFormModalLabel');
+    const connectionDetailsModalLabel = document.getElementById('connectionDetailsModalLabel');
+    const connectionDetailsList = document.getElementById('connectionDetailsList');
+    const connectionDeleteText = document.getElementById('connectionDeleteText');
+    const saveConnectionButton = document.getElementById('saveConnectionButton');
+    const saveDetailsConnectionButton = document.getElementById('saveDetailsConnectionButton');
+    const confirmDeleteConnectionButton = document.getElementById('confirmDeleteConnectionButton');
+    const toastContainer = document.getElementById('toastContainer');
+
+    const SERVICE_DEFINITIONS = [
+        {
+            id: 'victoria-metrics',
+            label: 'Victoria Metrics',
+            description: 'Получение данных о нагрузочных метриках',
+            icon: 'bi-activity'
+        },
+        {
+            id: 'grafana',
+            label: 'Grafana',
+            description: 'Получение графиков о нагрузке и стенде',
+            icon: 'bi-graph-up'
+        },
+        {
+            id: 'dropapp',
+            label: 'DropApp',
+            description: 'Получение конфигурации с данными о стенде',
+            icon: 'bi-box-seam'
+        },
+        {
+            id: 'confluence',
+            label: 'Confluence',
+            description: 'Отправка данных по отчетам, графикам и конфигурации',
+            icon: 'bi-file-earmark-text'
+        },
+        {
+            id: 'gigachat',
+            label: 'GigaChat',
+            description: 'Подключение нейросети для решения нестандартных задач',
+            icon: 'bi-stars'
+        }
+    ];
+
+    const SERVICE_IDS = new Set(SERVICE_DEFINITIONS.map(service => service.id));
+    const servicePriority = new Map(SERVICE_DEFINITIONS.map((service, index) => [service.id, index]));
+    const connectionStatuses = new Map();
+    let settingsCache = [];
+    let selectedConnectionService = null;
+    let selectedDetailsConnectionService = null;
+    let selectedDeleteConnectionService = null;
+    let checkingAllConnections = false;
+
+    const connectionSelectModal = createModalController(connectionSelectModalElement);
+    const connectionFormModal = createModalController(connectionFormModalElement);
+    const connectionDetailsModal = createModalController(connectionDetailsModalElement);
+    const connectionDeleteModal = createModalController(connectionDeleteModalElement);
+
+    function removeToast(toast) {
+        if (!toast) {
+            return;
+        }
+        const timerId = toast.dataset.timerId;
+        if (timerId) {
+            clearTimeout(Number(timerId));
+        }
+        toast.remove();
+    }
+
+    function showToast(message, type = 'info', durationMs = 12000) {
+        if (!toastContainer) {
+            return;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast-item ${type}`;
+        const body = document.createElement('p');
+        body.className = 'toast-body';
+        body.textContent = message;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Закрыть уведомление');
+        close.innerHTML = '&times;';
+        close.addEventListener('click', () => removeToast(toast));
+        const content = document.createElement('div');
+        content.className = 'flex-grow-1';
+        content.appendChild(body);
+        toast.appendChild(content);
+        toast.appendChild(close);
+        toastContainer.appendChild(toast);
+        const timer = setTimeout(() => removeToast(toast), durationMs);
+        toast.dataset.timerId = timer.toString();
+    }
+
+    function showConnectionsStatus(message, type = 'info') {
+        if (!connectionsStatus) {
+            return;
+        }
+        if (!message) {
+            connectionsStatus.classList.add('d-none');
+            connectionsStatus.textContent = '';
+            return;
+        }
+        connectionsStatus.textContent = message;
+        connectionsStatus.className = `alert alert-${type}`;
+        connectionsStatus.classList.remove('d-none');
+    }
+
+    function createModalController(element) {
+        if (!element) {
+            return null;
+        }
+        if (window.bootstrap?.Modal) {
+            try {
+                return new bootstrap.Modal(element);
+            } catch (error) {
+                console.warn('Не удалось инициализировать Bootstrap modal, используется резервный режим.', error);
+            }
+        }
+        element.querySelectorAll('[data-bs-dismiss="modal"]').forEach(button => {
+            button.addEventListener('click', () => hideFallbackModal(element));
+        });
+        element.addEventListener('click', event => {
+            if (event.target === element) {
+                hideFallbackModal(element);
+            }
+        });
+        return {
+            show: () => showFallbackModal(element),
+            hide: () => hideFallbackModal(element)
+        };
+    }
+
+    function showFallbackModal(element) {
+        element.classList.add('show');
+        element.classList.remove('d-none');
+        element.removeAttribute('aria-hidden');
+        element.setAttribute('aria-modal', 'true');
+        element.setAttribute('role', 'dialog');
+        element.style.display = 'block';
+        document.body.classList.add('modal-open');
+        document.body.style.overflow = 'hidden';
+        if (!document.querySelector(`[data-fallback-backdrop-for="${element.id}"]`)) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show';
+            backdrop.dataset.fallbackBackdropFor = element.id;
+            document.body.appendChild(backdrop);
+        }
+        const focusTarget = element.querySelector('.btn-close, button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        focusTarget?.focus();
+    }
+
+    function hideFallbackModal(element) {
+        element.classList.remove('show');
+        element.setAttribute('aria-hidden', 'true');
+        element.removeAttribute('aria-modal');
+        element.removeAttribute('role');
+        element.style.display = 'none';
+        document.querySelector(`[data-fallback-backdrop-for="${element.id}"]`)?.remove();
+        if (!document.querySelector('.modal.show')) {
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        }
+    }
+
+    function hideConnectionFallbackTooltip() {
+        document.querySelector('.connections-fallback-tooltip')?.remove();
+    }
+
+    function positionConnectionFallbackTooltip(tooltip, target) {
+        const rect = target.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const gap = 8;
+        let top = rect.top + window.scrollY - tooltipRect.height - gap;
+        if (top < window.scrollY) {
+            top = rect.bottom + window.scrollY + gap;
+        }
+        const left = Math.min(
+                Math.max(rect.left + window.scrollX + rect.width / 2 - tooltipRect.width / 2, window.scrollX + gap),
+                window.scrollX + document.documentElement.clientWidth - tooltipRect.width - gap);
+        tooltip.style.top = `${top}px`;
+        tooltip.style.left = `${left}px`;
+    }
+
+    function showConnectionFallbackTooltip(target) {
+        const title = (target.getAttribute('data-bs-title') ?? '').trim();
+        if (title === '') {
+            return;
+        }
+        hideConnectionFallbackTooltip();
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip bs-tooltip-auto fade show connections-fallback-tooltip';
+        tooltip.setAttribute('role', 'tooltip');
+        const arrow = document.createElement('div');
+        arrow.className = 'tooltip-arrow';
+        const inner = document.createElement('div');
+        inner.className = 'tooltip-inner';
+        inner.textContent = title;
+        tooltip.appendChild(arrow);
+        tooltip.appendChild(inner);
+        document.body.appendChild(tooltip);
+        positionConnectionFallbackTooltip(tooltip, target);
+    }
+
+    function initializeFallbackTooltip(element) {
+        if (element.dataset.fallbackTooltipReady === 'true') {
+            return;
+        }
+        element.dataset.fallbackTooltipReady = 'true';
+        element.addEventListener('mouseenter', () => showConnectionFallbackTooltip(element));
+        element.addEventListener('mouseleave', hideConnectionFallbackTooltip);
+        element.addEventListener('focus', () => showConnectionFallbackTooltip(element));
+        element.addEventListener('blur', hideConnectionFallbackTooltip);
+    }
+
+    function initializeTooltips(root = document) {
+        hideConnectionFallbackTooltip();
+        if (!root) {
+            return;
+        }
+        if (!window.bootstrap?.Tooltip) {
+            root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(initializeFallbackTooltip);
+            return;
+        }
+        root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+            if (!bootstrap.Tooltip.getInstance(element)) {
+                try {
+                    new bootstrap.Tooltip(element, {
+                        boundary: 'window',
+                        container: 'body',
+                        trigger: 'hover focus'
+                    });
+                } catch (error) {
+                    console.warn('Не удалось инициализировать Bootstrap tooltip, используется резервный режим.', error);
+                    initializeFallbackTooltip(element);
+                }
+            }
+        });
+    }
+
+    function disposeTooltips(root = document) {
+        hideConnectionFallbackTooltip();
+        if (!root) {
+            return;
+        }
+        if (!window.bootstrap?.Tooltip) {
+            return;
+        }
+        root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+            bootstrap.Tooltip.getInstance(element)?.dispose();
+        });
+    }
+
+    function normalizeSettingValue(value) {
+        if (value === null || value === undefined) {
+            return '';
+        }
+        if (typeof value === 'string') {
+            return value;
+        }
+        if (typeof value === 'object') {
+            return JSON.stringify(value);
+        }
+        return String(value);
+    }
+
+    function compareServices(a, b) {
+        const priorityA = servicePriority.has(a) ? servicePriority.get(a) : SERVICE_DEFINITIONS.length;
+        const priorityB = servicePriority.has(b) ? servicePriority.get(b) : SERVICE_DEFINITIONS.length;
+        if (priorityA !== priorityB) {
+            return priorityA - priorityB;
+        }
+        return a.localeCompare(b, 'ru');
+    }
+
+    function getServiceDefinition(serviceId) {
+        return SERVICE_DEFINITIONS.find(service => service.id === serviceId)
+                ?? {id: serviceId, label: serviceId, description: '', icon: 'bi-plug'};
+    }
+
+    function sortSettingsItems(items) {
+        return (items || []).slice().sort((a, b) => {
+            const orderA = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : null;
+            const orderB = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : null;
+            if (orderA !== null || orderB !== null) {
+                if (orderA === null) return 1;
+                if (orderB === null) return -1;
+                if (orderA !== orderB) return orderA - orderB;
+            }
+            return (a.key || '').localeCompare(b.key || '', 'ru');
+        });
+    }
+
+    function getServiceItems(serviceId) {
+        return sortSettingsItems(settingsCache.filter(item => item?.service === serviceId));
+    }
+
+    function hasConnection(serviceId) {
+        return getServiceItems(serviceId).some(item => normalizeSettingValue(item.value).trim() !== '');
+    }
+
+    function getConnectedServiceIds() {
+        return SERVICE_DEFINITIONS
+                .map(service => service.id)
+                .filter(hasConnection)
+                .sort(compareServices);
+    }
+
+    function getConnectionStatusView(serviceId) {
+        const status = connectionStatuses.get(serviceId);
+        if (status?.checking) {
+            return {
+                className: 'is-checking',
+                text: 'Проверка...'
+            };
+        }
+        const active = status ? status.success : hasConnection(serviceId);
+        return {
+            className: active ? 'is-active' : 'is-inactive',
+            text: active ? 'Активно' : 'Не активно'
+        };
+    }
+
+    function updateCheckAllButtonState() {
+        if (!checkAllConnectionsButton) {
+            return;
+        }
+        checkAllConnectionsButton.disabled = checkingAllConnections || getConnectedServiceIds().length === 0;
+    }
+
+    function buildConnectionValues(serviceId) {
+        const values = new Map();
+        getServiceItems(serviceId).forEach(item => {
+            values.set(item.key, normalizeSettingValue(item.value));
+        });
+        return values;
+    }
+
+    function buildEmptyConnectionValues(serviceId) {
+        const values = new Map();
+        getServiceItems(serviceId).forEach(item => {
+            values.set(item.key, '');
+        });
+        return values;
+    }
+
+    function renderConnectionFields(container, serviceId, inputPrefix) {
+        if (!container) {
+            return;
+        }
+        container.innerHTML = '';
+        getServiceItems(serviceId).forEach(item => {
+            const entry = document.createElement('div');
+            entry.className = 'settings-item';
+
+            const label = document.createElement('label');
+            label.className = 'settings-label';
+            label.textContent = (item.description ?? '').trim() || item.key;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control';
+            input.value = normalizeSettingValue(item.value);
+            input.dataset.key = item.key;
+            input.id = `${inputPrefix}-${serviceId}-${item.key}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+            input.setAttribute('aria-label', label.textContent);
+            if (/(token|key|authorization)/i.test(item.key)) {
+                input.setAttribute('autocomplete', 'off');
+                input.setAttribute('spellcheck', 'false');
+            }
+            label.setAttribute('for', input.id);
+
+            const control = document.createElement('div');
+            control.className = 'settings-field-control';
+            control.appendChild(input);
+
+            entry.appendChild(label);
+            entry.appendChild(control);
+            container.appendChild(entry);
+        });
+    }
+
+    function collectConnectionValues(serviceId, container) {
+        const values = buildConnectionValues(serviceId);
+        container?.querySelectorAll('input[data-key]').forEach(input => {
+            values.set(input.dataset.key, input.value ?? '');
+        });
+        return values;
+    }
+
+    async function patchServiceValues(serviceId, valuesByKey) {
+        const items = getServiceItems(serviceId);
+        if (!items.length) {
+            throw new Error('Настройки для выбранной системы не найдены.');
+        }
+        const parameters = items.map(item => ({
+            service: serviceId,
+            key: item.key,
+            value: normalizeSettingValue(valuesByKey.get(item.key))
+        }));
+        const response = await fetch('/api/chronicler/properties/', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({parameters})
+        });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        const data = await response.json();
+        settingsCache = Array.isArray(data)
+                ? data.filter(item => SERVICE_IDS.has(item?.service))
+                : [];
+    }
+
+    async function testConnection(serviceId) {
+        const response = await fetch(`/api/chronicler/connections/${encodeURIComponent(serviceId)}/test`, {
+            method: 'POST'
+        });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        const result = await response.json();
+        return {
+            success: Boolean(result?.success),
+            message: result?.message || (result?.success ? 'Соединение успешно' : 'Соединение не установлено')
+        };
+    }
+
+    function renderEmptyConnectionRow() {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.className = 'text-muted text-center py-4';
+        cell.textContent = 'Подключения пока не добавлены.';
+        row.appendChild(cell);
+        connectionsTableBody.appendChild(row);
+    }
+
+    function renderConnectionsTable() {
+        if (!connectionsTableBody) {
+            return;
+        }
+        disposeTooltips(connectionsTableBody);
+        connectionsTableBody.innerHTML = '';
+        const connectedServices = getConnectedServiceIds();
+        updateCheckAllButtonState();
+
+        if (!connectedServices.length) {
+            renderEmptyConnectionRow();
+            return;
+        }
+
+        connectedServices.forEach(serviceId => {
+            const definition = getServiceDefinition(serviceId);
+            const statusView = getConnectionStatusView(serviceId);
+            const row = document.createElement('tr');
+
+            const systemCell = document.createElement('td');
+            const systemName = document.createElement('div');
+            systemName.className = 'connection-system-name';
+            systemName.textContent = definition.label;
+            systemCell.appendChild(systemName);
+            row.appendChild(systemCell);
+
+            const noteCell = document.createElement('td');
+            const noteValue = document.createElement('span');
+            noteValue.className = 'connection-note-value text-truncate';
+            noteValue.textContent = definition.description || '—';
+            if (definition.description) {
+                noteValue.setAttribute('data-bs-toggle', 'tooltip');
+                noteValue.setAttribute('data-bs-title', definition.description);
+            }
+            noteCell.appendChild(noteValue);
+            row.appendChild(noteCell);
+
+            const statusCell = document.createElement('td');
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `connection-status-badge ${statusView.className}`;
+            statusBadge.textContent = statusView.text;
+            statusCell.appendChild(statusBadge);
+            row.appendChild(statusCell);
+
+            const detailsCell = document.createElement('td');
+            detailsCell.className = 'text-center';
+            const detailsButton = document.createElement('button');
+            detailsButton.type = 'button';
+            detailsButton.className = 'details-toggle';
+            detailsButton.setAttribute('aria-label', `Показать детали подключения ${definition.label}`);
+            detailsButton.setAttribute('aria-haspopup', 'dialog');
+            detailsButton.setAttribute('aria-controls', 'connectionDetailsModal');
+            detailsButton.innerHTML = '<i class="bi bi-arrows-angle-expand details-icon"></i>';
+            detailsButton.addEventListener('click', () => openConnectionDetails(serviceId));
+            detailsCell.appendChild(detailsButton);
+            row.appendChild(detailsCell);
+
+            const deleteCell = document.createElement('td');
+            deleteCell.className = 'text-center';
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'delete-toggle';
+            deleteButton.setAttribute('aria-label', `Удалить подключение ${definition.label}`);
+            deleteButton.setAttribute('aria-haspopup', 'dialog');
+            deleteButton.setAttribute('aria-controls', 'connectionDeleteModal');
+            deleteButton.innerHTML = '<i class="bi bi-trash delete-icon"></i>';
+            deleteButton.addEventListener('click', () => openConnectionDeleteConfirmation(serviceId));
+            deleteCell.appendChild(deleteButton);
+            row.appendChild(deleteCell);
+
+            connectionsTableBody.appendChild(row);
+        });
+        initializeTooltips(connectionsTableBody);
+    }
+
+    async function checkAllConnections() {
+        const serviceIds = getConnectedServiceIds();
+        if (!serviceIds.length || checkingAllConnections) {
+            return;
+        }
+        checkingAllConnections = true;
+        updateCheckAllButtonState();
+        for (const serviceId of serviceIds) {
+            connectionStatuses.set(serviceId, {checking: true});
+            renderConnectionsTable();
+            try {
+                const result = await testConnection(serviceId);
+                connectionStatuses.set(serviceId, result);
+            } catch (error) {
+                connectionStatuses.set(serviceId, {
+                    success: false,
+                    message: 'Ошибка проверки: ' + error.message
+                });
+            }
+            renderConnectionsTable();
+        }
+        checkingAllConnections = false;
+        updateCheckAllButtonState();
+    }
+
+    function renderServiceChoices() {
+        if (!connectionServiceChoices) {
+            return;
+        }
+        disposeTooltips(connectionServiceChoices);
+        connectionServiceChoices.innerHTML = '';
+        SERVICE_DEFINITIONS.forEach(definition => {
+            const connected = hasConnection(definition.id);
+            const card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'connection-service-card';
+            card.dataset.service = definition.id;
+            if (connected) {
+                card.classList.add('is-disabled');
+                card.setAttribute('aria-disabled', 'true');
+                card.setAttribute('data-bs-toggle', 'tooltip');
+                card.setAttribute('data-bs-title', 'Подключение к данной автоматизированной системе уже выполнено');
+            }
+
+            const icon = document.createElement('span');
+            icon.className = 'connection-service-icon';
+            icon.innerHTML = `<i class="bi ${definition.icon}"></i>`;
+            const title = document.createElement('span');
+            title.className = 'connection-service-title';
+            title.textContent = definition.label;
+            const description = document.createElement('span');
+            description.className = 'connection-service-description';
+            description.textContent = definition.description;
+            card.appendChild(icon);
+            card.appendChild(title);
+            card.appendChild(description);
+
+            card.addEventListener('click', event => {
+                if (connected) {
+                    event.preventDefault();
+                    return;
+                }
+                connectionSelectModal?.hide();
+                openConnectionForm(definition.id);
+            });
+
+            connectionServiceChoices.appendChild(card);
+        });
+        initializeTooltips(connectionServiceChoices);
+    }
+
+    function setFormMessage(message, tone = 'muted') {
+        if (!connectionFormMessage) {
+            return;
+        }
+        if (!message) {
+            connectionFormMessage.textContent = '';
+            connectionFormMessage.className = 'small text-muted mt-3 d-none';
+            return;
+        }
+        connectionFormMessage.textContent = message;
+        connectionFormMessage.className = `small text-${tone} mt-3`;
+    }
+
+    function setFormBusy(isBusy) {
+        if (saveConnectionButton) {
+            saveConnectionButton.disabled = isBusy;
+            saveConnectionButton.textContent = isBusy ? 'Проверяем...' : 'Сохранить и проверить';
+        }
+        connectionFormFields?.querySelectorAll('input').forEach(input => {
+            input.disabled = isBusy;
+        });
+    }
+
+    function setDetailsBusy(isBusy) {
+        if (saveDetailsConnectionButton) {
+            saveDetailsConnectionButton.disabled = isBusy;
+            saveDetailsConnectionButton.textContent = isBusy ? 'Проверяем...' : 'Сохранить и проверить';
+        }
+        connectionDetailsList?.querySelectorAll('input').forEach(input => {
+            input.disabled = isBusy;
+        });
+    }
+
+    function setDeleteBusy(isBusy) {
+        if (confirmDeleteConnectionButton) {
+            confirmDeleteConnectionButton.disabled = isBusy;
+            confirmDeleteConnectionButton.textContent = isBusy ? 'Удаляем...' : 'Удалить';
+        }
+    }
+
+    function openConnectionForm(serviceId) {
+        selectedConnectionService = serviceId;
+        const definition = getServiceDefinition(serviceId);
+        if (connectionFormModalLabel) {
+            connectionFormModalLabel.textContent = definition.label;
+        }
+        renderConnectionFields(connectionFormFields, serviceId, 'connection');
+        setFormMessage('');
+        setFormBusy(false);
+        connectionFormModal?.show();
+    }
+
+    async function saveSelectedConnection() {
+        const serviceId = selectedConnectionService;
+        if (!serviceId) {
+            return;
+        }
+        const definition = getServiceDefinition(serviceId);
+        const originalValues = buildConnectionValues(serviceId);
+        const nextValues = collectConnectionValues(serviceId, connectionFormFields);
+
+        setFormBusy(true);
+        setFormMessage('Сохраняем настройки и проверяем подключение...', 'muted');
+        try {
+            await patchServiceValues(serviceId, nextValues);
+            const result = await testConnection(serviceId);
+            connectionStatuses.set(serviceId, result);
+            if (!result.success) {
+                await patchServiceValues(serviceId, originalValues);
+                connectionStatuses.delete(serviceId);
+                throw new Error(result.message);
+            }
+            connectionFormModal?.hide();
+            renderConnectionsTable();
+            showToast(`Подключение ${definition.label} сохранено.`, 'success', 6000);
+        } catch (error) {
+            setFormMessage('');
+            showToast('Не удалось установить подключение: ' + error.message, 'danger');
+        } finally {
+            setFormBusy(false);
+        }
+    }
+
+    function openConnectionDetails(serviceId) {
+        selectedDetailsConnectionService = serviceId;
+        const definition = getServiceDefinition(serviceId);
+        if (connectionDetailsModalLabel) {
+            connectionDetailsModalLabel.textContent = definition.label;
+        }
+        renderConnectionFields(connectionDetailsList, serviceId, 'connection-details');
+        setDetailsBusy(false);
+        connectionDetailsModal?.show();
+    }
+
+    async function saveConnectionDetails() {
+        const serviceId = selectedDetailsConnectionService;
+        if (!serviceId) {
+            return;
+        }
+        const definition = getServiceDefinition(serviceId);
+        const originalValues = buildConnectionValues(serviceId);
+        const hadOriginalStatus = connectionStatuses.has(serviceId);
+        const originalStatus = connectionStatuses.get(serviceId);
+        const nextValues = collectConnectionValues(serviceId, connectionDetailsList);
+        let valuesWerePatched = false;
+
+        setDetailsBusy(true);
+        try {
+            await patchServiceValues(serviceId, nextValues);
+            valuesWerePatched = true;
+            const result = await testConnection(serviceId);
+            if (!result.success) {
+                throw new Error(result.message);
+            }
+            connectionStatuses.set(serviceId, result);
+            connectionDetailsModal?.hide();
+            renderConnectionsTable();
+            showToast(`Подключение ${definition.label} обновлено.`, 'success', 6000);
+        } catch (error) {
+            if (valuesWerePatched) {
+                try {
+                    await patchServiceValues(serviceId, originalValues);
+                } catch (rollbackError) {
+                    showToast('Не удалось вернуть прежние настройки: ' + rollbackError.message, 'danger');
+                }
+            }
+            if (hadOriginalStatus) {
+                connectionStatuses.set(serviceId, originalStatus);
+            } else {
+                connectionStatuses.delete(serviceId);
+            }
+            renderConnectionsTable();
+            showToast('Не удалось обновить подключение: ' + error.message, 'danger');
+        } finally {
+            setDetailsBusy(false);
+        }
+    }
+
+    function openConnectionDeleteConfirmation(serviceId) {
+        selectedDeleteConnectionService = serviceId;
+        const definition = getServiceDefinition(serviceId);
+        if (connectionDeleteText) {
+            connectionDeleteText.textContent = `Вы точно хотите удалить подключение ${definition.label}?`;
+        }
+        setDeleteBusy(false);
+        connectionDeleteModal?.show();
+    }
+
+    async function deleteSelectedConnection() {
+        const serviceId = selectedDeleteConnectionService;
+        if (!serviceId) {
+            return;
+        }
+        const definition = getServiceDefinition(serviceId);
+
+        setDeleteBusy(true);
+        try {
+            await patchServiceValues(serviceId, buildEmptyConnectionValues(serviceId));
+            connectionStatuses.delete(serviceId);
+            if (selectedDetailsConnectionService === serviceId) {
+                selectedDetailsConnectionService = null;
+            }
+            selectedDeleteConnectionService = null;
+            connectionDeleteModal?.hide();
+            renderConnectionsTable();
+            showToast(`Подключение ${definition.label} удалено.`, 'success', 6000);
+        } catch (error) {
+            showToast('Не удалось удалить подключение: ' + error.message, 'danger');
+        } finally {
+            setDeleteBusy(false);
+        }
+    }
+
+    async function loadConnections() {
+        showConnectionsStatus('Загружаем подключения...', 'info');
+        try {
+            const response = await fetch('/api/chronicler/properties/');
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            const data = await response.json();
+            settingsCache = Array.isArray(data)
+                    ? data.filter(item => SERVICE_IDS.has(item?.service))
+                    : [];
+            renderConnectionsTable();
+            showConnectionsStatus('', 'info');
+        } catch (error) {
+            showConnectionsStatus('Не удалось загрузить подключения: ' + error.message, 'danger');
+        }
+    }
+
+    if (addConnectionButton) {
+        addConnectionButton.addEventListener('click', () => {
+            renderServiceChoices();
+            connectionSelectModal?.show();
+        });
+    }
+
+    if (checkAllConnectionsButton) {
+        checkAllConnectionsButton.addEventListener('click', () => {
+            void checkAllConnections();
+        });
+    }
+
+    if (connectionForm) {
+        connectionForm.addEventListener('submit', event => {
+            event.preventDefault();
+            void saveSelectedConnection();
+        });
+    }
+
+    if (connectionDetailsForm) {
+        connectionDetailsForm.addEventListener('submit', event => {
+            event.preventDefault();
+            void saveConnectionDetails();
+        });
+    }
+
+    if (confirmDeleteConnectionButton) {
+        confirmDeleteConnectionButton.addEventListener('click', () => {
+            void deleteSelectedConnection();
+        });
+    }
+
+    if (typeof startBackgroundErrorPolling === 'function') {
+        startBackgroundErrorPolling(showToast);
+    }
+
+    (async function init() {
+        initializeTooltips(document);
+        await loadConnections();
+    })();
+</script>
+</body>
+</html>

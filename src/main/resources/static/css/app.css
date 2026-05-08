@@ -2013,6 +2013,277 @@ body {
             gap: 0.75rem;
         }
 
+        .connections-section {
+            position: relative;
+        }
+
+        .connections-section .card {
+            box-shadow: none;
+            border: none;
+            background: #ffffff;
+            border-radius: 0;
+        }
+
+        .connections-table {
+            width: 100%;
+            margin: 0;
+            table-layout: fixed;
+        }
+
+        .connections-table th,
+        .connections-table td {
+            white-space: nowrap;
+        }
+
+        .connections-table th:nth-child(1),
+        .connections-table td:nth-child(1) {
+            width: 22%;
+        }
+
+        .connections-table th:nth-child(2),
+        .connections-table td:nth-child(2) {
+            width: 36%;
+        }
+
+        .connections-table th:nth-child(3),
+        .connections-table td:nth-child(3) {
+            width: 16%;
+        }
+
+        .connections-table th:nth-child(4),
+        .connections-table td:nth-child(4) {
+            width: 14%;
+        }
+
+        .connections-table th:nth-child(5),
+        .connections-table td:nth-child(5) {
+            width: 12%;
+        }
+
+        .connections-column-label {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            min-width: 0;
+        }
+
+        .connections-column-help {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            width: 1rem;
+            height: 1rem;
+            border: 1px solid #b9c8bf;
+            border-radius: 50%;
+            color: #6a7c73;
+            cursor: help;
+            font-size: 0.72rem;
+            line-height: 1;
+            text-transform: none;
+        }
+
+        .connections-column-help:hover,
+        .connections-column-help:focus {
+            border-color: #009846;
+            color: #009846;
+            outline: none;
+        }
+
+        .connection-system-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 700;
+            color: #1c231f;
+        }
+
+        .connection-note-value {
+            display: block;
+            max-width: 100%;
+            color: #5f5e5b;
+            cursor: help;
+            font-size: 0.82rem;
+        }
+
+        .connections-fallback-tooltip {
+            position: absolute;
+            z-index: 1080;
+            pointer-events: none;
+        }
+
+        .connections-fallback-tooltip .tooltip-inner {
+            max-width: min(360px, calc(100vw - 24px));
+            padding: 0.35rem 0.65rem;
+            color: #ffffff;
+            text-align: left;
+            background-color: #1c231f;
+            border-radius: 0.375rem;
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }
+
+        .connection-status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 6.5rem;
+            padding: 0.35rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .connection-status-badge.is-active {
+            color: #0b6b3c;
+            background: #e7f6ed;
+            border: 1px solid #bde5ca;
+        }
+
+        .connection-status-badge.is-inactive {
+            color: #8a1f11;
+            background: #fff0ec;
+            border: 1px solid #f3c4b7;
+        }
+
+        .connection-status-badge.is-checking {
+            color: #6a4b00;
+            background: #fff7db;
+            border: 1px solid #f0d98a;
+        }
+
+        .delete-toggle {
+            border: 1px solid #f2d6d2;
+            background: #fff7f5;
+            color: #9a2b1b;
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            padding: 0;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+
+        .delete-toggle:hover,
+        .delete-toggle:focus-visible {
+            background: #ffede9;
+            border-color: #e7a194;
+            color: #7b1f12;
+            outline: none;
+        }
+
+        .delete-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .connection-service-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.85rem;
+        }
+
+        .connection-service-card {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.45rem;
+            min-height: 9.5rem;
+            padding: 1rem;
+            border: 1px solid #d7e6dc;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #1c231f;
+            text-align: left;
+            transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+        }
+
+        .connection-service-card:hover,
+        .connection-service-card:focus {
+            border-color: #009846;
+            background: #f5fbf7;
+            outline: none;
+        }
+
+        .connection-service-card.is-disabled {
+            color: #8b9890;
+            background: #f6f7f6;
+            border-color: #e0e6e2;
+            cursor: help;
+        }
+
+        .connection-service-card.is-disabled:hover,
+        .connection-service-card.is-disabled:focus {
+            border-color: #d7ded9;
+            background: #f6f7f6;
+        }
+
+        .connection-service-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2rem;
+            height: 2rem;
+            color: #0b6b3c;
+            background: #e7f6ed;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .connection-service-title {
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .connection-service-description {
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }
+
+        .connection-modal .modal-content {
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 24px 80px rgba(28, 35, 31, 0.18);
+        }
+
+        .connection-form-fields {
+            gap: 0.85rem;
+        }
+
+        .connection-details-fields {
+            gap: 0.85rem;
+        }
+
+        .connection-details-table {
+            margin: 0;
+        }
+
+        .connection-details-table th,
+        .connection-details-table td {
+            padding: 0.8rem 0.75rem;
+            border-color: #e5efe8;
+            vertical-align: top;
+        }
+
+        .connection-details-table th {
+            width: 36%;
+            color: #5f5e5b;
+            font-weight: 700;
+        }
+
+        .connection-details-table td {
+            color: #1c231f;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+
         .settings-service-title {
             font-size: 1.3rem;
             font-weight: 900;
