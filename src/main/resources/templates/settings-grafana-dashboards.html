@@ -90,16 +90,129 @@
 
     <div class="page-content">
 <main class="container-fluid py-5 px-4 px-lg-5">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div>
-            <h5 class="mb-1">Графики и требования</h5>
-            <p class="text-muted small mb-0">Запросите графики из Grafana, свяжите их с запросами к источнику данных и требованиями.</p>
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="data-panel d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3">
+                <div>
+                    <h5 class="mb-1">Графики и требования</h5>
+                    <p class="text-muted small mb-0">Запросите графики из Grafana, свяжите их с запросами к источнику данных и требованиями.</p>
+                </div>
+                <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-end">
+                    <button type="button" class="btn btn-outline-success" id="fetchDashboardsButton">
+                        Запросить данные по дашбордам
+                    </button>
+                    <button type="button" class="btn btn-success" id="saveDashboardsButton">
+                        Сохранить
+                    </button>
+                </div>
+            </div>
         </div>
-        <button type="button" class="btn btn-success" id="fetchDashboardsButton">Запросить данные по дашбордам</button>
     </div>
-    <div id="dashboardsStatus" class="alert d-none" role="alert"></div>
-    <div id="dashboardsList" class="d-flex flex-column gap-3"></div>
-    <div id="dashboardsEmpty" class="text-muted">Нажмите «Запросить данные по дашбордам», чтобы подтянуть их из Grafana.</div>
+
+    <section class="tests-content grafana-dashboards-section flex-grow-1 mt-3">
+        <div class="card border-0">
+            <div class="card-body">
+                <div id="dashboardsStatus" class="alert d-none" role="alert"></div>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                    <div class="filters-bar grafana-dashboard-filters">
+                        <div class="dropdown" data-bs-auto-close="outside">
+                            <a class="filter-chip dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-grid"></i>
+                                <span id="dashboardFilterLabel">Дашборд</span>
+                            </a>
+                            <div class="dropdown-menu filter-dropdown">
+                                <p class="form-label small text-muted mb-2">Дашборд</p>
+                                <div id="dashboardFilterList" class="filter-list"></div>
+                            </div>
+                        </div>
+                        <div class="grafana-panel-search">
+                            <label class="visually-hidden" for="panelTitleFilterInput">График</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="search"
+                                       class="form-control"
+                                       id="panelTitleFilterInput"
+                                       placeholder="График">
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-link px-2 reset-filters-btn" id="resetDashboardFiltersButton">
+                        <i class="bi bi-x-lg"></i>
+                        <span>Сбросить фильтры</span>
+                    </button>
+                </div>
+                <div class="tests-table-wrapper">
+                    <table class="table align-middle tests-table grafana-dashboard-table" id="dashboardsTable">
+                        <thead>
+                        <tr>
+                            <th scope="col">
+                                <span class="grafana-dashboard-column-label">
+                                    Дашборд
+                                    <span class="grafana-dashboard-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Название дашборда Grafana.">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                            <th scope="col">
+                                <span class="grafana-dashboard-column-label">
+                                    График
+                                    <span class="grafana-dashboard-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Название графика из дашборда Grafana. Полное название также доступно при наведении на строку графика.">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                            <th scope="col">
+                                <span class="grafana-dashboard-column-label">
+                                    № графика
+                                    <span class="grafana-dashboard-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Номер панели графика внутри дашборда Grafana.">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                            <th scope="col">
+                                <span class="grafana-dashboard-column-label">
+                                    Запрос
+                                    <span class="grafana-dashboard-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Запрос графика к источнику данных с подставленными значениями переменных дашборда.">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                            <th scope="col">
+                                <span class="grafana-dashboard-column-label">
+                                    Требование
+                                    <span class="grafana-dashboard-help"
+                                          role="button"
+                                          tabindex="0"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Пороговое значение нефункционального требования для графика.">
+                                        <i class="bi bi-question"></i>
+                                    </span>
+                                </span>
+                            </th>
+                        </tr>
+                        </thead>
+                        <tbody id="dashboardsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
 </main>
 
 <div id="toastContainer" class="toast-container"></div>
@@ -113,11 +226,22 @@
         crossorigin="anonymous"></script>
 <script src="/js/background-errors.js"></script>
 <script>
-    const dashboardsList = document.getElementById('dashboardsList');
-    const dashboardsEmpty = document.getElementById('dashboardsEmpty');
+    const dashboardsTableBody = document.getElementById('dashboardsTableBody');
+    const dashboardFilterList = document.getElementById('dashboardFilterList');
+    const dashboardFilterLabel = document.getElementById('dashboardFilterLabel');
+    const panelTitleFilterInput = document.getElementById('panelTitleFilterInput');
+    const resetDashboardFiltersButton = document.getElementById('resetDashboardFiltersButton');
+    const dashboardFilterDropdown = document.querySelector('.grafana-dashboard-filters .dropdown');
+    const dashboardFilterToggle = dashboardFilterDropdown?.querySelector('.filter-chip');
+    const dashboardFilterMenu = dashboardFilterDropdown?.querySelector('.dropdown-menu');
     const dashboardsStatus = document.getElementById('dashboardsStatus');
     const fetchDashboardsButton = document.getElementById('fetchDashboardsButton');
+    const saveDashboardsButton = document.getElementById('saveDashboardsButton');
     const toastContainer = document.getElementById('toastContainer');
+    const DASHBOARD_TABLE_COLSPAN = 5;
+    let dashboardsState = [];
+    let dashboardFilterSelection = new Set();
+    let activeFallbackTooltip = null;
 
     const removeToast = (toast) => {
         if (!toast) {
@@ -178,200 +302,410 @@
         dashboardsStatus.textContent = '';
     }
 
-    function renderDashboards(items) {
-        dashboardsList.innerHTML = '';
-        if (!items || !items.length) {
-            dashboardsEmpty.classList.remove('d-none');
+    function normalizeText(value) {
+        if (value === undefined || value === null) {
+            return null;
+        }
+        const text = String(value).trim();
+        return text === '' ? null : text;
+    }
+
+    function sanitizeId(value) {
+        return (normalizeText(value) ?? 'empty').replace(/[^a-zA-Z0-9_-]/g, '-');
+    }
+
+    function escapeRegExp(value) {
+        return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function getSelectedVariableOptionValue(options) {
+        if (!Array.isArray(options)) {
+            return null;
+        }
+        const selectedOption = options.find(option => option?.selected);
+        return normalizeText(selectedOption?.value) ?? normalizeText(selectedOption?.text);
+    }
+
+    function getVariableDefaultValue(variable) {
+        return normalizeText(variable?.defaultValue)
+                ?? getSelectedVariableOptionValue(variable?.options)
+                ?? normalizeText(variable?.value);
+    }
+
+    function applyDashboardVariableDefaults(query, variables) {
+        if (query === undefined || query === null || !Array.isArray(variables) || variables.length === 0) {
+            return query ?? '';
+        }
+        let resolvedQuery = String(query);
+        variables.forEach(variable => {
+            const name = normalizeText(variable?.name);
+            const value = getVariableDefaultValue(variable);
+            if (!name || value === null) {
+                return;
+            }
+            const escapedName = escapeRegExp(name);
+            resolvedQuery = resolvedQuery
+                    .replace(new RegExp('\\$\\{' + escapedName + '(?::[^}]*)?\\}', 'g'), () => value)
+                    .replace(new RegExp('\\[\\[' + escapedName + '\\]\\]', 'g'), () => value)
+                    .replace(new RegExp('\\$' + escapedName + '(?=$|[^A-Za-z0-9_])', 'g'), () => value);
+        });
+        return resolvedQuery;
+    }
+
+    function normalizeDashboard(item) {
+        const dashboard = {...(item || {})};
+        dashboard.variables = Array.isArray(dashboard.variables)
+                ? dashboard.variables.map(variable => ({...(variable || {})}))
+                : [];
+        dashboard.panels = Array.isArray(dashboard.panels)
+                ? dashboard.panels.map(panel => {
+                    const normalizedPanel = {...(panel || {})};
+                    normalizedPanel.query = applyDashboardVariableDefaults(normalizedPanel.query, dashboard.variables);
+                    return normalizedPanel;
+                })
+                : [];
+        return dashboard;
+    }
+
+    function getDashboardUid(dashboard) {
+        return normalizeText(dashboard?.uid) ?? '';
+    }
+
+    function getDashboardSlug(dashboard) {
+        return normalizeText(dashboard?.slug) ?? getDashboardUid(dashboard);
+    }
+
+    function getDashboardTitle(dashboard) {
+        return normalizeText(dashboard?.title)
+                ?? normalizeText(dashboard?.slug)
+                ?? normalizeText(dashboard?.uid)
+                ?? 'Без названия';
+    }
+
+    function getPanelTitle(panel) {
+        return normalizeText(panel?.title)
+                ?? (panel?.panelId != null ? `График ${panel.panelId}` : 'Без названия');
+    }
+
+    function setDashboardFilterMenuOpen(open) {
+        if (!dashboardFilterToggle || !dashboardFilterMenu) {
             return;
         }
-        dashboardsEmpty.classList.add('d-none');
-        items.forEach(item => dashboardsList.appendChild(buildDashboardCard(item)));
+        dashboardFilterToggle.classList.toggle('show', open);
+        dashboardFilterToggle.setAttribute('aria-expanded', String(open));
+        dashboardFilterMenu.classList.toggle('show', open);
+        if (open) {
+            dashboardFilterMenu.setAttribute('data-bs-popper', 'static');
+        } else {
+            dashboardFilterMenu.removeAttribute('data-bs-popper');
+        }
     }
 
-    function buildDashboardCard(item) {
-        const card = document.createElement('div');
-        card.className = 'card dashboard-card';
-        card.dataset.dashboardUid = item?.uid ?? '';
-        card.dataset.dashboardSlug = item?.slug ?? '';
-
-        const body = document.createElement('div');
-        body.className = 'card-body';
-
-        const header = document.createElement('div');
-        header.className = 'd-flex flex-wrap justify-content-between align-items-start gap-3 mb-3';
-
-        const title = document.createElement('div');
-        const heading = document.createElement('h6');
-        heading.className = 'mb-1';
-        heading.textContent = item?.title || 'Без названия';
-        const meta = document.createElement('div');
-        meta.className = 'dashboard-meta';
-        meta.textContent = `UID: ${item?.uid ?? '—'} · Slug: ${item?.slug ?? '—'}`;
-        title.appendChild(heading);
-        title.appendChild(meta);
-
-        header.appendChild(title);
-        body.appendChild(header);
-
-        if (item?.variables?.length) {
-            body.appendChild(buildVariablesSection(item.variables));
+    function initializeDashboardDropdown() {
+        if (!dashboardFilterToggle || !dashboardFilterMenu || !dashboardFilterDropdown) {
+            return;
         }
+        dashboardFilterToggle.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            setDashboardFilterMenuOpen(!dashboardFilterMenu.classList.contains('show'));
+        });
+        dashboardFilterMenu.addEventListener('click', event => {
+            event.stopPropagation();
+        });
+        document.addEventListener('click', event => {
+            if (!dashboardFilterDropdown.contains(event.target)) {
+                setDashboardFilterMenuOpen(false);
+            }
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                setDashboardFilterMenuOpen(false);
+            }
+        });
+    }
 
-        if (item?.panels?.length) {
-            const table = document.createElement('table');
-            table.className = 'table table-sm align-middle panel-table mb-3';
+    function hideFallbackTooltip() {
+        if (!activeFallbackTooltip) {
+            return;
+        }
+        activeFallbackTooltip.remove();
+        activeFallbackTooltip = null;
+    }
 
-            const thead = document.createElement('thead');
-            const headRow = document.createElement('tr');
-            [
-                'Название графика',
-                '№ графика в дашборде',
-                'Запрос к источнику данных',
-                'Нефункциональное требование'
-            ].forEach(text => {
-                const th = document.createElement('th');
-                th.scope = 'col';
-                th.textContent = text;
-                headRow.appendChild(th);
-            });
-            thead.appendChild(headRow);
-            table.appendChild(thead);
+    function positionFallbackTooltip(tooltip, target) {
+        const rect = target.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const gap = 8;
+        let top = rect.top + window.scrollY - tooltipRect.height - gap;
+        if (top < window.scrollY) {
+            top = rect.bottom + window.scrollY + gap;
+        }
+        const left = Math.min(
+                Math.max(rect.left + window.scrollX + rect.width / 2 - tooltipRect.width / 2, window.scrollX + gap),
+                window.scrollX + document.documentElement.clientWidth - tooltipRect.width - gap);
+        tooltip.style.top = `${top}px`;
+        tooltip.style.left = `${left}px`;
+    }
 
-            const tbody = document.createElement('tbody');
-            item.panels.forEach(panel => tbody.appendChild(buildPanelRow(panel, item.uid)));
-            table.appendChild(tbody);
-            body.appendChild(table);
-        } else {
+    function showFallbackTooltip(target) {
+        const title = normalizeText(target.getAttribute('data-bs-title'));
+        if (!title) {
+            return;
+        }
+        hideFallbackTooltip();
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip bs-tooltip-auto fade show grafana-dashboard-fallback-tooltip';
+        tooltip.setAttribute('role', 'tooltip');
+
+        const arrow = document.createElement('div');
+        arrow.className = 'tooltip-arrow';
+        const inner = document.createElement('div');
+        inner.className = 'tooltip-inner';
+        inner.textContent = title;
+        tooltip.appendChild(arrow);
+        tooltip.appendChild(inner);
+        document.body.appendChild(tooltip);
+        positionFallbackTooltip(tooltip, target);
+        activeFallbackTooltip = tooltip;
+    }
+
+    function initializeFallbackTooltip(element) {
+        if (element.dataset.fallbackTooltipReady === 'true') {
+            return;
+        }
+        element.dataset.fallbackTooltipReady = 'true';
+        element.addEventListener('mouseenter', () => showFallbackTooltip(element));
+        element.addEventListener('mouseleave', hideFallbackTooltip);
+        element.addEventListener('focus', () => showFallbackTooltip(element));
+        element.addEventListener('blur', hideFallbackTooltip);
+    }
+
+    function disposeTooltips(root) {
+        if (!window.bootstrap?.Tooltip) {
+            hideFallbackTooltip();
+            return;
+        }
+        root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+            const tooltip = bootstrap.Tooltip.getInstance(element);
+            if (tooltip) {
+                tooltip.dispose();
+            }
+        });
+        hideFallbackTooltip();
+    }
+
+    function initializeTooltips(root) {
+        root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+            if (!window.bootstrap?.Tooltip) {
+                initializeFallbackTooltip(element);
+                return;
+            }
+            if (!bootstrap.Tooltip.getInstance(element)) {
+                new bootstrap.Tooltip(element, {
+                    boundary: 'window',
+                    container: 'body',
+                    trigger: 'hover focus'
+                });
+            }
+        });
+    }
+
+    function clearDashboardTableBody() {
+        disposeTooltips(dashboardsTableBody);
+        dashboardsTableBody.innerHTML = '';
+    }
+
+    function setTableMessage(message) {
+        clearDashboardTableBody();
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = DASHBOARD_TABLE_COLSPAN;
+        cell.className = 'text-muted small py-3';
+        cell.textContent = message;
+        row.appendChild(cell);
+        dashboardsTableBody.appendChild(row);
+    }
+
+    function updateDashboardFilterLabel() {
+        if (!dashboardFilterLabel) {
+            return;
+        }
+        const selectedCount = dashboardFilterSelection.size;
+        if (selectedCount === 0) {
+            dashboardFilterLabel.textContent = 'Дашборд';
+            return;
+        }
+        if (selectedCount === 1) {
+            const selectedUid = Array.from(dashboardFilterSelection)[0];
+            const dashboard = dashboardsState.find(item => getDashboardUid(item) === selectedUid);
+            dashboardFilterLabel.textContent = getDashboardTitle(dashboard);
+            return;
+        }
+        dashboardFilterLabel.textContent = `Дашборд: ${selectedCount}`;
+    }
+
+    function renderDashboardFilterOptions() {
+        dashboardFilterList.innerHTML = '';
+        const availableUids = new Set(dashboardsState.map(getDashboardUid).filter(Boolean));
+        dashboardFilterSelection = new Set(
+                Array.from(dashboardFilterSelection).filter(uid => availableUids.has(uid)));
+
+        if (dashboardsState.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'text-muted small';
-            empty.textContent = 'Панели не найдены.';
-            body.appendChild(empty);
+            empty.textContent = 'Дашборды не загружены.';
+            dashboardFilterList.appendChild(empty);
+            updateDashboardFilterLabel();
+            return;
         }
 
-        const footer = document.createElement('div');
-        footer.className = 'd-flex flex-wrap justify-content-between align-items-center gap-3 mt-3';
-        const hint = document.createElement('div');
-        hint.className = 'text-muted small';
-        hint.textContent = 'Настройте запросы и требования для графиков этого дашборда.';
-        const saveButton = document.createElement('button');
-        saveButton.type = 'button';
-        saveButton.className = 'btn btn-success btn-sm';
-        saveButton.textContent = 'Сохранить';
-        saveButton.addEventListener('click', () => saveDashboard(card));
-        footer.appendChild(hint);
-        footer.appendChild(saveButton);
-        body.appendChild(footer);
+        dashboardsState.forEach(dashboard => {
+            const uid = getDashboardUid(dashboard);
+            if (!uid) {
+                return;
+            }
+            const optionId = `dashboard-filter-${sanitizeId(uid)}`;
+            const wrapper = document.createElement('label');
+            wrapper.className = 'form-check filter-option-check';
+            wrapper.setAttribute('for', optionId);
 
-        card.appendChild(body);
-        return card;
-    }
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.className = 'form-check-input';
+            input.id = optionId;
+            input.value = uid;
+            input.checked = dashboardFilterSelection.has(uid);
+            input.addEventListener('change', () => {
+                if (input.checked) {
+                    dashboardFilterSelection.add(uid);
+                } else {
+                    dashboardFilterSelection.delete(uid);
+                }
+                updateDashboardFilterLabel();
+                renderDashboardTable();
+            });
 
-    function buildVariablesSection(variables) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'mb-3';
-        const label = document.createElement('div');
-        label.className = 'text-muted fw-semibold small mb-2';
-        label.textContent = 'Переменные дашборда';
-        wrapper.appendChild(label);
-
-        const row = document.createElement('div');
-        row.className = 'row g-3';
-
-        variables.forEach(variable => {
-            const col = document.createElement('div');
-            col.className = 'col-md-4';
-            const fieldLabel = document.createElement('label');
-            fieldLabel.className = 'form-label small text-muted';
-            fieldLabel.textContent = variable?.label || variable?.name || 'Переменная';
-            const control = buildVariableControl(variable);
-            col.appendChild(fieldLabel);
-            col.appendChild(control);
-            row.appendChild(col);
+            const title = document.createElement('span');
+            title.className = 'form-check-label';
+            title.textContent = getDashboardTitle(dashboard);
+            wrapper.appendChild(input);
+            wrapper.appendChild(title);
+            dashboardFilterList.appendChild(wrapper);
         });
 
-        wrapper.appendChild(row);
+        updateDashboardFilterLabel();
+    }
+
+    function dashboardMatchesFilters(dashboard, panel) {
+        const dashboardUid = getDashboardUid(dashboard);
+        const dashboardMatches = dashboardFilterSelection.size === 0 || dashboardFilterSelection.has(dashboardUid);
+        if (!dashboardMatches) {
+            return false;
+        }
+        const panelFilter = normalizeText(panelTitleFilterInput?.value)?.toLowerCase();
+        if (!panelFilter) {
+            return true;
+        }
+        return getPanelTitle(panel).toLowerCase().includes(panelFilter);
+    }
+
+    function renderDashboards(items) {
+        dashboardsState = Array.isArray(items) ? items.map(normalizeDashboard) : [];
+        renderDashboardFilterOptions();
+        renderDashboardTable();
+    }
+
+    function renderDashboardTable() {
+        clearDashboardTableBody();
+        if (dashboardsState.length === 0) {
+            setTableMessage('Нажмите «Запросить данные по дашбордам», чтобы подтянуть их из Grafana.');
+            return;
+        }
+
+        let renderedRows = 0;
+        dashboardsState.forEach(dashboard => {
+            const panels = Array.isArray(dashboard.panels) ? dashboard.panels : [];
+            panels.forEach(panel => {
+                if (!dashboardMatchesFilters(dashboard, panel)) {
+                    return;
+                }
+                dashboardsTableBody.appendChild(buildDashboardPanelRow(dashboard, panel));
+                renderedRows += 1;
+            });
+        });
+
+        if (renderedRows === 0) {
+            setTableMessage('По выбранным фильтрам графики не найдены.');
+        } else {
+            initializeTooltips(dashboardsTableBody);
+        }
+    }
+
+    function buildTextBlock(primaryText, secondaryText, tooltipText = null) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'grafana-dashboard-cell-stack';
+        const primary = document.createElement('div');
+        primary.className = 'grafana-dashboard-primary';
+        primary.textContent = primaryText;
+        const normalizedTooltip = normalizeText(tooltipText);
+        if (normalizedTooltip) {
+            primary.setAttribute('data-bs-toggle', 'tooltip');
+            primary.setAttribute('data-bs-title', normalizedTooltip);
+        }
+        wrapper.appendChild(primary);
+        if (secondaryText) {
+            const secondary = document.createElement('div');
+            secondary.className = 'grafana-dashboard-secondary';
+            secondary.textContent = secondaryText;
+            wrapper.appendChild(secondary);
+        }
         return wrapper;
     }
 
-    function buildVariableControl(variable) {
-        const resolvedValue = variable?.value ?? variable?.defaultValue ?? '';
-        const normalizedValue = resolvedValue == null ? '' : String(resolvedValue);
-        const baseProps = {
-            className: 'form-control form-control-sm dashboard-variable',
-            dataset: { variableName: variable?.name ?? '' }
-        };
-
-        if (variable?.options && variable.options.length) {
-            const select = document.createElement('select');
-            select.className = 'form-select form-select-sm dashboard-variable';
-            select.dataset.variableName = variable?.name ?? '';
-            const emptyOption = document.createElement('option');
-            emptyOption.value = '';
-            emptyOption.textContent = '—';
-            select.appendChild(emptyOption);
-
-            let hasValueOption = false;
-            variable.options.forEach(option => {
-                const optionEl = document.createElement('option');
-                optionEl.value = option?.value != null ? String(option.value) : '';
-                optionEl.textContent = option?.text || optionEl.value || '—';
-                if (normalizedValue && optionEl.value === normalizedValue) {
-                    optionEl.selected = true;
-                    hasValueOption = true;
-                } else if (!normalizedValue && option?.selected) {
-                    optionEl.selected = true;
-                }
-                select.appendChild(optionEl);
-            });
-            if (normalizedValue && !hasValueOption) {
-                const customOption = document.createElement('option');
-                customOption.value = normalizedValue;
-                customOption.textContent = normalizedValue;
-                customOption.selected = true;
-                select.appendChild(customOption);
-            }
-            return select;
-        }
-
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = baseProps.className;
-        input.dataset.variableName = baseProps.dataset.variableName;
-        input.placeholder = variable?.defaultValue ?? '';
-        input.value = normalizedValue;
-        return input;
-    }
-
-    function buildPanelRow(panel, dashboardUid) {
+    function buildDashboardPanelRow(dashboard, panel) {
         const row = document.createElement('tr');
-        row.dataset.panelId = panel.panelId;
-        row.dataset.selected = String(Boolean(panel.selected));
+        row.dataset.dashboardUid = getDashboardUid(dashboard);
+        row.dataset.dashboardSlug = getDashboardSlug(dashboard);
+        row.dataset.panelId = panel.panelId ?? '';
+
+        const dashboardCell = document.createElement('td');
+        dashboardCell.appendChild(buildTextBlock(getDashboardTitle(dashboard), null));
 
         const nameCell = document.createElement('td');
-        nameCell.textContent = panel.title || 'Без названия';
+        const panelTitle = getPanelTitle(panel);
+        nameCell.appendChild(buildTextBlock(panelTitle, null, panelTitle));
 
         const idCell = document.createElement('td');
+        idCell.className = 'grafana-dashboard-panel-id';
         idCell.textContent = panel.panelId ?? '—';
 
         const queryCell = document.createElement('td');
-        queryCell.className = 'small text-break';
-        const queryInput = document.createElement('textarea');
-        queryInput.className = 'form-control form-control-sm panel-query';
-        queryInput.rows = 2;
+        queryCell.className = 'grafana-dashboard-query-cell';
+        const queryInput = document.createElement('input');
+        queryInput.type = 'text';
+        queryInput.className = 'form-control form-control-sm panel-query grafana-dashboard-query-input';
         queryInput.placeholder = 'PromQL';
         queryInput.value = panel.query || '';
+        queryInput.addEventListener('input', () => {
+            panel.query = queryInput.value;
+        });
         queryCell.appendChild(queryInput);
 
         const thresholdCell = document.createElement('td');
+        thresholdCell.className = 'grafana-dashboard-threshold-cell';
         const thresholdInput = document.createElement('input');
         thresholdInput.type = 'number';
-        thresholdInput.className = 'form-control form-control-sm panel-threshold';
-        thresholdInput.placeholder = 'Threshold';
-        if (panel.threshold != null) {
-            thresholdInput.value = panel.threshold;
-        }
+        thresholdInput.step = 'any';
+        thresholdInput.className = 'form-control form-control-sm panel-threshold grafana-dashboard-threshold-input';
+        thresholdInput.placeholder = 'Порог';
+        thresholdInput.value = panel.thresholdRaw ?? (panel.threshold != null ? panel.threshold : '');
+        thresholdInput.addEventListener('input', () => {
+            panel.thresholdRaw = thresholdInput.value;
+        });
         thresholdCell.appendChild(thresholdInput);
 
+        row.appendChild(dashboardCell);
         row.appendChild(nameCell);
         row.appendChild(idCell);
         row.appendChild(queryCell);
@@ -394,60 +728,91 @@
                 clearDashboardsStatus();
             }
         } catch (error) {
+            if (dashboardsState.length === 0) {
+                setTableMessage('Не удалось получить дашборды.');
+            }
             setDashboardsStatus('Не удалось получить дашборды: ' + error.message, 'danger');
         }
     }
 
-    function collectDashboardPayload(card) {
-        const uid = card.dataset.dashboardUid;
-        const slug = card.dataset.dashboardSlug;
-        const panelSettings = Array.from(card.querySelectorAll('tr[data-panel-id]')).map(row => {
-            const panelId = Number.parseInt(row.dataset.panelId, 10);
-            const selected = row.dataset.selected === 'true';
-            const query = row.querySelector('.panel-query')?.value ?? '';
-            const thresholdRaw = row.querySelector('.panel-threshold')?.value;
-            const parsedThreshold = thresholdRaw === undefined || thresholdRaw === null || thresholdRaw === ''
-                ? null
-                : Number.parseFloat(thresholdRaw);
-            const threshold = Number.isFinite(parsedThreshold) ? parsedThreshold : null;
-            return { panelId, selected, query, threshold };
-        });
-        const variables = Array.from(card.querySelectorAll('.dashboard-variable'))
-                .map(input => ({
-                    name: input.dataset.variableName,
-                    value: input.value
+    function parsePanelThreshold(panel) {
+        const raw = panel.thresholdRaw !== undefined ? panel.thresholdRaw : panel.threshold;
+        if (raw === undefined || raw === null || raw === '') {
+            return null;
+        }
+        const parsed = Number.parseFloat(raw);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function collectDashboardPayload(dashboard) {
+        const uid = getDashboardUid(dashboard);
+        const slug = getDashboardSlug(dashboard);
+        const panelSettings = (Array.isArray(dashboard.panels) ? dashboard.panels : [])
+                .map(panel => {
+                    const panelId = Number.parseInt(panel?.panelId, 10);
+                    if (!Number.isFinite(panelId)) {
+                        return null;
+                    }
+                    return {
+                        panelId,
+                        selected: true,
+                        query: panel.query ?? '',
+                        threshold: parsePanelThreshold(panel),
+                        testQuery: Boolean(panel.testQuery)
+                    };
+                })
+                .filter(Boolean);
+        const variables = (Array.isArray(dashboard.variables) ? dashboard.variables : [])
+                .map(variable => ({
+                    name: variable?.name,
+                    value: variable?.value ?? variable?.defaultValue ?? ''
                 }))
-                .filter(variable => variable.name);
+                .filter(variable => normalizeText(variable.name));
         const panels = panelSettings
-                .filter(panel => panel.selected)
                 .map(panel => panel.panelId)
                 .filter(Number.isFinite);
         return { uid, slug, panels, panelSettings, variables };
     }
 
-    async function saveDashboard(card) {
-        try {
-            const payload = collectDashboardPayload(card);
-            if (!payload.uid || !payload.slug) {
-                throw new Error('Нет данных о дашборде.');
-            }
+    async function saveDashboardState(dashboard) {
+        const payload = collectDashboardPayload(dashboard);
+        if (!payload.uid || !payload.slug) {
+            throw new Error('Нет данных о дашборде.');
+        }
 
-            const response = await fetch(`/api/settings/grafana-dashboards/${payload.uid}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    slug: payload.slug,
-                    panels: payload.panels,
-                    panelSettings: payload.panelSettings,
-                    variables: payload.variables
-                })
-            });
-            if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
+        const response = await fetch(`/api/settings/grafana-dashboards/${encodeURIComponent(payload.uid)}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                slug: payload.slug,
+                panels: payload.panels,
+                enabled: dashboard.enabled !== false,
+                panelSettings: payload.panelSettings,
+                variables: payload.variables
+            })
+        });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+    }
+
+    async function saveAllDashboards() {
+        if (dashboardsState.length === 0) {
+            setDashboardsStatus('Нет дашбордов для сохранения.', 'warning');
+            return;
+        }
+        saveDashboardsButton.disabled = true;
+        saveDashboardsButton.textContent = 'Сохраняем…';
+        try {
+            for (const dashboard of dashboardsState) {
+                await saveDashboardState(dashboard);
             }
-            setDashboardsStatus('Дашборд сохранен.', 'success');
+            setDashboardsStatus('Настройки графиков и требований сохранены.', 'success');
         } catch (error) {
-            setDashboardsStatus('Не удалось сохранить дашборд: ' + error.message, 'danger');
+            setDashboardsStatus('Не удалось сохранить настройки: ' + error.message, 'danger');
+        } finally {
+            saveDashboardsButton.disabled = false;
+            saveDashboardsButton.textContent = 'Сохранить';
         }
     }
 
@@ -466,6 +831,17 @@
     }
 
     fetchDashboardsButton.addEventListener('click', refreshDashboardsFromGrafana);
+    saveDashboardsButton.addEventListener('click', saveAllDashboards);
+    panelTitleFilterInput.addEventListener('input', renderDashboardTable);
+    resetDashboardFiltersButton.addEventListener('click', () => {
+        dashboardFilterSelection.clear();
+        panelTitleFilterInput.value = '';
+        renderDashboardFilterOptions();
+        renderDashboardTable();
+    });
+
+    initializeDashboardDropdown();
+    initializeTooltips(document);
 
     if (typeof startBackgroundErrorPolling === 'function') {
         startBackgroundErrorPolling(showToast);
