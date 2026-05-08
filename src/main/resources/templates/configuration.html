@@ -113,12 +113,6 @@
     <section class="tests-content saved-configurations-section flex-grow-1 mt-3">
         <div class="card border-0">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="tests-meta">
-                        <h5 class="mb-0">Сохраненные конфигурации</h5>
-                        <span class="tests-count" id="savedConfigsCounter">0</span>
-                    </div>
-                </div>
                 <div id="savedConfigsStatus" class="alert alert-info d-none" role="alert"></div>
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                     <div class="filters-bar">
@@ -294,7 +288,6 @@
         ];
 
         const toastContainer = document.getElementById('toastContainer');
-        const savedConfigsCounter = document.getElementById('savedConfigsCounter');
         const savedConfigsStatus = document.getElementById('savedConfigsStatus');
         const savedConfigsTableBody = document.getElementById('savedDropAppConfigsTableBody');
         const savedReleaseFilterList = document.getElementById('savedReleaseFilterList');
@@ -1214,9 +1207,6 @@
 
             savedConfigsTableBody.innerHTML = '';
             const savedItems = Array.isArray(items) ? items : [];
-            if (savedConfigsCounter) {
-                savedConfigsCounter.textContent = savedItems.length.toString();
-            }
 
             if (savedItems.length === 0) {
                 const emptyRow = document.createElement('tr');
