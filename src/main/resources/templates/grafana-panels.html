@@ -96,10 +96,6 @@
                 <div class="data-panel d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <div class="data-panel-actions d-flex flex-wrap gap-2 justify-content-start">
                         <a class="btn btn-outline-success"
-                           th:href="@{/settings/grafana-dashboards}">
-                            Настроить графики
-                        </a>
-                        <a class="btn btn-outline-success"
                            th:href="@{/settings/templates}">
                             Настроить шаблоны
                         </a>
@@ -128,11 +124,6 @@
         <section id="dashboardsCard" class="tests-content grafana-results-section flex-grow-1">
             <div class="card border-0">
                 <div class="card-body">
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-                        <div class="tests-meta">
-                            <h5 class="mb-0">Графики</h5>
-                        </div>
-                    </div>
                     <div id="dashboardsStatus" class="alert d-none" role="alert"></div>
                     <div id="dashboardsList" class="d-flex flex-column gap-3"></div>
                     <div id="dashboardsEmpty" class="text-muted">Нажмите «Показать графики», чтобы подтянуть их из Grafana.</div>
