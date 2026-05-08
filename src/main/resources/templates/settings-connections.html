@@ -23,7 +23,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="/css/app.css?v=perfhub-7">
+    <link rel="stylesheet" href="/css/app.css?v=perfhub-8">
 </head>
 <body>
 <div class="app-shell">
@@ -123,7 +123,7 @@
                         <tr>
                             <th scope="col">
                                 <span class="connections-column-label">
-                                    Система
+                                    Внешняя система
                                     <span class="connections-column-help"
                                           role="button"
                                           tabindex="0"
@@ -147,7 +147,7 @@
                             </th>
                             <th scope="col">
                                 <span class="connections-column-label">
-                                    Статус
+                                    Статус подключения
                                     <span class="connections-column-help"
                                           role="button"
                                           tabindex="0"
@@ -165,18 +165,6 @@
                                           tabindex="0"
                                           data-bs-toggle="tooltip"
                                           data-bs-title="Показать детальные настройки подключения">
-                                        <i class="bi bi-question"></i>
-                                    </span>
-                                </span>
-                            </th>
-                            <th scope="col" class="text-center">
-                                <span class="connections-column-label">
-                                    Удалить
-                                    <span class="connections-column-help"
-                                          role="button"
-                                          tabindex="0"
-                                          data-bs-toggle="tooltip"
-                                          data-bs-title="Удалить подключение">
                                         <i class="bi bi-question"></i>
                                     </span>
                                 </span>
@@ -238,27 +226,12 @@
                     <div id="connectionDetailsList" class="settings-fields connection-details-fields"></div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button"
+                            class="btn btn-outline-danger me-auto"
+                            id="deleteDetailsConnectionButton">Удалить подключение</button>
                     <button type="submit" class="btn btn-success" id="saveDetailsConnectionButton">Сохранить и проверить</button>
                 </div>
             </form>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade connection-modal" id="connectionDeleteModal" tabindex="-1" aria-labelledby="connectionDeleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="connectionDeleteModalLabel">Удалить подключение</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body">
-                <p id="connectionDeleteText" class="mb-0"></p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteConnectionButton">Удалить</button>
-            </div>
         </div>
     </div>
 </div>
@@ -283,7 +256,6 @@
     const connectionSelectModalElement = document.getElementById('connectionSelectModal');
     const connectionFormModalElement = document.getElementById('connectionFormModal');
     const connectionDetailsModalElement = document.getElementById('connectionDetailsModal');
-    const connectionDeleteModalElement = document.getElementById('connectionDeleteModal');
     const connectionForm = document.getElementById('connectionForm');
     const connectionDetailsForm = document.getElementById('connectionDetailsForm');
     const connectionFormFields = document.getElementById('connectionFormFields');
@@ -291,10 +263,9 @@
     const connectionFormModalLabel = document.getElementById('connectionFormModalLabel');
     const connectionDetailsModalLabel = document.getElementById('connectionDetailsModalLabel');
     const connectionDetailsList = document.getElementById('connectionDetailsList');
-    const connectionDeleteText = document.getElementById('connectionDeleteText');
     const saveConnectionButton = document.getElementById('saveConnectionButton');
     const saveDetailsConnectionButton = document.getElementById('saveDetailsConnectionButton');
-    const confirmDeleteConnectionButton = document.getElementById('confirmDeleteConnectionButton');
+    const deleteDetailsConnectionButton = document.getElementById('deleteDetailsConnectionButton');
     const toastContainer = document.getElementById('toastContainer');
 
     const SERVICE_DEFINITIONS = [
@@ -336,13 +307,11 @@
     let settingsCache = [];
     let selectedConnectionService = null;
     let selectedDetailsConnectionService = null;
-    let selectedDeleteConnectionService = null;
     let checkingAllConnections = false;
 
     const connectionSelectModal = createModalController(connectionSelectModalElement);
     const connectionFormModal = createModalController(connectionFormModalElement);
     const connectionDetailsModal = createModalController(connectionDetailsModalElement);
-    const connectionDeleteModal = createModalController(connectionDeleteModalElement);
 
     function removeToast(toast) {
         if (!toast) {
@@ -719,7 +688,7 @@
     function renderEmptyConnectionRow() {
         const row = document.createElement('tr');
         const cell = document.createElement('td');
-        cell.colSpan = 5;
+        cell.colSpan = 4;
         cell.className = 'text-muted text-center py-4';
         cell.textContent = 'Подключения пока не добавлены.';
         row.appendChild(cell);
@@ -782,19 +751,6 @@
             detailsButton.addEventListener('click', () => openConnectionDetails(serviceId));
             detailsCell.appendChild(detailsButton);
             row.appendChild(detailsCell);
-
-            const deleteCell = document.createElement('td');
-            deleteCell.className = 'text-center';
-            const deleteButton = document.createElement('button');
-            deleteButton.type = 'button';
-            deleteButton.className = 'delete-toggle';
-            deleteButton.setAttribute('aria-label', `Удалить подключение ${definition.label}`);
-            deleteButton.setAttribute('aria-haspopup', 'dialog');
-            deleteButton.setAttribute('aria-controls', 'connectionDeleteModal');
-            deleteButton.innerHTML = '<i class="bi bi-trash delete-icon"></i>';
-            deleteButton.addEventListener('click', () => openConnectionDeleteConfirmation(serviceId));
-            deleteCell.appendChild(deleteButton);
-            row.appendChild(deleteCell);
 
             connectionsTableBody.appendChild(row);
         });
@@ -895,21 +851,18 @@
         });
     }
 
-    function setDetailsBusy(isBusy) {
+    function setDetailsBusy(isBusy, mode = 'save') {
         if (saveDetailsConnectionButton) {
             saveDetailsConnectionButton.disabled = isBusy;
-            saveDetailsConnectionButton.textContent = isBusy ? 'Проверяем...' : 'Сохранить и проверить';
+            saveDetailsConnectionButton.textContent = isBusy && mode === 'save' ? 'Проверяем...' : 'Сохранить и проверить';
+        }
+        if (deleteDetailsConnectionButton) {
+            deleteDetailsConnectionButton.disabled = isBusy;
+            deleteDetailsConnectionButton.textContent = isBusy && mode === 'delete' ? 'Удаляем...' : 'Удалить подключение';
         }
         connectionDetailsList?.querySelectorAll('input').forEach(input => {
             input.disabled = isBusy;
         });
-    }
-
-    function setDeleteBusy(isBusy) {
-        if (confirmDeleteConnectionButton) {
-            confirmDeleteConnectionButton.disabled = isBusy;
-            confirmDeleteConnectionButton.textContent = isBusy ? 'Удаляем...' : 'Удалить';
-        }
     }
 
     function openConnectionForm(serviceId) {
@@ -1010,38 +963,30 @@
         }
     }
 
-    function openConnectionDeleteConfirmation(serviceId) {
-        selectedDeleteConnectionService = serviceId;
-        const definition = getServiceDefinition(serviceId);
-        if (connectionDeleteText) {
-            connectionDeleteText.textContent = `Вы точно хотите удалить подключение ${definition.label}?`;
-        }
-        setDeleteBusy(false);
-        connectionDeleteModal?.show();
-    }
-
     async function deleteSelectedConnection() {
-        const serviceId = selectedDeleteConnectionService;
+        const serviceId = selectedDetailsConnectionService;
         if (!serviceId) {
             return;
         }
         const definition = getServiceDefinition(serviceId);
+        if (!window.confirm(`Вы точно хотите удалить подключение ${definition.label}?`)) {
+            return;
+        }
 
-        setDeleteBusy(true);
+        setDetailsBusy(true, 'delete');
         try {
             await patchServiceValues(serviceId, buildEmptyConnectionValues(serviceId));
             connectionStatuses.delete(serviceId);
             if (selectedDetailsConnectionService === serviceId) {
                 selectedDetailsConnectionService = null;
             }
-            selectedDeleteConnectionService = null;
-            connectionDeleteModal?.hide();
+            connectionDetailsModal?.hide();
             renderConnectionsTable();
             showToast(`Подключение ${definition.label} удалено.`, 'success', 6000);
         } catch (error) {
             showToast('Не удалось удалить подключение: ' + error.message, 'danger');
         } finally {
-            setDeleteBusy(false);
+            setDetailsBusy(false);
         }
     }
 
@@ -1090,8 +1035,8 @@
         });
     }
 
-    if (confirmDeleteConnectionButton) {
-        confirmDeleteConnectionButton.addEventListener('click', () => {
+    if (deleteDetailsConnectionButton) {
+        deleteDetailsConnectionButton.addEventListener('click', () => {
             void deleteSelectedConnection();
         });
     }

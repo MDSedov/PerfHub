@@ -2061,7 +2061,7 @@ body {
 
         .connections-table th:nth-child(2),
         .connections-table td:nth-child(2) {
-            width: 36%;
+            width: 44%;
         }
 
         .connections-table th:nth-child(3),
@@ -2071,12 +2071,7 @@ body {
 
         .connections-table th:nth-child(4),
         .connections-table td:nth-child(4) {
-            width: 14%;
-        }
-
-        .connections-table th:nth-child(5),
-        .connections-table td:nth-child(5) {
-            width: 12%;
+            width: 18%;
         }
 
         .connections-column-label {
@@ -2170,37 +2165,6 @@ body {
             color: #6a4b00;
             background: #fff7db;
             border: 1px solid #f0d98a;
-        }
-
-        .delete-toggle {
-            border: 1px solid #f2d6d2;
-            background: #fff7f5;
-            color: #9a2b1b;
-            width: 36px;
-            height: 36px;
-            border-radius: 6px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            padding: 0;
-            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-        }
-
-        .delete-toggle:hover,
-        .delete-toggle:focus-visible {
-            background: #ffede9;
-            border-color: #e7a194;
-            color: #7b1f12;
-            outline: none;
-        }
-
-        .delete-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            line-height: 1;
         }
 
         .connection-service-grid {
