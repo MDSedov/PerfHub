@@ -2013,6 +2013,26 @@ body {
             gap: 0.75rem;
         }
 
+        .settings-export-options {
+            display: grid;
+            gap: 0.85rem;
+        }
+
+        .settings-export-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.65rem;
+            margin: 0;
+            color: #1d2822;
+            line-height: 1.35;
+            cursor: pointer;
+        }
+
+        .settings-export-option .form-check-input {
+            flex: 0 0 auto;
+            margin-top: 0.15rem;
+        }
+
         .connections-section {
             position: relative;
         }

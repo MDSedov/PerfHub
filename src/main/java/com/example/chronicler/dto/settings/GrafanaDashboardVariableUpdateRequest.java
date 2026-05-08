@@ -1,5 +1,12 @@
 package com.example.chronicler.dto.settings;
 
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 
-public record GrafanaDashboardVariableUpdateRequest(@NotBlank String name, String value) {}
+public record GrafanaDashboardVariableUpdateRequest(
+        @NotBlank String name,
+        String label,
+        String type,
+        String value,
+        String defaultValue,
+        List<GrafanaVariableOptionDto> options) {}

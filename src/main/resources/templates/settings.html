@@ -92,16 +92,51 @@
 <main class="container-fluid py-5 px-4 px-lg-5">
     <div class="settings-actions-bar">
         <div class="settings-actions-group">
-            <button id="exportConnectionsButton" type="button" class="btn btn-outline-secondary">
+            <button id="exportSettingsButton" type="button" class="btn btn-outline-secondary">
                 Выгрузить настройки
             </button>
-            <button id="importConnectionsButton" type="button" class="btn btn-success">
+            <button id="importSettingsButton" type="button" class="btn btn-success">
                 Загрузить настройки
             </button>
-            <input id="importConnectionsInput" type="file" accept=".json,application/json" class="d-none">
+            <input id="importSettingsInput" type="file" accept=".json,application/json" class="d-none">
         </div>
     </div>
 </main>
+
+<div class="modal fade settings-export-modal" id="exportSettingsModal" tabindex="-1" aria-labelledby="exportSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportSettingsModalLabel">Выгрузить настройки</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-export-options">
+                    <label class="settings-export-option">
+                        <input class="form-check-input" type="checkbox" value="connections" data-export-section checked>
+                        <span>Настройки подключений к внешним системам</span>
+                    </label>
+                    <label class="settings-export-option">
+                        <input class="form-check-input" type="checkbox" value="standConfiguration" data-export-section checked>
+                        <span>Настройки конфигурации стенда</span>
+                    </label>
+                    <label class="settings-export-option">
+                        <input class="form-check-input" type="checkbox" value="reportTemplates" data-export-section checked>
+                        <span>Настройки шаблонов отчетов</span>
+                    </label>
+                    <label class="settings-export-option">
+                        <input class="form-check-input" type="checkbox" value="grafanaAndRequirements" data-export-section checked>
+                        <span>Список графиков и нефункциональных требований</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-success" id="confirmExportSettingsButton">Выгрузить настройки</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div id="toastContainer" class="toast-container"></div>
 
@@ -116,9 +151,11 @@
 
 <script>
     const toastContainer = document.getElementById('toastContainer');
-    const exportConnectionsButton = document.getElementById('exportConnectionsButton');
-    const importConnectionsButton = document.getElementById('importConnectionsButton');
-    const importConnectionsInput = document.getElementById('importConnectionsInput');
+    const exportSettingsButton = document.getElementById('exportSettingsButton');
+    const importSettingsButton = document.getElementById('importSettingsButton');
+    const importSettingsInput = document.getElementById('importSettingsInput');
+    const exportSettingsModalElement = document.getElementById('exportSettingsModal');
+    const confirmExportSettingsButton = document.getElementById('confirmExportSettingsButton');
 
     const SERVICE_ORDER = [
         'victoria-metrics',
@@ -128,21 +165,90 @@
         'gigachat'
     ];
     const CONNECTION_SERVICE_NAMES = new Set(SERVICE_ORDER);
+    const SETTINGS_SECTION_LABELS = {
+        connections: 'настройки подключений',
+        standConfiguration: 'настройки конфигурации стенда',
+        reportTemplates: 'шаблоны отчетов',
+        grafanaAndRequirements: 'графики и требования'
+    };
+    const CONNECTION_IMPORT_RESERVED_KEYS = new Set([
+        'version',
+        'exportedAt',
+        'sections',
+        'connections',
+        'standConfiguration',
+        'reportTemplates',
+        'grafanaDashboards',
+        'nonFunctionalRequirements'
+    ]);
     const servicePriority = new Map(SERVICE_ORDER.map((name, index) => [name, index]));
 
     let settingsCache = [];
     let settingsImportInProgress = false;
     let settingsStatusToast = null;
 
+    const exportSettingsModal = createModalController(exportSettingsModalElement);
+
     function setSettingsActionsDisabled(disabled) {
-        if (exportConnectionsButton) {
-            exportConnectionsButton.disabled = disabled;
+        [exportSettingsButton, importSettingsButton, confirmExportSettingsButton, importSettingsInput]
+                .filter(Boolean)
+                .forEach(element => {
+                    element.disabled = disabled;
+                });
+    }
+
+    function createModalController(element) {
+        if (!element) {
+            return null;
         }
-        if (importConnectionsButton) {
-            importConnectionsButton.disabled = disabled;
+        if (window.bootstrap?.Modal) {
+            try {
+                return new bootstrap.Modal(element);
+            } catch (error) {
+                console.warn('Не удалось инициализировать Bootstrap modal, используется резервный режим.', error);
+            }
         }
-        if (importConnectionsInput) {
-            importConnectionsInput.disabled = disabled;
+        element.querySelectorAll('[data-bs-dismiss="modal"]').forEach(button => {
+            button.addEventListener('click', () => hideFallbackModal(element));
+        });
+        element.addEventListener('click', event => {
+            if (event.target === element) {
+                hideFallbackModal(element);
+            }
+        });
+        return {
+            show: () => showFallbackModal(element),
+            hide: () => hideFallbackModal(element)
+        };
+    }
+
+    function showFallbackModal(element) {
+        element.classList.add('show');
+        element.removeAttribute('aria-hidden');
+        element.setAttribute('aria-modal', 'true');
+        element.setAttribute('role', 'dialog');
+        element.style.display = 'block';
+        document.body.classList.add('modal-open');
+        document.body.style.overflow = 'hidden';
+        if (!document.querySelector(`[data-fallback-backdrop-for="${element.id}"]`)) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show';
+            backdrop.dataset.fallbackBackdropFor = element.id;
+            document.body.appendChild(backdrop);
+        }
+        element.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus();
+    }
+
+    function hideFallbackModal(element) {
+        element.classList.remove('show');
+        element.setAttribute('aria-hidden', 'true');
+        element.removeAttribute('aria-modal');
+        element.removeAttribute('role');
+        element.style.display = 'none';
+        document.querySelector(`[data-fallback-backdrop-for="${element.id}"]`)?.remove();
+        if (!document.querySelector('.modal.show')) {
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
         }
     }
 
@@ -189,8 +295,7 @@
             if (!closeButton) {
                 return;
             }
-            const toast = closeButton.closest('.toast-item');
-            removeToast(toast);
+            removeToast(closeButton.closest('.toast-item'));
         });
     }
 
@@ -207,6 +312,14 @@
         return `${service}::${key}`;
     }
 
+    function normalizeText(value) {
+        if (value === null || value === undefined) {
+            return null;
+        }
+        const text = String(value).trim();
+        return text === '' ? null : text;
+    }
+
     function normalizeSettingValue(value) {
         if (value === null || value === undefined) {
             return '';
@@ -218,6 +331,14 @@
             return JSON.stringify(value);
         }
         return String(value);
+    }
+
+    function toArray(value) {
+        return Array.isArray(value) ? value : [];
+    }
+
+    function normalizeStringArray(value) {
+        return toArray(value).map(normalizeText).filter(Boolean);
     }
 
     function createPersistentToast(type = 'info') {
@@ -274,78 +395,224 @@
         settingsStatusToast = null;
     }
 
+    function extractErrorMessage(data, fallback) {
+        if (data && typeof data === 'object') {
+            return data.message || data.error || fallback;
+        }
+        if (typeof data === 'string' && data.trim()) {
+            return data;
+        }
+        return fallback;
+    }
+
+    async function requestJson(url, options = {}) {
+        const headers = {
+            Accept: 'application/json',
+            ...(options.body ? {'Content-Type': 'application/json'} : {}),
+            ...(options.headers || {})
+        };
+        const response = await fetch(url, {...options, headers});
+        const raw = await response.text();
+        let data = null;
+        if (raw) {
+            try {
+                data = JSON.parse(raw);
+            } catch (error) {
+                data = raw;
+            }
+        }
+        if (!response.ok) {
+            throw new Error(extractErrorMessage(data, `Ответ сервера: ${response.status}`));
+        }
+        return data;
+    }
+
     async function testConnection(service) {
         try {
-            const response = await fetch(`/api/chronicler/connections/${encodeURIComponent(service)}/test`, {
+            const result = await requestJson(`/api/chronicler/connections/${encodeURIComponent(service)}/test`, {
                 method: 'POST'
             });
-            if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
-            }
-            const result = await response.json();
-            const success = Boolean(result.success);
-            const message = result.message || (success ? 'Соединение успешно' : 'Соединение не установлено');
+            const success = Boolean(result?.success);
+            const message = result?.message || (success ? 'Соединение успешно' : 'Соединение не установлено');
             return {success, message};
         } catch (error) {
-            const message = 'Ошибка проверки: ' + error.message;
-            return {success: false, message};
+            return {success: false, message: 'Ошибка проверки: ' + error.message};
         }
     }
 
-    function getServiceItemsFromCache(service) {
-        return settingsCache.filter(item => item.service === service);
+    async function fetchApplicationProperties() {
+        const data = await requestJson('/api/chronicler/properties/');
+        settingsCache = Array.isArray(data) ? data : [];
+        return settingsCache;
     }
 
-    function collectCurrentConnectionSettings() {
+    function collectCurrentConnectionSettings(items) {
         const grouped = {};
-        const serviceNames = Array.from(new Set(settingsCache
+        const serviceNames = Array.from(new Set(toArray(items)
                 .filter(item => CONNECTION_SERVICE_NAMES.has(item?.service))
                 .map(item => item.service)))
                 .sort(compareServices);
 
         serviceNames.forEach(service => {
-            const items = getServiceItemsFromCache(service);
-            if (!items.length) {
+            const serviceItems = toArray(items).filter(item => item.service === service);
+            if (!serviceItems.some(item => normalizeSettingValue(item?.value).trim() !== '')) {
                 return;
             }
             grouped[service] = {};
-            items.forEach(item => {
+            serviceItems.forEach(item => {
                 grouped[service][item.key] = item.value ?? '';
             });
         });
 
+        return grouped;
+    }
+
+    function normalizeStandConfigurationForExport(payload) {
         return {
-            version: 1,
-            exportedAt: new Date().toISOString(),
-            connections: grouped
+            namespaces: normalizeStringArray(payload?.namespaces),
+            components: normalizeStringArray(payload?.components),
+            services: toArray(payload?.services).map(service => ({
+                namespace: normalizeText(service?.namespace),
+                serviceName: normalizeText(service?.serviceName)
+            })).filter(service => service.namespace && service.serviceName)
         };
     }
 
-    function downloadConnectionSettings() {
-        const payload = collectCurrentConnectionSettings();
-        const hasData = Object.keys(payload.connections || {}).length > 0;
-        if (!hasData) {
-            showToast('Нет настроек для выгрузки.', 'info');
-            return;
+    function normalizeTemplateForExport(template) {
+        return {
+            shortName: template?.shortName ?? '',
+            fullName: template?.fullName ?? '',
+            reportTitle: template?.reportTitle ?? '',
+            text: template?.text ?? '',
+            charts: toArray(template?.charts).map(chart => ({
+                title: chart?.title ?? '',
+                dashboardUid: chart?.dashboardUid ?? '',
+                panelId: Number(chart?.panelId ?? 0)
+            }))
+        };
+    }
+
+    function normalizeDashboardForExport(dashboard) {
+        return {
+            uid: dashboard?.uid ?? '',
+            slug: dashboard?.slug ?? '',
+            title: dashboard?.title ?? '',
+            enabled: dashboard?.enabled !== false,
+            panels: toArray(dashboard?.panels).map(panel => ({
+                panelId: Number(panel?.panelId ?? 0),
+                title: panel?.title ?? '',
+                selected: panel?.selected !== false,
+                query: panel?.query ?? '',
+                threshold: panel?.threshold ?? null,
+                testQuery: Boolean(panel?.testQuery)
+            })),
+            variables: toArray(dashboard?.variables).map(variable => ({
+                name: variable?.name ?? '',
+                label: variable?.label ?? '',
+                type: variable?.type ?? '',
+                value: variable?.value ?? '',
+                defaultValue: variable?.defaultValue ?? '',
+                options: toArray(variable?.options).map(option => ({
+                    value: option?.value ?? '',
+                    text: option?.text ?? '',
+                    selected: Boolean(option?.selected)
+                }))
+            }))
+        };
+    }
+
+    function normalizeRequirementForExport(requirement) {
+        return {
+            code: requirement?.code ?? '',
+            metricType: requirement?.metricType ?? '',
+            thresholdValue: requirement?.thresholdValue ?? null,
+            thresholdUnit: requirement?.thresholdUnit ?? '',
+            active: requirement?.active !== false,
+            parameters: requirement?.parameters ?? {},
+            descriptionRu: requirement?.descriptionRu ?? ''
+        };
+    }
+
+    function getSelectedExportSections() {
+        return Array.from(document.querySelectorAll('[data-export-section]:checked'))
+                .map(input => input.value)
+                .filter(Boolean);
+    }
+
+    async function buildSettingsExportPayload(sections) {
+        const selected = new Set(sections);
+        const payload = {
+            version: 2,
+            exportedAt: new Date().toISOString(),
+            sections: sections.map(section => SETTINGS_SECTION_LABELS[section] ?? section)
+        };
+
+        if (selected.has('connections')) {
+            setSettingsStatus('Готовим настройки подключений…', 'info');
+            payload.connections = collectCurrentConnectionSettings(await fetchApplicationProperties());
         }
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        if (selected.has('standConfiguration')) {
+            setSettingsStatus('Готовим настройки конфигурации стенда…', 'info');
+            payload.standConfiguration = normalizeStandConfigurationForExport(
+                    await requestJson('/api/settings/stand-configuration'));
+        }
+        if (selected.has('reportTemplates')) {
+            setSettingsStatus('Готовим шаблоны отчетов…', 'info');
+            const templates = await requestJson('/api/settings/confluence-templates');
+            payload.reportTemplates = toArray(templates).map(normalizeTemplateForExport);
+        }
+        if (selected.has('grafanaAndRequirements')) {
+            setSettingsStatus('Готовим графики и требования…', 'info');
+            const [dashboards, requirements] = await Promise.all([
+                requestJson('/api/settings/grafana-dashboards'),
+                requestJson('/api/settings/non-functional-requirements')
+            ]);
+            payload.grafanaDashboards = toArray(dashboards).map(normalizeDashboardForExport);
+            payload.nonFunctionalRequirements = toArray(requirements).map(normalizeRequirementForExport);
+        }
+
+        return payload;
+    }
+
+    function downloadJson(payload, fileName) {
         const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `chronicler-connections-${stamp}.json`;
+        link.download = fileName;
         document.body.appendChild(link);
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
-        showToast('Настройки подключений выгружены в JSON.', 'success', 6000);
+    }
+
+    async function exportSelectedSettings() {
+        const sections = getSelectedExportSections();
+        if (!sections.length) {
+            showToast('Выберите хотя бы один раздел настроек.', 'warning');
+            return;
+        }
+
+        setSettingsActionsDisabled(true);
+        try {
+            const payload = await buildSettingsExportPayload(sections);
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            downloadJson(payload, `chronicler-settings-${stamp}.json`);
+            exportSettingsModal?.hide();
+            setSettingsStatus('Настройки выгружены в JSON.', 'success');
+        } catch (error) {
+            setSettingsStatus('Не удалось выгрузить настройки: ' + error.message, 'danger');
+            showToast('Не удалось выгрузить настройки: ' + error.message, 'danger');
+        } finally {
+            setSettingsActionsDisabled(settingsImportInProgress);
+        }
     }
 
     function normalizeImportedConnectionEntries(rawData) {
         const entries = [];
         const addEntry = (service, key, value) => {
-            const normalizedService = typeof service === 'string' ? service.trim() : '';
-            const normalizedKey = typeof key === 'string' ? key.trim() : '';
+            const normalizedService = normalizeText(service);
+            const normalizedKey = normalizeText(key);
             if (!normalizedService || !normalizedKey) {
                 return;
             }
@@ -362,7 +629,7 @@
         }
 
         if (!rawData || typeof rawData !== 'object') {
-            throw new Error('Файл должен содержать JSON-объект с настройками подключений.');
+            return entries;
         }
 
         if (Array.isArray(rawData.parameters)) {
@@ -370,14 +637,18 @@
             return entries;
         }
 
-        const connections = rawData.connections
-            ?? rawData.services
-            ?? (Object.values(rawData).every(value => value && typeof value === 'object' && !Array.isArray(value))
-                ? rawData
-                : null);
-
-        if (!connections || typeof connections !== 'object' || Array.isArray(connections)) {
-            throw new Error('Неподдерживаемый формат файла. Используйте JSON из кнопки "Выгрузить настройки".');
+        let connections = rawData.connections;
+        if (!connections && !Object.keys(rawData).some(key => CONNECTION_IMPORT_RESERVED_KEYS.has(key))) {
+            const looksLikeServiceMap = Object.values(rawData)
+                    .every(value => value && typeof value === 'object' && !Array.isArray(value));
+            connections = looksLikeServiceMap ? rawData : null;
+        }
+        if (Array.isArray(connections)) {
+            connections.forEach(item => addEntry(item?.service, item?.key, item?.value));
+            return entries;
+        }
+        if (!connections || typeof connections !== 'object') {
+            return entries;
         }
 
         Object.entries(connections).forEach(([service, values]) => {
@@ -390,6 +661,9 @@
     }
 
     async function saveImportedConnectionEntries(entries) {
+        if (!settingsCache.length) {
+            await fetchApplicationProperties();
+        }
         const knownKeys = new Set(settingsCache
                 .filter(item => CONNECTION_SERVICE_NAMES.has(item?.service))
                 .map(item => getCompoundKey(item.service, item.key)));
@@ -407,74 +681,308 @@
             services.add(entry.service);
         });
 
-        if (!parameters.length) {
-            throw new Error('Не найдено совпадающих настроек для импорта.');
+        if (parameters.length) {
+            const data = await requestJson('/api/chronicler/properties/', {
+                method: 'PATCH',
+                body: JSON.stringify({parameters})
+            });
+            settingsCache = Array.isArray(data) ? data : [];
         }
-
-        const response = await fetch('/api/chronicler/properties/', {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({parameters})
-        });
-        if (!response.ok) {
-            throw new Error('Ответ сервера: ' + response.status);
-        }
-        const data = await response.json();
-        settingsCache = Array.isArray(data)
-                ? data.filter(item => CONNECTION_SERVICE_NAMES.has(item?.service))
-                : [];
 
         return {
+            count: parameters.length,
             services: Array.from(services).sort(compareServices),
             skipped
         };
     }
 
-    async function importConnectionSettingsFromFile(file) {
+    async function importStandConfiguration(rawStandConfiguration) {
+        if (!rawStandConfiguration || typeof rawStandConfiguration !== 'object') {
+            return 0;
+        }
+        const current = await requestJson('/api/settings/stand-configuration');
+        const payload = {
+            namespaces: Array.isArray(rawStandConfiguration.namespaces)
+                    ? normalizeStringArray(rawStandConfiguration.namespaces)
+                    : normalizeStringArray(current?.namespaces),
+            components: Array.isArray(rawStandConfiguration.components)
+                    ? normalizeStringArray(rawStandConfiguration.components)
+                    : normalizeStringArray(current?.components),
+            services: Array.isArray(rawStandConfiguration.services)
+                    ? toArray(rawStandConfiguration.services).map(service => ({
+                        namespace: normalizeText(service?.namespace),
+                        serviceName: normalizeText(service?.serviceName)
+                    })).filter(service => service.namespace && service.serviceName)
+                    : toArray(current?.services)
+        };
+        await requestJson('/api/settings/stand-configuration', {
+            method: 'PATCH',
+            body: JSON.stringify(payload)
+        });
+        return 1;
+    }
+
+    function normalizeDashboardPanelPayload(panel) {
+        const rawPanelId = typeof panel === 'number' ? panel : panel?.panelId;
+        const panelId = Number.parseInt(rawPanelId, 10);
+        if (!Number.isFinite(panelId) || panelId <= 0) {
+            return null;
+        }
+        const threshold = panel?.threshold === null || panel?.threshold === undefined || panel?.threshold === ''
+                ? null
+                : Number(panel.threshold);
+        return {
+            panelId,
+            selected: panel?.selected !== false,
+            title: normalizeText(panel?.title) ?? `График ${panelId}`,
+            query: panel?.query ?? '',
+            threshold: Number.isFinite(threshold) ? threshold : null,
+            testQuery: Boolean(panel?.testQuery)
+        };
+    }
+
+    function normalizeDashboardVariablePayload(variable) {
+        const name = normalizeText(variable?.name);
+        if (!name) {
+            return null;
+        }
+        return {
+            name,
+            label: normalizeText(variable?.label) ?? name,
+            type: normalizeText(variable?.type),
+            value: variable?.value ?? variable?.defaultValue ?? '',
+            defaultValue: variable?.defaultValue ?? '',
+            options: toArray(variable?.options).map(option => ({
+                value: option?.value ?? '',
+                text: option?.text ?? '',
+                selected: Boolean(option?.selected)
+            }))
+        };
+    }
+
+    async function importGrafanaDashboards(rawDashboards) {
+        const dashboards = toArray(rawDashboards);
+        let count = 0;
+        for (const dashboard of dashboards) {
+            const uid = normalizeText(dashboard?.uid);
+            if (!uid) {
+                continue;
+            }
+            const panelSettings = toArray(dashboard?.panels)
+                    .map(normalizeDashboardPanelPayload)
+                    .filter(Boolean);
+            const panels = panelSettings
+                    .filter(panel => panel.selected)
+                    .map(panel => panel.panelId);
+            await requestJson(`/api/settings/grafana-dashboards/${encodeURIComponent(uid)}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    slug: normalizeText(dashboard?.slug) ?? uid,
+                    title: normalizeText(dashboard?.title) ?? normalizeText(dashboard?.slug) ?? uid,
+                    panels,
+                    enabled: dashboard?.enabled !== false,
+                    panelSettings,
+                    variables: toArray(dashboard?.variables)
+                            .map(normalizeDashboardVariablePayload)
+                            .filter(Boolean)
+                })
+            });
+            count += 1;
+        }
+        return count;
+    }
+
+    function normalizeTemplatePayload(template) {
+        const shortName = normalizeText(template?.shortName);
+        const fullName = normalizeText(template?.fullName);
+        const reportTitle = normalizeText(template?.reportTitle);
+        const text = template?.text ?? '';
+        if (!shortName || !fullName || !reportTitle || !normalizeText(text)) {
+            return null;
+        }
+        return {
+            shortName,
+            fullName,
+            reportTitle,
+            text,
+            charts: toArray(template?.charts).map(chart => ({
+                title: normalizeText(chart?.title) ?? '',
+                dashboardUid: normalizeText(chart?.dashboardUid) ?? '',
+                panelId: Number.parseInt(chart?.panelId, 10)
+            })).filter(chart => chart.title && chart.dashboardUid && Number.isFinite(chart.panelId) && chart.panelId > 0)
+        };
+    }
+
+    async function importReportTemplates(rawTemplates) {
+        const templates = toArray(rawTemplates);
+        if (!templates.length) {
+            return 0;
+        }
+        const existingTemplates = toArray(await requestJson('/api/settings/confluence-templates'));
+        const byShortName = new Map(existingTemplates
+                .map(template => [normalizeText(template?.shortName)?.toLowerCase(), template])
+                .filter(([key]) => key));
+        let count = 0;
+        for (const template of templates) {
+            const payload = normalizeTemplatePayload(template);
+            if (!payload) {
+                continue;
+            }
+            const existing = byShortName.get(payload.shortName.toLowerCase());
+            await requestJson(existing
+                    ? `/api/settings/confluence-templates/${existing.id}`
+                    : '/api/settings/confluence-templates', {
+                method: existing ? 'PUT' : 'POST',
+                body: JSON.stringify(payload)
+            });
+            count += 1;
+        }
+        return count;
+    }
+
+    function normalizeRequirementPayload(requirement) {
+        const code = normalizeText(requirement?.code);
+        const metricType = normalizeText(requirement?.metricType);
+        const thresholdUnit = normalizeText(requirement?.thresholdUnit);
+        const thresholdValue = Number(requirement?.thresholdValue);
+        if (!code || !metricType || !thresholdUnit || !Number.isFinite(thresholdValue)) {
+            return null;
+        }
+        return {
+            code,
+            metricType,
+            thresholdValue,
+            thresholdUnit,
+            descriptionRu: requirement?.descriptionRu ?? '',
+            active: requirement?.active !== false,
+            parameters: requirement?.parameters ?? {}
+        };
+    }
+
+    async function importNonFunctionalRequirements(rawRequirements) {
+        const requirements = toArray(rawRequirements);
+        if (!requirements.length) {
+            return 0;
+        }
+        const existingRequirements = toArray(await requestJson('/api/settings/non-functional-requirements'));
+        const byCode = new Map(existingRequirements
+                .map(requirement => [normalizeText(requirement?.code)?.toLowerCase(), requirement])
+                .filter(([key]) => key));
+        let count = 0;
+        for (const requirement of requirements) {
+            const payload = normalizeRequirementPayload(requirement);
+            if (!payload) {
+                continue;
+            }
+            const existing = byCode.get(payload.code.toLowerCase());
+            await requestJson(existing
+                    ? `/api/settings/non-functional-requirements/${existing.id}`
+                    : '/api/settings/non-functional-requirements', {
+                method: existing ? 'PUT' : 'POST',
+                body: JSON.stringify(payload)
+            });
+            count += 1;
+        }
+        return count;
+    }
+
+    function buildImportSummary(parts) {
+        const messages = [];
+        if (parts.connectionCount > 0) {
+            messages.push(`подключения: ${parts.connectionCount}`);
+        }
+        if (parts.standCount > 0) {
+            messages.push('конфигурация стенда');
+        }
+        if (parts.dashboardCount > 0) {
+            messages.push(`дашборды: ${parts.dashboardCount}`);
+        }
+        if (parts.requirementCount > 0) {
+            messages.push(`требования: ${parts.requirementCount}`);
+        }
+        if (parts.templateCount > 0) {
+            messages.push(`шаблоны: ${parts.templateCount}`);
+        }
+        return messages.length ? messages.join(', ') : 'нет примененных настроек';
+    }
+
+    async function importSettingsFromFile(file) {
         if (!file) {
             return;
         }
         settingsImportInProgress = true;
         setSettingsActionsDisabled(true);
-        setSettingsStatus('Читаем файл с настройками подключений…', 'info');
+        setSettingsStatus('Читаем файл с настройками…', 'info');
         try {
-            const rawText = await file.text();
-            const parsed = JSON.parse(rawText);
-            const entries = normalizeImportedConnectionEntries(parsed);
-            if (!entries.length) {
-                throw new Error('В файле не найдено ни одной настройки подключений.');
-            }
+            const parsed = JSON.parse(await file.text());
+            const parts = {
+                connectionCount: 0,
+                standCount: 0,
+                dashboardCount: 0,
+                requirementCount: 0,
+                templateCount: 0
+            };
+            let recognized = false;
 
-            const applied = await saveImportedConnectionEntries(entries);
-
-            for (let index = 0; index < applied.services.length; index += 1) {
-                const service = applied.services[index];
-                setSettingsStatus(
-                    `Проверяем подключение ${service} (${index + 1}/${applied.services.length})…`,
-                    'info'
-                );
-                const result = await testConnection(service);
-                if (!result.success) {
-                    showToast(`${service}: ${result.message}`, 'danger');
+            const connectionEntries = normalizeImportedConnectionEntries(parsed);
+            if (connectionEntries.length) {
+                recognized = true;
+                setSettingsStatus('Загружаем настройки подключений…', 'info');
+                const applied = await saveImportedConnectionEntries(connectionEntries);
+                parts.connectionCount = applied.count;
+                for (let index = 0; index < applied.services.length; index += 1) {
+                    const service = applied.services[index];
+                    setSettingsStatus(`Проверяем подключение ${service} (${index + 1}/${applied.services.length})…`, 'info');
+                    const result = await testConnection(service);
+                    if (!result.success) {
+                        showToast(`${service}: ${result.message}`, 'danger');
+                    }
+                }
+                if (applied.skipped.length) {
+                    const skippedPreview = applied.skipped.slice(0, 4).join(', ');
+                    const suffix = applied.skipped.length > 4 ? ' и другие' : '';
+                    showToast(`Пропущены неизвестные настройки: ${skippedPreview}${suffix}.`, 'info');
                 }
             }
 
-            if (applied.skipped.length) {
-                const skippedPreview = applied.skipped.slice(0, 4).join(', ');
-                const suffix = applied.skipped.length > 4 ? ' и другие' : '';
-                showToast(`Пропущены неизвестные настройки: ${skippedPreview}${suffix}.`, 'info');
+            if (parsed?.standConfiguration) {
+                recognized = true;
+                setSettingsStatus('Загружаем настройки конфигурации стенда…', 'info');
+                parts.standCount = await importStandConfiguration(parsed.standConfiguration);
             }
 
-            setSettingsStatus('Настройки подключений загружены из JSON.', 'success');
+            if (Array.isArray(parsed?.grafanaDashboards)) {
+                recognized = true;
+                setSettingsStatus('Загружаем список графиков…', 'info');
+                parts.dashboardCount = await importGrafanaDashboards(parsed.grafanaDashboards);
+            }
+
+            if (Array.isArray(parsed?.nonFunctionalRequirements)) {
+                recognized = true;
+                setSettingsStatus('Загружаем нефункциональные требования…', 'info');
+                parts.requirementCount = await importNonFunctionalRequirements(parsed.nonFunctionalRequirements);
+            }
+
+            if (Array.isArray(parsed?.reportTemplates)) {
+                recognized = true;
+                setSettingsStatus('Загружаем шаблоны отчетов…', 'info');
+                parts.templateCount = await importReportTemplates(parsed.reportTemplates);
+            }
+
+            if (!recognized) {
+                throw new Error('Неподдерживаемый формат файла. Используйте JSON из кнопки "Выгрузить настройки".');
+            }
+
+            const summary = buildImportSummary(parts);
+            setSettingsStatus('Настройки загружены из JSON: ' + summary + '.', 'success');
+            showToast('Настройки загружены из JSON.', 'success', 6000);
         } catch (error) {
             setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');
             showToast('Не удалось загрузить настройки: ' + error.message, 'danger');
         } finally {
             settingsImportInProgress = false;
-            if (importConnectionsInput) {
-                importConnectionsInput.value = '';
+            if (importSettingsInput) {
+                importSettingsInput.value = '';
             }
             setSettingsActionsDisabled(false);
         }
@@ -484,14 +992,7 @@
         setSettingsStatus('Загружаем настройки…', 'info');
         setSettingsActionsDisabled(true);
         try {
-            const response = await fetch('/api/chronicler/properties/');
-            if (!response.ok) {
-                throw new Error('Ответ сервера: ' + response.status);
-            }
-            const data = await response.json();
-            settingsCache = Array.isArray(data)
-                    ? data.filter(item => CONNECTION_SERVICE_NAMES.has(item?.service))
-                    : [];
+            await fetchApplicationProperties();
             clearSettingsStatus();
         } catch (error) {
             setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');
@@ -500,21 +1001,32 @@
         }
     }
 
-    if (exportConnectionsButton) {
-        exportConnectionsButton.addEventListener('click', downloadConnectionSettings);
+    if (exportSettingsButton) {
+        exportSettingsButton.addEventListener('click', () => {
+            document.querySelectorAll('[data-export-section]').forEach(input => {
+                input.checked = true;
+            });
+            exportSettingsModal?.show();
+        });
     }
 
-    if (importConnectionsButton && importConnectionsInput) {
-        importConnectionsButton.addEventListener('click', () => {
+    if (confirmExportSettingsButton) {
+        confirmExportSettingsButton.addEventListener('click', () => {
+            void exportSelectedSettings();
+        });
+    }
+
+    if (importSettingsButton && importSettingsInput) {
+        importSettingsButton.addEventListener('click', () => {
             if (settingsImportInProgress) {
                 return;
             }
-            importConnectionsInput.value = '';
-            importConnectionsInput.click();
+            importSettingsInput.value = '';
+            importSettingsInput.click();
         });
-        importConnectionsInput.addEventListener('change', event => {
+        importSettingsInput.addEventListener('change', event => {
             const [file] = event.target.files || [];
-            void importConnectionSettingsFromFile(file);
+            void importSettingsFromFile(file);
         });
     }
 

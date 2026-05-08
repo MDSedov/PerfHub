@@ -6,6 +6,7 @@ import java.util.List;
 
 public record GrafanaDashboardUpdateRequest(
         @NotBlank String slug,
+        String title,
         @NotNull List<Integer> panels,
         Boolean enabled,
         List<GrafanaDashboardPanelUpdateRequest> panelSettings,

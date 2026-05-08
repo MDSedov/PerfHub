@@ -54,6 +54,7 @@ public class GrafanaDashboardSettingsController {
         GrafanaDashboard dashboard = service.update(
                 uid,
                 request.slug(),
+                request.title(),
                 request.panels(),
                 request.enabled(),
                 request.panelSettings(),

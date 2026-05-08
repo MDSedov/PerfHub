@@ -104,12 +104,14 @@ public class GrafanaDashboardSettingsService {
     public GrafanaDashboard update(
             String uid,
             String slug,
+            String title,
             List<Integer> panels,
             Boolean enabled,
             List<GrafanaDashboardPanelUpdateRequest> panelSettings,
             List<GrafanaDashboardVariableUpdateRequest> variables) {
         String normalizedUid = normalizeUid(uid);
         String normalizedSlug = normalizeSlug(slug);
+        String normalizedTitle = StringUtils.hasText(title) ? title.trim() : null;
         List<Integer> selectedPanels = panelSettings == null || panelSettings.isEmpty()
                 ? normalizePanels(panels)
                 : panelSettings.stream()
@@ -133,11 +135,13 @@ public class GrafanaDashboardSettingsService {
                             item -> item,
                             (first, second) -> first));
 
-            String dashboardTitle = cachedPanels.stream()
-                    .map(GrafanaDashboardPanelRecord::dashboardTitle)
-                    .filter(StringUtils::hasText)
-                    .findFirst()
-                    .orElse(normalizedSlug);
+            String dashboardTitle = normalizedTitle != null
+                    ? normalizedTitle
+                    : cachedPanels.stream()
+                            .map(GrafanaDashboardPanelRecord::dashboardTitle)
+                            .filter(StringUtils::hasText)
+                            .findFirst()
+                            .orElse(normalizedSlug);
 
             if (testQuerySelections == 1) {
                 panelRepository.clearTestQueryFlag();
@@ -147,9 +151,9 @@ public class GrafanaDashboardSettingsService {
                     .filter(item -> item.panelId() != null)
                     .map(setting -> {
                         GrafanaDashboardPanelRecord cached = cachedById.get(setting.panelId());
-                        String title = cached != null && StringUtils.hasText(cached.panelTitle())
+                        String panelTitle = cached != null && StringUtils.hasText(cached.panelTitle())
                                 ? cached.panelTitle()
-                                : ("График " + setting.panelId());
+                                : (StringUtils.hasText(setting.title()) ? setting.title().trim() : ("График " + setting.panelId()));
                         String query = setting.query() != null ? setting.query() : (cached != null ? cached.panelQuery() : null);
                         Double threshold = setting.threshold() != null
                                 ? setting.threshold()
@@ -162,7 +166,7 @@ public class GrafanaDashboardSettingsService {
                                 normalizedSlug,
                                 dashboardTitle,
                                 setting.panelId(),
-                                title,
+                                panelTitle,
                                 query,
                                 threshold,
                                 testQuery);
@@ -172,11 +176,11 @@ public class GrafanaDashboardSettingsService {
         }
 
         if (variables != null) {
-            Map<String, String> variableValues = variables.stream()
+            Map<String, GrafanaDashboardVariableUpdateRequest> variableValues = variables.stream()
                     .filter(item -> StringUtils.hasText(item.name()))
                     .collect(Collectors.toMap(
                             GrafanaDashboardVariableUpdateRequest::name,
-                            GrafanaDashboardVariableUpdateRequest::value,
+                            item -> item,
                             (first, second) -> second));
             List<GrafanaDashboardVariableRecord> cachedVariables =
                     variableRepository.findByDashboardUid(normalizedUid);
@@ -188,29 +192,46 @@ public class GrafanaDashboardSettingsService {
 
             List<GrafanaDashboardVariableRecord> updatedVariables = new ArrayList<>();
             for (GrafanaDashboardVariableRecord variable : cachedVariables) {
-                String newValue = variableValues.containsKey(variable.name())
-                        ? StringUtils.trimWhitespace(variableValues.get(variable.name()))
+                GrafanaDashboardVariableUpdateRequest requested = variableValues.get(variable.name());
+                String newValue = requested != null
+                        ? StringUtils.trimWhitespace(requested.value())
                         : variable.value();
+                String newLabel = requested != null && StringUtils.hasText(requested.label())
+                        ? requested.label().trim()
+                        : variable.label();
+                String newType = requested != null && StringUtils.hasText(requested.type())
+                        ? requested.type().trim()
+                        : variable.type();
+                String newDefaultValue = requested != null && requested.defaultValue() != null
+                        ? StringUtils.trimWhitespace(requested.defaultValue())
+                        : variable.defaultValue();
+                List<GrafanaVariableOptionRecord> newOptions =
+                        requested != null && requested.options() != null
+                                ? toOptionRecordsFromDto(requested.options())
+                                : variable.options();
                 updatedVariables.add(new GrafanaDashboardVariableRecord(
                         normalizedUid,
                         variable.name(),
-                        variable.label(),
-                        variable.type(),
-                        variable.defaultValue(),
+                        newLabel,
+                        newType,
+                        newDefaultValue,
                         newValue,
-                        variable.options()));
+                        newOptions));
             }
 
             variableValues.keySet().stream()
                     .filter(name -> !cachedByName.containsKey(name))
-                    .forEach(name -> updatedVariables.add(new GrafanaDashboardVariableRecord(
-                            normalizedUid,
-                            name,
-                            name,
-                            null,
-                            null,
-                            StringUtils.trimWhitespace(variableValues.get(name)),
-                            List.of())));
+                    .forEach(name -> {
+                        GrafanaDashboardVariableUpdateRequest requested = variableValues.get(name);
+                        updatedVariables.add(new GrafanaDashboardVariableRecord(
+                                normalizedUid,
+                                name,
+                                StringUtils.hasText(requested.label()) ? requested.label().trim() : name,
+                                StringUtils.hasText(requested.type()) ? requested.type().trim() : null,
+                                requested.defaultValue() != null ? StringUtils.trimWhitespace(requested.defaultValue()) : null,
+                                StringUtils.trimWhitespace(requested.value()),
+                                requested.options() == null ? List.of() : toOptionRecordsFromDto(requested.options())));
+                    });
 
             variableRepository.replaceForDashboard(normalizedUid, updatedVariables);
         }
@@ -397,6 +418,16 @@ public class GrafanaDashboardSettingsService {
         return cachedOptions.stream().toList();
     }
 
+    private List<GrafanaVariableOptionRecord> toOptionRecordsFromDto(List<GrafanaVariableOptionDto> options) {
+        if (options == null || options.isEmpty()) {
+            return List.of();
+        }
+        return options.stream()
+                .filter(Objects::nonNull)
+                .map(option -> new GrafanaVariableOptionRecord(option.value(), option.text(), option.selected()))
+                .toList();
+    }
+
     private GrafanaDashboardVariableDto toVariableDto(GrafanaDashboardVariableRecord record) {
         List<GrafanaVariableOptionDto> options = record.options() == null
                 ? List.of()
@@ -425,7 +456,7 @@ public class GrafanaDashboardSettingsService {
     }
 
     private boolean resolveEnabled(Boolean enabled) {
-        return true;
+        return Boolean.TRUE.equals(enabled);
     }
 
     private String normalizeSlug(String slug) {
