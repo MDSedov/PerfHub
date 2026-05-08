@@ -34,13 +34,16 @@ body {
             align-items: center;
             gap: 0.55rem;
             text-decoration: none;
+            padding-left: 0.9rem;
         }
 
         .brand-logo {
-            height: 42px;
+            height: 28px;
             width: auto;
-            border-radius: 14px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+            max-width: 170px;
+            border-radius: 0;
+            box-shadow: none;
+            display: block;
         }
 
         .sidebar-menu {
@@ -1107,13 +1110,16 @@ body {
             align-items: center;
             gap: 0.55rem;
             text-decoration: none;
+            padding-left: 0.9rem;
         }
 
         .brand-logo {
-            height: 42px;
+            height: 28px;
             width: auto;
-            border-radius: 14px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+            max-width: 170px;
+            border-radius: 0;
+            box-shadow: none;
+            display: block;
         }
 
         .sidebar-menu {
@@ -1321,13 +1327,16 @@ body {
             align-items: center;
             gap: 0.55rem;
             text-decoration: none;
+            padding-left: 0.9rem;
         }
 
         .brand-logo {
-            height: 42px;
+            height: 28px;
             width: auto;
-            border-radius: 14px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+            max-width: 170px;
+            border-radius: 0;
+            box-shadow: none;
+            display: block;
         }
 
         .sidebar-menu {
@@ -1755,13 +1764,16 @@ body {
             align-items: center;
             gap: 0.55rem;
             text-decoration: none;
+            padding-left: 0.9rem;
         }
 
         .brand-logo {
-            height: 42px;
+            height: 28px;
             width: auto;
-            border-radius: 14px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+            max-width: 170px;
+            border-radius: 0;
+            box-shadow: none;
+            display: block;
         }
 
         .sidebar-menu {
@@ -2079,13 +2091,16 @@ body {
             align-items: center;
             gap: 0.55rem;
             text-decoration: none;
+            padding-left: 0.9rem;
         }
 
         .brand-logo {
-            height: 42px;
+            height: 28px;
             width: auto;
-            border-radius: 14px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+            max-width: 170px;
+            border-radius: 0;
+            box-shadow: none;
+            display: block;
         }
 
         .sidebar-menu {
@@ -2550,13 +2565,16 @@ body {
             align-items: center;
             gap: 0.55rem;
             text-decoration: none;
+            padding-left: 0.9rem;
         }
 
         .brand-logo {
-            height: 42px;
+            height: 28px;
             width: auto;
-            border-radius: 14px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+            max-width: 170px;
+            border-radius: 0;
+            box-shadow: none;
+            display: block;
         }
 
         .sidebar-menu {
@@ -2803,13 +2821,16 @@ body {
             align-items: center;
             gap: 0.55rem;
             text-decoration: none;
+            padding-left: 0.9rem;
         }
 
         .brand-logo {
-            height: 42px;
+            height: 28px;
             width: auto;
-            border-radius: 14px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+            max-width: 170px;
+            border-radius: 0;
+            box-shadow: none;
+            display: block;
         }
 
         .sidebar-menu {
@@ -2988,13 +3009,16 @@ body {
             align-items: center;
             gap: 0.55rem;
             text-decoration: none;
+            padding-left: 0.9rem;
         }
 
         .brand-logo {
-            height: 42px;
+            height: 28px;
             width: auto;
-            border-radius: 14px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+            max-width: 170px;
+            border-radius: 0;
+            box-shadow: none;
+            display: block;
         }
 
         .sidebar-menu {
