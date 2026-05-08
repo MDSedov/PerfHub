@@ -109,15 +109,9 @@
                 </div>
             </div>
 
-            <section class="tests-content flex-grow-1">
+            <section class="tests-content flex-grow-1 mt-3">
                 <div class="card border-0">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <div class="tests-meta">
-                                <h5 class="mb-0">Нагрузочные тесты</h5>
-                                <span id="testsCount" class="tests-count">0</span>
-                            </div>
-                        </div>
                         <div id="testsStatus" class="alert alert-info d-none" role="alert"></div>
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                             <div class="filters-bar">
@@ -198,15 +192,114 @@
                             <table class="table align-middle tests-table">
                                 <thead>
                                 <tr>
-                                    <th scope="col" class="text-center">В отчет</th>
-                                    <th scope="col">Релиз</th>
-                                    <th scope="col">Тип теста</th>
-                                    <th scope="col">Длительность</th>
-                                    <th scope="col">Начало</th>
-                                    <th scope="col">Конец</th>
-                                    <th scope="col" class="text-center">Требования</th>
-                                    <th scope="col" class="text-center">Конфигурация</th>
-                                    <th scope="col" class="text-center">Детали</th>
+                                    <th scope="col" class="text-center">
+                                        <span class="tests-column-label">
+                                            В отчет
+                                            <span class="tests-column-help"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-title="Выбор теста для генерации отчета.">
+                                                <i class="bi bi-question"></i>
+                                            </span>
+                                        </span>
+                                    </th>
+                                    <th scope="col">
+                                        <span class="tests-column-label">
+                                            Релиз
+                                            <span class="tests-column-help"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-title="Релиз или версия, к которой относится нагрузочный тест.">
+                                                <i class="bi bi-question"></i>
+                                            </span>
+                                        </span>
+                                    </th>
+                                    <th scope="col">
+                                        <span class="tests-column-label">
+                                            Тип теста
+                                            <span class="tests-column-help"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-title="Классификация нагрузочного теста: максимум, стабильность, надежность или другой тип.">
+                                                <i class="bi bi-question"></i>
+                                            </span>
+                                        </span>
+                                    </th>
+                                    <th scope="col">
+                                        <span class="tests-column-label">
+                                            Длительность
+                                            <span class="tests-column-help"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-title="Продолжительность теста между временем начала и окончания.">
+                                                <i class="bi bi-question"></i>
+                                            </span>
+                                        </span>
+                                    </th>
+                                    <th scope="col">
+                                        <span class="tests-column-label">
+                                            Начало
+                                            <span class="tests-column-help"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-title="Дата и время начала нагрузочного теста.">
+                                                <i class="bi bi-question"></i>
+                                            </span>
+                                        </span>
+                                    </th>
+                                    <th scope="col">
+                                        <span class="tests-column-label">
+                                            Конец
+                                            <span class="tests-column-help"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-title="Дата и время окончания нагрузочного теста.">
+                                                <i class="bi bi-question"></i>
+                                            </span>
+                                        </span>
+                                    </th>
+                                    <th scope="col" class="text-center">
+                                        <span class="tests-column-label">
+                                            Требования
+                                            <span class="tests-column-help"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-title="Статус проверки теста на заданные нефункциональные требования.">
+                                                <i class="bi bi-question"></i>
+                                            </span>
+                                        </span>
+                                    </th>
+                                    <th scope="col" class="text-center">
+                                        <span class="tests-column-label">
+                                            Конфигурация
+                                            <span class="tests-column-help"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-title="Наличие сохраненной конфигурации стенда для теста.">
+                                                <i class="bi bi-question"></i>
+                                            </span>
+                                        </span>
+                                    </th>
+                                    <th scope="col" class="text-center">
+                                        <span class="tests-column-label">
+                                            Детали
+                                            <span class="tests-column-help"
+                                                  role="button"
+                                                  tabindex="0"
+                                                  data-bs-toggle="tooltip"
+                                                  data-bs-title="Открывает подробную информацию о тесте, графиках, требованиях и конфигурации.">
+                                                <i class="bi bi-question"></i>
+                                            </span>
+                                        </span>
+                                    </th>
                                 </tr>
                                 </thead>
                                 <tbody id="testsTableBody"></tbody>
@@ -386,7 +479,6 @@
 <script>
     const testsTableBody = document.getElementById('testsTableBody');
     const testsStatus = document.getElementById('testsStatus');
-    const testsCount = document.getElementById('testsCount');
     const refreshButton = document.getElementById('refreshTestsButton');
     const evaluateTestsButton = document.getElementById('evaluateTestsButton');
     const generateReportsButton = document.getElementById('generateReportsButton');
@@ -529,12 +621,18 @@
     const TEST_TYPE_OPTIONS = ['unknown', 'max', 'stability', 'soak', 'psu', 'dt'];
 
     const TYPE_LABELS = {
-        max: 'MAX',
-        stability: 'STABILITY',
-        soak: 'SOAK',
+        max: 'Максимум',
+        stability: 'Стабильность',
+        soak: 'Надежность',
         psu: 'PSU',
         dt: 'DT',
         unknown: 'UNKNOWN'
+    };
+
+    const TYPE_DESCRIPTIONS = {
+        max: 'Тест поиска максимальной производительности',
+        stability: 'Тест подтверждения максимальной производительности',
+        soak: 'Тест подтверждения надежности'
     };
 
     updateSelectedReportsCount();
@@ -570,6 +668,106 @@
             return normalized.toUpperCase();
         }
         return TYPE_LABELS.unknown;
+    }
+
+    function getTestTypeDescription(type) {
+        return TYPE_DESCRIPTIONS[canonicalizeTestType(type)] ?? null;
+    }
+
+    function addTooltipAttributes(element, title) {
+        const normalizedTitle = (title ?? '').toString().trim();
+        if (!element || normalizedTitle === '') {
+            return;
+        }
+        element.setAttribute('data-bs-toggle', 'tooltip');
+        element.setAttribute('data-bs-title', normalizedTitle);
+    }
+
+    function applyTestTypeTooltip(element, type) {
+        addTooltipAttributes(element, getTestTypeDescription(type));
+    }
+
+    function hideTestsFallbackTooltip() {
+        const tooltip = document.querySelector('.tests-fallback-tooltip');
+        if (tooltip) {
+            tooltip.remove();
+        }
+    }
+
+    function positionTestsFallbackTooltip(tooltip, target) {
+        const rect = target.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const gap = 8;
+        let top = rect.top + window.scrollY - tooltipRect.height - gap;
+        if (top < window.scrollY) {
+            top = rect.bottom + window.scrollY + gap;
+        }
+        const left = Math.min(
+                Math.max(rect.left + window.scrollX + rect.width / 2 - tooltipRect.width / 2, window.scrollX + gap),
+                window.scrollX + document.documentElement.clientWidth - tooltipRect.width - gap);
+        tooltip.style.top = `${top}px`;
+        tooltip.style.left = `${left}px`;
+    }
+
+    function showTestsFallbackTooltip(target) {
+        const title = (target.getAttribute('data-bs-title') ?? '').trim();
+        if (title === '') {
+            return;
+        }
+        hideTestsFallbackTooltip();
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip bs-tooltip-auto fade show tests-fallback-tooltip';
+        tooltip.setAttribute('role', 'tooltip');
+
+        const arrow = document.createElement('div');
+        arrow.className = 'tooltip-arrow';
+        const inner = document.createElement('div');
+        inner.className = 'tooltip-inner';
+        inner.textContent = title;
+        tooltip.appendChild(arrow);
+        tooltip.appendChild(inner);
+        document.body.appendChild(tooltip);
+        positionTestsFallbackTooltip(tooltip, target);
+    }
+
+    function initializeFallbackTooltip(element) {
+        if (element.dataset.fallbackTooltipReady === 'true') {
+            return;
+        }
+        element.dataset.fallbackTooltipReady = 'true';
+        element.addEventListener('mouseenter', () => showTestsFallbackTooltip(element));
+        element.addEventListener('mouseleave', hideTestsFallbackTooltip);
+        element.addEventListener('focus', () => showTestsFallbackTooltip(element));
+        element.addEventListener('blur', hideTestsFallbackTooltip);
+    }
+
+    function disposePageTooltips(root = document) {
+        hideTestsFallbackTooltip();
+        if (!window.bootstrap?.Tooltip) {
+            return;
+        }
+        root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+            const tooltip = bootstrap.Tooltip.getInstance(element);
+            if (tooltip) {
+                tooltip.dispose();
+            }
+        });
+    }
+
+    function initializePageTooltips(root = document) {
+        root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(element => {
+            if (!window.bootstrap?.Tooltip) {
+                initializeFallbackTooltip(element);
+                return;
+            }
+            if (!bootstrap.Tooltip.getInstance(element)) {
+                new bootstrap.Tooltip(element, {
+                    boundary: 'window',
+                    container: 'body',
+                    trigger: 'hover focus'
+                });
+            }
+        });
     }
 
     function initFilterDropdowns() {
@@ -1186,6 +1384,7 @@
             return;
         }
         const selectedTests = getSelectedReportTests();
+        disposePageTooltips(generateReportsSelectedBody);
         generateReportsSelectedBody.innerHTML = '';
         if (generateReportsSelectedCounter) {
             generateReportsSelectedCounter.textContent = selectedTests.length.toString();
@@ -1207,6 +1406,7 @@
             const typeBadge = document.createElement('span');
             typeBadge.className = 'badge text-bg-light text-success badge-test-type';
             typeBadge.textContent = normalizeTestType(test?.type);
+            applyTestTypeTooltip(typeBadge, test?.type);
             typeCell.appendChild(typeBadge);
             row.appendChild(typeCell);
 
@@ -1260,6 +1460,7 @@
 
             generateReportsSelectedBody.appendChild(row);
         });
+        initializePageTooltips(generateReportsSelectedBody);
     }
 
     function extractReportCreationErrorMessage(errorText, fallback = 'Не удалось создать отчеты') {
@@ -2101,10 +2302,17 @@
         test.hasSavedConfiguration = Boolean(hasConfiguration);
     }
 
-    function renderCheckboxList(container, values, selectedValues, namePrefix = '', labelFormatter = value => value) {
+    function renderCheckboxList(
+            container,
+            values,
+            selectedValues,
+            namePrefix = '',
+            labelFormatter = value => value,
+            tooltipFormatter = null) {
         if (!container) {
             return;
         }
+        disposePageTooltips(container);
         container.innerHTML = '';
         values.forEach((value, index) => {
             const wrapper = document.createElement('div');
@@ -2124,10 +2332,14 @@
                     ? labelFormatter(value)
                     : value;
             label.textContent = text === MISSING_RELEASE_VALUE ? 'Не указан' : text;
+            if (typeof tooltipFormatter === 'function') {
+                addTooltipAttributes(label, tooltipFormatter(value));
+            }
             wrapper.appendChild(input);
             wrapper.appendChild(label);
             container.appendChild(wrapper);
         });
+        initializePageTooltips(container);
     }
 
     function collectCheckedValues(container) {
@@ -2209,7 +2421,8 @@
                 sorted,
                 filterState.types,
                 'type-filter',
-                normalizeTestType
+                normalizeTestType,
+                getTestTypeDescription
         );
         bindTypeCheckboxes();
     }
@@ -3531,8 +3744,8 @@
     }
 
     function renderTests(tests, resetCaches = false) {
+        disposePageTooltips(testsTableBody);
         testsTableBody.innerHTML = '';
-        testsCount.textContent = tests.length.toString();
         resetTestStatusRequests();
         testConfigurationStatusElements.clear();
         testStatusElements.clear();
@@ -3602,7 +3815,11 @@
 
             const typeCell = document.createElement('td');
             const normalizedType = canonicalizeTestType(test?.type) || 'unknown';
-            typeCell.textContent = TYPE_LABELS[normalizedType] ?? normalizedType.toUpperCase();
+            const typeLabel = document.createElement('span');
+            typeLabel.className = 'test-type-label';
+            typeLabel.textContent = normalizeTestType(normalizedType);
+            applyTestTypeTooltip(typeLabel, normalizedType);
+            typeCell.appendChild(typeLabel);
 
             const durationCell = document.createElement('td');
             durationCell.className = 'test-duration';
@@ -3676,6 +3893,7 @@
             testsTableBody.appendChild(summaryRow);
         });
 
+        initializePageTooltips(testsTableBody);
         updateEvaluateButtonState();
     }
 
@@ -3933,6 +4151,7 @@
 
     (async function init() {
         initFilterDropdowns();
+        initializePageTooltips(document);
         updateEvaluateButtonState();
         await loadReportTemplates();
         const loaded = await loadTests();
