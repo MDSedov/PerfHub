@@ -108,9 +108,10 @@ public class ApplicationUserService {
     }
 
     @Transactional
-    public void ensureBootstrapAdmin() {
-        if (userRepository.existsActiveAdmin()) {
-            return;
+    public ApplicationUser ensureBootstrapAdmin() {
+        Optional<ApplicationUser> existingAdmin = userRepository.findActiveByUsername(BOOTSTRAP_ADMIN_USERNAME);
+        if (existingAdmin.isPresent()) {
+            return existingAdmin.get();
         }
         userRepository.create(
                 BOOTSTRAP_ADMIN_USERNAME,
@@ -118,6 +119,8 @@ public class ApplicationUserService {
                 "PerfHub",
                 UserRole.ADMIN,
                 passwordHashService.hash(BOOTSTRAP_ADMIN_PASSWORD));
+        return userRepository.findActiveByUsername(BOOTSTRAP_ADMIN_USERNAME)
+                .orElseThrow(() -> new IllegalStateException("Не удалось создать администратора admin"));
     }
 
     private ApplicationUser getActiveUser(long id) {

@@ -2,6 +2,7 @@ package com.example.chronicler.service;
 
 import com.example.chronicler.model.ConfigurationEntry;
 import com.example.chronicler.repository.ConfigurationRepository;
+import com.example.chronicler.security.CurrentUserProvider;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -11,16 +12,21 @@ import org.springframework.util.StringUtils;
 public class ConfigurationService implements ConfigurationProvider {
 
     private final ConfigurationRepository repository;
+    private final CurrentUserProvider currentUserProvider;
 
-    public ConfigurationService(ConfigurationRepository repository) {
+    public ConfigurationService(
+            ConfigurationRepository repository,
+            CurrentUserProvider currentUserProvider) {
         this.repository = repository;
+        this.currentUserProvider = currentUserProvider;
     }
 
     public List<ConfigurationEntry> fetchAll() {
-        return repository.findAllOrdered();
+        return repository.findAllOrdered(currentUserIdOrNull());
     }
 
     public void upsertAll(List<ConfigurationEntry> entries) {
+        Long userId = currentUserIdOrNull();
         for (ConfigurationEntry entry : entries) {
             String service = StringUtils.trimWhitespace(entry.service());
             String key = StringUtils.trimWhitespace(entry.key());
@@ -31,7 +37,7 @@ public class ConfigurationService implements ConfigurationProvider {
                 throw new IllegalArgumentException("Configuration key must not be blank");
             }
             String value = entry.value() != null ? entry.value() : "";
-            repository.upsert(service, key, value);
+            repository.upsert(service, key, value, userId);
         }
     }
 
@@ -45,6 +51,10 @@ public class ConfigurationService implements ConfigurationProvider {
 
     @Override
     public Optional<String> findValue(String service, String key) {
-        return repository.findValue(service, key);
+        return repository.findValue(service, key, currentUserIdOrNull());
+    }
+
+    private Long currentUserIdOrNull() {
+        return currentUserProvider.currentUserId().orElse(null);
     }
 }

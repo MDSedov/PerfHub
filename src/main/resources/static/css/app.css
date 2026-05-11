@@ -3846,7 +3846,8 @@ body {
 }
 
 .login-logo img {
-    height: 46px;
+    height: 28px;
+    max-width: 170px;
     width: auto;
 }
 
@@ -3970,7 +3971,7 @@ body {
     }
 
     .login-logo img {
-        height: 38px;
+        height: 28px;
     }
 
     .login-shell {
