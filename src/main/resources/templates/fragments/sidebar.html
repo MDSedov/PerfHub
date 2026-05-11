@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<aside class="sidebar" th:fragment="sidebar">
+    <a class="sidebar-brand" th:href="@{/main}">
+        <img src="/img/chronicler-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
+    </a>
+    <div class="sidebar-menu">
+        <a class="sidebar-link" th:href="@{/tests}"
+           th:classappend="${activePage} == 'tests' ? ' active' : ''">
+            <span class="sidebar-item">
+                <span class="menu-icon"><i class="bi bi-activity"></i></span>
+                <span>Тесты и отчеты</span>
+            </span>
+        </a>
+        <a class="sidebar-link" th:href="@{/grafana-panels}"
+           th:classappend="${activePage} == 'grafana-panels' ? ' active' : ''">
+            <span class="sidebar-item">
+                <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                <span>Выгрузить графики</span>
+            </span>
+        </a>
+        <a class="sidebar-link" th:href="@{/configuration}"
+           th:classappend="${activePage} == 'configuration' ? ' active' : ''">
+            <span class="sidebar-item">
+                <span class="menu-icon"><i class="bi bi-gear"></i></span>
+                <span>Сохранить конфигурацию</span>
+            </span>
+        </a>
+        <a class="sidebar-link"
+           th:href="@{/settings}"
+           th:classappend="${activePage} == 'settings' ? ' active' : ''">
+            <span class="sidebar-item">
+                <span class="menu-icon"><i class="bi bi-sliders"></i></span>
+                <span>Настройки</span>
+            </span>
+        </a>
+        <div class="sidebar-submenu">
+            <a class="sidebar-sublink"
+               th:href="@{/settings/connections}"
+               th:classappend="${activeSettingsSection} == 'connections' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-plug"></i></span>
+                    <span>Подключения</span>
+                </span>
+            </a>
+            <a class="sidebar-sublink"
+               th:href="@{/settings/stand-configuration}"
+               th:classappend="${activeSettingsSection} == 'stand-configuration' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-box-seam"></i></span>
+                    <span>Конфигурация стенда</span>
+                </span>
+            </a>
+            <a class="sidebar-sublink"
+               th:href="@{/settings/templates}"
+               th:classappend="${activeSettingsSection} == 'templates' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-file-earmark-text"></i></span>
+                    <span>Шаблоны отчетов</span>
+                </span>
+            </a>
+            <a class="sidebar-sublink"
+               th:href="@{/settings/grafana-dashboards}"
+               th:classappend="${activeSettingsSection} == 'grafana-dashboards' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-graph-up"></i></span>
+                    <span>Графики и требования</span>
+                </span>
+            </a>
+        </div>
+
+        <a class="sidebar-link"
+           th:if="${currentUserAdmin}"
+           th:href="@{/admin/users}"
+           th:classappend="${activePage} == 'admin' ? ' active' : ''">
+            <span class="sidebar-item">
+                <span class="menu-icon"><i class="bi bi-shield-lock"></i></span>
+                <span>Администрирование</span>
+            </span>
+        </a>
+        <div class="sidebar-submenu" th:if="${currentUserAdmin}">
+            <a class="sidebar-sublink"
+               th:href="@{/admin/users}"
+               th:classappend="${activeAdminSection} == 'users' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-people"></i></span>
+                    <span>Пользователи и роли</span>
+                </span>
+            </a>
+        </div>
+    </div>
+
+    <div class="sidebar-footer">
+        <a class="sidebar-user-link"
+           th:href="@{/profile}"
+           th:classappend="${activePage} == 'profile' ? ' active' : ''">
+            <span class="sidebar-item">
+                <span class="menu-icon"><i class="bi bi-person-circle"></i></span>
+                <span th:text="${currentUserFullName}">Пользователь</span>
+            </span>
+        </a>
+    </div>
+</aside>
+</body>
+</html>

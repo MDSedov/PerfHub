@@ -96,6 +96,24 @@ public class DashboardController {
         return "settings-grafana-dashboards";
     }
 
+    @GetMapping("/admin")
+    public String adminRoot(Model model) {
+        return adminUsers(model);
+    }
+
+    @GetMapping("/admin/users")
+    public String adminUsers(Model model) {
+        model.addAttribute("activePage", "admin");
+        model.addAttribute("activeAdminSection", "users");
+        return "admin-users";
+    }
+
+    @GetMapping("/profile")
+    public String profile(Model model) {
+        model.addAttribute("activePage", "profile");
+        return "profile";
+    }
+
     @GetMapping("/grafana-panels")
     public String grafanaPanels(Model model) {
         model.addAttribute("activePage", "grafana-panels");

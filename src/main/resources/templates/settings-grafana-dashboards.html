@@ -23,11 +23,11 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="/css/app.css?v=perfhub-8">
+    <link rel="stylesheet" href="/css/app.css?v=perfhub-11">
 </head>
 <body class="bg-white">
 <div class="app-shell">
-    <aside class="sidebar">
+    <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar}">
         <a class="sidebar-brand" th:href="@{/main}">
             <img src="/img/chronicler-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
         </a>
@@ -859,6 +859,6 @@
 
     loadCachedDashboards();
 </script>
-<script src="/js/sidebar-collapse.js"></script>
+<script src="/js/sidebar-collapse.js?v=perfhub-10"></script>
 </body>
 </html>

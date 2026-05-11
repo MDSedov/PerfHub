@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PerfHub — Пользователи и роли</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            crossorigin="anonymous">
+    <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <script>
+        (function () {
+            try {
+                if (localStorage.getItem('perfhub.sidebar.collapsed') === 'true') {
+                    document.documentElement.classList.add('sidebar-collapsed');
+                }
+            } catch (error) {
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="/css/app.css?v=perfhub-11">
+</head>
+<body class="bg-white">
+<div class="app-shell">
+    <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar}"></aside>
+
+    <div class="page-content">
+        <main class="container-fluid py-5 px-4 px-lg-5">
+            <div class="card settings-card users-settings-card">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                        <div>
+                            <h5 class="card-title mb-1">Пользователи и роли</h5>
+                        </div>
+                        <button type="button"
+                                class="btn btn-success"
+                                id="createUserButton">
+                            Создать пользователя
+                        </button>
+                    </div>
+
+                    <div id="usersStatus" class="alert d-none" role="alert"></div>
+
+                    <div id="usersLoading" class="text-muted py-3">
+                        Загружаем пользователей…
+                    </div>
+
+                    <div id="usersTableWrapper" class="table-responsive d-none">
+                        <table class="table align-middle tests-table mb-0 users-table">
+                            <thead>
+                            <tr>
+                                <th scope="col">Имя пользователя</th>
+                                <th scope="col">Имя</th>
+                                <th scope="col">Фамилия</th>
+                                <th scope="col">Роль</th>
+                                <th scope="col" class="text-center">Раскрыть детали</th>
+                                <th scope="col" class="text-center">Удалить пользователя</th>
+                            </tr>
+                            </thead>
+                            <tbody id="usersTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="usersEmpty" class="text-muted py-4 d-none">
+                        Пользователи не найдены.
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <div class="modal fade"
+             id="userDetailsModal"
+             tabindex="-1"
+             aria-labelledby="userDetailsModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <form id="userDetailsForm">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="userDetailsModalLabel">Пользователь</h5>
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="modal"
+                                    aria-label="Закрыть"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <div class="col-12 col-lg-6">
+                                    <label for="userUsernameInput" class="form-label">Имя пользователя</label>
+                                    <input type="text" class="form-control" id="userUsernameInput" autocomplete="off" required>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label for="userRoleSelect" class="form-label">Роль</label>
+                                    <select class="form-select" id="userRoleSelect" required></select>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label for="userFirstNameInput" class="form-label">Имя</label>
+                                    <input type="text" class="form-control" id="userFirstNameInput" autocomplete="off" required>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label for="userLastNameInput" class="form-label">Фамилия</label>
+                                    <input type="text" class="form-control" id="userLastNameInput" autocomplete="off" required>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label for="userPasswordInput" class="form-label">Пароль</label>
+                                    <input type="password" class="form-control" id="userPasswordInput" autocomplete="new-password">
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label for="userPasswordConfirmationInput" class="form-label">Подтверждение пароля</label>
+                                    <input type="password" class="form-control" id="userPasswordConfirmationInput" autocomplete="new-password">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button"
+                                    class="btn btn-outline-danger me-auto d-none"
+                                    id="deleteUserInModalButton">Удалить пользователя</button>
+                            <button type="submit"
+                                    class="btn btn-success"
+                                    id="saveUserButton">Сохранить изменения</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div id="toastContainer" class="toast-container"></div>
+    </div>
+</div>
+
+<script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
+        crossorigin="anonymous"></script>
+<script src="/js/background-errors.js"></script>
+
+<script>
+    const usersStatus = document.getElementById('usersStatus');
+    const usersLoading = document.getElementById('usersLoading');
+    const usersTableWrapper = document.getElementById('usersTableWrapper');
+    const usersTableBody = document.getElementById('usersTableBody');
+    const usersEmpty = document.getElementById('usersEmpty');
+    const createUserButton = document.getElementById('createUserButton');
+    const toastContainer = document.getElementById('toastContainer');
+
+    const userDetailsModalElement = document.getElementById('userDetailsModal');
+    const userDetailsModalLabel = document.getElementById('userDetailsModalLabel');
+    const userDetailsForm = document.getElementById('userDetailsForm');
+    const userUsernameInput = document.getElementById('userUsernameInput');
+    const userRoleSelect = document.getElementById('userRoleSelect');
+    const userFirstNameInput = document.getElementById('userFirstNameInput');
+    const userLastNameInput = document.getElementById('userLastNameInput');
+    const userPasswordInput = document.getElementById('userPasswordInput');
+    const userPasswordConfirmationInput = document.getElementById('userPasswordConfirmationInput');
+    const deleteUserInModalButton = document.getElementById('deleteUserInModalButton');
+    const saveUserButton = document.getElementById('saveUserButton');
+
+    const fallbackRoles = [
+        {value: 'USER', label: 'Пользователь'},
+        {value: 'ADMIN', label: 'Администратор'}
+    ];
+
+    let usersCache = [];
+    let rolesCache = fallbackRoles;
+    let usersLoaded = false;
+    let activeUser = null;
+    let busy = false;
+
+    const PROTECTED_USERNAME = 'admin';
+    const userDetailsModal = createModalController(userDetailsModalElement);
+
+    function createModalController(element) {
+        if (!element) {
+            return null;
+        }
+        if (window.bootstrap?.Modal) {
+            try {
+                return bootstrap.Modal.getOrCreateInstance(element);
+            } catch (error) {
+                console.warn('Не удалось инициализировать Bootstrap modal, используется резервный режим.', error);
+            }
+        }
+        const fallbackController = {
+            show() {
+                element.style.display = 'block';
+                element.classList.add('show');
+                element.removeAttribute('aria-hidden');
+                element.setAttribute('aria-modal', 'true');
+                document.body.classList.add('modal-open');
+                const backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop fade show';
+                backdrop.dataset.fallbackModalBackdrop = element.id;
+                document.body.appendChild(backdrop);
+            },
+            hide() {
+                element.classList.remove('show');
+                element.style.display = 'none';
+                element.setAttribute('aria-hidden', 'true');
+                element.removeAttribute('aria-modal');
+                document.body.classList.remove('modal-open');
+                document
+                    .querySelectorAll(`[data-fallback-modal-backdrop="${element.id}"]`)
+                    .forEach(backdrop => backdrop.remove());
+            }
+        };
+        element.querySelectorAll('[data-bs-dismiss="modal"]').forEach(button => {
+            if (button.dataset.fallbackDismissBound === 'true') {
+                return;
+            }
+            button.dataset.fallbackDismissBound = 'true';
+            button.addEventListener('click', () => fallbackController.hide());
+        });
+        return fallbackController;
+    }
+
+    function removeToast(toast) {
+        if (!toast) {
+            return;
+        }
+        const timerId = toast.dataset.timerId;
+        if (timerId) {
+            clearTimeout(Number(timerId));
+        }
+        toast.remove();
+    }
+
+    function showToast(message, type = 'info', durationMs = 12000) {
+        if (!toastContainer) {
+            return null;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast-item ${type}`;
+        const body = document.createElement('p');
+        body.className = 'toast-body';
+        body.textContent = message;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Закрыть уведомление');
+        close.innerHTML = '&times;';
+        close.addEventListener('click', () => removeToast(toast));
+        const content = document.createElement('div');
+        content.className = 'flex-grow-1';
+        content.appendChild(body);
+        toast.appendChild(content);
+        toast.appendChild(close);
+        toastContainer.appendChild(toast);
+        const timerId = setTimeout(() => removeToast(toast), durationMs);
+        toast.dataset.timerId = timerId.toString();
+        return toast;
+    }
+
+    function extractErrorMessage(errorText, fallbackMessage) {
+        if (!errorText) {
+            return fallbackMessage;
+        }
+        try {
+            const parsed = JSON.parse(errorText);
+            if (typeof parsed?.message === 'string' && parsed.message.trim() !== '') {
+                return parsed.message.trim();
+            }
+        } catch (error) {
+            // ignore malformed payload
+        }
+        const normalized = String(errorText).trim();
+        return normalized === '' ? fallbackMessage : normalized;
+    }
+
+    function setUsersStatus(message, type = 'info') {
+        usersStatus.className = `alert alert-${type}`;
+        usersStatus.textContent = message;
+        usersStatus.classList.remove('d-none');
+    }
+
+    function clearUsersStatus() {
+        usersStatus.className = 'alert d-none';
+        usersStatus.textContent = '';
+    }
+
+    function setBusy(isBusy) {
+        busy = isBusy;
+        [createUserButton, saveUserButton, deleteUserInModalButton]
+                .filter(Boolean)
+                .forEach(button => {
+                    button.disabled = isBusy;
+                });
+        saveUserButton.textContent = activeUser?.id
+            ? (isBusy ? 'Сохраняем…' : 'Сохранить изменения')
+            : (isBusy ? 'Создаем…' : 'Создать пользователя');
+    }
+
+    function isProtectedUser(user) {
+        return (user?.username ?? '').trim().toLowerCase() === PROTECTED_USERNAME;
+    }
+
+    function roleLabel(value) {
+        return rolesCache.find(role => role.value === value)?.label ?? value ?? '—';
+    }
+
+    function renderRoleOptions(selectedRole = 'USER') {
+        userRoleSelect.innerHTML = '';
+        rolesCache.forEach(role => {
+            const option = document.createElement('option');
+            option.value = role.value;
+            option.textContent = role.label;
+            userRoleSelect.appendChild(option);
+        });
+        userRoleSelect.value = selectedRole || 'USER';
+    }
+
+    function renderUsersTable() {
+        usersTableBody.innerHTML = '';
+
+        if (!usersLoaded) {
+            usersLoading.classList.remove('d-none');
+            usersTableWrapper.classList.add('d-none');
+            usersEmpty.classList.add('d-none');
+            return;
+        }
+
+        usersLoading.classList.add('d-none');
+
+        if (usersCache.length === 0) {
+            usersTableWrapper.classList.add('d-none');
+            usersEmpty.classList.remove('d-none');
+            return;
+        }
+
+        usersEmpty.classList.add('d-none');
+        usersTableWrapper.classList.remove('d-none');
+
+        usersCache.forEach(user => {
+            const row = document.createElement('tr');
+
+            const usernameCell = document.createElement('td');
+            usernameCell.textContent = user.username ?? '—';
+
+            const firstNameCell = document.createElement('td');
+            firstNameCell.textContent = user.firstName ?? '—';
+
+            const lastNameCell = document.createElement('td');
+            lastNameCell.textContent = user.lastName ?? '—';
+
+            const roleCell = document.createElement('td');
+            roleCell.textContent = user.roleLabel ?? roleLabel(user.role);
+
+            const detailsCell = document.createElement('td');
+            detailsCell.className = 'text-center';
+            const detailsButton = document.createElement('button');
+            detailsButton.type = 'button';
+            detailsButton.className = 'details-toggle';
+            detailsButton.setAttribute('aria-label', `Раскрыть детали пользователя ${user.username}`);
+            detailsButton.setAttribute('aria-haspopup', 'dialog');
+            detailsButton.setAttribute('aria-controls', 'userDetailsModal');
+            detailsButton.innerHTML = '<i class="bi bi-arrows-angle-expand details-icon"></i>';
+            detailsButton.addEventListener('click', () => openUserModal(user));
+            detailsCell.appendChild(detailsButton);
+
+            const deleteCell = document.createElement('td');
+            deleteCell.className = 'text-center';
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'template-action-button danger';
+            deleteButton.setAttribute('aria-label', `Удалить пользователя ${user.username}`);
+            if (isProtectedUser(user)) {
+                deleteButton.disabled = true;
+                deleteButton.setAttribute('title', 'Пользователя admin нельзя удалить');
+            }
+            deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
+            deleteButton.addEventListener('click', () => deleteUser(user));
+            deleteCell.appendChild(deleteButton);
+
+            row.appendChild(usernameCell);
+            row.appendChild(firstNameCell);
+            row.appendChild(lastNameCell);
+            row.appendChild(roleCell);
+            row.appendChild(detailsCell);
+            row.appendChild(deleteCell);
+            usersTableBody.appendChild(row);
+        });
+    }
+
+    function openUserModal(user = null) {
+        activeUser = user ? {...user} : null;
+        const isExisting = Boolean(activeUser?.id);
+        userDetailsModalLabel.textContent = isExisting
+            ? `Пользователь: ${activeUser.username}`
+            : 'Создать пользователя';
+        userUsernameInput.value = activeUser?.username ?? '';
+        userFirstNameInput.value = activeUser?.firstName ?? '';
+        userLastNameInput.value = activeUser?.lastName ?? '';
+        userPasswordInput.value = '';
+        userPasswordConfirmationInput.value = '';
+        userPasswordInput.placeholder = isExisting ? 'Оставьте пустым, чтобы не менять пароль' : '';
+        userPasswordConfirmationInput.placeholder = isExisting ? 'Оставьте пустым, чтобы не менять пароль' : '';
+        renderRoleOptions(activeUser?.role ?? 'USER');
+        deleteUserInModalButton.classList.toggle('d-none', !isExisting || isProtectedUser(activeUser));
+        setBusy(false);
+        userDetailsModal?.show();
+    }
+
+    function buildUserPayload() {
+        const payload = {
+            username: userUsernameInput.value.trim(),
+            firstName: userFirstNameInput.value.trim(),
+            lastName: userLastNameInput.value.trim(),
+            role: userRoleSelect.value,
+            password: userPasswordInput.value,
+            passwordConfirmation: userPasswordConfirmationInput.value
+        };
+
+        if (!payload.username) {
+            throw new Error('Укажите имя пользователя');
+        }
+        if (!payload.firstName) {
+            throw new Error('Укажите имя');
+        }
+        if (!payload.lastName) {
+            throw new Error('Укажите фамилию');
+        }
+        if (!activeUser?.id && !payload.password) {
+            throw new Error('Укажите пароль');
+        }
+        if ((payload.password || payload.passwordConfirmation) && payload.password !== payload.passwordConfirmation) {
+            throw new Error('Пароль и подтверждение пароля не совпадают');
+        }
+        return payload;
+    }
+
+    async function loadRoles() {
+        try {
+            const response = await fetch('/api/admin/users/roles');
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось загрузить роли'));
+            }
+            const payload = await response.json();
+            rolesCache = Array.isArray(payload) && payload.length ? payload : fallbackRoles;
+        } catch (error) {
+            rolesCache = fallbackRoles;
+            showToast(error.message || 'Не удалось загрузить роли', 'warning');
+        }
+    }
+
+    async function loadUsers() {
+        usersLoaded = false;
+        renderUsersTable();
+        clearUsersStatus();
+        try {
+            const response = await fetch('/api/admin/users');
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось загрузить пользователей'));
+            }
+            const payload = await response.json();
+            usersCache = Array.isArray(payload) ? payload : [];
+            usersLoaded = true;
+            renderUsersTable();
+        } catch (error) {
+            usersCache = [];
+            usersLoaded = true;
+            renderUsersTable();
+            setUsersStatus(error.message || 'Не удалось загрузить пользователей', 'danger');
+        }
+    }
+
+    async function saveUser(event) {
+        event.preventDefault();
+        if (busy) {
+            return;
+        }
+        let payload;
+        try {
+            payload = buildUserPayload();
+        } catch (error) {
+            showToast(error.message || 'Проверьте заполнение пользователя', 'danger');
+            return;
+        }
+
+        setBusy(true);
+        const isExisting = Boolean(activeUser?.id);
+        const url = isExisting ? `/api/admin/users/${activeUser.id}` : '/api/admin/users';
+        const method = isExisting ? 'PUT' : 'POST';
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось сохранить пользователя'));
+            }
+            await response.json();
+            userDetailsModal?.hide();
+            await loadUsers();
+            showToast(isExisting ? 'Пользователь обновлен' : 'Пользователь создан', 'success');
+        } catch (error) {
+            showToast(error.message || 'Не удалось сохранить пользователя', 'danger');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function deleteUser(user = activeUser) {
+        if (!user?.id || busy) {
+            return;
+        }
+        if (isProtectedUser(user)) {
+            showToast('Пользователя admin нельзя удалить', 'warning');
+            return;
+        }
+        if (!window.confirm(`Вы точно хотите удалить пользователя ${user.username}?`)) {
+            return;
+        }
+        setBusy(true);
+        try {
+            const response = await fetch(`/api/admin/users/${user.id}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось удалить пользователя'));
+            }
+            if (activeUser?.id === user.id) {
+                userDetailsModal?.hide();
+                activeUser = null;
+            }
+            await loadUsers();
+            showToast('Пользователь удален', 'success');
+        } catch (error) {
+            showToast(error.message || 'Не удалось удалить пользователя', 'danger');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    createUserButton?.addEventListener('click', () => openUserModal());
+    userDetailsForm?.addEventListener('submit', saveUser);
+    deleteUserInModalButton?.addEventListener('click', () => deleteUser());
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadRoles();
+        await loadUsers();
+    });
+</script>
+<script src="/js/sidebar-collapse.js?v=perfhub-10"></script>
+</body>
+</html>

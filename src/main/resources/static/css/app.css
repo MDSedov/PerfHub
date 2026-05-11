@@ -3787,3 +3787,193 @@ body {
         display: none;
     }
 }
+
+/* authentication and user management */
+.sidebar-footer {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
+.sidebar-user-link {
+    color: #5f5e5b;
+    align-items: center;
+    display: flex;
+    flex: 1 1 auto;
+    gap: 0.5rem;
+    min-height: 36px;
+    min-width: 0;
+    padding: 0.65rem 0.9rem;
+    text-decoration: none;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-user-link:hover,
+.sidebar-user-link:focus-visible,
+.sidebar-user-link.active {
+    background-color: #f3f4f6;
+    color: #0b6b3c;
+    outline: none;
+}
+
+.sidebar-footer .sidebar-collapse-toggle {
+    align-self: center;
+    margin-top: 0;
+}
+
+.template-action-button:disabled,
+.template-action-button:disabled:hover,
+.template-action-button:disabled:focus-visible {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+    color: #9ca3af;
+    cursor: not-allowed;
+}
+
+.login-page {
+    background: #ffffff;
+    min-height: 100vh;
+    position: relative;
+}
+
+.login-logo {
+    display: inline-flex;
+    left: 1.5rem;
+    position: absolute;
+    top: 1.5rem;
+}
+
+.login-logo img {
+    height: 46px;
+    width: auto;
+}
+
+.login-shell {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+.login-form {
+    max-width: 420px;
+    width: 100%;
+}
+
+.login-form h1 {
+    color: #111827;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.login-field {
+    margin-bottom: 1rem;
+}
+
+.password-field {
+    position: relative;
+}
+
+.password-field .form-control {
+    padding-right: 3rem;
+}
+
+.password-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #6b7280;
+    display: inline-flex;
+    height: 100%;
+    justify-content: center;
+    padding: 0 0.9rem;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+    color: #0b6b3c;
+    outline: none;
+}
+
+.login-submit {
+    width: 100%;
+}
+
+.users-settings-card,
+.profile-settings-card {
+    border: 0;
+    box-shadow: none;
+}
+
+.users-table th:nth-child(1) {
+    width: 22%;
+}
+
+.users-table th:nth-child(2),
+.users-table th:nth-child(3) {
+    width: 18%;
+}
+
+.users-table th:nth-child(4) {
+    width: 18%;
+}
+
+.users-table th:nth-child(5),
+.users-table th:nth-child(6) {
+    width: 12%;
+}
+
+.users-table td,
+.users-table th {
+    white-space: nowrap;
+}
+
+.profile-form {
+    max-width: 920px;
+}
+
+@media (min-width: 993px) {
+    html.sidebar-collapsed .sidebar-footer {
+        align-items: center;
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+    }
+
+    html.sidebar-collapsed .sidebar-user-link {
+        align-items: center;
+        display: flex;
+        flex: 0 0 auto;
+        justify-content: center;
+        padding-left: 0.55rem;
+        padding-right: 0.55rem;
+        width: 100%;
+    }
+
+    html.sidebar-collapsed .sidebar-footer .sidebar-collapse-toggle {
+        align-self: center;
+    }
+}
+
+@media (max-width: 576px) {
+    .login-logo {
+        left: 1rem;
+        top: 1rem;
+    }
+
+    .login-logo img {
+        height: 38px;
+    }
+
+    .login-shell {
+        padding: 5rem 1rem 1rem;
+    }
+}

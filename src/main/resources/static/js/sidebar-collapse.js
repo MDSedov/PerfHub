@@ -10,7 +10,7 @@
     }
 
     function prepareLinks(sidebar) {
-        sidebar.querySelectorAll('.sidebar-link, .sidebar-sublink, .sidebar-toggle').forEach(link => {
+        sidebar.querySelectorAll('.sidebar-link, .sidebar-sublink, .sidebar-toggle, .sidebar-user-link').forEach(link => {
             const label = getLinkText(link);
             if (label) {
                 link.setAttribute('title', label);
@@ -67,11 +67,12 @@
         if (existing) {
             return existing;
         }
+        const footer = sidebar.querySelector('.sidebar-footer');
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'sidebar-collapse-toggle';
         button.innerHTML = '<i class="bi bi-arrow-bar-left"></i>';
-        sidebar.appendChild(button);
+        (footer || sidebar).appendChild(button);
         return button;
     }
 
