@@ -17,7 +17,8 @@ import org.springframework.stereotype.Repository;
 public class LoadTestRepository {
 
     private static final String BASE_SELECT =
-            "SELECT t.test_uuid, t.start_time, t.end_time, tt.test_type AS test_type, t.comment "
+            "SELECT t.test_uuid, t.start_time, t.end_time, tt.test_type AS test_type, "
+                    + "t.comment, t.report_status, t.report_summary "
                     + "FROM tests t "
                     + "LEFT JOIN test_types tt ON t.test_type_id = tt.id ";
     private static final String SELECT_OVERLAP_SQL =
@@ -33,6 +34,8 @@ public class LoadTestRepository {
             "UPDATE tests SET start_time = ?, end_time = ?, test_type_id = ? WHERE test_uuid = ?";
     private static final String UPDATE_TYPE_SQL = "UPDATE tests SET test_type_id = ? WHERE test_uuid = ?";
     private static final String UPDATE_COMMENT_SQL = "UPDATE tests SET comment = ? WHERE test_uuid = ?";
+    private static final String UPDATE_REPORT_DETAILS_SQL =
+            "UPDATE tests SET report_status = ?, report_summary = ? WHERE test_uuid = ?";
 
     private final JdbcTemplate jdbcTemplate;
     private final TestTypeRepository testTypeRepository;
@@ -42,7 +45,9 @@ public class LoadTestRepository {
                     rs.getTimestamp("start_time").toInstant(),
                     rs.getTimestamp("end_time").toInstant(),
                     LoadTestType.fromDatabaseValue(rs.getString("test_type")),
-                    rs.getString("comment"));
+                    rs.getString("comment"),
+                    rs.getString("report_status"),
+                    rs.getString("report_summary"));
 
     public LoadTestRepository(JdbcTemplate jdbcTemplate, TestTypeRepository testTypeRepository) {
         this.jdbcTemplate = jdbcTemplate;
@@ -129,6 +134,28 @@ public class LoadTestRepository {
                         ps.setString(1, comment);
                     }
                     ps.setObject(2, id);
+                });
+        if (updated == 0) {
+            throw new IncorrectResultSizeDataAccessException("Expected to update one row", 1, 0);
+        }
+        return findById(id).orElseThrow(() -> new IllegalStateException("Failed to load updated test " + id));
+    }
+
+    public LoadTest updateReportDetails(UUID id, String reportStatus, String reportSummary) {
+        int updated = jdbcTemplate.update(
+                UPDATE_REPORT_DETAILS_SQL,
+                ps -> {
+                    if (reportStatus == null) {
+                        ps.setNull(1, Types.CLOB);
+                    } else {
+                        ps.setString(1, reportStatus);
+                    }
+                    if (reportSummary == null) {
+                        ps.setNull(2, Types.CLOB);
+                    } else {
+                        ps.setString(2, reportSummary);
+                    }
+                    ps.setObject(3, id);
                 });
         if (updated == 0) {
             throw new IncorrectResultSizeDataAccessException("Expected to update one row", 1, 0);

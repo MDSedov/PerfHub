@@ -80,6 +80,8 @@ public class ConfluenceTemplateSettingsController {
                 template.shortName(),
                 template.fullName(),
                 template.reportTitle(),
+                template.templateType().name(),
+                template.templatePageId(),
                 template.text(),
                 charts);
     }
@@ -119,6 +121,8 @@ public class ConfluenceTemplateSettingsController {
                 request.shortName(),
                 request.fullName(),
                 request.reportTitle(),
+                request.templateType(),
+                request.templatePageId(),
                 request.text(),
                 charts);
     }

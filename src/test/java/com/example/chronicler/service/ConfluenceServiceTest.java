@@ -15,6 +15,8 @@ import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
 import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePage;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateRequest;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
@@ -23,11 +25,13 @@ import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.exception.ConfluenceOperationException;
+import com.example.chronicler.model.ConfluenceReleaseReportLink;
 import com.example.chronicler.model.ConfluenceTemplate;
 import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
+import com.example.chronicler.repository.ConfluenceReleaseReportLinkRepository;
 import com.example.chronicler.repository.LoadTestRepository;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -70,6 +74,9 @@ class ConfluenceServiceTest {
     private ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
 
     @Mock
+    private ConfluenceReleaseReportLinkRepository releaseReportLinkRepository;
+
+    @Mock
     private ConfigurationProvider configurationProvider;
 
     private ConfluenceService confluenceService;
@@ -83,6 +90,7 @@ class ConfluenceServiceTest {
                 loadTestRepository,
                 kubernetesConfigurationService,
                 confluenceTemplateSettingsService,
+                releaseReportLinkRepository,
                 configurationProvider);
         lenient().when(kubernetesConfigurationService.getConfigurations(any(UUID.class))).thenReturn(List.of());
         lenient().when(confluenceClient.buildPageUrl(anyString()))
@@ -292,8 +300,8 @@ class ConfluenceServiceTest {
                 301,
                 "max",
                 "Шаблон MAX",
-                "Отчет @release @config @graphics",
-                "<p>@release</p><p>@config</p><p>@graphics</p>",
+                "Отчет @release @test_start @test_end @config @graphics",
+                "<p>@release</p><p>@test_start</p><p>@test_end</p><p>@config</p><p>@graphics</p>",
                 List.of(new ConfluenceTemplateChart(11L, 301, "CPU", "uid-1", 7, 0)));
         when(confluenceTemplateSettingsService.getActiveTemplate(301)).thenReturn(template);
 
@@ -323,13 +331,19 @@ class ConfluenceServiceTest {
                 .thenReturn(List.of(panel));
 
         ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
-        ConfluencePage createdPage = new ConfluencePage("555", "page", "Отчет 24.1.7", 1, template.text(), "SPACE");
+        ConfluencePage createdPage = new ConfluencePage(
+                "555",
+                "page",
+                "Отчет 24.1.7 2024-02-01 03:00:00 2024-02-01 05:00:00",
+                1,
+                template.text(),
+                "SPACE");
         when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
         when(confluenceClient.createChildPage(
                         credentials,
                         "123",
                         "SPACE",
-                        "Отчет 24.1.7",
+                        "Отчет 24.1.7 2024-02-01 03:00:00 2024-02-01 05:00:00",
                         template.text()))
                 .thenReturn(createdPage);
         when(confluenceClient.uploadAttachment(eq(credentials), eq("555"), anyString(), eq(image)))
@@ -354,6 +368,8 @@ class ConfluenceServiceTest {
         verify(confluenceClient).updatePage(eq(credentials), eq(createdPage), bodyCaptor.capture());
         String body = bodyCaptor.getValue();
         assertThat(body).contains("<p>24.1.7</p>");
+        assertThat(body).contains("<p>2024-02-01 03:00:00</p>");
+        assertThat(body).contains("<p>2024-02-01 05:00:00</p>");
         assertThat(body).contains("<ac:structured-macro ac:name=\"expand\">");
         assertThat(body).contains("<ac:parameter ac:name=\"title\">Конфигурация стенда</ac:parameter>");
         assertThat(body).contains("ri:attachment ri:filename=\"dropapp-configuration-55.zip\"");
@@ -365,6 +381,8 @@ class ConfluenceServiceTest {
         assertThat(body).doesNotContain("<p><h2>");
         assertThat(body).doesNotContain("<p><h3>");
         assertThat(body).doesNotContain("@release");
+        assertThat(body).doesNotContain("@test_start");
+        assertThat(body).doesNotContain("@test_end");
         assertThat(body).doesNotContain("@config");
         assertThat(body).doesNotContain("@graphics");
         assertThat(response.reports().get(0).attachmentNames())
@@ -608,6 +626,86 @@ class ConfluenceServiceTest {
         assertThat(updatedBody).contains("ri:filename=");
         assertThat(updatedBody).contains("ac:width=\"1200\"");
         assertThat(updatedBody).contains("ac:height=\"630\"");
+    }
+
+    @Test
+    void updateReleaseReportLinksExpandsTemplateBlockAndUpdatesPage() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        UUID testUuid = UUID.fromString("aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb");
+        ConfluenceReleaseReportLinksUpdateRequest request = new ConfluenceReleaseReportLinksUpdateRequest(
+                "release-1",
+                List.of(new ConfluenceReleaseReportLinksUpdateRequest.ReportLinkItem(
+                        testUuid,
+                        "7.1",
+                        "Определение максимальной производительности Profile",
+                        "test-page-1",
+                        "Отчет по тесту",
+                        "https://confluence.example/pages/viewpage.action?pageId=test-page-1")));
+
+        LoadTest loadTest = new LoadTest(
+                testUuid,
+                Instant.parse("2024-05-01T10:00:00Z"),
+                Instant.parse("2024-05-01T11:00:00Z"),
+                LoadTestType.MAX,
+                null,
+                "Тест прошел успешно.",
+                "Максимальная производительность составила 600 запросов в секунду.");
+        when(loadTestRepository.findById(testUuid)).thenReturn(Optional.of(loadTest));
+
+        ConfluencePage releasePage = new ConfluencePage(
+                "release-1",
+                "page",
+                "Отчет по релизу",
+                3,
+                "<h2>7. Результаты тестирования</h2>"
+                        + "<p>@perfhub_reports_start</p>"
+                        + "<h3>@test_number @test_title</h3>"
+                        + "<p>@test_status</p>"
+                        + "<p>@test_summary</p>"
+                        + "<p>Подробные результаты: @test_report_link</p>"
+                        + "<p>@perfhub_reports_end</p>",
+                "SPACE");
+        when(confluenceClient.getPage(credentials, "release-1")).thenReturn(releasePage);
+        when(releaseReportLinkRepository.findBlockTemplate("release-1")).thenReturn(Optional.empty());
+        when(releaseReportLinkRepository.findByReleasePageId("release-1"))
+                .thenReturn(List.of(new ConfluenceReleaseReportLink(
+                        1L,
+                        "release-1",
+                        testUuid,
+                        "test-page-1",
+                        "Отчет по тесту",
+                        "https://confluence.example/pages/viewpage.action?pageId=test-page-1",
+                        "7.1",
+                        "Определение максимальной производительности Profile",
+                        "Максимум",
+                        "2024-05-01 13:00:00 - 2024-05-01 14:00:00",
+                        "Тест прошел успешно.",
+                        "Максимальная производительность составила 600 запросов в секунду.",
+                        Instant.parse("2024-05-01T11:05:00Z"))));
+
+        ConfluenceReleaseReportLinksUpdateResponse response =
+                confluenceService.updateReleaseReportLinks(credentials, request);
+
+        assertThat(response.updated()).isTrue();
+        assertThat(response.reportsCount()).isEqualTo(1);
+        verify(releaseReportLinkRepository).saveBlockTemplate(
+                eq("release-1"),
+                eq("<h3>@test_number @test_title</h3>"
+                        + "<p>@test_status</p>"
+                        + "<p>@test_summary</p>"
+                        + "<p>Подробные результаты: @test_report_link</p>"));
+
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(confluenceClient).updatePage(eq(credentials), eq(releasePage), bodyCaptor.capture());
+        String updatedBody = bodyCaptor.getValue();
+        assertThat(updatedBody).contains("@perfhub_reports_start");
+        assertThat(updatedBody).contains("@perfhub_reports_end");
+        assertThat(updatedBody).contains("<h3>7.1 Определение максимальной производительности Profile</h3>");
+        assertThat(updatedBody).contains("<p>Тест прошел успешно.</p>");
+        assertThat(updatedBody).contains("<p>Максимальная производительность составила 600 запросов в секунду.</p>");
+        assertThat(updatedBody).contains("ri:value=\"https://confluence.example/pages/viewpage.action?pageId=test-page-1\"");
+        assertThat(updatedBody).doesNotContain("@test_number");
+        assertThat(updatedBody).doesNotContain("@test_report_link");
     }
 
     private ConfluenceClientException duplicateTitleException(String parentPageId) {

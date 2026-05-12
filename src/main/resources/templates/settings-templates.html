@@ -124,8 +124,9 @@
                         <table class="table align-middle tests-table mb-0">
                             <thead>
                             <tr>
-                                <th scope="col">Короткое имя</th>
                                 <th scope="col">Название шаблона</th>
+                                <th scope="col">Тип шаблона</th>
+                                <th scope="col">Название отчета</th>
                                 <th scope="col" class="text-center">Детали</th>
                             </tr>
                             </thead>
@@ -151,8 +152,6 @@
                         <div class="d-flex flex-column gap-1">
                             <span class="test-details-modal-kicker">Шаблон отчета</span>
                             <h5 class="modal-title" id="templateDetailsModalLabel">Детальная информация о шаблоне</h5>
-                            <div id="templateDetailsModalSubtitle"
-                                 class="text-muted small">Настройте шаблон страницы и список графиков для Confluence.</div>
                         </div>
                         <button type="button"
                                 class="btn-close"
@@ -161,36 +160,52 @@
                     </div>
 
                     <div class="modal-body">
-                        <div class="row g-3">
-                            <div class="col-12 col-lg-6">
-                                <label for="templateShortNameInput" class="form-label">Сокрашенное название шаблона</label>
-                                <input type="text"
-                                       class="form-control"
-                                       id="templateShortNameInput"
-                                       maxlength="12"
-                                       placeholder="До 12 символов">
-                            </div>
-                            <div class="col-12 col-lg-6">
-                                <label for="templateFullNameInput" class="form-label">Полное название шаблона</label>
-                                <input type="text"
-                                       class="form-control"
-                                       id="templateFullNameInput"
-                                       placeholder="Уникальное название шаблона">
-                            </div>
-                            <div class="col-12">
-                                <label for="templateReportTitleInput" class="form-label">Название отчета</label>
-                                <input type="text"
-                                       class="form-control"
-                                       id="templateReportTitleInput"
-                                       placeholder="Например, Отчет по релизу @release">
-                                <div class="form-text">В заголовке поддерживается ключевое слово: @release.</div>
-                                <div class="template-placeholder-actions mt-2" data-placeholder-target="title">
-                                    <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
+                        <section class="report-template-section">
+                            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                                <div>
+                                    <h6 class="test-details-section-title mb-1">Настройки шаблона</h6>
                                 </div>
                             </div>
-                        </div>
 
-                        <section class="report-template-section mt-4">
+                            <div class="row g-3">
+                                <div class="col-12 col-lg-6">
+                                    <label for="templateShortNameInput" class="form-label">Название шаблона</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="templateShortNameInput"
+                                           maxlength="30"
+                                           placeholder="До 30 символов">
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label for="templateTypeInput" class="form-label">Тип шаблона</label>
+                                    <select class="form-select" id="templateTypeInput">
+                                        <option value="TEST">Отчет по тесту</option>
+                                        <option value="RELEASE">Отчет по релизу</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label for="templateReportTitleInput" class="form-label">Название отчета</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="templateReportTitleInput"
+                                           placeholder="Например, Отчет по релизу @release">
+                                    <div class="template-placeholder-actions mt-2" data-placeholder-target="title">
+                                        <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
+                                        <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start">@test_start</button>
+                                        <button type="button" class="template-placeholder-button" data-placeholder-token="@test_end">@test_end</button>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label for="templatePageIdInput" class="form-label">Ссылка на шаблон отчета в Confluence</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="templatePageIdInput"
+                                           placeholder="ID страницы или ссылка вида ...viewpage.action?pageId=123456">
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="report-template-section mt-4 d-none">
                             <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
                                 <div>
                                     <h6 class="test-details-section-title mb-1">Тело страницы Confluence</h6>
@@ -246,6 +261,8 @@
 
                             <div class="template-placeholder-actions mt-3" data-placeholder-target="body">
                                 <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
+                                <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start">@test_start</button>
+                                <button type="button" class="template-placeholder-button" data-placeholder-token="@test_end">@test_end</button>
                                 <button type="button" class="template-placeholder-button" data-placeholder-token="@config">@config</button>
                                 <button type="button" class="template-placeholder-button" data-placeholder-token="@graphics">@graphics</button>
                             </div>
@@ -314,8 +331,9 @@
     const templateDetailsModalElement = document.getElementById('templateDetailsModal');
     const templateDetailsModalLabel = document.getElementById('templateDetailsModalLabel');
     const templateShortNameInput = document.getElementById('templateShortNameInput');
-    const templateFullNameInput = document.getElementById('templateFullNameInput');
+    const templateTypeInput = document.getElementById('templateTypeInput');
     const templateReportTitleInput = document.getElementById('templateReportTitleInput');
+    const templatePageIdInput = document.getElementById('templatePageIdInput');
     const templateEditorToolbar = document.getElementById('templateEditorToolbar');
     const templateEditorBlockFormat = document.getElementById('templateEditorBlockFormat');
     const templateTextEditor = document.getElementById('templateTextEditor');
@@ -341,6 +359,8 @@
             shortName: '',
             fullName: '',
             reportTitle: '',
+            templateType: 'TEST',
+            templatePageId: '',
             text: '',
             charts: []
         };
@@ -352,6 +372,8 @@
             shortName: template?.shortName ?? '',
             fullName: template?.fullName ?? '',
             reportTitle: template?.reportTitle ?? '',
+            templateType: template?.templateType ?? 'TEST',
+            templatePageId: template?.templatePageId ?? '',
             text: template?.text ?? '',
             charts: Array.isArray(template?.charts)
                 ? template.charts.map(chart => ({
@@ -618,6 +640,12 @@
             normalizePanelOptionValue(option.dashboardUid, option.panelId) === value);
     }
 
+    function templateTypeLabel(templateType) {
+        return String(templateType ?? '').toUpperCase() === 'RELEASE'
+            ? 'Отчет по релизу'
+            : 'Отчет по тесту';
+    }
+
     function syncTemplateTextInput() {
         if (!templateTextInput || !templateTextEditor) {
             return '';
@@ -816,8 +844,11 @@
             const shortNameCell = document.createElement('td');
             shortNameCell.textContent = template.shortName ?? '—';
 
-            const fullNameCell = document.createElement('td');
-            fullNameCell.textContent = template.fullName ?? '—';
+            const typeCell = document.createElement('td');
+            typeCell.textContent = templateTypeLabel(template.templateType);
+
+            const titleCell = document.createElement('td');
+            titleCell.textContent = template.reportTitle || template.fullName || template.shortName || '—';
 
             const detailsCell = document.createElement('td');
             detailsCell.className = 'text-center';
@@ -832,7 +863,8 @@
             detailsCell.appendChild(detailsButton);
 
             row.appendChild(shortNameCell);
-            row.appendChild(fullNameCell);
+            row.appendChild(typeCell);
+            row.appendChild(titleCell);
             row.appendChild(detailsCell);
             templatesTableBody.appendChild(row);
         });
@@ -978,11 +1010,16 @@
 
     function renderTemplateModal() {
         templateDetailsModalLabel.textContent = activeTemplateDraft.id
-            ? `Шаблон: ${activeTemplateDraft.shortName || activeTemplateDraft.fullName || 'без названия'}`
+            ? `Шаблон: ${activeTemplateDraft.shortName || activeTemplateDraft.reportTitle || 'без названия'}`
             : 'Новый шаблон';
         templateShortNameInput.value = activeTemplateDraft.shortName ?? '';
-        templateFullNameInput.value = activeTemplateDraft.fullName ?? '';
+        if (templateTypeInput) {
+            templateTypeInput.value = activeTemplateDraft.templateType ?? 'TEST';
+        }
         templateReportTitleInput.value = activeTemplateDraft.reportTitle ?? '';
+        if (templatePageIdInput) {
+            templatePageIdInput.value = activeTemplateDraft.templatePageId ?? '';
+        }
         setTemplateEditorHtml(activeTemplateDraft.text ?? '');
         if (templateEditorBlockFormat) {
             templateEditorBlockFormat.value = 'p';
@@ -1005,8 +1042,10 @@
 
     function buildTemplatePayload() {
         const shortName = templateShortNameInput.value.trim();
-        const fullName = templateFullNameInput.value.trim();
+        const templateType = (templateTypeInput?.value ?? 'TEST').trim();
         const reportTitle = templateReportTitleInput.value.trim();
+        const fullName = reportTitle || shortName;
+        const templatePageId = (templatePageIdInput?.value ?? '').trim();
         const text = getTemplateEditorHtml();
         const charts = Array.isArray(activeTemplateDraft.charts)
             ? activeTemplateDraft.charts.map(chart => ({
@@ -1017,19 +1056,19 @@
             : [];
 
         if (!shortName) {
-            throw new Error('Укажите короткое имя шаблона');
+            throw new Error('Укажите название шаблона');
         }
-        if (shortName.length > 12) {
-            throw new Error('Короткое имя шаблона должно быть не длиннее 12 символов');
+        if (shortName.length > 30) {
+            throw new Error('Название шаблона должно быть не длиннее 30 символов');
         }
-        if (!fullName) {
-            throw new Error('Укажите полное название шаблона');
+        if (!['TEST', 'RELEASE'].includes(templateType)) {
+            throw new Error('Выберите тип шаблона');
         }
         if (!reportTitle) {
             throw new Error('Укажите название отчета');
         }
-        if (!text || isTemplateHtmlBlank(text)) {
-            throw new Error('Заполните тело страницы Confluence');
+        if (!templatePageId) {
+            throw new Error('Укажите ID или ссылку на страницу-шаблон Confluence');
         }
 
         charts.forEach(chart => {
@@ -1045,6 +1084,8 @@
             shortName,
             fullName,
             reportTitle,
+            templateType,
+            templatePageId,
             text,
             charts
         };
@@ -1171,15 +1212,21 @@
         });
     }
 
-    if (templateFullNameInput) {
-        templateFullNameInput.addEventListener('input', () => {
-            activeTemplateDraft.fullName = templateFullNameInput.value;
+    if (templateTypeInput) {
+        templateTypeInput.addEventListener('change', () => {
+            activeTemplateDraft.templateType = templateTypeInput.value;
         });
     }
 
     if (templateReportTitleInput) {
         templateReportTitleInput.addEventListener('input', () => {
             activeTemplateDraft.reportTitle = templateReportTitleInput.value;
+        });
+    }
+
+    if (templatePageIdInput) {
+        templatePageIdInput.addEventListener('input', () => {
+            activeTemplateDraft.templatePageId = templatePageIdInput.value;
         });
     }
 

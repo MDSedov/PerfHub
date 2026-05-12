@@ -4,6 +4,8 @@ import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
 import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
 import com.example.chronicler.dto.confluence.ConfluencePageTreeNode;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateRequest;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyRequest;
@@ -86,6 +88,19 @@ public class ConfluenceController {
         ConfluenceCredentials credentials = new ConfluenceCredentials(resolvedLogin, resolvedToken);
         ConfluenceReleaseReportPageResponse response =
                 confluenceService.createReleaseReportPage(credentials, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(path = "/report/release-page/links/", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ConfluenceReleaseReportLinksUpdateResponse> updateReleaseReportLinks(
+            @RequestHeader(value = LOGIN_HEADER, required = false) String login,
+            @RequestHeader(value = TOKEN_HEADER, required = false) String token,
+            @Valid @RequestBody ConfluenceReleaseReportLinksUpdateRequest request) {
+        String resolvedLogin = resolveLogin(login);
+        String resolvedToken = resolveToken(token);
+        ConfluenceCredentials credentials = new ConfluenceCredentials(resolvedLogin, resolvedToken);
+        ConfluenceReleaseReportLinksUpdateResponse response =
+                confluenceService.updateReleaseReportLinks(credentials, request);
         return ResponseEntity.ok(response);
     }
 

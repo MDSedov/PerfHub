@@ -291,13 +291,30 @@
         return selectedTests;
     }
 
+    function getReportTemplateType(template) {
+        return String(template?.templateType ?? 'TEST').trim().toUpperCase();
+    }
+
+    function getReportTemplatesByType(templateType) {
+        const normalizedType = String(templateType ?? '').trim().toUpperCase();
+        return reportTemplates.filter(template => getReportTemplateType(template) === normalizedType);
+    }
+
+    function getTestReportTemplates() {
+        return getReportTemplatesByType('TEST');
+    }
+
+    function getReleaseReportTemplates() {
+        return getReportTemplatesByType('RELEASE');
+    }
+
     function isKnownReportTemplateId(templateId) {
-        return reportTemplates.some(template => String(template?.id) === String(templateId));
+        return getTestReportTemplates().some(template => String(template?.id) === String(templateId));
     }
 
     function resolveDefaultReportTemplateId(test) {
         const normalizedType = canonicalizeTestType(test?.type) || 'unknown';
-        const matchedTemplate = reportTemplates.find(template =>
+        const matchedTemplate = getTestReportTemplates().find(template =>
                 (template?.shortName ?? '').trim().toLowerCase() === normalizedType);
         return matchedTemplate?.id ? String(matchedTemplate.id) : '';
     }
@@ -392,25 +409,26 @@
             templateCell.className = 'report-template-select-cell';
             const templateSelect = document.createElement('select');
             templateSelect.className = 'form-select form-select-sm';
+            const testTemplates = getTestReportTemplates();
             const currentTemplateId = ensureSelectedReportTemplate(test);
 
             const placeholderOption = document.createElement('option');
             placeholderOption.value = '';
             placeholderOption.textContent = !reportTemplatesLoaded
                     ? 'Загружаем шаблоны…'
-                    : reportTemplates.length === 0
-                            ? 'Нет шаблонов'
+                    : testTemplates.length === 0
+                            ? 'Нет шаблонов отчета по тесту'
                             : 'Выберите шаблон';
             templateSelect.appendChild(placeholderOption);
 
-            reportTemplates.forEach(template => {
+            testTemplates.forEach(template => {
                 const option = document.createElement('option');
                 option.value = String(template.id);
                 option.textContent = template.shortName ?? `template-${template.id}`;
                 templateSelect.appendChild(option);
             });
 
-            templateSelect.disabled = !reportTemplatesLoaded || reportTemplates.length === 0;
+            templateSelect.disabled = !reportTemplatesLoaded || testTemplates.length === 0;
             templateSelect.value = currentTemplateId || '';
             templateSelect.addEventListener('change', () => {
                 if (!test?.id) {
@@ -621,25 +639,26 @@
         if (!luckyReportsReleasePageTemplateSelect) {
             return;
         }
+        const releaseTemplates = getReleaseReportTemplates();
         luckyReportsReleasePageTemplateSelect.innerHTML = '';
 
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
         placeholderOption.textContent = !reportTemplatesLoaded
                 ? 'Загружаем шаблоны…'
-                : reportTemplates.length === 0
-                        ? 'Нет шаблонов'
+                : releaseTemplates.length === 0
+                        ? 'Нет шаблонов отчета по релизу'
                         : 'Выберите шаблон страницы';
         luckyReportsReleasePageTemplateSelect.appendChild(placeholderOption);
 
-        reportTemplates.forEach(template => {
+        releaseTemplates.forEach(template => {
             const option = document.createElement('option');
             option.value = String(template.id);
-            option.textContent = template.fullName || template.shortName || `template-${template.id}`;
+            option.textContent = template.shortName || template.reportTitle || template.fullName || `template-${template.id}`;
             luckyReportsReleasePageTemplateSelect.appendChild(option);
         });
 
-        const nextValue = reportTemplates.some(template => String(template.id) === selectedReleasePageTemplateId)
+        const nextValue = releaseTemplates.some(template => String(template.id) === selectedReleasePageTemplateId)
                 ? selectedReleasePageTemplateId
                 : '';
         luckyReportsReleasePageTemplateSelect.value = nextValue;
@@ -648,7 +667,7 @@
 
     function updateReleasePageControlsState() {
         const isEnabled = Boolean(luckyReportsCreateReleasePageCheckbox?.checked);
-        const templatesAvailable = reportTemplatesLoaded && reportTemplates.length > 0;
+        const templatesAvailable = reportTemplatesLoaded && getReleaseReportTemplates().length > 0;
         if (luckyReportsReleasePageTemplateSelect) {
             luckyReportsReleasePageTemplateSelect.disabled = !isEnabled || !templatesAvailable;
         }
@@ -855,7 +874,7 @@
         const hasSelectedTests = latestReleaseTestIds.length > 0;
         const hasTemplatesForAllSelectedTests =
                 reportTemplatesLoaded
-                && reportTemplates.length > 0
+                && getTestReportTemplates().length > 0
                 && getSelectedTestsMissingTemplate().length === 0;
         const shouldCreateReleasePage = Boolean(luckyReportsCreateReleasePageCheckbox?.checked);
         const hasReleasePageTemplate = (luckyReportsReleasePageTemplateSelect?.value ?? '').trim().length > 0;

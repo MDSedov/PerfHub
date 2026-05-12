@@ -7,6 +7,8 @@ import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePageDescendant;
 import com.example.chronicler.dto.confluence.ConfluencePage;
 import com.example.chronicler.dto.confluence.ConfluencePageTreeNode;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateRequest;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
@@ -17,13 +19,17 @@ import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceClientException;
 import com.example.chronicler.exception.ConfluenceOperationException;
+import com.example.chronicler.model.ConfluenceReleaseReportLink;
 import com.example.chronicler.model.ConfluenceTemplate;
 import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
+import com.example.chronicler.repository.ConfluenceReleaseReportLinkRepository;
 import com.example.chronicler.repository.LoadTestRepository;
+import com.example.chronicler.util.DateTimeViewUtils;
 import com.example.chronicler.util.ReleaseVersionUtils;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -53,6 +59,18 @@ public class ConfluenceService {
     private static final String RELEASE_PLACEHOLDER = "@release";
     private static final String CONFIG_PLACEHOLDER = "@config";
     private static final String GRAPHICS_PLACEHOLDER = "@graphics";
+    private static final String TEST_TYPE_PLACEHOLDER = "@test_type";
+    private static final String TEST_PERIOD_PLACEHOLDER = "@test_period";
+    private static final String TEST_STATUS_PLACEHOLDER = "@test_status";
+    private static final String TEST_SUMMARY_PLACEHOLDER = "@test_summary";
+    private static final String TEST_NUMBER_PLACEHOLDER = "@test_number";
+    private static final String TEST_TITLE_PLACEHOLDER = "@test_title";
+    private static final String TEST_START_PLACEHOLDER = "@test_start";
+    private static final String TEST_END_PLACEHOLDER = "@test_end";
+    private static final String TEST_REPORT_LINK_PLACEHOLDER = "@test_report_link";
+    private static final String RELEASE_REPORTS_START_MARKER = "@perfhub_reports_start";
+    private static final String RELEASE_REPORTS_END_MARKER = "@perfhub_reports_end";
+    private static final String REPORT_PLACEHOLDER_TEXT = "Требуется заполнить вручную.";
     private static final String PLACEHOLDER_BLOCK_TAGS =
             "p|div|section|article|aside|blockquote|li|h1|h2|h3|h4|h5|h6";
     private static final String PLACEHOLDER_PADDING_PATTERN = "(?:\\s|&nbsp;|&#160;|<br\\s*/?>)*";
@@ -67,6 +85,7 @@ public class ConfluenceService {
     private final LoadTestRepository loadTestRepository;
     private final KubernetesConfigurationService kubernetesConfigurationService;
     private final ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
+    private final ConfluenceReleaseReportLinkRepository releaseReportLinkRepository;
     private final ConfigurationProvider configurationProvider;
 
     /**
@@ -79,6 +98,7 @@ public class ConfluenceService {
             LoadTestRepository loadTestRepository,
             KubernetesConfigurationService kubernetesConfigurationService,
             ConfluenceTemplateSettingsService confluenceTemplateSettingsService,
+            ConfluenceReleaseReportLinkRepository releaseReportLinkRepository,
             ConfigurationProvider configurationProvider) {
         this.confluenceClient = confluenceClient;
         this.grafanaService = grafanaService;
@@ -86,6 +106,7 @@ public class ConfluenceService {
         this.loadTestRepository = loadTestRepository;
         this.kubernetesConfigurationService = kubernetesConfigurationService;
         this.confluenceTemplateSettingsService = confluenceTemplateSettingsService;
+        this.releaseReportLinkRepository = releaseReportLinkRepository;
         this.configurationProvider = configurationProvider;
     }
 
@@ -206,8 +227,9 @@ public class ConfluenceService {
         }
 
         String releaseValue = resolveReleaseValueForTests(request.testUuids());
-        String pageTitle = buildReportTitle(template, releaseValue);
-        String body = buildReportBody(template.text(), releaseValue, "", "");
+        String pageTitle = buildReportTitle(template, releaseValue, null);
+        String templateBody = loadTemplateBody(credentials, template);
+        String body = buildReportBody(templateBody, releaseValue, "", "", null);
         ConfluencePage createdPage = confluenceClient.createChildPage(
                 credentials,
                 request.parentPageId(),
@@ -220,6 +242,48 @@ public class ConfluenceService {
                 createdPage.id(),
                 createdPage.title(),
                 confluenceClient.buildPageUrl(createdPage.id()));
+    }
+
+    public ConfluenceReleaseReportLinksUpdateResponse updateReleaseReportLinks(
+            ConfluenceCredentials credentials,
+            ConfluenceReleaseReportLinksUpdateRequest request) {
+        Objects.requireNonNull(credentials, "Confluence credentials must not be null");
+        Objects.requireNonNull(request, "Confluence release report links update request must not be null");
+        validateCredentials(credentials);
+        if (!StringUtils.hasText(request.releasePageId())) {
+            throw new ConfluenceOperationException("releasePageId is required");
+        }
+        if (request.reports() == null || request.reports().isEmpty()) {
+            throw new ConfluenceOperationException("reports must not be empty");
+        }
+
+        ConfluencePage releasePage = confluenceClient.getPage(credentials, request.releasePageId());
+        List<ConfluenceReleaseReportLink> newLinks = request.reports().stream()
+                .map(item -> toReleaseReportLink(releasePage.id(), item))
+                .toList();
+        releaseReportLinkRepository.saveAll(newLinks);
+
+        String body = normalizeStorageMarkup(releasePage.body());
+        ReleaseReportsBlock reportsBlock = extractReleaseReportsBlock(body);
+        if (reportsBlock == null) {
+            return new ConfluenceReleaseReportLinksUpdateResponse(
+                    releasePage.id(),
+                    false,
+                    releaseReportLinkRepository.findByReleasePageId(releasePage.id()).size());
+        }
+
+        String itemTemplate = releaseReportLinkRepository.findBlockTemplate(releasePage.id())
+                .orElseGet(() -> {
+                    String extractedTemplate = reportsBlock.itemTemplate();
+                    releaseReportLinkRepository.saveBlockTemplate(releasePage.id(), extractedTemplate);
+                    return extractedTemplate;
+                });
+        List<ConfluenceReleaseReportLink> allLinks =
+                releaseReportLinkRepository.findByReleasePageId(releasePage.id());
+        String updatedBody = replaceReleaseReportsBlock(body, reportsBlock, itemTemplate, allLinks);
+        updatePageWithRetry(credentials, releasePage, updatedBody);
+
+        return new ConfluenceReleaseReportLinksUpdateResponse(releasePage.id(), true, allLinks.size());
     }
 
     public ConfluenceChartsAppendResponse appendChartsToPage(
@@ -282,8 +346,8 @@ public class ConfluenceService {
             throw new ConfluenceOperationException("Не удалось подготовить все графики для выбранного шаблона");
         }
 
-        String pageTitle = buildReportTitle(template, releaseValue);
-        String templateBody = normalizeStorageMarkup(template.text());
+        String pageTitle = buildReportTitle(template, releaseValue, loadTest);
+        String templateBody = loadTemplateBody(credentials, template);
         ConfluencePage reportPage = createReportPage(
                 credentials, parentPageId, spaceKey, pageTitle, templateBody, loadTest.id());
         waitForPageAvailability(credentials, reportPage.id());
@@ -307,10 +371,11 @@ public class ConfluenceService {
                 attachmentNames);
         String configurationSection = buildConfigurationSection(configurations, configurationArchive);
         String updatedBody = buildReportBody(
-                template.text(),
+                templateBody,
                 releaseValue,
                 configurationSection,
-                buildChartsSection(chartAttachments));
+                buildChartsSection(chartAttachments),
+                loadTest);
         updatePageWithRetry(credentials, reportPage, updatedBody);
 
         return new ConfluenceReportResponse.ReportPage(
@@ -584,14 +649,24 @@ public class ConfluenceService {
 
     private String buildReportTitle(
             ConfluenceTemplate template,
-            String releaseValue) {
+            String releaseValue,
+            LoadTest loadTest) {
         String titleTemplate = StringUtils.hasText(template.reportTitle())
                 ? template.reportTitle()
                 : template.fullName();
         String resolved = getSafeBody(titleTemplate)
                 .replace(RELEASE_PLACEHOLDER, releaseValue)
+                .replace(TEST_START_PLACEHOLDER, titlePlaceholder(formatTestStart(loadTest)))
+                .replace(TEST_END_PLACEHOLDER, titlePlaceholder(formatTestEnd(loadTest)))
                 .replace(CONFIG_PLACEHOLDER, "")
                 .replace(GRAPHICS_PLACEHOLDER, "")
+                .replace(TEST_TYPE_PLACEHOLDER, "")
+                .replace(TEST_PERIOD_PLACEHOLDER, "")
+                .replace(TEST_STATUS_PLACEHOLDER, "")
+                .replace(TEST_SUMMARY_PLACEHOLDER, "")
+                .replace(TEST_NUMBER_PLACEHOLDER, "")
+                .replace(TEST_TITLE_PLACEHOLDER, "")
+                .replace(TEST_REPORT_LINK_PLACEHOLDER, "")
                 .replace('\n', ' ')
                 .replace('\r', ' ')
                 .trim()
@@ -603,11 +678,257 @@ public class ConfluenceService {
             String templateBody,
             String releaseValue,
             String configurationSection,
-            String chartsSection) {
+            String chartsSection,
+            LoadTest loadTest) {
         String body = getSafeBody(templateBody).replace(RELEASE_PLACEHOLDER, escape(releaseValue));
         body = replaceSectionPlaceholder(body, CONFIG_PLACEHOLDER, configurationSection);
         body = replaceSectionPlaceholder(body, GRAPHICS_PLACEHOLDER, chartsSection);
+        body = replaceTestPlaceholders(body, loadTest);
         return normalizeStorageMarkup(body);
+    }
+
+    private String replaceTestPlaceholders(String body, LoadTest loadTest) {
+        if (loadTest == null) {
+            return body;
+        }
+        return getSafeBody(body)
+                .replace(TEST_TYPE_PLACEHOLDER, escape(formatLoadTestType(loadTest.type())))
+                .replace(TEST_START_PLACEHOLDER, escape(formatTestStart(loadTest)))
+                .replace(TEST_END_PLACEHOLDER, escape(formatTestEnd(loadTest)))
+                .replace(TEST_PERIOD_PLACEHOLDER, escape(formatTestPeriod(loadTest)))
+                .replace(TEST_STATUS_PLACEHOLDER, escape(orPlaceholder(loadTest.reportStatus())))
+                .replace(TEST_SUMMARY_PLACEHOLDER, escape(orPlaceholder(loadTest.reportSummary())));
+    }
+
+    private String loadTemplateBody(ConfluenceCredentials credentials, ConfluenceTemplate template) {
+        if (template != null && StringUtils.hasText(template.templatePageId())) {
+            ConfluencePage templatePage = confluenceClient.getPage(credentials, template.templatePageId());
+            return normalizeStorageMarkup(templatePage.body());
+        }
+        return normalizeStorageMarkup(template != null ? template.text() : "");
+    }
+
+    private ConfluenceReleaseReportLink toReleaseReportLink(
+            String releasePageId,
+            ConfluenceReleaseReportLinksUpdateRequest.ReportLinkItem item) {
+        if (item == null || item.testUuid() == null) {
+            throw new ConfluenceOperationException("testUuid is required");
+        }
+        if (!StringUtils.hasText(item.reportPageId())) {
+            throw new ConfluenceOperationException("reportPageId is required");
+        }
+        LoadTest loadTest = resolveLoadTest(item.testUuid());
+        String testTitle = StringUtils.hasText(item.testTitle())
+                ? item.testTitle().trim()
+                : defaultTestTitle(loadTest.type());
+        return new ConfluenceReleaseReportLink(
+                null,
+                releasePageId,
+                item.testUuid(),
+                item.reportPageId().trim(),
+                StringUtils.hasText(item.reportPageTitle()) ? item.reportPageTitle().trim() : testTitle,
+                StringUtils.hasText(item.reportPageUrl()) ? item.reportPageUrl().trim() : confluenceClient.buildPageUrl(item.reportPageId()),
+                StringUtils.hasText(item.testNumber()) ? item.testNumber().trim() : "",
+                testTitle,
+                formatLoadTestType(loadTest.type()),
+                formatTestPeriod(loadTest),
+                orPlaceholder(loadTest.reportStatus()),
+                orPlaceholder(loadTest.reportSummary()),
+                null);
+    }
+
+    private ReleaseReportsBlock extractReleaseReportsBlock(String body) {
+        String safeBody = getSafeBody(body);
+        int startMarkerIndex = safeBody.indexOf(RELEASE_REPORTS_START_MARKER);
+        int endMarkerIndex = safeBody.indexOf(RELEASE_REPORTS_END_MARKER);
+        if (startMarkerIndex < 0 || endMarkerIndex < 0 || endMarkerIndex <= startMarkerIndex) {
+            return null;
+        }
+        int replacementStart = findReplacementStartAfterMarker(safeBody, startMarkerIndex, RELEASE_REPORTS_START_MARKER);
+        int replacementEnd = findReplacementEndBeforeMarker(safeBody, endMarkerIndex);
+        return new ReleaseReportsBlock(replacementStart, replacementEnd, safeBody.substring(replacementStart, replacementEnd));
+    }
+
+    private int findReplacementStartAfterMarker(String body, int markerIndex, String marker) {
+        int cursor = markerIndex + marker.length();
+        int nextNonWhitespace = cursor;
+        while (nextNonWhitespace < body.length() && Character.isWhitespace(body.charAt(nextNonWhitespace))) {
+            nextNonWhitespace++;
+        }
+        String tail = body.substring(nextNonWhitespace).toLowerCase();
+        String[] closingTags = {"</p>", "</div>", "</section>", "</article>", "</li>", "</h1>", "</h2>", "</h3>", "</h4>", "</h5>", "</h6>"};
+        for (String closingTag : closingTags) {
+            if (tail.startsWith(closingTag)) {
+                return nextNonWhitespace + closingTag.length();
+            }
+        }
+        return cursor;
+    }
+
+    private int findReplacementEndBeforeMarker(String body, int markerIndex) {
+        int previousTagStart = body.lastIndexOf('<', markerIndex);
+        if (previousTagStart >= 0) {
+            int previousTagEnd = body.indexOf('>', previousTagStart);
+            if (previousTagEnd >= 0 && previousTagEnd < markerIndex) {
+                String tag = body.substring(previousTagStart, previousTagEnd + 1).toLowerCase();
+                String betweenTagAndMarker = body.substring(previousTagEnd + 1, markerIndex);
+                if (tag.matches("<\\s*(p|div|section|article|li|h1|h2|h3|h4|h5|h6)[^>]*>")
+                        && betweenTagAndMarker.trim().isEmpty()) {
+                    return previousTagStart;
+                }
+            }
+            String tag = body.substring(previousTagStart, markerIndex).toLowerCase();
+            if (tag.matches("<\\s*(p|div|section|article|li|h1|h2|h3|h4|h5|h6)[^>]*>\\s*")) {
+                return previousTagStart;
+            }
+        }
+        return markerIndex;
+    }
+
+    private String replaceReleaseReportsBlock(
+            String body,
+            ReleaseReportsBlock reportsBlock,
+            String itemTemplate,
+            List<ConfluenceReleaseReportLink> links) {
+        String renderedLinks = renderReleaseReportLinks(itemTemplate, links);
+        return body.substring(0, reportsBlock.replacementStart())
+                + renderedLinks
+                + body.substring(reportsBlock.replacementEnd());
+    }
+
+    private String renderReleaseReportLinks(String itemTemplate, List<ConfluenceReleaseReportLink> links) {
+        String template = StringUtils.hasText(itemTemplate)
+                ? itemTemplate
+                : "<h3>@test_number @test_title</h3><p>@test_status</p><p>@test_summary</p><p>@test_report_link</p>";
+        StringBuilder bodyBuilder = new StringBuilder();
+        for (int index = 0; index < links.size(); index++) {
+            ConfluenceReleaseReportLink link = links.get(index);
+            String rendered = template
+                    .replace(TEST_NUMBER_PLACEHOLDER, escape(orDefault(link.testNumber(), String.valueOf(index + 1))))
+                    .replace(TEST_TITLE_PLACEHOLDER, escape(orPlaceholder(link.testTitle())))
+                    .replace(TEST_TYPE_PLACEHOLDER, escape(orPlaceholder(link.testType())))
+                    .replace(TEST_START_PLACEHOLDER, escape(formatLinkedTestStart(link)))
+                    .replace(TEST_END_PLACEHOLDER, escape(formatLinkedTestEnd(link)))
+                    .replace(TEST_PERIOD_PLACEHOLDER, escape(orPlaceholder(link.testPeriod())))
+                    .replace(TEST_STATUS_PLACEHOLDER, escape(orPlaceholder(link.testStatus())))
+                    .replace(TEST_SUMMARY_PLACEHOLDER, escape(orPlaceholder(link.testSummary())))
+                    .replace(TEST_REPORT_LINK_PLACEHOLDER, buildReportPageLink(link));
+            bodyBuilder.append(rendered);
+        }
+        return bodyBuilder.toString();
+    }
+
+    private String buildReportPageLink(ConfluenceReleaseReportLink link) {
+        String url = StringUtils.hasText(link.reportPageUrl())
+                ? link.reportPageUrl()
+                : confluenceClient.buildPageUrl(link.reportPageId());
+        String title = StringUtils.hasText(link.reportPageTitle()) ? link.reportPageTitle() : "Отчет по тесту";
+        return "<ac:link><ri:url ri:value=\""
+                + escape(url)
+                + "\" /><ac:plain-text-link-body><![CDATA["
+                + escapeCdata(title)
+                + "]]></ac:plain-text-link-body></ac:link>";
+    }
+
+    private String formatTestPeriod(LoadTest loadTest) {
+        if (loadTest == null) {
+            return REPORT_PLACEHOLDER_TEXT;
+        }
+        String start = formatInstant(loadTest.start());
+        String end = formatInstant(loadTest.end());
+        if (!StringUtils.hasText(start) && !StringUtils.hasText(end)) {
+            return REPORT_PLACEHOLDER_TEXT;
+        }
+        if (!StringUtils.hasText(start)) {
+            return end;
+        }
+        if (!StringUtils.hasText(end)) {
+            return start;
+        }
+        return start + " - " + end;
+    }
+
+    private String formatTestStart(LoadTest loadTest) {
+        if (loadTest == null) {
+            return REPORT_PLACEHOLDER_TEXT;
+        }
+        String value = formatInstant(loadTest.start());
+        return StringUtils.hasText(value) ? value : REPORT_PLACEHOLDER_TEXT;
+    }
+
+    private String formatTestEnd(LoadTest loadTest) {
+        if (loadTest == null) {
+            return REPORT_PLACEHOLDER_TEXT;
+        }
+        String value = formatInstant(loadTest.end());
+        return StringUtils.hasText(value) ? value : REPORT_PLACEHOLDER_TEXT;
+    }
+
+    private String formatLinkedTestStart(ConfluenceReleaseReportLink link) {
+        if (link == null || link.testUuid() == null) {
+            return REPORT_PLACEHOLDER_TEXT;
+        }
+        return loadTestRepository.findById(link.testUuid())
+                .map(this::formatTestStart)
+                .orElse(REPORT_PLACEHOLDER_TEXT);
+    }
+
+    private String formatLinkedTestEnd(ConfluenceReleaseReportLink link) {
+        if (link == null || link.testUuid() == null) {
+            return REPORT_PLACEHOLDER_TEXT;
+        }
+        return loadTestRepository.findById(link.testUuid())
+                .map(this::formatTestEnd)
+                .orElse(REPORT_PLACEHOLDER_TEXT);
+    }
+
+    private String titlePlaceholder(String value) {
+        return StringUtils.hasText(value) && !REPORT_PLACEHOLDER_TEXT.equals(value) ? value : "";
+    }
+
+    private String formatInstant(Instant instant) {
+        return DateTimeViewUtils.formatInstant(instant);
+    }
+
+    private String formatLoadTestType(LoadTestType type) {
+        if (type == null) {
+            return "UNKNOWN";
+        }
+        return switch (type) {
+            case MAX -> "Максимум";
+            case STABILITY -> "Стабильность";
+            case SOAK -> "Надежность";
+            case PSU -> "PSU";
+            case DT -> "DT";
+            case UNKNOWN -> "UNKNOWN";
+        };
+    }
+
+    private String defaultTestTitle(LoadTestType type) {
+        if (type == null) {
+            return "Отчет по нагрузочному тесту";
+        }
+        return switch (type) {
+            case MAX -> "Определение максимальной производительности";
+            case STABILITY -> "Подтверждение максимальной производительности";
+            case SOAK -> "Подтверждение надежности";
+            case PSU -> "Проверка PSU";
+            case DT -> "Проверка DT";
+            case UNKNOWN -> "Отчет по нагрузочному тесту";
+        };
+    }
+
+    private String orPlaceholder(String value) {
+        return orDefault(value, REPORT_PLACEHOLDER_TEXT);
+    }
+
+    private String orDefault(String value, String fallback) {
+        String normalized = value == null ? "" : value.trim();
+        return StringUtils.hasText(normalized) ? normalized : fallback;
+    }
+
+    private String escapeCdata(String value) {
+        return (value == null ? "" : value).replace("]]>", "]]]]><![CDATA[>");
     }
 
     private String replaceSectionPlaceholder(String body, String placeholder, String section) {
@@ -989,6 +1310,8 @@ public class ConfluenceService {
     private record RenderedChartAttachment(String title, String description, String attachmentName) {}
 
     private record ConfigurationArchiveAttachment(String attachmentName) {}
+
+    private record ReleaseReportsBlock(int replacementStart, int replacementEnd, String itemTemplate) {}
 
     @FunctionalInterface
     private interface AttachmentUpload {

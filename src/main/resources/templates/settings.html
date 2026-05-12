@@ -493,6 +493,8 @@
             shortName: template?.shortName ?? '',
             fullName: template?.fullName ?? '',
             reportTitle: template?.reportTitle ?? '',
+            templateType: template?.templateType ?? 'TEST',
+            templatePageId: template?.templatePageId ?? '',
             text: template?.text ?? '',
             charts: toArray(template?.charts).map(chart => ({
                 title: chart?.title ?? '',
@@ -804,16 +806,22 @@
 
     function normalizeTemplatePayload(template) {
         const shortName = normalizeText(template?.shortName);
-        const fullName = normalizeText(template?.fullName);
         const reportTitle = normalizeText(template?.reportTitle);
+        const fullName = normalizeText(template?.fullName) || reportTitle || shortName;
+        const templateType = String(template?.templateType ?? 'TEST').trim().toUpperCase() === 'RELEASE'
+                ? 'RELEASE'
+                : 'TEST';
+        const templatePageId = normalizeText(template?.templatePageId);
         const text = template?.text ?? '';
-        if (!shortName || !fullName || !reportTitle || !normalizeText(text)) {
+        if (!shortName || !fullName || !reportTitle || !templatePageId) {
             return null;
         }
         return {
             shortName,
             fullName,
             reportTitle,
+            templateType,
+            templatePageId,
             text,
             charts: toArray(template?.charts).map(chart => ({
                 title: normalizeText(chart?.title) ?? '',

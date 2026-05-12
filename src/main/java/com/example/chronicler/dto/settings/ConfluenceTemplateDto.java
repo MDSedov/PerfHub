@@ -7,5 +7,7 @@ public record ConfluenceTemplateDto(
         String shortName,
         String fullName,
         String reportTitle,
+        String templateType,
+        String templatePageId,
         String text,
         List<ConfluenceTemplateChartDto> charts) {}

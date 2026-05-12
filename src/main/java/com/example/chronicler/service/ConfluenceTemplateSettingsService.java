@@ -4,6 +4,7 @@ import com.example.chronicler.dto.settings.GrafanaDashboardDetailsDto;
 import com.example.chronicler.dto.settings.GrafanaDashboardPanelDto;
 import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.model.ConfluenceTemplate;
+import com.example.chronicler.model.ConfluenceTemplateType;
 import com.example.chronicler.model.LoadTestType;
 import com.example.chronicler.repository.ConfluenceTemplateChartRepository;
 import com.example.chronicler.repository.ConfluenceTemplateRepository;
@@ -13,12 +14,17 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
 public class ConfluenceTemplateSettingsService {
+
+    private static final Pattern PAGE_ID_QUERY_PATTERN = Pattern.compile("[?&]pageId=([0-9]+)");
+    private static final Pattern PAGE_ID_PATH_PATTERN = Pattern.compile("/pages/(?:viewpage\\.action/)?([0-9]+)");
 
     private final ConfluenceTemplateRepository templateRepository;
     private final ConfluenceTemplateChartRepository chartRepository;
@@ -86,11 +92,13 @@ public class ConfluenceTemplateSettingsService {
     @Transactional
     public ConfluenceTemplate createTemplate(TemplateSaveCommand command) {
         SanitizedTemplate sanitized = sanitize(command);
-        validateUniqueNames(sanitized.shortName(), sanitized.fullName(), null);
+        validateUniqueNames(sanitized.shortName(), null);
         int templateId = templateRepository.create(
                 sanitized.shortName(),
                 sanitized.fullName(),
                 sanitized.reportTitle(),
+                sanitized.templateType(),
+                sanitized.templatePageId(),
                 sanitized.text());
         chartRepository.replaceForTemplate(templateId, toCharts(templateId, sanitized.charts()));
         return getActiveTemplate(templateId);
@@ -101,12 +109,14 @@ public class ConfluenceTemplateSettingsService {
         templateRepository.findActiveById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Шаблон отчета не найден"));
         SanitizedTemplate sanitized = sanitize(command);
-        validateUniqueNames(sanitized.shortName(), sanitized.fullName(), id);
+        validateUniqueNames(sanitized.shortName(), id);
         templateRepository.update(
                 id,
                 sanitized.shortName(),
                 sanitized.fullName(),
                 sanitized.reportTitle(),
+                sanitized.templateType(),
+                sanitized.templatePageId(),
                 sanitized.text());
         chartRepository.replaceForTemplate(id, toCharts(id, sanitized.charts()));
         return getActiveTemplate(id);
@@ -123,6 +133,8 @@ public class ConfluenceTemplateSettingsService {
                 template.shortName(),
                 template.fullName(),
                 template.reportTitle(),
+                template.templateType(),
+                template.templatePageId(),
                 template.text(),
                 charts == null ? List.of() : List.copyOf(charts));
     }
@@ -155,22 +167,20 @@ public class ConfluenceTemplateSettingsService {
         }
 
         String shortName = StringUtils.trimWhitespace(command.shortName());
-        String fullName = StringUtils.trimWhitespace(command.fullName());
         String reportTitle = StringUtils.trimWhitespace(command.reportTitle());
+        ConfluenceTemplateType templateType = ConfluenceTemplateType.fromDatabaseValue(command.templateType());
+        String templatePageId = normalizeTemplatePageId(command.templatePageId());
         if (!StringUtils.hasText(shortName)) {
-            throw new IllegalArgumentException("Короткое имя шаблона обязательно");
+            throw new IllegalArgumentException("Название шаблона обязательно");
         }
-        if (shortName.length() > 12) {
-            throw new IllegalArgumentException("Короткое имя шаблона должно быть не длиннее 12 символов");
-        }
-        if (!StringUtils.hasText(fullName)) {
-            throw new IllegalArgumentException("Полное название шаблона обязательно");
+        if (shortName.length() > 30) {
+            throw new IllegalArgumentException("Название шаблона должно быть не длиннее 30 символов");
         }
         if (!StringUtils.hasText(reportTitle)) {
             throw new IllegalArgumentException("Название отчета обязательно");
         }
-        if (!StringUtils.hasText(command.text())) {
-            throw new IllegalArgumentException("Текст шаблона обязателен");
+        if (!StringUtils.hasText(templatePageId)) {
+            throw new IllegalArgumentException("ID или ссылка на страницу-шаблон Confluence обязательны");
         }
 
         List<SanitizedChart> charts = new ArrayList<>();
@@ -194,15 +204,46 @@ public class ConfluenceTemplateSettingsService {
             charts.add(new SanitizedChart(title, dashboardUid, chart.panelId(), index));
         }
 
-        return new SanitizedTemplate(shortName, fullName, reportTitle, command.text(), List.copyOf(charts));
+        return new SanitizedTemplate(
+                shortName,
+                resolveFullName(command.fullName(), reportTitle, shortName),
+                reportTitle,
+                templateType,
+                templatePageId,
+                command.text() == null ? "" : command.text(),
+                List.copyOf(charts));
     }
 
-    private void validateUniqueNames(String shortName, String fullName, Integer templateId) {
-        if (templateRepository.existsActiveByShortName(shortName, templateId)) {
-            throw new IllegalArgumentException("Короткое имя шаблона должно быть уникальным");
+    private String resolveFullName(String requestedFullName, String reportTitle, String shortName) {
+        String fullName = StringUtils.trimWhitespace(requestedFullName);
+        if (StringUtils.hasText(fullName)) {
+            return fullName;
         }
-        if (templateRepository.existsActiveByFullName(fullName, templateId)) {
-            throw new IllegalArgumentException("Полное название шаблона должно быть уникальным");
+        if (StringUtils.hasText(reportTitle)) {
+            return reportTitle;
+        }
+        return shortName;
+    }
+
+    private String normalizeTemplatePageId(String rawValue) {
+        String value = StringUtils.trimWhitespace(rawValue);
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        Matcher queryMatcher = PAGE_ID_QUERY_PATTERN.matcher(value);
+        if (queryMatcher.find()) {
+            return queryMatcher.group(1);
+        }
+        Matcher pathMatcher = PAGE_ID_PATH_PATTERN.matcher(value);
+        if (pathMatcher.find()) {
+            return pathMatcher.group(1);
+        }
+        return value;
+    }
+
+    private void validateUniqueNames(String shortName, Integer templateId) {
+        if (templateRepository.existsActiveByShortName(shortName, templateId)) {
+            throw new IllegalArgumentException("Название шаблона должно быть уникальным");
         }
     }
 
@@ -222,6 +263,8 @@ public class ConfluenceTemplateSettingsService {
             String shortName,
             String fullName,
             String reportTitle,
+            String templateType,
+            String templatePageId,
             String text,
             List<TemplateChartCommand> charts) {}
 
@@ -238,6 +281,8 @@ public class ConfluenceTemplateSettingsService {
             String shortName,
             String fullName,
             String reportTitle,
+            ConfluenceTemplateType templateType,
+            String templatePageId,
             String text,
             List<SanitizedChart> charts) {}
 

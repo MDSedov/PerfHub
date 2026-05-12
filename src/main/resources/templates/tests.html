@@ -23,7 +23,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="/css/app.css?v=perfhub-11">
+    <link rel="stylesheet" href="/css/app.css?v=perfhub-13">
 </head>
 <body>
 <div class="app-shell">
@@ -356,7 +356,6 @@
                             <div class="d-flex flex-column gap-1">
                                 <span class="test-details-modal-kicker">Confluence</span>
                                 <h5 class="modal-title" id="generateReportsModalLabel">Генерация отчетов</h5>
-                                <div class="text-muted small">Создайте страницы Confluence по выбранным тестам.</div>
                             </div>
                             <button type="button"
                                     class="btn-close"
@@ -367,60 +366,66 @@
                             <section class="report-generation-section">
                                 <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
                                     <div>
-                                        <h6 class="test-details-section-title mb-1">Родительская страница</h6>
-                                        <p class="text-muted small mb-0">Выберите страницу из ветки Confluence, указанной в настройках подключения.</p>
+                                        <h6 class="test-details-section-title mb-1">Отчет по релизу</h6>
                                     </div>
                                     <button type="button"
                                             class="btn btn-outline-secondary btn-sm flex-shrink-0"
-                                            id="generateReportsParentPageRefreshButton"
-                                            title="Обновить список страниц из Confluence"
-                                            aria-label="Обновить список страниц из Confluence">
+                                            id="generateReportsReleasePagesRefreshButton"
+                                            title="Обновить список страниц отчетов"
+                                            aria-label="Обновить список страниц отчетов">
                                         <i class="bi bi-arrow-clockwise"></i>
                                     </button>
                                 </div>
 
-                                <div>
-                                    <label for="generateReportsParentPageId" class="form-label">Страница в Confluence</label>
+                                <div class="report-generation-mode-grid">
+                                    <label class="report-generation-mode-card" for="generateReportsModeCreate">
+                                        <input class="form-check-input"
+                                               type="radio"
+                                               name="generateReportsReleaseMode"
+                                               id="generateReportsModeCreate"
+                                               value="create"
+                                               checked>
+                                        <span class="report-generation-mode-content">
+                                            <span class="report-generation-mode-icon"><i class="bi bi-file-earmark-plus"></i></span>
+                                            <span class="report-generation-mode-title">Создать новый отчет по релизу</span>
+                                        </span>
+                                    </label>
+
+                                    <label class="report-generation-mode-card" for="generateReportsModeExisting">
+                                        <input class="form-check-input"
+                                               type="radio"
+                                               name="generateReportsReleaseMode"
+                                               id="generateReportsModeExisting"
+                                               value="existing">
+                                        <span class="report-generation-mode-content">
+                                            <span class="report-generation-mode-icon"><i class="bi bi-pencil-square"></i></span>
+                                            <span class="report-generation-mode-title">Дополнить существующий отчет по релизу</span>
+                                        </span>
+                                    </label>
+                                </div>
+
+                                <div class="report-generation-choice-panel mt-3" id="generateReportsReleaseTemplatePanel">
+                                    <label for="generateReportsReleasePageTemplate" class="form-label">Шаблон отчета по релизу</label>
                                     <select class="form-select"
-                                            id="generateReportsParentPageId"
-                                            required>
-                                        <option value="">Загружаем страницы Confluence…</option>
+                                            id="generateReportsReleasePageTemplate">
+                                        <option value="">Выберите шаблон страницы</option>
+                                    </select>
+                                </div>
+
+                                <div class="report-generation-choice-panel mt-3 d-none" id="generateReportsExistingReleasePanel">
+                                    <label for="generateReportsExistingReleasePage" class="form-label">Существующий отчет по релизу</label>
+                                    <select class="form-select"
+                                            id="generateReportsExistingReleasePage"
+                                            disabled>
+                                        <option value="">Загружаем страницы отчетов…</option>
                                     </select>
                                 </div>
                             </section>
 
-                            <section class="report-generation-section mt-3">
-                                <div class="form-check mb-3">
-                                    <input class="form-check-input"
-                                           type="checkbox"
-                                           value=""
-                                           id="generateReportsCreateReleasePage">
-                                    <label class="form-check-label" for="generateReportsCreateReleasePage">
-                                        Создать новую страницу с отчетом по НТ релиза, в которую будут добавлены отчеты по тестам
-                                    </label>
-                                </div>
-
-                                <div class="row g-3 mb-1">
-                                    <div class="col-12">
-                                        <label for="generateReportsReleasePageTemplate" class="form-label">Шаблон страницы</label>
-                                        <select class="form-select"
-                                                id="generateReportsReleasePageTemplate"
-                                                disabled>
-                                            <option value="">Выберите шаблон страницы</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <section class="report-generation-section mt-3">
+                            <section class="report-generation-section mt-3" id="generateReportsSelectedSection">
                                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                                     <div>
                                         <h6 class="test-details-section-title mb-1">Выбранные тесты</h6>
-                                        <p class="text-muted small mb-0">Список тестов для формирования отчетов в Confluence.</p>
-                                    </div>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <span id="generateReportsSelectedCounter" class="tests-count">0</span>
-                                        <span class="text-muted small">шт.</span>
                                     </div>
                                 </div>
 
@@ -429,11 +434,11 @@
                                     <table class="table align-middle tests-table mb-0 report-generation-table">
                                         <thead>
                                         <tr>
+                                            <th scope="col">№</th>
                                             <th scope="col">Релиз</th>
                                             <th scope="col">Тип теста</th>
-                                            <th scope="col">Шаблон</th>
-                                            <th scope="col">Начало</th>
-                                            <th scope="col">Окончание</th>
+                                            <th scope="col">Шаблон теста</th>
+                                            <th scope="col">Период</th>
                                             <th scope="col">Требования</th>
                                             <th scope="col">Конфигурация</th>
                                         </tr>
@@ -451,7 +456,7 @@
                                     </div>
                                 </div>
 
-                                <div id="generateReportsResultsEmpty" class="text-muted small">Генерация еще не запускалась.</div>
+                                <div id="generateReportsResultsEmpty" class="text-muted small"></div>
                                 <div id="generateReportsResultsWrapper" class="table-responsive d-none">
                                     <table class="table align-middle tests-table mb-0 report-generation-results-table">
                                         <thead>
@@ -470,7 +475,7 @@
                             <button type="submit"
                                     class="btn btn-success"
                                     id="generateReportsModalCreateButton"
-                                    disabled>Создать отчеты по тестам</button>
+                                    disabled>Создать отчеты</button>
                         </div>
                     </form>
                 </div>
@@ -507,11 +512,13 @@
     const testDetailsModalBody = document.getElementById('testDetailsModalBody');
     const generateReportsModalElement = document.getElementById('generateReportsModal');
     const generateReportsModalForm = document.getElementById('generateReportsModalForm');
-    const generateReportsParentPageIdInput = document.getElementById('generateReportsParentPageId');
-    const generateReportsParentPageRefreshButton = document.getElementById('generateReportsParentPageRefreshButton');
-    const generateReportsCreateReleasePageCheckbox = document.getElementById('generateReportsCreateReleasePage');
+    const generateReportsReleaseModeInputs = Array.from(document.querySelectorAll('input[name="generateReportsReleaseMode"]'));
+    const generateReportsReleasePagesRefreshButton = document.getElementById('generateReportsReleasePagesRefreshButton');
+    const generateReportsReleaseTemplatePanel = document.getElementById('generateReportsReleaseTemplatePanel');
+    const generateReportsExistingReleasePanel = document.getElementById('generateReportsExistingReleasePanel');
     const generateReportsReleasePageTemplateSelect = document.getElementById('generateReportsReleasePageTemplate');
-    const generateReportsSelectedCounter = document.getElementById('generateReportsSelectedCounter');
+    const generateReportsExistingReleasePageSelect = document.getElementById('generateReportsExistingReleasePage');
+    const generateReportsSelectedSection = document.getElementById('generateReportsSelectedSection');
     const generateReportsSelectedWrapper = document.getElementById('generateReportsSelectedWrapper');
     const generateReportsSelectedBody = document.getElementById('generateReportsSelectedBody');
     const generateReportsSelectedEmpty = document.getElementById('generateReportsSelectedEmpty');
@@ -522,17 +529,19 @@
     const toastContainer = document.getElementById('toastContainer');
     const selectedReportTestIds = new Set();
     const selectedReportTemplateIds = new Map();
+    const selectedReportMetadata = new Map();
     let reportTemplates = [];
     let reportTemplatesLoaded = false;
     let filterDropdownsInitialized = false;
     let reportSelectionHintToast = null;
     let isReportCreationInProgress = false;
     let reportGenerationResults = [];
-    let confluenceParentPageOptions = [];
-    let confluenceParentPagesLoading = false;
-    let confluenceParentPagesErrorMessage = '';
-    let confluenceParentPagesPromise = null;
-    let selectedReportParentPageId = '';
+    let configuredReportsRootPageId = '';
+    let confluenceReleasePageOptions = [];
+    let confluenceReleasePagesLoading = false;
+    let confluenceReleasePagesErrorMessage = '';
+    let confluenceReleasePagesPromise = null;
+    let selectedExistingReleasePageId = '';
     let selectedReleasePageTemplateId = '';
 
     const MOSCOW_TZ = 'Europe/Moscow';
@@ -580,17 +589,35 @@
             if (!availableTestIds.has(testId)) {
                 selectedReportTestIds.delete(testId);
                 selectedReportTemplateIds.delete(testId);
+                selectedReportMetadata.delete(testId);
             }
         });
     }
 
+    function getReportTemplateType(template) {
+        return String(template?.templateType ?? 'TEST').trim().toUpperCase();
+    }
+
+    function getReportTemplatesByType(templateType) {
+        const normalizedType = String(templateType ?? '').trim().toUpperCase();
+        return reportTemplates.filter(template => getReportTemplateType(template) === normalizedType);
+    }
+
+    function getTestReportTemplates() {
+        return getReportTemplatesByType('TEST');
+    }
+
+    function getReleaseReportTemplates() {
+        return getReportTemplatesByType('RELEASE');
+    }
+
     function isKnownReportTemplateId(templateId) {
-        return reportTemplates.some(template => String(template?.id) === String(templateId));
+        return getTestReportTemplates().some(template => String(template?.id) === String(templateId));
     }
 
     function resolveDefaultReportTemplateId(test) {
         const normalizedType = canonicalizeTestType(test?.type) || 'unknown';
-        const matchedTemplate = reportTemplates.find(template =>
+        const matchedTemplate = getTestReportTemplates().find(template =>
                 (template?.shortName ?? '').trim().toLowerCase() === normalizedType);
         return matchedTemplate?.id ? String(matchedTemplate.id) : '';
     }
@@ -611,6 +638,32 @@
         }
         selectedReportTemplateIds.delete(testId);
         return '';
+    }
+
+    function ensureSelectedReportMetadata(test, index = 0) {
+        const testId = test?.id;
+        if (!testId) {
+            return { testNumber: '' };
+        }
+        const existing = selectedReportMetadata.get(testId) || {};
+        const metadata = {
+            testNumber: existing.testNumber || String(index + 1)
+        };
+        selectedReportMetadata.set(testId, metadata);
+        return metadata;
+    }
+
+    function findReportTemplateById(templateId) {
+        return reportTemplates.find(template => String(template?.id) === String(templateId));
+    }
+
+    function resolveReportTitleFromSelectedTemplate(test) {
+        const templateId = selectedReportTemplateIds.get(test?.id) || ensureSelectedReportTemplate(test);
+        const template = findReportTemplateById(templateId);
+        return template?.reportTitle
+                || template?.fullName
+                || template?.shortName
+                || 'Отчет по нагрузочному тесту';
     }
 
     function getSelectedTestsMissingTemplate() {
@@ -1396,9 +1449,6 @@
         const selectedTests = getSelectedReportTests();
         disposePageTooltips(generateReportsSelectedBody);
         generateReportsSelectedBody.innerHTML = '';
-        if (generateReportsSelectedCounter) {
-            generateReportsSelectedCounter.textContent = selectedTests.length.toString();
-        }
         if (selectedTests.length === 0) {
             generateReportsSelectedWrapper.classList.add('d-none');
             generateReportsSelectedEmpty.classList.remove('d-none');
@@ -1408,9 +1458,28 @@
         generateReportsSelectedWrapper.classList.remove('d-none');
         generateReportsSelectedEmpty.classList.add('d-none');
 
-        selectedTests.forEach(test => {
+        selectedTests.forEach((test, index) => {
             const row = document.createElement('tr');
-            appendGenerateReportsTextCell(row, getReleaseValue(test) ?? '—');
+            const metadata = ensureSelectedReportMetadata(test, index);
+
+            const numberCell = document.createElement('td');
+            numberCell.className = 'report-generation-number-cell';
+            const numberInput = document.createElement('input');
+            numberInput.type = 'text';
+            numberInput.className = 'form-control form-control-sm';
+            numberInput.value = metadata.testNumber;
+            numberInput.placeholder = String(index + 1);
+            numberInput.addEventListener('input', () => {
+                const current = selectedReportMetadata.get(test.id) || {};
+                selectedReportMetadata.set(test.id, {
+                    ...current,
+                    testNumber: numberInput.value
+                });
+            });
+            numberCell.appendChild(numberInput);
+            row.appendChild(numberCell);
+
+            appendGenerateReportsTextCell(row, getReleaseValue(test) ?? '—', 'text-nowrap');
 
             const typeCell = document.createElement('td');
             const typeBadge = document.createElement('span');
@@ -1421,25 +1490,26 @@
             row.appendChild(typeCell);
 
             const templateCell = document.createElement('td');
-            templateCell.className = 'report-template-select-cell';
+            templateCell.className = 'report-generation-template-cell';
             const templateSelect = document.createElement('select');
             templateSelect.className = 'form-select form-select-sm';
+            const testTemplates = getTestReportTemplates();
             const currentTemplateId = ensureSelectedReportTemplate(test);
             const placeholderOption = document.createElement('option');
             placeholderOption.value = '';
             placeholderOption.textContent = !reportTemplatesLoaded
                     ? 'Загружаем шаблоны…'
-                    : reportTemplates.length === 0
-                            ? 'Нет шаблонов'
+                    : testTemplates.length === 0
+                            ? 'Нет шаблонов отчета по тесту'
                             : 'Выберите шаблон';
             templateSelect.appendChild(placeholderOption);
-            reportTemplates.forEach(template => {
+            testTemplates.forEach(template => {
                 const option = document.createElement('option');
                 option.value = String(template.id);
                 option.textContent = template.shortName ?? `template-${template.id}`;
                 templateSelect.appendChild(option);
             });
-            templateSelect.disabled = !reportTemplatesLoaded || reportTemplates.length === 0;
+            templateSelect.disabled = !reportTemplatesLoaded || testTemplates.length === 0;
             templateSelect.value = currentTemplateId || '';
             templateSelect.addEventListener('change', () => {
                 if (!test?.id) {
@@ -1455,8 +1525,10 @@
             templateCell.appendChild(templateSelect);
             row.appendChild(templateCell);
 
-            appendGenerateReportsTextCell(row, formatDateNoSeconds(test?.start), 'text-nowrap');
-            appendGenerateReportsTextCell(row, formatTestEndValue(test), 'text-nowrap');
+            appendGenerateReportsTextCell(
+                    row,
+                    `${formatDateNoSeconds(test?.start)} — ${formatTestEndValue(test)}`,
+                    'text-nowrap');
 
             const requirementCell = document.createElement('td');
             requirementCell.className = 'text-center';
@@ -1494,75 +1566,61 @@
         return `${'-- '.repeat(depth)}${title}`;
     }
 
-    function flattenConfluenceParentPages(page, depth = 0, result = []) {
-        if (!page?.id) {
-            return result;
-        }
-        result.push({
-            id: String(page.id),
-            label: buildConfluenceParentPageOptionLabel(page, depth)
-        });
-        if (Array.isArray(page.children)) {
-            page.children.forEach(child => flattenConfluenceParentPages(child, depth + 1, result));
-        }
-        return result;
-    }
-
-    function renderConfluenceParentPageOptions() {
-        if (!generateReportsParentPageIdInput) {
+    function renderConfluenceReleasePageOptions() {
+        if (!generateReportsExistingReleasePageSelect) {
             return;
         }
 
-        if (generateReportsParentPageRefreshButton) {
-            generateReportsParentPageRefreshButton.disabled = confluenceParentPagesLoading;
+        if (generateReportsReleasePagesRefreshButton) {
+            generateReportsReleasePagesRefreshButton.disabled = confluenceReleasePagesLoading;
         }
 
-        generateReportsParentPageIdInput.innerHTML = '';
+        generateReportsExistingReleasePageSelect.innerHTML = '';
 
-        if (confluenceParentPagesLoading) {
+        if (confluenceReleasePagesLoading) {
             const loadingOption = document.createElement('option');
             loadingOption.value = '';
-            loadingOption.textContent = 'Загружаем страницы Confluence…';
-            generateReportsParentPageIdInput.appendChild(loadingOption);
-            generateReportsParentPageIdInput.disabled = true;
+            loadingOption.textContent = 'Загружаем страницы отчетов…';
+            generateReportsExistingReleasePageSelect.appendChild(loadingOption);
             updateGenerateReportsSubmitState();
+            updateReleasePageControlsState();
             return;
         }
 
-        if (confluenceParentPagesErrorMessage) {
+        if (confluenceReleasePagesErrorMessage) {
             const errorOption = document.createElement('option');
             errorOption.value = '';
-            errorOption.textContent = confluenceParentPagesErrorMessage;
-            generateReportsParentPageIdInput.appendChild(errorOption);
-            generateReportsParentPageIdInput.disabled = true;
+            errorOption.textContent = confluenceReleasePagesErrorMessage;
+            generateReportsExistingReleasePageSelect.appendChild(errorOption);
             updateGenerateReportsSubmitState();
+            updateReleasePageControlsState();
             return;
         }
 
-        if (confluenceParentPageOptions.length === 0) {
+        if (confluenceReleasePageOptions.length === 0) {
             const emptyOption = document.createElement('option');
             emptyOption.value = '';
-            emptyOption.textContent = 'Страницы Confluence не найдены';
-            generateReportsParentPageIdInput.appendChild(emptyOption);
-            generateReportsParentPageIdInput.disabled = true;
+            emptyOption.textContent = 'В ветке еще нет отчетов по релизам';
+            generateReportsExistingReleasePageSelect.appendChild(emptyOption);
             updateGenerateReportsSubmitState();
+            updateReleasePageControlsState();
             return;
         }
 
-        confluenceParentPageOptions.forEach(page => {
+        confluenceReleasePageOptions.forEach(page => {
             const option = document.createElement('option');
             option.value = page.id;
             option.textContent = page.label;
-            generateReportsParentPageIdInput.appendChild(option);
+            generateReportsExistingReleasePageSelect.appendChild(option);
         });
 
-        generateReportsParentPageIdInput.disabled = false;
-        const nextValue = confluenceParentPageOptions.some(page => page.id === selectedReportParentPageId)
-                ? selectedReportParentPageId
-                : confluenceParentPageOptions[0].id;
-        generateReportsParentPageIdInput.value = nextValue;
-        selectedReportParentPageId = nextValue;
+        const nextValue = confluenceReleasePageOptions.some(page => page.id === selectedExistingReleasePageId)
+                ? selectedExistingReleasePageId
+                : confluenceReleasePageOptions[0].id;
+        generateReportsExistingReleasePageSelect.value = nextValue;
+        selectedExistingReleasePageId = nextValue;
         updateGenerateReportsSubmitState();
+        updateReleasePageControlsState();
     }
 
     function renderReleasePageTemplateOptions() {
@@ -1570,25 +1628,26 @@
             return;
         }
 
+        const releaseTemplates = getReleaseReportTemplates();
         generateReportsReleasePageTemplateSelect.innerHTML = '';
 
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
         placeholderOption.textContent = !reportTemplatesLoaded
                 ? 'Загружаем шаблоны…'
-                : reportTemplates.length === 0
-                        ? 'Нет шаблонов'
+                : releaseTemplates.length === 0
+                        ? 'Нет шаблонов отчета по релизу'
                         : 'Выберите шаблон страницы';
         generateReportsReleasePageTemplateSelect.appendChild(placeholderOption);
 
-        reportTemplates.forEach(template => {
+        releaseTemplates.forEach(template => {
             const option = document.createElement('option');
             option.value = String(template.id);
-            option.textContent = template.fullName || template.shortName || `template-${template.id}`;
+            option.textContent = template.shortName || template.reportTitle || template.fullName || `template-${template.id}`;
             generateReportsReleasePageTemplateSelect.appendChild(option);
         });
 
-        const nextValue = reportTemplates.some(template => String(template.id) === selectedReleasePageTemplateId)
+        const nextValue = releaseTemplates.some(template => String(template.id) === selectedReleasePageTemplateId)
                 ? selectedReleasePageTemplateId
                 : '';
         generateReportsReleasePageTemplateSelect.value = nextValue;
@@ -1596,32 +1655,70 @@
     }
 
     function updateReleasePageControlsState() {
-        const isEnabled = Boolean(generateReportsCreateReleasePageCheckbox?.checked);
-        const templatesAvailable = reportTemplatesLoaded && reportTemplates.length > 0;
+        const mode = getGenerateReportsReleaseMode();
+        const isCreateMode = mode === 'create';
+        const isExistingMode = mode === 'existing';
+        const releaseTemplatesAvailable = reportTemplatesLoaded && getReleaseReportTemplates().length > 0;
+
+        document.querySelectorAll('.report-generation-mode-card').forEach(card => {
+            const input = card.querySelector('input[name="generateReportsReleaseMode"]');
+            card.classList.toggle('is-active', Boolean(input?.checked));
+        });
+
+        generateReportsReleaseTemplatePanel?.classList.toggle('d-none', !isCreateMode);
+        generateReportsExistingReleasePanel?.classList.toggle('d-none', !isExistingMode);
 
         if (generateReportsReleasePageTemplateSelect) {
-            generateReportsReleasePageTemplateSelect.disabled = !isEnabled || !templatesAvailable;
+            generateReportsReleasePageTemplateSelect.disabled = !isCreateMode || !releaseTemplatesAvailable;
+        }
+
+        if (generateReportsExistingReleasePageSelect) {
+            generateReportsExistingReleasePageSelect.disabled =
+                    !isExistingMode
+                    || confluenceReleasePagesLoading
+                    || confluenceReleasePagesErrorMessage
+                    || confluenceReleasePageOptions.length === 0;
         }
     }
 
-    async function loadConfluenceParentPages(forceReload = false) {
-        if (!generateReportsParentPageIdInput) {
+    function hasGenerateReportsReleaseTargetSelected() {
+        const mode = getGenerateReportsReleaseMode();
+        const hasConfiguredRootPage = configuredReportsRootPageId.trim().length > 0;
+        const hasReleasePageTemplate = (generateReportsReleasePageTemplateSelect?.value ?? '').trim().length > 0;
+        const existingReleasePageId = (generateReportsExistingReleasePageSelect?.value ?? '').trim();
+        const hasExistingReleasePage = existingReleasePageId.length > 0
+                && confluenceReleasePageOptions.some(page => page.id === existingReleasePageId);
+        return (mode === 'create' && hasConfiguredRootPage && hasReleasePageTemplate)
+                || (mode === 'existing' && hasExistingReleasePage);
+    }
+
+    function updateGenerateReportsSelectedSectionState() {
+        generateReportsSelectedSection?.classList.remove('d-none');
+    }
+
+    function getGenerateReportsReleaseMode() {
+        return generateReportsReleaseModeInputs.find(input => input.checked)?.value || 'create';
+    }
+
+    async function loadConfluenceReleasePages(forceReload = false) {
+        if (!generateReportsExistingReleasePageSelect) {
             return;
         }
-        if (!forceReload && confluenceParentPageOptions.length > 0 && !confluenceParentPagesErrorMessage) {
-            renderConfluenceParentPageOptions();
+        if (!forceReload && configuredReportsRootPageId && !confluenceReleasePagesErrorMessage) {
+            renderConfluenceReleasePageOptions();
             return;
         }
-        if (confluenceParentPagesPromise) {
-            return confluenceParentPagesPromise;
+        if (confluenceReleasePagesPromise) {
+            return confluenceReleasePagesPromise;
         }
 
-        selectedReportParentPageId = selectedReportParentPageId || (generateReportsParentPageIdInput.value ?? '').trim();
-        confluenceParentPagesLoading = true;
-        confluenceParentPagesErrorMessage = '';
-        renderConfluenceParentPageOptions();
+        selectedExistingReleasePageId =
+                selectedExistingReleasePageId || (generateReportsExistingReleasePageSelect.value ?? '').trim();
+        confluenceReleasePagesLoading = true;
+        confluenceReleasePagesErrorMessage = '';
+        renderConfluenceReleasePageOptions();
 
-        confluenceParentPagesPromise = (async () => {
+        confluenceReleasePagesPromise = (async () => {
             try {
                 const response = await fetch('/api/confluence/report/parent-pages/');
                 if (!response.ok) {
@@ -1631,22 +1728,29 @@
                                     'Не удалось загрузить список страниц Confluence'));
                 }
                 const payload = await response.json();
-                confluenceParentPageOptions = flattenConfluenceParentPages(payload);
-                if (confluenceParentPageOptions.length === 0) {
-                    confluenceParentPagesErrorMessage = 'В Confluence не найдены доступные страницы';
+                configuredReportsRootPageId = payload?.id ? String(payload.id) : '';
+                confluenceReleasePageOptions = (Array.isArray(payload?.children) ? payload.children : [])
+                        .filter(page => page?.id)
+                        .map(page => ({
+                            id: String(page.id),
+                            label: buildConfluenceParentPageOptionLabel(page)
+                        }));
+                if (!configuredReportsRootPageId) {
+                    confluenceReleasePagesErrorMessage = 'Не удалось определить родительскую страницу из настроек Confluence';
                 }
             } catch (error) {
-                confluenceParentPageOptions = [];
-                confluenceParentPagesErrorMessage = error?.message || 'Не удалось загрузить список страниц Confluence';
-                showToast(confluenceParentPagesErrorMessage, 'danger', 12000);
+                configuredReportsRootPageId = '';
+                confluenceReleasePageOptions = [];
+                confluenceReleasePagesErrorMessage = error?.message || 'Не удалось загрузить список страниц Confluence';
+                showToast(confluenceReleasePagesErrorMessage, 'danger', 12000);
             } finally {
-                confluenceParentPagesLoading = false;
-                confluenceParentPagesPromise = null;
-                renderConfluenceParentPageOptions();
+                confluenceReleasePagesLoading = false;
+                confluenceReleasePagesPromise = null;
+                renderConfluenceReleasePageOptions();
             }
         })();
 
-        return confluenceParentPagesPromise;
+        return confluenceReleasePagesPromise;
     }
 
     async function loadReportTemplates() {
@@ -1707,7 +1811,7 @@
             generateReportsResultsWrapper.classList.add('d-none');
             generateReportsResultsEmpty.textContent = isReportCreationInProgress
                 ? 'Подготавливаем запуск генерации…'
-                : 'Генерация еще не запускалась.';
+                : '';
             generateReportsResultsEmpty.classList.remove('d-none');
             return;
         }
@@ -1789,18 +1893,15 @@
         if (!generateReportsModalCreateButton) {
             return;
         }
-        const hasParentPage = (generateReportsParentPageIdInput?.value ?? '').trim().length > 0;
         const hasSelectedTests = selectedReportTestIds.size > 0;
         const hasTemplatesForAllSelectedTests =
                 reportTemplatesLoaded
-                && reportTemplates.length > 0
+                && getTestReportTemplates().length > 0
                 && getSelectedTestsMissingTemplate().length === 0;
-        const shouldCreateReleasePage = Boolean(generateReportsCreateReleasePageCheckbox?.checked);
-        const hasReleasePageTemplate = (generateReportsReleasePageTemplateSelect?.value ?? '').trim().length > 0;
-        const hasValidReleasePageConfig = !shouldCreateReleasePage || hasReleasePageTemplate;
+        const hasValidReleasePageConfig = hasGenerateReportsReleaseTargetSelected();
+        updateGenerateReportsSelectedSectionState();
         generateReportsModalCreateButton.disabled =
                 isReportCreationInProgress
-                || !hasParentPage
                 || !hasSelectedTests
                 || !hasTemplatesForAllSelectedTests
                 || !hasValidReleasePageConfig;
@@ -1822,12 +1923,22 @@
         renderGenerateReportsResults();
         const modalApi = showGenerateReportsModalDialog();
         window.requestAnimationFrame(() => modalApi?.handleUpdate?.());
-        void loadConfluenceParentPages().finally(() => {
+        void loadConfluenceReleasePages().finally(() => {
             modalApi?.handleUpdate?.();
             if (generateReportsModalElement?.classList.contains('show')) {
-                generateReportsParentPageIdInput?.focus();
+                focusGenerateReportsPrimaryControl();
             }
         });
+    }
+
+    function focusGenerateReportsPrimaryControl() {
+        if (getGenerateReportsReleaseMode() === 'existing' && !generateReportsExistingReleasePageSelect?.disabled) {
+            generateReportsExistingReleasePageSelect.focus();
+            return;
+        }
+        if (!generateReportsReleasePageTemplateSelect?.disabled) {
+            generateReportsReleasePageTemplateSelect.focus();
+        }
     }
 
     async function fetchWithTimeout(url, options = {}, timeoutMs = 300000) {
@@ -1891,6 +2002,24 @@
         return response.json();
     }
 
+    async function updateReleaseReportLinks(releasePageId, reports) {
+        const response = await fetchWithTimeout('/api/confluence/report/release-page/links/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                releasePageId,
+                reports
+            })
+        }, 180000);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(extractReportCreationErrorMessage(errorText, 'Не удалось обновить список отчетов на странице релиза'));
+        }
+        return response.json();
+    }
+
     function extractSingleGeneratedReport(payload) {
         const reports = Array.isArray(payload?.reports) ? payload.reports : [];
         return reports[0] ?? null;
@@ -1902,10 +2031,11 @@
             return;
         }
 
-        const parentPageId = (generateReportsParentPageIdInput?.value ?? '').trim();
+        const releaseMode = getGenerateReportsReleaseMode();
         const selectedTests = getSelectedReportTests();
-        const shouldCreateReleasePage = Boolean(generateReportsCreateReleasePageCheckbox?.checked);
+        const shouldCreateReleasePage = releaseMode === 'create';
         const releasePageTemplateId = Number(generateReportsReleasePageTemplateSelect?.value ?? 0);
+        const existingReleasePageId = (generateReportsExistingReleasePageSelect?.value ?? '').trim();
         reportGenerationResults = selectedTests.map((test, index) => ({
             order: index + 1,
             testId: test?.id ?? '',
@@ -1929,14 +2059,15 @@
 
         let successCount = 0;
         let errorCount = 0;
-        let targetParentPageId = parentPageId;
+        let targetParentPageId = shouldCreateReleasePage ? configuredReportsRootPageId : existingReleasePageId;
+        const releaseReportLinkItems = [];
 
         try {
             if (shouldCreateReleasePage) {
                 try {
                     showToast('Создаем страницу отчета по НТ релиза…', 'info', 6000);
                     const releasePage = await createReleaseReportPage(
-                            parentPageId,
+                            configuredReportsRootPageId,
                             releasePageTemplateId,
                             selectedTests.map(test => test?.id).filter(Boolean));
                     if (!releasePage?.pageId) {
@@ -1981,6 +2112,15 @@
                         pageUrl: report.pageUrl || '',
                         message: ''
                     });
+                    const metadata = selectedReportMetadata.get(testId) || ensureSelectedReportMetadata(test);
+                    releaseReportLinkItems.push({
+                        testUuid: testId,
+                        testNumber: metadata.testNumber || '',
+                        testTitle: resolveReportTitleFromSelectedTemplate(test),
+                        reportPageId: report.pageId,
+                        reportPageTitle: report.pageTitle || '',
+                        reportPageUrl: report.pageUrl || ''
+                    });
                     successCount += 1;
                 } catch (error) {
                     updateReportGenerationResult(testId, {
@@ -1991,9 +2131,22 @@
                     showToast(error?.message || 'Не удалось создать отчет', 'danger', 12000);
                 }
             }
+
+            if (releaseReportLinkItems.length > 0) {
+                try {
+                    const updateResult = await updateReleaseReportLinks(targetParentPageId, releaseReportLinkItems);
+                    if (updateResult?.updated) {
+                        showToast('Список отчетов на странице релиза обновлен.', 'success', 6000);
+                    } else {
+                        showToast('На странице отчета по релизу не найден блок @perfhub_reports_start.', 'warning', 12000);
+                    }
+                } catch (error) {
+                    showToast(error?.message || 'Не удалось обновить список отчетов на странице релиза', 'warning', 12000);
+                }
+            }
         } finally {
             isReportCreationInProgress = false;
-            generateReportsModalCreateButton.textContent = 'Создать отчеты по тестам';
+            generateReportsModalCreateButton.textContent = 'Создать отчеты';
             updateGenerateReportsSubmitState();
         }
 
@@ -2018,29 +2171,29 @@
         showToast('Не удалось создать отчеты', 'danger', 12000);
     }
 
-    if (generateReportsParentPageIdInput) {
-        generateReportsParentPageIdInput.addEventListener('change', () => {
-            selectedReportParentPageId = (generateReportsParentPageIdInput.value ?? '').trim();
+    if (generateReportsExistingReleasePageSelect) {
+        generateReportsExistingReleasePageSelect.addEventListener('change', () => {
+            selectedExistingReleasePageId = (generateReportsExistingReleasePageSelect.value ?? '').trim();
             updateGenerateReportsSubmitState();
         });
     }
 
-    if (generateReportsParentPageRefreshButton) {
-        generateReportsParentPageRefreshButton.addEventListener('click', () => {
-            void loadConfluenceParentPages(true).finally(() => {
+    if (generateReportsReleasePagesRefreshButton) {
+        generateReportsReleasePagesRefreshButton.addEventListener('click', () => {
+            void loadConfluenceReleasePages(true).finally(() => {
                 if (generateReportsModalElement?.classList.contains('show')) {
-                    generateReportsParentPageIdInput?.focus();
+                    focusGenerateReportsPrimaryControl();
                 }
             });
         });
     }
 
-    if (generateReportsCreateReleasePageCheckbox) {
-        generateReportsCreateReleasePageCheckbox.addEventListener('change', () => {
+    generateReportsReleaseModeInputs.forEach(input => {
+        input.addEventListener('change', () => {
             updateReleasePageControlsState();
             updateGenerateReportsSubmitState();
         });
-    }
+    });
 
     if (generateReportsReleasePageTemplateSelect) {
         generateReportsReleasePageTemplateSelect.addEventListener('change', () => {
@@ -2056,14 +2209,14 @@
     if (generateReportsModalElement) {
         generateReportsModalElement.addEventListener('shown.bs.modal', () => {
             refreshGenerateReportsModalState();
-            if (!confluenceParentPagesLoading) {
-                generateReportsParentPageIdInput?.focus();
+            if (!confluenceReleasePagesLoading) {
+                focusGenerateReportsPrimaryControl();
             }
         });
 
         generateReportsModalElement.addEventListener('hidden.bs.modal', () => {
             if (generateReportsModalCreateButton && !isReportCreationInProgress) {
-                generateReportsModalCreateButton.textContent = 'Создать отчеты по тестам';
+                generateReportsModalCreateButton.textContent = 'Создать отчеты';
             }
             updateGenerateReportsSubmitState();
         });
@@ -3192,6 +3345,20 @@
         return await response.json();
     }
 
+    async function saveTestReportDetails(testId, reportStatus, reportSummary) {
+        const response = await fetch(`/api/tests/${testId}/report-details`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ reportStatus, reportSummary })
+        });
+        if (!response.ok) {
+            throw new Error('Ответ сервера: ' + response.status);
+        }
+        return await response.json();
+    }
+
     async function saveTestType(testId, type) {
         const response = await fetch(`/api/tests/${testId}/type`, {
             method: 'POST',
@@ -3308,6 +3475,14 @@
         }
     }
 
+    function updateCachedTestReportDetails(testId, reportStatus, reportSummary) {
+        const test = findTestById(testId);
+        if (test) {
+            test.reportStatus = reportStatus;
+            test.reportSummary = reportSummary;
+        }
+    }
+
     function updateCachedTestType(testId, type) {
         const test = findTestById(testId);
         if (!test) {
@@ -3409,6 +3584,55 @@
         notesSection.appendChild(typeControls);
         notesSection.appendChild(notesTitle);
         notesSection.appendChild(notesBox);
+
+        const reportDetailsTitle = document.createElement('h6');
+        reportDetailsTitle.className = 'test-details-section-title mb-3 mt-4';
+        reportDetailsTitle.textContent = 'Данные для отчета по релизу';
+        const reportStatusLabel = document.createElement('label');
+        reportStatusLabel.className = 'form-label';
+        reportStatusLabel.textContent = 'Статус/результат для отчета';
+        const reportStatusArea = document.createElement('textarea');
+        reportStatusArea.className = 'form-control mb-3';
+        reportStatusArea.rows = 2;
+        reportStatusArea.value = test?.reportStatus ?? '';
+        reportStatusArea.placeholder = 'Например: Тест прошел успешно.';
+
+        const reportSummaryLabel = document.createElement('label');
+        reportSummaryLabel.className = 'form-label';
+        reportSummaryLabel.textContent = 'Краткий вывод для отчета';
+        const reportSummaryArea = document.createElement('textarea');
+        reportSummaryArea.className = 'form-control';
+        reportSummaryArea.rows = 3;
+        reportSummaryArea.value = test?.reportSummary ?? '';
+        reportSummaryArea.placeholder = 'Например: Максимальная производительность составила 600 запросов в секунду.';
+
+        const reportDetailsButton = document.createElement('button');
+        reportDetailsButton.type = 'button';
+        reportDetailsButton.className = 'btn btn-outline-success btn-sm mt-2';
+        reportDetailsButton.textContent = 'Сохранить данные для отчета';
+        reportDetailsButton.addEventListener('click', async () => {
+            reportDetailsButton.disabled = true;
+            reportDetailsButton.textContent = 'Сохраняем…';
+            try {
+                const updated = await saveTestReportDetails(testId, reportStatusArea.value, reportSummaryArea.value);
+                reportStatusArea.value = updated?.reportStatus ?? reportStatusArea.value;
+                reportSummaryArea.value = updated?.reportSummary ?? reportSummaryArea.value;
+                updateCachedTestReportDetails(testId, reportStatusArea.value, reportSummaryArea.value);
+                showToast('Данные для отчета сохранены', 'success');
+            } catch (error) {
+                showToast('Не удалось сохранить данные для отчета', 'danger');
+            } finally {
+                reportDetailsButton.disabled = false;
+                reportDetailsButton.textContent = 'Сохранить данные для отчета';
+            }
+        });
+
+        notesSection.appendChild(reportDetailsTitle);
+        notesSection.appendChild(reportStatusLabel);
+        notesSection.appendChild(reportStatusArea);
+        notesSection.appendChild(reportSummaryLabel);
+        notesSection.appendChild(reportSummaryArea);
+        notesSection.appendChild(reportDetailsButton);
 
         const requirementsSection = document.createElement('section');
         requirementsSection.className = 'test-details-section';
@@ -3811,6 +4035,7 @@
                 } else {
                     selectedReportTestIds.delete(test.id);
                     selectedReportTemplateIds.delete(test.id);
+                    selectedReportMetadata.delete(test.id);
                 }
                 updateSelectedReportsCount();
             });

@@ -4,6 +4,7 @@ import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto
 import com.example.chronicler.dto.tests.LoadTestView;
 import com.example.chronicler.dto.tests.RequirementComplianceView;
 import com.example.chronicler.dto.tests.SaveTestCommentRequest;
+import com.example.chronicler.dto.tests.SaveTestReportDetailsRequest;
 import com.example.chronicler.dto.tests.SaveTestTypeRequest;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
@@ -92,6 +93,22 @@ public class LoadTestController {
             @PathVariable("testUuid") UUID testUuid, @RequestBody SaveTestCommentRequest request) {
         Objects.requireNonNull(testUuid, "testUuid must not be null");
         LoadTest updated = loadTestRepository.updateComment(testUuid, request != null ? request.comment() : null);
+        return LoadTestView.fromModel(
+                updated,
+                buildComplianceView(updated),
+                kubernetesConfigurationService.findMaxRelease(testUuid),
+                kubernetesConfigurationService.hasConfiguration(testUuid));
+    }
+
+    /** Сохраняет поля теста, используемые при формировании блока релизного отчета. */
+    @PostMapping("/{testUuid}/report-details")
+    public LoadTestView saveReportDetails(
+            @PathVariable("testUuid") UUID testUuid, @RequestBody SaveTestReportDetailsRequest request) {
+        Objects.requireNonNull(testUuid, "testUuid must not be null");
+        LoadTest updated = loadTestRepository.updateReportDetails(
+                testUuid,
+                request != null ? request.reportStatus() : null,
+                request != null ? request.reportSummary() : null);
         return LoadTestView.fromModel(
                 updated,
                 buildComplianceView(updated),
