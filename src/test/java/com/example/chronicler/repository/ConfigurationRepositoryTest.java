@@ -47,6 +47,14 @@ class ConfigurationRepositoryTest {
         assertEquals("", repository.findValue("grafana", "base-url", bobId).orElseThrow());
         assertEquals("http://global-grafana", repository.findValue("grafana", "base-url").orElseThrow());
 
+        List<ConfigurationEntry> aliceEntries = repository.findAllOrdered(aliceId);
+        ConfigurationEntry aliceGrafanaBaseUrl = aliceEntries.stream()
+                .filter(entry -> entry.service().equals("grafana"))
+                .filter(entry -> entry.key().equals("base-url"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("http://alice-grafana", aliceGrafanaBaseUrl.value());
+
         List<ConfigurationEntry> bobEntries = repository.findAllOrdered(bobId);
         ConfigurationEntry bobGrafanaBaseUrl = bobEntries.stream()
                 .filter(entry -> entry.service().equals("grafana"))
@@ -54,6 +62,24 @@ class ConfigurationRepositoryTest {
                 .findFirst()
                 .orElseThrow();
         assertEquals("", bobGrafanaBaseUrl.value());
+    }
+
+    @Test
+    void globalConnectionValuesAreCopiedOnlyToTargetUser() {
+        long aliceId = createUser("alice");
+        long bobId = createUser("bob");
+
+        repository.upsert("dropapp", "base-url", "https://global-dropapp");
+        repository.upsert("dropapp", "base-url", "https://alice-dropapp", aliceId);
+
+        repository.copyGlobalConnectionValuesToUser(bobId);
+
+        assertEquals(
+                "https://alice-dropapp",
+                repository.findValue("dropapp", "base-url", aliceId).orElseThrow());
+        assertEquals(
+                "https://global-dropapp",
+                repository.findValue("dropapp", "base-url", bobId).orElseThrow());
     }
 
     private long createUser(String username) {

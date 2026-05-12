@@ -43,10 +43,15 @@ public class ConfigurationService implements ConfigurationProvider {
 
     @Override
     public String getRequiredValue(String service, String key) {
-        return findValue(service, key)
+        String value = findValue(service, key)
                 .orElseThrow(() -> new IllegalStateException(
                         "Configuration parameter not found for service '%s' and key '%s'"
                                 .formatted(service, key)));
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalStateException(
+                    "Не задан обязательный параметр подключения %s.%s".formatted(service, key));
+        }
+        return value;
     }
 
     @Override
@@ -55,6 +60,11 @@ public class ConfigurationService implements ConfigurationProvider {
     }
 
     private Long currentUserIdOrNull() {
-        return currentUserProvider.currentUserId().orElse(null);
+        return currentUserProvider.currentUserId()
+                .map(userId -> {
+                    repository.copyGlobalConnectionValuesToUser(userId);
+                    return userId;
+                })
+                .orElse(null);
     }
 }
