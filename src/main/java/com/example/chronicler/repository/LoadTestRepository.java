@@ -4,6 +4,7 @@ import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class LoadTestRepository {
 
+    private static final Duration MERGE_GAP_THRESHOLD = Duration.ofMinutes(3);
     private static final String BASE_SELECT =
             "SELECT t.test_uuid, t.start_time, t.end_time, tt.test_type AS test_type, "
                     + "t.comment, t.report_status, t.report_summary "
@@ -25,6 +27,10 @@ public class LoadTestRepository {
             BASE_SELECT
                     + "WHERE t.start_time <= ? AND t.end_time >= ? "
                     + "ORDER BY t.start_time LIMIT 1";
+    private static final String SELECT_MERGE_CANDIDATES_SQL =
+            BASE_SELECT
+                    + "WHERE t.start_time <= ? AND t.end_time >= ? "
+                    + "ORDER BY t.start_time";
     private static final String SELECT_BY_ID_SQL = BASE_SELECT + "WHERE t.test_uuid = ?";
     private static final String SELECT_ALL_ORDERED_SQL =
             BASE_SELECT + "ORDER BY t.start_time DESC";
@@ -32,6 +38,7 @@ public class LoadTestRepository {
             "INSERT INTO tests (test_uuid, start_time, end_time, test_type_id, comment) VALUES (?, ?, ?, ?, ?)";
     private static final String UPDATE_SQL =
             "UPDATE tests SET start_time = ?, end_time = ?, test_type_id = ? WHERE test_uuid = ?";
+    private static final String DELETE_BY_ID_SQL = "DELETE FROM tests WHERE test_uuid = ?";
     private static final String UPDATE_TYPE_SQL = "UPDATE tests SET test_type_id = ? WHERE test_uuid = ?";
     private static final String UPDATE_COMMENT_SQL = "UPDATE tests SET comment = ? WHERE test_uuid = ?";
     private static final String UPDATE_REPORT_DETAILS_SQL =
@@ -64,6 +71,19 @@ public class LoadTestRepository {
                         rowMapper)
                 .stream()
                 .findFirst();
+    }
+
+    public List<LoadTest> findMergeCandidates(Instant start, Instant end, Duration mergeGap) {
+        Duration safeMergeGap = mergeGap == null ? Duration.ZERO : mergeGap;
+        Instant searchStart = start.minus(safeMergeGap);
+        Instant searchEnd = end.plus(safeMergeGap);
+        return jdbcTemplate.query(
+                SELECT_MERGE_CANDIDATES_SQL,
+                ps -> {
+                    ps.setTimestamp(1, Timestamp.from(searchEnd));
+                    ps.setTimestamp(2, Timestamp.from(searchStart));
+                },
+                rowMapper);
     }
 
     public LoadTest insert(Instant start, Instant end, LoadTestType type) {
@@ -186,14 +206,46 @@ public class LoadTestRepository {
     }
 
     public LoadTest saveOrUpdate(Instant start, Instant end, LoadTestType type) {
-        Optional<LoadTest> existingOpt = findOverlap(start, end);
-        if (existingOpt.isPresent()) {
-            LoadTest existing = existingOpt.get();
-            Instant newStart = start.isBefore(existing.start()) ? start : existing.start();
-            Instant newEnd = end.isAfter(existing.end()) ? end : existing.end();
-            return update(existing.id(), newStart, newEnd, type);
+        List<LoadTest> candidates = findMergeCandidates(start, end, MERGE_GAP_THRESHOLD);
+        if (!candidates.isEmpty()) {
+            LoadTest target = chooseMergeTarget(candidates);
+            Instant newStart = candidates.stream()
+                    .map(LoadTest::start)
+                    .filter(candidateStart -> candidateStart.isBefore(start))
+                    .min(Instant::compareTo)
+                    .orElse(start);
+            Instant newEnd = candidates.stream()
+                    .map(LoadTest::end)
+                    .filter(candidateEnd -> candidateEnd.isAfter(end))
+                    .max(Instant::compareTo)
+                    .orElse(end);
+            deleteMergeDuplicates(candidates, target.id());
+            return update(target.id(), newStart, newEnd, type);
         }
         return insert(start, end, type);
+    }
+
+    private LoadTest chooseMergeTarget(List<LoadTest> candidates) {
+        return candidates.stream()
+                .filter(this::hasUserData)
+                .findFirst()
+                .orElse(candidates.get(0));
+    }
+
+    private boolean hasUserData(LoadTest test) {
+        return hasText(test.comment()) || hasText(test.reportStatus()) || hasText(test.reportSummary());
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private void deleteMergeDuplicates(List<LoadTest> candidates, UUID targetId) {
+        for (LoadTest candidate : candidates) {
+            if (!candidate.id().equals(targetId)) {
+                jdbcTemplate.update(DELETE_BY_ID_SQL, candidate.id());
+            }
+        }
     }
 
     private Integer resolveTestTypeId(LoadTestType type) {
