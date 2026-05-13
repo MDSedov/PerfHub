@@ -537,6 +537,7 @@
     let isReportCreationInProgress = false;
     let reportGenerationResults = [];
     let configuredReportsRootPageId = '';
+    let configuredReportsRootPageUrl = '';
     let confluenceReleasePageOptions = [];
     let confluenceReleasePagesLoading = false;
     let confluenceReleasePagesErrorMessage = '';
@@ -1729,6 +1730,7 @@
                 }
                 const payload = await response.json();
                 configuredReportsRootPageId = payload?.id ? String(payload.id) : '';
+                configuredReportsRootPageUrl = payload?.pageUrl ? String(payload.pageUrl) : '';
                 confluenceReleasePageOptions = (Array.isArray(payload?.children) ? payload.children : [])
                         .filter(page => page?.id)
                         .map(page => ({
@@ -1740,6 +1742,7 @@
                 }
             } catch (error) {
                 configuredReportsRootPageId = '';
+                configuredReportsRootPageUrl = '';
                 confluenceReleasePageOptions = [];
                 confluenceReleasePagesErrorMessage = error?.message || 'Не удалось загрузить список страниц Confluence';
                 showToast(confluenceReleasePagesErrorMessage, 'danger', 12000);
@@ -1830,9 +1833,10 @@
 
             const reportCell = document.createElement('td');
             reportCell.className = 'report-generation-result-cell';
-            if (result.status === 'success' && result.pageUrl) {
+            const resultPageUrl = normalizeGeneratedReportPageUrl(result.pageUrl, result.pageId);
+            if (result.status === 'success' && resultPageUrl) {
                 const link = document.createElement('a');
-                link.href = result.pageUrl;
+                link.href = resultPageUrl;
                 link.target = '_blank';
                 link.rel = 'noopener noreferrer';
                 link.className = 'report-generation-result-link';
@@ -2025,6 +2029,42 @@
         return reports[0] ?? null;
     }
 
+    function normalizeGeneratedReportPageUrl(pageUrl, pageId) {
+        const normalizedPageId = pageId == null ? '' : String(pageId).trim();
+        const normalizedPageUrl = pageUrl == null ? '' : String(pageUrl).trim();
+        if (!normalizedPageId) {
+            return normalizedPageUrl;
+        }
+        if (normalizedPageUrl) {
+            try {
+                const url = new URL(normalizedPageUrl, window.location.href);
+                url.searchParams.set('pageId', normalizedPageId);
+                return url.toString();
+            } catch (error) {
+                const encodedPageId = encodeURIComponent(normalizedPageId);
+                if (/[?&]pageId=/.test(normalizedPageUrl)) {
+                    return normalizedPageUrl.replace(/([?&]pageId=)[^&#]*/, `$1${encodedPageId}`);
+                }
+                const separator = normalizedPageUrl.includes('?') ? '&' : '?';
+                return `${normalizedPageUrl}${separator}pageId=${encodedPageId}`;
+            }
+        }
+        if (!configuredReportsRootPageUrl) {
+            return '';
+        }
+        try {
+            const url = new URL(configuredReportsRootPageUrl, window.location.href);
+            const basePath = url.pathname.replace(/\/pages\/viewpage\.action\/?$/, '').replace(/\/+$/, '');
+            url.pathname = `${basePath}/pages/viewpage.action`;
+            url.search = '';
+            url.hash = '';
+            url.searchParams.set('pageId', normalizedPageId);
+            return url.toString();
+        } catch (error) {
+            return '';
+        }
+    }
+
     async function submitGenerateReports(event) {
         event.preventDefault();
         if (!generateReportsModalCreateButton || generateReportsModalCreateButton.disabled) {
@@ -2042,6 +2082,7 @@
             status: 'queued',
             message: '',
             pageTitle: '',
+            pageId: '',
             pageUrl: '',
             contextLabel: buildReportGenerationContextLabel(test)
         }));
@@ -2106,10 +2147,15 @@
                     if (!report?.pageId) {
                         throw new Error('Confluence не вернул информацию о созданной странице');
                     }
+                    if (String(report.pageId).trim() === String(targetParentPageId).trim()) {
+                        throw new Error('Confluence вернул ссылку на отчет по релизу вместо отчета по тесту');
+                    }
+                    const reportPageUrl = normalizeGeneratedReportPageUrl(report.pageUrl, report.pageId);
                     updateReportGenerationResult(testId, {
                         status: 'success',
                         pageTitle: report.pageTitle || `Отчет ${reportGenerationResults.find(item => item.testId === testId)?.order ?? ''}`.trim(),
-                        pageUrl: report.pageUrl || '',
+                        pageId: report.pageId || '',
+                        pageUrl: reportPageUrl,
                         message: ''
                     });
                     const metadata = selectedReportMetadata.get(testId) || ensureSelectedReportMetadata(test);
@@ -2119,7 +2165,7 @@
                         testTitle: resolveReportTitleFromSelectedTemplate(test),
                         reportPageId: report.pageId,
                         reportPageTitle: report.pageTitle || '',
-                        reportPageUrl: report.pageUrl || ''
+                        reportPageUrl
                     });
                     successCount += 1;
                 } catch (error) {
