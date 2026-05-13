@@ -280,7 +280,8 @@ public class ConfluenceService {
                 });
         List<ConfluenceReleaseReportLink> allLinks =
                 releaseReportLinkRepository.findByReleasePageId(releasePage.id());
-        String updatedBody = replaceReleaseReportsBlock(body, reportsBlock, itemTemplate, allLinks);
+        String updatedBody = replaceReleaseReportsBlock(
+                body, reportsBlock, itemTemplate, allLinks, releasePage.spaceKey());
         updatePageWithRetry(credentials, releasePage, updatedBody);
 
         return new ConfluenceReleaseReportLinksUpdateResponse(releasePage.id(), true, allLinks.size());
@@ -789,14 +790,18 @@ public class ConfluenceService {
             String body,
             ReleaseReportsBlock reportsBlock,
             String itemTemplate,
-            List<ConfluenceReleaseReportLink> links) {
-        String renderedLinks = renderReleaseReportLinks(itemTemplate, links);
+            List<ConfluenceReleaseReportLink> links,
+            String spaceKey) {
+        String renderedLinks = renderReleaseReportLinks(itemTemplate, links, spaceKey);
         return body.substring(0, reportsBlock.replacementStart())
                 + renderedLinks
                 + body.substring(reportsBlock.replacementEnd());
     }
 
-    private String renderReleaseReportLinks(String itemTemplate, List<ConfluenceReleaseReportLink> links) {
+    private String renderReleaseReportLinks(
+            String itemTemplate,
+            List<ConfluenceReleaseReportLink> links,
+            String spaceKey) {
         String template = StringUtils.hasText(itemTemplate)
                 ? itemTemplate
                 : "<h3>@test_number @test_title</h3><p>@test_status</p><p>@test_summary</p><p>@test_report_link</p>";
@@ -812,20 +817,30 @@ public class ConfluenceService {
                     .replace(TEST_PERIOD_PLACEHOLDER, escape(orPlaceholder(link.testPeriod())))
                     .replace(TEST_STATUS_PLACEHOLDER, escape(orPlaceholder(link.testStatus())))
                     .replace(TEST_SUMMARY_PLACEHOLDER, escape(orPlaceholder(link.testSummary())))
-                    .replace(TEST_REPORT_LINK_PLACEHOLDER, buildReportPageLink(link));
+                    .replace(TEST_REPORT_LINK_PLACEHOLDER, buildReportPageLink(link, spaceKey));
             bodyBuilder.append(rendered);
         }
         return bodyBuilder.toString();
     }
 
-    private String buildReportPageLink(ConfluenceReleaseReportLink link) {
-        String url = StringUtils.hasText(link.reportPageUrl())
-                ? link.reportPageUrl()
-                : confluenceClient.buildPageUrl(link.reportPageId());
-        String title = StringUtils.hasText(link.reportPageTitle()) ? link.reportPageTitle() : "Отчет по тесту";
-        return "<ac:link><ri:url ri:value=\""
-                + escape(url)
-                + "\" /><ac:plain-text-link-body><![CDATA["
+    private String buildReportPageLink(ConfluenceReleaseReportLink link, String spaceKey) {
+        if (!StringUtils.hasText(link.reportPageTitle())) {
+            String url = StringUtils.hasText(link.reportPageUrl())
+                    ? link.reportPageUrl()
+                    : confluenceClient.buildPageUrl(link.reportPageId());
+            return "<ac:link><ri:url ri:value=\""
+                    + escape(url)
+                    + "\" /><ac:plain-text-link-body><![CDATA[Отчет по тесту]]></ac:plain-text-link-body></ac:link>";
+        }
+        String title = link.reportPageTitle().trim();
+        String spaceKeyAttribute = StringUtils.hasText(spaceKey)
+                ? " ri:space-key=\"" + escape(spaceKey) + "\""
+                : "";
+        return "<ac:link><ri:page ri:content-title=\""
+                + escape(title)
+                + "\""
+                + spaceKeyAttribute
+                + " /><ac:plain-text-link-body><![CDATA["
                 + escapeCdata(title)
                 + "]]></ac:plain-text-link-body></ac:link>";
     }

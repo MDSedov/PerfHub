@@ -703,7 +703,8 @@ class ConfluenceServiceTest {
         assertThat(updatedBody).contains("<h3>7.1 Определение максимальной производительности Profile</h3>");
         assertThat(updatedBody).contains("<p>Тест прошел успешно.</p>");
         assertThat(updatedBody).contains("<p>Максимальная производительность составила 600 запросов в секунду.</p>");
-        assertThat(updatedBody).contains("ri:value=\"https://confluence.example/pages/viewpage.action?pageId=test-page-1\"");
+        assertThat(updatedBody).contains("<ri:page ri:content-title=\"Отчет по тесту\" ri:space-key=\"SPACE\" />");
+        assertThat(updatedBody).doesNotContain("ri:value=\"https://confluence.example/pages/viewpage.action?pageId=test-page-1\"");
         assertThat(updatedBody).doesNotContain("@test_number");
         assertThat(updatedBody).doesNotContain("@test_report_link");
     }
