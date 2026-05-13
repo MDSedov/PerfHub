@@ -3697,7 +3697,7 @@
         const grafanaLoadButton = document.createElement('button');
         grafanaLoadButton.type = 'button';
         grafanaLoadButton.className = 'btn btn-outline-success btn-sm';
-        grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
+        grafanaLoadButton.textContent = 'Загрузить графики';
         grafanaHeader.appendChild(grafanaTitle);
         grafanaHeader.appendChild(grafanaLoadButton);
 
@@ -3750,7 +3750,7 @@
                             return;
                         }
                         grafanaLoadButton.disabled = false;
-                        grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
+                        grafanaLoadButton.textContent = 'Загрузить графики';
                     });
         }
 
@@ -3780,7 +3780,7 @@
                 showToast(`Графики загрузить не удалось${reason}`, 'danger', 12000);
             } finally {
                 grafanaLoadButton.disabled = false;
-                grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
+                grafanaLoadButton.textContent = 'Загрузить графики';
             }
         });
 
