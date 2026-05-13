@@ -99,6 +99,47 @@ class GrafanaDashboardSettingsServiceTest {
     }
 
     @Test
+    void pullFromGrafanaReplacesCachedPanelRequirementsWithGrafanaValues() {
+        repository.upsert(new GrafanaDashboard("uid1", "slug1", List.of(10), true));
+        panelRepository.replaceForDashboard(
+                "uid1",
+                "slug1",
+                "Cached",
+                List.of(new GrafanaDashboardPanelRecord(
+                        "uid1",
+                        "slug1",
+                        "Cached",
+                        10,
+                        "Throughput",
+                        "manual_query",
+                        250d,
+                        true)));
+        grafanaClient.setDashboards(List.of(new GrafanaDashboardDefinition(
+                "uid1",
+                "slug1",
+                "Main dashboard",
+                List.of(new GrafanaPanelDefinition(10, "Throughput", "", null)),
+                List.<GrafanaVariableDefinition>of())));
+
+        List<GrafanaDashboardDetailsDto> dashboards = service.pullFromGrafana();
+
+        assertThat(dashboards)
+                .singleElement()
+                .extracting(GrafanaDashboardDetailsDto::panels)
+                .asList()
+                .singleElement()
+                .extracting("query", "threshold", "testQuery")
+                .containsExactly("", null, true);
+        assertThat(panelRepository.findAll())
+                .singleElement()
+                .extracting(
+                        GrafanaDashboardPanelRecord::panelQuery,
+                        GrafanaDashboardPanelRecord::panelThreshold,
+                        GrafanaDashboardPanelRecord::testQuery)
+                .containsExactly("", null, true);
+    }
+
+    @Test
     void listDashboardsReturnsCachedDataWhenOffline() {
         repository.upsert(new GrafanaDashboard("uid1", "slug1", List.of(10), true));
         panelRepository.replaceForDashboard(

@@ -83,8 +83,8 @@ public class ConfluenceTemplateSettingsService {
             case MAX -> "max";
             case STABILITY -> "stability";
             case SOAK -> "soak";
-            case PSU, DT -> throw new IllegalArgumentException(
-                    "Confluence report template is not configured for test type " + loadTestType.value());
+            case PSU -> "psu";
+            case DT -> "dt";
             case UNKNOWN -> throw new IllegalArgumentException("Тип теста не определен");
         };
     }

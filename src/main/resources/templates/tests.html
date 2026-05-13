@@ -2816,9 +2816,9 @@
         if (!response.ok) {
             let message = 'Ответ сервера: ' + response.status;
             if (payload && typeof payload === 'object' && payload.message) {
-                message += ' — ' + payload.message;
+                message = payload.message;
             } else if (typeof payload === 'string' && payload.trim() !== '') {
-                message += ' — ' + payload.trim();
+                message = payload.trim();
             }
             throw new Error(message);
         }

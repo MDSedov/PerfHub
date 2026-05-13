@@ -1,6 +1,7 @@
 package com.example.chronicler.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -68,7 +69,7 @@ class RequirementEvaluationServiceTest {
     }
 
     @Test
-    void evaluateUsesOnlyChartsFromTemplateForTestType() {
+    void evaluateUsesChartsFromTemplateForTestType() {
         UUID testId = UUID.randomUUID();
         LoadTest loadTest = new LoadTest(
                 testId,
@@ -88,6 +89,7 @@ class RequirementEvaluationServiceTest {
                         new ConfluenceTemplateChart(3L, 1, "Latency chart", "dash-b", 3, 2)));
 
         when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max");
         when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max"))
                 .thenReturn(Optional.of(template));
         when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-a", 1))
@@ -130,13 +132,16 @@ class RequirementEvaluationServiceTest {
 
         List<RequirementEvaluationView> result = service.evaluate(testId);
 
-        assertThat(result).hasSize(2);
+        assertThat(result).hasSize(3);
         assertThat(result)
                 .extracting(RequirementEvaluationView::title)
-                .containsExactly("CPU chart", "Latency chart");
+                .containsExactly("CPU chart", "Ignored chart", "Latency chart");
         assertThat(result)
                 .extracting(RequirementEvaluationView::status)
-                .containsExactly(RequirementEvaluationStatus.PASS, RequirementEvaluationStatus.FAIL);
+                .containsExactly(
+                        RequirementEvaluationStatus.PASS,
+                        RequirementEvaluationStatus.PASS,
+                        RequirementEvaluationStatus.FAIL);
 
         verify(evaluationRepository).deleteByTest(testId);
         verify(evaluationRepository).upsert(
@@ -157,7 +162,118 @@ class RequirementEvaluationServiceTest {
                 eq(null),
                 any(),
                 any(Instant.class));
+        verify(evaluationRepository).upsert(
+                eq(testId),
+                eq("dash-a"),
+                eq(2),
+                eq(RequirementEvaluationStatus.PASS),
+                eq(null),
+                eq(null),
+                any(),
+                any(Instant.class));
         verify(victoriaMetricsClient, never()).queryRange(eq("ignored_query"), any(Instant.class), any(Instant.class));
+    }
+
+    @Test
+    void evaluateThrowsWhenTemplateIsMissingForTestType() {
+        UUID testId = UUID.randomUUID();
+        LoadTest loadTest = new LoadTest(
+                testId,
+                Instant.parse("2026-04-13T10:00:00Z"),
+                Instant.parse("2026-04-13T10:30:00Z"),
+                LoadTestType.MAX,
+                null);
+
+        when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.evaluate(testId))
+                .isInstanceOf(com.example.chronicler.exception.RequirementEvaluationException.class)
+                .hasMessage("Для данного типа теста отсутствует шаблона отчета");
+
+        verify(evaluationRepository).deleteByTest(testId);
+    }
+
+    @Test
+    void evaluateThrowsWhenTemplateHasNoCharts() {
+        UUID testId = UUID.randomUUID();
+        LoadTest loadTest = new LoadTest(
+                testId,
+                Instant.parse("2026-04-13T10:00:00Z"),
+                Instant.parse("2026-04-13T10:30:00Z"),
+                LoadTestType.MAX,
+                null);
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                1,
+                "max",
+                "Max template",
+                "Max report",
+                "<p>Body</p>",
+                List.of());
+
+        when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max"))
+                .thenReturn(Optional.of(template));
+
+        assertThatThrownBy(() -> service.evaluate(testId))
+                .isInstanceOf(com.example.chronicler.exception.RequirementEvaluationException.class)
+                .hasMessage("В шаблоне отчета для данного типа теста отсутствуют графики");
+
+        verify(evaluationRepository).deleteByTest(testId);
+    }
+
+    @Test
+    void evaluateUsesTemplateForDtTestType() {
+        UUID testId = UUID.randomUUID();
+        LoadTest loadTest = new LoadTest(
+                testId,
+                Instant.parse("2026-04-13T10:00:00Z"),
+                Instant.parse("2026-04-13T10:30:00Z"),
+                LoadTestType.DT,
+                null);
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                5,
+                "dt",
+                "DT template",
+                "DT report",
+                "<p>Body</p>",
+                List.of(new ConfluenceTemplateChart(5L, 5, "DT latency", "dash-dt", 12, 0)));
+
+        when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.DT)).thenReturn("dt");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("dt"))
+                .thenReturn(Optional.of(template));
+        when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-dt", 12))
+                .thenReturn(Optional.of(new GrafanaDashboardPanelRecord(
+                        "dash-dt",
+                        "slug-dt",
+                        "Dashboard DT",
+                        12,
+                        "Latency",
+                        "dt_query",
+                        120.0,
+                        Boolean.FALSE)));
+        when(grafanaVariableService.applyVariables("dt_query", "dash-dt")).thenReturn("dt_query");
+        when(victoriaMetricsClient.queryRange(eq("dt_query"), any(Instant.class), any(Instant.class)))
+                .thenReturn(metricResponse(118.0));
+
+        List<RequirementEvaluationView> result = service.evaluate(testId);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).title()).isEqualTo("DT latency");
+        assertThat(result.get(0).status()).isEqualTo(RequirementEvaluationStatus.PASS);
+
+        verify(evaluationRepository).upsert(
+                eq(testId),
+                eq("dash-dt"),
+                eq(12),
+                eq(RequirementEvaluationStatus.PASS),
+                eq(118.0),
+                eq(null),
+                any(),
+                any(Instant.class));
     }
 
     @Test
@@ -177,6 +293,7 @@ class RequirementEvaluationServiceTest {
                 "<p>Body</p>",
                 List.of(new ConfluenceTemplateChart(1L, 1, "CPU chart", "dash-a", 1, 0)));
 
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max");
         when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max"))
                 .thenReturn(Optional.of(template));
         when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-a", 1))

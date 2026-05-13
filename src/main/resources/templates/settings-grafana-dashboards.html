@@ -197,7 +197,7 @@
                                           role="button"
                                           tabindex="0"
                                           data-bs-toggle="tooltip"
-                                          data-bs-title="Запрос графика к источнику данных с подставленными значениями переменных дашборда.">
+                                          data-bs-title="Запрос графика из Grafana с подставленными значениями переменных дашборда.">
                                         <i class="bi bi-question"></i>
                                     </span>
                                 </span>
@@ -209,7 +209,7 @@
                                           role="button"
                                           tabindex="0"
                                           data-bs-toggle="tooltip"
-                                          data-bs-title="Пороговое значение нефункционального требования для графика.">
+                                          data-bs-title="Пороговое значение нефункционального требования из Grafana.">
                                         <i class="bi bi-question"></i>
                                     </span>
                                 </span>
@@ -691,28 +691,15 @@
 
         const queryCell = document.createElement('td');
         queryCell.className = 'grafana-dashboard-query-cell';
-        const queryInput = document.createElement('input');
-        queryInput.type = 'text';
-        queryInput.className = 'form-control form-control-sm panel-query grafana-dashboard-query-input';
-        queryInput.placeholder = 'PromQL';
-        queryInput.value = panel.query || '';
-        queryInput.addEventListener('input', () => {
-            panel.query = queryInput.value;
-        });
-        queryCell.appendChild(queryInput);
+        const query = normalizeText(panel.query);
+        queryCell.appendChild(buildTextBlock(query || '—', null, query));
 
         const thresholdCell = document.createElement('td');
         thresholdCell.className = 'grafana-dashboard-threshold-cell';
-        const thresholdInput = document.createElement('input');
-        thresholdInput.type = 'number';
-        thresholdInput.step = 'any';
-        thresholdInput.className = 'form-control form-control-sm panel-threshold grafana-dashboard-threshold-input';
-        thresholdInput.placeholder = 'Порог';
-        thresholdInput.value = panel.thresholdRaw ?? (panel.threshold != null ? panel.threshold : '');
-        thresholdInput.addEventListener('input', () => {
-            panel.thresholdRaw = thresholdInput.value;
-        });
-        thresholdCell.appendChild(thresholdInput);
+        const threshold = panel.threshold === null || panel.threshold === undefined || panel.threshold === ''
+                ? ''
+                : String(panel.threshold);
+        thresholdCell.appendChild(buildTextBlock(threshold || '—', null, threshold));
 
         row.appendChild(dashboardCell);
         row.appendChild(nameCell);
@@ -744,15 +731,6 @@
         }
     }
 
-    function parsePanelThreshold(panel) {
-        const raw = panel.thresholdRaw !== undefined ? panel.thresholdRaw : panel.threshold;
-        if (raw === undefined || raw === null || raw === '') {
-            return null;
-        }
-        const parsed = Number.parseFloat(raw);
-        return Number.isFinite(parsed) ? parsed : null;
-    }
-
     function collectDashboardPayload(dashboard) {
         const uid = getDashboardUid(dashboard);
         const slug = getDashboardSlug(dashboard);
@@ -765,8 +743,6 @@
                     return {
                         panelId,
                         selected: true,
-                        query: panel.query ?? '',
-                        threshold: parsePanelThreshold(panel),
                         testQuery: Boolean(panel.testQuery)
                     };
                 })
