@@ -45,7 +45,9 @@ public class LoadTestMonitoringScheduler {
         } catch (Exception ex) {
             String message = "Не удалось обновить информацию о текущих нагрузочных тестах";
             log.error(message, ex);
-            backgroundErrorService.publish(message + ": " + ex.getMessage());
+            backgroundErrorService.publish(
+                    BackgroundErrorService.LOAD_TESTS_SCOPE,
+                    message + ": " + ex.getMessage());
         }
     }
 }

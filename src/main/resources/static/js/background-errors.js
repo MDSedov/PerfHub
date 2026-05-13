@@ -2,9 +2,17 @@
     const DEFAULT_INTERVAL_MS = 30000;
     const STORAGE_KEY = '__chroniclerBackgroundErrorPolling';
 
-    async function fetchAndShow(showToast) {
+    function buildErrorsUrl(scope) {
+        const normalizedScope = typeof scope === 'string' ? scope.trim() : '';
+        if (!normalizedScope) {
+            return '/api/background/errors';
+        }
+        return `/api/background/errors?scope=${encodeURIComponent(normalizedScope)}`;
+    }
+
+    async function fetchAndShow(showToast, scope) {
         try {
-            const response = await fetch('/api/background/errors');
+            const response = await fetch(buildErrorsUrl(scope));
             if (!response.ok) {
                 throw new Error('Ответ сервера: ' + response.status);
             }
@@ -21,17 +29,32 @@
         }
     }
 
-    function startPolling(showToast, intervalMs = DEFAULT_INTERVAL_MS) {
+    function normalizeOptions(options) {
+        if (typeof options === 'number') {
+            return {intervalMs: options, scope: ''};
+        }
+        if (!options || typeof options !== 'object') {
+            return {intervalMs: DEFAULT_INTERVAL_MS, scope: ''};
+        }
+        return {
+            intervalMs: Number.isFinite(options.intervalMs) ? options.intervalMs : DEFAULT_INTERVAL_MS,
+            scope: typeof options.scope === 'string' ? options.scope.trim() : ''
+        };
+    }
+
+    function startPolling(showToast, options = {}) {
         if (typeof showToast !== 'function') {
             return;
         }
-        const existing = window[STORAGE_KEY];
+        const {intervalMs, scope} = normalizeOptions(options);
+        const storageKey = `${STORAGE_KEY}:${scope || 'global'}`;
+        const existing = window[storageKey];
         if (existing?.timerId) {
             return;
         }
-        const timerId = setInterval(() => fetchAndShow(showToast), intervalMs);
-        window[STORAGE_KEY] = { timerId };
-        fetchAndShow(showToast);
+        const timerId = setInterval(() => fetchAndShow(showToast, scope), intervalMs);
+        window[storageKey] = { timerId };
+        fetchAndShow(showToast, scope);
     }
 
     window.startBackgroundErrorPolling = startPolling;

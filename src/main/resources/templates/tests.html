@@ -4442,7 +4442,7 @@
         }
         startAutoRefresh();
         if (typeof startBackgroundErrorPolling === 'function') {
-            startBackgroundErrorPolling(showToast);
+            startBackgroundErrorPolling(showToast, {scope: 'load-tests'});
         }
     })();
 </script>
