@@ -83,6 +83,8 @@ public class ConfluenceService {
     private static final Pattern BR_CLOSING_TAG_PATTERN = Pattern.compile("(?i)</br\\s*>");
     private static final Pattern HR_TAG_PATTERN = Pattern.compile("(?i)<hr\\s*/?>");
     private static final Pattern HR_CLOSING_TAG_PATTERN = Pattern.compile("(?i)</hr\\s*>");
+    private static final Pattern STYLE_ATTRIBUTE_PATTERN = Pattern.compile("(?i)(\\sstyle\\s*=\\s*)([\"'])(.*?)\\2");
+    private static final Pattern DISPLAY_NONE_STYLE_PATTERN = Pattern.compile("(?i)(^|;)\\s*display\\s*:\\s*none\\b");
 
     private final ConfluenceClient confluenceClient;
     private final GrafanaService grafanaService;
@@ -287,6 +289,7 @@ public class ConfluenceService {
                 releaseReportLinkRepository.findByReleasePageId(releasePage.id());
         String updatedBody = replaceReleaseReportsBlock(
                 body, reportsBlock, itemTemplate, allLinks, releasePage.spaceKey());
+        updatedBody = hideReleaseReportMarkers(updatedBody);
         updatePageWithRetry(credentials, releasePage, updatedBody);
 
         return new ConfluenceReleaseReportLinksUpdateResponse(releasePage.id(), true, allLinks.size());
@@ -694,6 +697,7 @@ public class ConfluenceService {
         body = replaceSectionPlaceholder(body, CONFIG_PLACEHOLDER, configurationSection);
         body = replaceSectionPlaceholder(body, GRAPHICS_PLACEHOLDER, chartsSection);
         body = replaceTestPlaceholders(body, loadTest);
+        body = hideReleaseReportMarkers(body);
         return normalizeStorageMarkup(body);
     }
 
@@ -809,6 +813,51 @@ public class ConfluenceService {
         return body.substring(0, reportsBlock.replacementStart())
                 + renderedLinks
                 + body.substring(reportsBlock.replacementEnd());
+    }
+
+    private String hideReleaseReportMarkers(String body) {
+        String hiddenBody = hideReleaseReportMarker(body, RELEASE_REPORTS_START_MARKER);
+        return hideReleaseReportMarker(hiddenBody, RELEASE_REPORTS_END_MARKER);
+    }
+
+    private String hideReleaseReportMarker(String body, String marker) {
+        Pattern markerBlockPattern = Pattern.compile(
+                "(?is)<(" + PLACEHOLDER_BLOCK_TAGS + ")([^>]*)>"
+                        + PLACEHOLDER_PADDING_PATTERN
+                        + Pattern.quote(marker)
+                        + PLACEHOLDER_PADDING_PATTERN
+                        + "</\\1>");
+        return markerBlockPattern.matcher(getSafeBody(body))
+                .replaceAll(result -> "<"
+                        + result.group(1)
+                        + withHiddenMarkerStyle(result.group(2))
+                        + ">"
+                        + marker
+                        + "</"
+                        + result.group(1)
+                        + ">");
+    }
+
+    private String withHiddenMarkerStyle(String attributes) {
+        String safeAttributes = attributes == null ? "" : attributes;
+        Matcher styleMatcher = STYLE_ATTRIBUTE_PATTERN.matcher(safeAttributes);
+        if (!styleMatcher.find()) {
+            return safeAttributes + " style=\"display: none;\"";
+        }
+
+        String styleValue = styleMatcher.group(3);
+        if (DISPLAY_NONE_STYLE_PATTERN.matcher(styleValue).find()) {
+            return safeAttributes;
+        }
+
+        String separator = StringUtils.hasText(styleValue) && !styleValue.trim().endsWith(";") ? "; " : "";
+        String replacement = styleMatcher.group(1)
+                + styleMatcher.group(2)
+                + styleValue
+                + separator
+                + "display: none;"
+                + styleMatcher.group(2);
+        return styleMatcher.replaceFirst(Matcher.quoteReplacement(replacement));
     }
 
     private String renderReleaseReportLinks(

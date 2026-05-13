@@ -15,6 +15,8 @@ import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
 import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePage;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageRequest;
+import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
@@ -28,6 +30,7 @@ import com.example.chronicler.exception.ConfluenceOperationException;
 import com.example.chronicler.model.ConfluenceReleaseReportLink;
 import com.example.chronicler.model.ConfluenceTemplate;
 import com.example.chronicler.model.ConfluenceTemplateChart;
+import com.example.chronicler.model.ConfluenceTemplateType;
 import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
@@ -637,6 +640,72 @@ class ConfluenceServiceTest {
     }
 
     @Test
+    void createReleaseReportPageHidesTechnicalReportMarkers() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        UUID testUuid = UUID.fromString("aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb");
+        ConfluenceReleaseReportPageRequest request =
+                new ConfluenceReleaseReportPageRequest("parent-1", 42, List.of(testUuid));
+        ConfluencePage parentPage = new ConfluencePage("parent-1", "page", "Релизы", 1, "<p>Parent</p>", "SPACE");
+        ConfluencePage createdPage =
+                new ConfluencePage("release-1", "page", "Отчет по релизу 24.1.7", 1, "", "SPACE");
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                42,
+                "release",
+                "Отчет по релизу",
+                "Отчет по релизу @release",
+                ConfluenceTemplateType.RELEASE,
+                null,
+                "<h2>7. Результаты тестирования</h2>"
+                        + "<p>@perfhub_reports_start</p>"
+                        + "<h3>@test_number @test_title</h3>"
+                        + "<p>@test_status</p>"
+                        + "<p>@perfhub_reports_end</p>",
+                List.of());
+
+        when(confluenceClient.getPage(credentials, "parent-1")).thenReturn(parentPage);
+        when(confluenceClient.getPage(credentials, "release-1")).thenReturn(createdPage);
+        when(confluenceTemplateSettingsService.getActiveTemplate(42)).thenReturn(template);
+        when(kubernetesConfigurationService.getConfigurations(testUuid))
+                .thenReturn(List.of(new KubernetesConfiguration(
+                        1L,
+                        testUuid,
+                        "prod",
+                        "profile",
+                        "profile-1",
+                        "profile",
+                        "1.0.0",
+                        "24.1.7",
+                        "100m",
+                        "200m",
+                        "256Mi",
+                        "512Mi",
+                        Instant.parse("2024-05-01T11:05:00Z"))));
+        when(confluenceClient.createChildPage(
+                        eq(credentials),
+                        eq("parent-1"),
+                        eq("SPACE"),
+                        eq("Отчет по релизу 24.1.7"),
+                        anyString()))
+                .thenReturn(createdPage);
+
+        ConfluenceReleaseReportPageResponse response = confluenceService.createReleaseReportPage(credentials, request);
+
+        assertThat(response.pageId()).isEqualTo("release-1");
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(confluenceClient).createChildPage(
+                eq(credentials),
+                eq("parent-1"),
+                eq("SPACE"),
+                eq("Отчет по релизу 24.1.7"),
+                bodyCaptor.capture());
+        String body = bodyCaptor.getValue();
+        assertThat(body).contains("<p style=\"display: none;\">@perfhub_reports_start</p>");
+        assertThat(body).contains("<p style=\"display: none;\">@perfhub_reports_end</p>");
+        assertThat(body).doesNotContain("<p>@perfhub_reports_start</p>");
+        assertThat(body).doesNotContain("<p>@perfhub_reports_end</p>");
+    }
+
+    @Test
     void updateReleaseReportLinksExpandsTemplateBlockAndUpdatesPage() {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID testUuid = UUID.fromString("aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb");
@@ -723,8 +792,10 @@ class ConfluenceServiceTest {
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
         verify(confluenceClient).updatePage(eq(credentials), eq(releasePage), bodyCaptor.capture());
         String updatedBody = bodyCaptor.getValue();
-        assertThat(updatedBody).contains("@perfhub_reports_start");
-        assertThat(updatedBody).contains("@perfhub_reports_end");
+        assertThat(updatedBody).contains("<p style=\"display: none;\">@perfhub_reports_start</p>");
+        assertThat(updatedBody).contains("<p style=\"display: none;\">@perfhub_reports_end</p>");
+        assertThat(updatedBody).doesNotContain("<p>@perfhub_reports_start</p>");
+        assertThat(updatedBody).doesNotContain("<p>@perfhub_reports_end</p>");
         assertThat(updatedBody).contains("<h3>7.1 Определение максимальной производительности Profile 24.1.7</h3>");
         assertThat(updatedBody).contains("<p>2024-05-01 13:00:00 - 2024-05-01 14:00:00</p>");
         assertThat(updatedBody).contains("<p>Тест прошел успешно.</p>");
