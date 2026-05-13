@@ -637,7 +637,7 @@ class ConfluenceServiceTest {
                 List.of(new ConfluenceReleaseReportLinksUpdateRequest.ReportLinkItem(
                         testUuid,
                         "7.1",
-                        "Определение максимальной производительности Profile",
+                        "Определение максимальной производительности Profile @release",
                         "test-page-1",
                         "Отчет по тесту",
                         "https://confluence.example/pages/viewpage.action?pageId=test-page-1")));
@@ -651,6 +651,21 @@ class ConfluenceServiceTest {
                 "Тест прошел успешно.",
                 "Максимальная производительность составила 600 запросов в секунду.");
         when(loadTestRepository.findById(testUuid)).thenReturn(Optional.of(loadTest));
+        when(kubernetesConfigurationService.getConfigurations(testUuid))
+                .thenReturn(List.of(new KubernetesConfiguration(
+                        1L,
+                        testUuid,
+                        "prod",
+                        "profile",
+                        "profile-1",
+                        "profile",
+                        "1.0.0",
+                        "24.1.7",
+                        "100m",
+                        "200m",
+                        "256Mi",
+                        "512Mi",
+                        Instant.parse("2024-05-01T11:05:00Z"))));
 
         ConfluencePage releasePage = new ConfluencePage(
                 "release-1",
@@ -676,7 +691,7 @@ class ConfluenceServiceTest {
                         "Отчет по тесту",
                         "https://confluence.example/pages/viewpage.action?pageId=test-page-1",
                         "7.1",
-                        "Определение максимальной производительности Profile",
+                        "Определение максимальной производительности Profile @release",
                         "Максимум",
                         "2024-05-01 13:00:00 - 2024-05-01 14:00:00",
                         "Тест прошел успешно.",
@@ -700,10 +715,11 @@ class ConfluenceServiceTest {
         String updatedBody = bodyCaptor.getValue();
         assertThat(updatedBody).contains("@perfhub_reports_start");
         assertThat(updatedBody).contains("@perfhub_reports_end");
-        assertThat(updatedBody).contains("<h3>7.1 Определение максимальной производительности Profile</h3>");
+        assertThat(updatedBody).contains("<h3>7.1 Определение максимальной производительности Profile 24.1.7</h3>");
         assertThat(updatedBody).contains("<p>Тест прошел успешно.</p>");
         assertThat(updatedBody).contains("<p>Максимальная производительность составила 600 запросов в секунду.</p>");
         assertThat(updatedBody).contains("<ri:page ri:content-title=\"Отчет по тесту\" ri:space-key=\"SPACE\" />");
+        assertThat(updatedBody).doesNotContain("@release");
         assertThat(updatedBody).doesNotContain("ri:value=\"https://confluence.example/pages/viewpage.action?pageId=test-page-1\"");
         assertThat(updatedBody).doesNotContain("@test_number");
         assertThat(updatedBody).doesNotContain("@test_report_link");

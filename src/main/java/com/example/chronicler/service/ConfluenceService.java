@@ -808,19 +808,78 @@ public class ConfluenceService {
         StringBuilder bodyBuilder = new StringBuilder();
         for (int index = 0; index < links.size(); index++) {
             ConfluenceReleaseReportLink link = links.get(index);
+            ReleaseReportPlaceholderValues values = buildReleaseReportPlaceholderValues(link, index);
             String rendered = template
-                    .replace(TEST_NUMBER_PLACEHOLDER, escape(orDefault(link.testNumber(), String.valueOf(index + 1))))
-                    .replace(TEST_TITLE_PLACEHOLDER, escape(orPlaceholder(link.testTitle())))
-                    .replace(TEST_TYPE_PLACEHOLDER, escape(orPlaceholder(link.testType())))
-                    .replace(TEST_START_PLACEHOLDER, escape(formatLinkedTestStart(link)))
-                    .replace(TEST_END_PLACEHOLDER, escape(formatLinkedTestEnd(link)))
-                    .replace(TEST_PERIOD_PLACEHOLDER, escape(orPlaceholder(link.testPeriod())))
-                    .replace(TEST_STATUS_PLACEHOLDER, escape(orPlaceholder(link.testStatus())))
-                    .replace(TEST_SUMMARY_PLACEHOLDER, escape(orPlaceholder(link.testSummary())))
+                    .replace(TEST_NUMBER_PLACEHOLDER, escape(expandReleaseReportText(values.testNumber(), values)))
+                    .replace(TEST_TITLE_PLACEHOLDER, escape(values.testTitle()))
+                    .replace(TEST_TYPE_PLACEHOLDER, escape(expandReleaseReportText(values.testType(), values)))
+                    .replace(TEST_START_PLACEHOLDER, escape(expandReleaseReportText(values.testStart(), values)))
+                    .replace(TEST_END_PLACEHOLDER, escape(expandReleaseReportText(values.testEnd(), values)))
+                    .replace(TEST_PERIOD_PLACEHOLDER, escape(expandReleaseReportText(values.testPeriod(), values)))
+                    .replace(TEST_STATUS_PLACEHOLDER, escape(expandReleaseReportText(values.testStatus(), values)))
+                    .replace(TEST_SUMMARY_PLACEHOLDER, escape(expandReleaseReportText(values.testSummary(), values)))
                     .replace(TEST_REPORT_LINK_PLACEHOLDER, buildReportPageLink(link, spaceKey));
             bodyBuilder.append(rendered);
         }
         return bodyBuilder.toString();
+    }
+
+    private ReleaseReportPlaceholderValues buildReleaseReportPlaceholderValues(
+            ConfluenceReleaseReportLink link,
+            int index) {
+        String release = resolveLinkedRelease(link);
+        String testNumber = orDefault(link.testNumber(), String.valueOf(index + 1));
+        String testType = orPlaceholder(link.testType());
+        String testStart = formatLinkedTestStart(link);
+        String testEnd = formatLinkedTestEnd(link);
+        String testPeriod = orPlaceholder(link.testPeriod());
+        String testStatus = orPlaceholder(link.testStatus());
+        String testSummary = orPlaceholder(link.testSummary());
+        ReleaseReportPlaceholderValues rawValues = new ReleaseReportPlaceholderValues(
+                release,
+                testNumber,
+                "",
+                testType,
+                testStart,
+                testEnd,
+                testPeriod,
+                testStatus,
+                testSummary);
+        String testTitle = expandReleaseReportText(orPlaceholder(link.testTitle()), rawValues);
+        return new ReleaseReportPlaceholderValues(
+                release,
+                testNumber,
+                testTitle,
+                testType,
+                testStart,
+                testEnd,
+                testPeriod,
+                testStatus,
+                testSummary);
+    }
+
+    private String expandReleaseReportText(String value, ReleaseReportPlaceholderValues values) {
+        String safeValue = orPlaceholder(value);
+        return safeValue
+                .replace(RELEASE_PLACEHOLDER, values.release())
+                .replace(TEST_NUMBER_PLACEHOLDER, values.testNumber())
+                .replace(TEST_TITLE_PLACEHOLDER, values.testTitle())
+                .replace(TEST_TYPE_PLACEHOLDER, values.testType())
+                .replace(TEST_START_PLACEHOLDER, values.testStart())
+                .replace(TEST_END_PLACEHOLDER, values.testEnd())
+                .replace(TEST_PERIOD_PLACEHOLDER, values.testPeriod())
+                .replace(TEST_STATUS_PLACEHOLDER, values.testStatus())
+                .replace(TEST_SUMMARY_PLACEHOLDER, values.testSummary())
+                .replace(CONFIG_PLACEHOLDER, "")
+                .replace(GRAPHICS_PLACEHOLDER, "")
+                .replace(TEST_REPORT_LINK_PLACEHOLDER, "");
+    }
+
+    private String resolveLinkedRelease(ConfluenceReleaseReportLink link) {
+        if (link == null || link.testUuid() == null) {
+            return REPORT_PLACEHOLDER_TEXT;
+        }
+        return resolveReleaseValue(kubernetesConfigurationService.getConfigurations(link.testUuid()));
     }
 
     private String buildReportPageLink(ConfluenceReleaseReportLink link, String spaceKey) {
@@ -1327,6 +1386,17 @@ public class ConfluenceService {
     private record ConfigurationArchiveAttachment(String attachmentName) {}
 
     private record ReleaseReportsBlock(int replacementStart, int replacementEnd, String itemTemplate) {}
+
+    private record ReleaseReportPlaceholderValues(
+            String release,
+            String testNumber,
+            String testTitle,
+            String testType,
+            String testStart,
+            String testEnd,
+            String testPeriod,
+            String testStatus,
+            String testSummary) {}
 
     @FunctionalInterface
     private interface AttachmentUpload {
