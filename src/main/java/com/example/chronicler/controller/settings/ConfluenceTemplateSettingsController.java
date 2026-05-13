@@ -81,6 +81,7 @@ public class ConfluenceTemplateSettingsController {
                 template.fullName(),
                 template.reportTitle(),
                 template.templateType().name(),
+                settingsService.resolveTemplateTestType(template).map(com.example.chronicler.model.LoadTestType::value).orElse(null),
                 template.templatePageId(),
                 template.text(),
                 charts);
@@ -122,6 +123,7 @@ public class ConfluenceTemplateSettingsController {
                 request.fullName(),
                 request.reportTitle(),
                 request.templateType(),
+                request.testType(),
                 request.templatePageId(),
                 request.text(),
                 charts);

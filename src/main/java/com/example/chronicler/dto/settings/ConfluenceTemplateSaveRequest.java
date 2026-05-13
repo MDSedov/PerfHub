@@ -7,10 +7,11 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 public record ConfluenceTemplateSaveRequest(
-        @NotBlank @Size(max = 30) String shortName,
+        @Size(max = 30) String shortName,
         String fullName,
         @NotBlank String reportTitle,
         @NotBlank String templateType,
+        String testType,
         @NotBlank String templatePageId,
         String text,
         @Valid List<TemplateChartPayload> charts) {

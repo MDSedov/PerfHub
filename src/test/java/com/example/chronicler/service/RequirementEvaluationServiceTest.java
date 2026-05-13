@@ -89,8 +89,8 @@ class RequirementEvaluationServiceTest {
                         new ConfluenceTemplateChart(3L, 1, "Latency chart", "dash-b", 3, 2)));
 
         when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
-        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max");
-        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max"))
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max_template"))
                 .thenReturn(Optional.of(template));
         when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-a", 1))
                 .thenReturn(Optional.of(new GrafanaDashboardPanelRecord(
@@ -185,8 +185,8 @@ class RequirementEvaluationServiceTest {
                 null);
 
         when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
-        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max");
-        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max")).thenReturn(Optional.empty());
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max_template")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.evaluate(testId))
                 .isInstanceOf(com.example.chronicler.exception.RequirementEvaluationException.class)
@@ -213,8 +213,8 @@ class RequirementEvaluationServiceTest {
                 List.of());
 
         when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
-        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max");
-        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max"))
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max_template"))
                 .thenReturn(Optional.of(template));
 
         assertThatThrownBy(() -> service.evaluate(testId))
@@ -242,8 +242,8 @@ class RequirementEvaluationServiceTest {
                 List.of(new ConfluenceTemplateChart(5L, 5, "DT latency", "dash-dt", 12, 0)));
 
         when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
-        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.DT)).thenReturn("dt");
-        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("dt"))
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.DT)).thenReturn("dt_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("dt_template"))
                 .thenReturn(Optional.of(template));
         when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-dt", 12))
                 .thenReturn(Optional.of(new GrafanaDashboardPanelRecord(
@@ -293,8 +293,8 @@ class RequirementEvaluationServiceTest {
                 "<p>Body</p>",
                 List.of(new ConfluenceTemplateChart(1L, 1, "CPU chart", "dash-a", 1, 0)));
 
-        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max");
-        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max"))
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max_template"))
                 .thenReturn(Optional.of(template));
         when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-a", 1))
                 .thenReturn(Optional.of(new GrafanaDashboardPanelRecord(

@@ -315,7 +315,7 @@
     function resolveDefaultReportTemplateId(test) {
         const normalizedType = canonicalizeTestType(test?.type) || 'unknown';
         const matchedTemplate = getTestReportTemplates().find(template =>
-                (template?.shortName ?? '').trim().toLowerCase() === normalizedType);
+                (template?.shortName ?? '').trim().toLowerCase() === `${normalizedType}_template`);
         return matchedTemplate?.id ? String(matchedTemplate.id) : '';
     }
 
@@ -339,11 +339,10 @@
 
     function getSelectedTestsMissingTemplate() {
         return getSelectedLuckyTests().filter(test => {
-            const testId = test?.id;
-            if (!testId) {
+            if (!test?.id) {
                 return true;
             }
-            const templateId = selectedReportTemplateIds.get(testId);
+            const templateId = resolveDefaultReportTemplateId(test);
             return !templateId || !isKnownReportTemplateId(templateId);
         });
     }
@@ -404,45 +403,6 @@
             typeBadge.textContent = normalizeTestType(test?.type);
             typeCell.appendChild(typeBadge);
             row.appendChild(typeCell);
-
-            const templateCell = document.createElement('td');
-            templateCell.className = 'report-template-select-cell';
-            const templateSelect = document.createElement('select');
-            templateSelect.className = 'form-select form-select-sm';
-            const testTemplates = getTestReportTemplates();
-            const currentTemplateId = ensureSelectedReportTemplate(test);
-
-            const placeholderOption = document.createElement('option');
-            placeholderOption.value = '';
-            placeholderOption.textContent = !reportTemplatesLoaded
-                    ? 'Загружаем шаблоны…'
-                    : testTemplates.length === 0
-                            ? 'Нет шаблонов отчета по тесту'
-                            : 'Выберите шаблон';
-            templateSelect.appendChild(placeholderOption);
-
-            testTemplates.forEach(template => {
-                const option = document.createElement('option');
-                option.value = String(template.id);
-                option.textContent = template.shortName ?? `template-${template.id}`;
-                templateSelect.appendChild(option);
-            });
-
-            templateSelect.disabled = !reportTemplatesLoaded || testTemplates.length === 0;
-            templateSelect.value = currentTemplateId || '';
-            templateSelect.addEventListener('change', () => {
-                if (!test?.id) {
-                    return;
-                }
-                if (templateSelect.value) {
-                    selectedReportTemplateIds.set(test.id, templateSelect.value);
-                } else {
-                    selectedReportTemplateIds.delete(test.id);
-                }
-                updateSubmitState();
-            });
-            templateCell.appendChild(templateSelect);
-            row.appendChild(templateCell);
 
             appendGenerateReportsTextCell(row, formatDateNoSeconds(test?.start), 'text-nowrap');
             appendGenerateReportsTextCell(row, formatTestEndValue(test), 'text-nowrap');
@@ -908,7 +868,7 @@
         }
     }
 
-    async function createSingleConfluenceReport(parentPageId, testId, templateId) {
+    async function createSingleConfluenceReport(parentPageId, testId) {
         const response = await fetchWithTimeout('/api/confluence/report/', {
             method: 'POST',
             headers: {
@@ -916,10 +876,7 @@
             },
             body: JSON.stringify({
                 parentPageId,
-                items: [{
-                    testUuid: testId,
-                    templateId
-                }]
+                tests: [testId]
             })
         }, 300000);
         if (!response.ok) {
@@ -1025,8 +982,7 @@
                 try {
                     const payload = await createSingleConfluenceReport(
                             targetParentPageId,
-                            testId,
-                            Number(selectedReportTemplateIds.get(testId))
+                            testId
                     );
                     const report = extractSingleGeneratedReport(payload);
                     if (!report?.pageId) {

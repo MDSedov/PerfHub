@@ -25,6 +25,9 @@ public class ConfluenceTemplateSettingsService {
 
     private static final Pattern PAGE_ID_QUERY_PATTERN = Pattern.compile("[?&]pageId=([0-9]+)");
     private static final Pattern PAGE_ID_PATH_PATTERN = Pattern.compile("/pages/(?:viewpage\\.action/)?([0-9]+)");
+    private static final Pattern PAGE_ID_VALUE_PATTERN = Pattern.compile("[0-9]+");
+    private static final String TEMPLATE_SUFFIX = "_template";
+    private static final String RELEASE_TEMPLATE_SHORT_NAME = "release_template";
 
     private final ConfluenceTemplateRepository templateRepository;
     private final ConfluenceTemplateChartRepository chartRepository;
@@ -79,14 +82,24 @@ public class ConfluenceTemplateSettingsService {
         if (loadTestType == null || loadTestType == LoadTestType.UNKNOWN) {
             throw new IllegalArgumentException("Тип теста не определен");
         }
-        return switch (loadTestType) {
-            case MAX -> "max";
-            case STABILITY -> "stability";
-            case SOAK -> "soak";
-            case PSU -> "psu";
-            case DT -> "dt";
-            case UNKNOWN -> throw new IllegalArgumentException("Тип теста не определен");
-        };
+        return loadTestType.value() + TEMPLATE_SUFFIX;
+    }
+
+    public String resolveReleaseTemplateShortName() {
+        return RELEASE_TEMPLATE_SHORT_NAME;
+    }
+
+    public Optional<LoadTestType> resolveTemplateTestType(ConfluenceTemplate template) {
+        if (template == null || template.templateType() != ConfluenceTemplateType.TEST) {
+            return Optional.empty();
+        }
+        String shortName = StringUtils.trimWhitespace(template.shortName());
+        if (!StringUtils.hasText(shortName) || !shortName.endsWith(TEMPLATE_SUFFIX)) {
+            return Optional.empty();
+        }
+        LoadTestType testType = LoadTestType.fromDatabaseValue(
+                shortName.substring(0, shortName.length() - TEMPLATE_SUFFIX.length()));
+        return testType == LoadTestType.UNKNOWN ? Optional.empty() : Optional.of(testType);
     }
 
     @Transactional
@@ -166,21 +179,16 @@ public class ConfluenceTemplateSettingsService {
             throw new IllegalArgumentException("Данные шаблона не переданы");
         }
 
-        String shortName = StringUtils.trimWhitespace(command.shortName());
-        String reportTitle = StringUtils.trimWhitespace(command.reportTitle());
         ConfluenceTemplateType templateType = ConfluenceTemplateType.fromDatabaseValue(command.templateType());
+        LoadTestType testType = resolveCommandTestType(command.testType(), templateType);
+        String shortName = resolveSystemShortName(templateType, testType);
+        String reportTitle = StringUtils.trimWhitespace(command.reportTitle());
         String templatePageId = normalizeTemplatePageId(command.templatePageId());
-        if (!StringUtils.hasText(shortName)) {
-            throw new IllegalArgumentException("Название шаблона обязательно");
-        }
-        if (shortName.length() > 30) {
-            throw new IllegalArgumentException("Название шаблона должно быть не длиннее 30 символов");
-        }
         if (!StringUtils.hasText(reportTitle)) {
             throw new IllegalArgumentException("Название отчета обязательно");
         }
         if (!StringUtils.hasText(templatePageId)) {
-            throw new IllegalArgumentException("ID или ссылка на страницу-шаблон Confluence обязательны");
+            throw new IllegalArgumentException("ID страницы с шаблоном отчета в Confluence обязателен");
         }
 
         List<SanitizedChart> charts = new ArrayList<>();
@@ -214,6 +222,24 @@ public class ConfluenceTemplateSettingsService {
                 List.copyOf(charts));
     }
 
+    private LoadTestType resolveCommandTestType(String rawTestType, ConfluenceTemplateType templateType) {
+        if (templateType == ConfluenceTemplateType.RELEASE) {
+            return null;
+        }
+        LoadTestType testType = LoadTestType.fromDatabaseValue(rawTestType);
+        if (testType == LoadTestType.UNKNOWN) {
+            throw new IllegalArgumentException("Выберите тип теста");
+        }
+        return testType;
+    }
+
+    private String resolveSystemShortName(ConfluenceTemplateType templateType, LoadTestType testType) {
+        if (templateType == ConfluenceTemplateType.RELEASE) {
+            return resolveReleaseTemplateShortName();
+        }
+        return resolveDefaultTemplateShortName(testType);
+    }
+
     private String resolveFullName(String requestedFullName, String reportTitle, String shortName) {
         String fullName = StringUtils.trimWhitespace(requestedFullName);
         if (StringUtils.hasText(fullName)) {
@@ -230,6 +256,9 @@ public class ConfluenceTemplateSettingsService {
         if (!StringUtils.hasText(value)) {
             return "";
         }
+        if (PAGE_ID_VALUE_PATTERN.matcher(value).matches()) {
+            return value;
+        }
         Matcher queryMatcher = PAGE_ID_QUERY_PATTERN.matcher(value);
         if (queryMatcher.find()) {
             return queryMatcher.group(1);
@@ -238,7 +267,7 @@ public class ConfluenceTemplateSettingsService {
         if (pathMatcher.find()) {
             return pathMatcher.group(1);
         }
-        return value;
+        throw new IllegalArgumentException("Укажите ID страницы с шаблоном отчета в Confluence");
     }
 
     private void validateUniqueNames(String shortName, Integer templateId) {
@@ -264,6 +293,7 @@ public class ConfluenceTemplateSettingsService {
             String fullName,
             String reportTitle,
             String templateType,
+            String testType,
             String templatePageId,
             String text,
             List<TemplateChartCommand> charts) {}

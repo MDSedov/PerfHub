@@ -494,7 +494,8 @@
             fullName: template?.fullName ?? '',
             reportTitle: template?.reportTitle ?? '',
             templateType: template?.templateType ?? 'TEST',
-            templatePageId: template?.templatePageId ?? '',
+            testType: template?.testType ?? inferTemplateTestType(template),
+            templatePageId: normalizeConfluencePageId(template?.templatePageId) ?? '',
             text: template?.text ?? '',
             charts: toArray(template?.charts).map(chart => ({
                 title: chart?.title ?? '',
@@ -502,6 +503,38 @@
                 panelId: Number(chart?.panelId ?? 0)
             }))
         };
+    }
+
+    const TEMPLATE_SUFFIX = '_template';
+    const KNOWN_TEST_TYPES = new Set(['max', 'stability', 'soak', 'psu', 'dt']);
+
+    function inferTemplateTestType(template) {
+        const explicit = normalizeText(template?.testType)?.toLowerCase();
+        if (KNOWN_TEST_TYPES.has(explicit)) {
+            return explicit;
+        }
+        const shortName = normalizeText(template?.shortName)?.toLowerCase() ?? '';
+        if (!shortName.endsWith(TEMPLATE_SUFFIX)) {
+            return '';
+        }
+        const candidate = shortName.slice(0, -TEMPLATE_SUFFIX.length);
+        return KNOWN_TEST_TYPES.has(candidate) ? candidate : '';
+    }
+
+    function normalizeConfluencePageId(rawValue) {
+        const value = normalizeText(rawValue);
+        if (!value) {
+            return null;
+        }
+        if (/^[0-9]+$/.test(value)) {
+            return value;
+        }
+        const queryMatch = value.match(/[?&]pageId=([0-9]+)/);
+        if (queryMatch) {
+            return queryMatch[1];
+        }
+        const pathMatch = value.match(/\/pages\/(?:viewpage\.action\/)?([0-9]+)/);
+        return pathMatch ? pathMatch[1] : null;
     }
 
     function normalizeDashboardForExport(dashboard) {
@@ -811,9 +844,10 @@
         const templateType = String(template?.templateType ?? 'TEST').trim().toUpperCase() === 'RELEASE'
                 ? 'RELEASE'
                 : 'TEST';
-        const templatePageId = normalizeText(template?.templatePageId);
+        const testType = inferTemplateTestType(template);
+        const templatePageId = normalizeConfluencePageId(template?.templatePageId);
         const text = template?.text ?? '';
-        if (!shortName || !fullName || !reportTitle || !templatePageId) {
+        if (!shortName || !fullName || !reportTitle || !templatePageId || (templateType === 'TEST' && !testType)) {
             return null;
         }
         return {
@@ -821,6 +855,7 @@
             fullName,
             reportTitle,
             templateType,
+            testType,
             templatePageId,
             text,
             charts: toArray(template?.charts).map(chart => ({
