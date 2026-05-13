@@ -1126,10 +1126,10 @@
     }
 
     function buildTestDetailsTitle(test) {
-        if (!test?.id) {
+        if (!test) {
             return 'Детальная информация о тесте';
         }
-        return `${normalizeTestType(test.type)} | ${test.id}`;
+        return normalizeTestType(test.type);
     }
 
     function buildTestDetailsSubtitle(test) {
@@ -3549,9 +3549,9 @@
         const notesSection = document.createElement('section');
         notesSection.className = 'test-details-section';
         const typeControls = document.createElement('div');
-        typeControls.className = 'row g-2 align-items-end mb-4';
+        typeControls.className = 'row g-3 mb-4';
         const typeField = document.createElement('div');
-        typeField.className = 'col-12 col-lg-8';
+        typeField.className = 'col-12 col-lg-4';
         const typeLabel = document.createElement('label');
         typeLabel.className = 'form-label';
         typeLabel.textContent = 'Тип теста';
@@ -3566,70 +3566,24 @@
         typeSelect.value = canonicalizeTestType(test?.type) || 'unknown';
         typeField.appendChild(typeLabel);
         typeField.appendChild(typeSelect);
-
-        const typeButtonWrap = document.createElement('div');
-        typeButtonWrap.className = 'col-12 col-lg-4';
-        const typeButton = document.createElement('button');
-        typeButton.type = 'button';
-        typeButton.className = 'btn btn-outline-success w-100';
-        typeButton.textContent = 'Сохранить тип';
-        typeButton.addEventListener('click', async () => {
-            typeButton.disabled = true;
-            typeSelect.disabled = true;
-            typeButton.textContent = 'Сохраняем…';
-            try {
-                const updated = await saveTestType(testId, typeSelect.value);
-                const savedType = canonicalizeTestType(updated?.type) || typeSelect.value;
-                typeSelect.value = savedType;
-                updateCachedTestType(testId, savedType);
-                updateTypeOptions(allTests);
-                applyFilters();
-                showToast('Тип теста сохранен', 'success');
-            } catch (error) {
-                showToast('Не удалось сохранить тип теста', 'danger');
-            } finally {
-                typeButton.disabled = false;
-                typeSelect.disabled = false;
-                typeButton.textContent = 'Сохранить тип';
-            }
-        });
-        typeButtonWrap.appendChild(typeButton);
         typeControls.appendChild(typeField);
-        typeControls.appendChild(typeButtonWrap);
 
-        const notesTitle = document.createElement('h6');
-        notesTitle.className = 'test-details-section-title mb-3';
-        notesTitle.textContent = 'Заметки к тесту';
+        const notesField = document.createElement('div');
+        notesField.className = 'col-12 col-lg-8';
+        const notesLabel = document.createElement('label');
+        notesLabel.className = 'form-label';
+        notesLabel.textContent = 'Заметки к тесту';
         const notesBox = document.createElement('div');
         notesBox.className = 'mb-2';
         const notesArea = document.createElement('textarea');
         notesArea.className = 'form-control';
         notesArea.rows = 3;
         notesArea.value = test?.comment ?? '';
-        const notesButton = document.createElement('button');
-        notesButton.type = 'button';
-        notesButton.className = 'btn btn-outline-success btn-sm mt-2';
-        notesButton.textContent = 'Сохранить';
-        notesButton.addEventListener('click', async () => {
-            notesButton.disabled = true;
-            notesButton.textContent = 'Сохраняем…';
-            try {
-                const updated = await saveTestComment(testId, notesArea.value);
-                notesArea.value = updated?.comment ?? notesArea.value;
-                updateCachedTestComment(testId, updated?.comment ?? notesArea.value);
-                showToast('Заметка сохранена', 'success');
-            } catch (error) {
-                showToast('Не удалось сохранить заметку', 'danger');
-            } finally {
-                notesButton.disabled = false;
-                notesButton.textContent = 'Сохранить';
-            }
-        });
+        notesField.appendChild(notesLabel);
         notesBox.appendChild(notesArea);
-        notesBox.appendChild(notesButton);
+        notesField.appendChild(notesBox);
+        typeControls.appendChild(notesField);
         notesSection.appendChild(typeControls);
-        notesSection.appendChild(notesTitle);
-        notesSection.appendChild(notesBox);
 
         const reportDetailsTitle = document.createElement('h6');
         reportDetailsTitle.className = 'test-details-section-title mb-3 mt-4';
@@ -3652,33 +3606,66 @@
         reportSummaryArea.value = test?.reportSummary ?? '';
         reportSummaryArea.placeholder = 'Например: Максимальная производительность составила 600 запросов в секунду.';
 
-        const reportDetailsButton = document.createElement('button');
-        reportDetailsButton.type = 'button';
-        reportDetailsButton.className = 'btn btn-outline-success btn-sm mt-2';
-        reportDetailsButton.textContent = 'Сохранить данные для отчета';
-        reportDetailsButton.addEventListener('click', async () => {
-            reportDetailsButton.disabled = true;
-            reportDetailsButton.textContent = 'Сохраняем…';
+        const reportDetailsRow = document.createElement('div');
+        reportDetailsRow.className = 'row g-3';
+        const reportStatusField = document.createElement('div');
+        reportStatusField.className = 'col-12 col-lg-6';
+        const reportSummaryField = document.createElement('div');
+        reportSummaryField.className = 'col-12 col-lg-6';
+        reportStatusArea.classList.remove('mb-3');
+        reportStatusField.appendChild(reportStatusLabel);
+        reportStatusField.appendChild(reportStatusArea);
+        reportSummaryField.appendChild(reportSummaryLabel);
+        reportSummaryField.appendChild(reportSummaryArea);
+        reportDetailsRow.appendChild(reportStatusField);
+        reportDetailsRow.appendChild(reportSummaryField);
+
+        const notesActions = document.createElement('div');
+        notesActions.className = 'd-flex justify-content-end mt-3';
+        const saveChangesButton = document.createElement('button');
+        saveChangesButton.type = 'button';
+        saveChangesButton.className = 'btn btn-outline-success btn-sm';
+        saveChangesButton.textContent = 'Сохранить изменения';
+        saveChangesButton.addEventListener('click', async () => {
+            saveChangesButton.disabled = true;
+            typeSelect.disabled = true;
+            notesArea.disabled = true;
+            reportStatusArea.disabled = true;
+            reportSummaryArea.disabled = true;
+            saveChangesButton.textContent = 'Сохраняем…';
             try {
-                const updated = await saveTestReportDetails(testId, reportStatusArea.value, reportSummaryArea.value);
-                reportStatusArea.value = updated?.reportStatus ?? reportStatusArea.value;
-                reportSummaryArea.value = updated?.reportSummary ?? reportSummaryArea.value;
+                const [typeUpdate, commentUpdate, reportDetailsUpdate] = await Promise.all([
+                    saveTestType(testId, typeSelect.value),
+                    saveTestComment(testId, notesArea.value),
+                    saveTestReportDetails(testId, reportStatusArea.value, reportSummaryArea.value)
+                ]);
+                const savedType = canonicalizeTestType(typeUpdate?.type) || typeSelect.value;
+                typeSelect.value = savedType;
+                notesArea.value = commentUpdate?.comment ?? notesArea.value;
+                reportStatusArea.value = reportDetailsUpdate?.reportStatus ?? reportStatusArea.value;
+                reportSummaryArea.value = reportDetailsUpdate?.reportSummary ?? reportSummaryArea.value;
+                updateCachedTestType(testId, savedType);
+                updateCachedTestComment(testId, notesArea.value);
                 updateCachedTestReportDetails(testId, reportStatusArea.value, reportSummaryArea.value);
-                showToast('Данные для отчета сохранены', 'success');
+                updateTypeOptions(allTests);
+                applyFilters();
+                showToast('Изменения сохранены', 'success');
             } catch (error) {
-                showToast('Не удалось сохранить данные для отчета', 'danger');
+                showToast('Не удалось сохранить изменения', 'danger');
             } finally {
-                reportDetailsButton.disabled = false;
-                reportDetailsButton.textContent = 'Сохранить данные для отчета';
+                saveChangesButton.disabled = false;
+                typeSelect.disabled = false;
+                notesArea.disabled = false;
+                reportStatusArea.disabled = false;
+                reportSummaryArea.disabled = false;
+                saveChangesButton.textContent = 'Сохранить изменения';
             }
         });
+        notesActions.appendChild(saveChangesButton);
 
         notesSection.appendChild(reportDetailsTitle);
-        notesSection.appendChild(reportStatusLabel);
-        notesSection.appendChild(reportStatusArea);
-        notesSection.appendChild(reportSummaryLabel);
-        notesSection.appendChild(reportSummaryArea);
-        notesSection.appendChild(reportDetailsButton);
+        notesSection.appendChild(reportDetailsRow);
+        notesSection.appendChild(notesActions);
 
         const requirementsSection = document.createElement('section');
         requirementsSection.className = 'test-details-section';
@@ -3701,18 +3688,46 @@
 
         const configurationSection = document.createElement('section');
         configurationSection.className = 'test-details-section';
+        const configurationHeader = document.createElement('div');
+        configurationHeader.className = 'd-flex flex-wrap align-items-center justify-content-between gap-2 mb-3';
         const configurationTitle = document.createElement('h6');
-        configurationTitle.className = 'test-details-section-title mb-3';
+        configurationTitle.className = 'test-details-section-title mb-0';
         configurationTitle.textContent = 'Конфигурация стенда';
+        const configurationRequestButton = document.createElement('button');
+        configurationRequestButton.type = 'button';
+        configurationRequestButton.className = 'btn btn-outline-success btn-sm';
+        configurationRequestButton.textContent = 'Получить конфигурацию стенда';
         const configurationBox = document.createElement('div');
         configurationBox.innerHTML = '<div class="text-muted small">Загружаем конфигурацию…</div>';
-        configurationSection.appendChild(configurationTitle);
+        configurationRequestButton.addEventListener('click', async () => {
+            configurationRequestButton.disabled = true;
+            configurationRequestButton.textContent = 'Запрашиваем…';
+            try {
+                const captured = await captureConfiguration(testId);
+                updateConfigurationStatusIcon(testId, captured);
+                updateTestReleaseFromConfiguration(testId, captured);
+                renderConfiguration(configurationBox, captured, testId, {
+                    allowManualCapture: false
+                });
+                showToast('Получена конфигурация стенда для теста', 'success');
+            } catch (error) {
+                showToast('Не удалось получить конфигурацию стенда для теста', 'danger');
+            } finally {
+                configurationRequestButton.disabled = false;
+                configurationRequestButton.textContent = 'Получить конфигурацию стенда';
+            }
+        });
+        configurationHeader.appendChild(configurationTitle);
+        configurationHeader.appendChild(configurationRequestButton);
+        configurationSection.appendChild(configurationHeader);
         configurationSection.appendChild(configurationBox);
 
         const grafanaSection = document.createElement('section');
         grafanaSection.className = 'test-details-section';
+        const grafanaHeader = document.createElement('div');
+        grafanaHeader.className = 'd-flex flex-wrap align-items-center justify-content-between gap-2 mb-3';
         const grafanaTitle = document.createElement('h6');
-        grafanaTitle.className = 'test-details-section-title mb-3';
+        grafanaTitle.className = 'test-details-section-title mb-0';
         grafanaTitle.textContent = 'Графики';
         const grafanaPlaceholder = document.createElement('div');
         grafanaPlaceholder.className = 'text-muted small mb-2 visually-hidden';
@@ -3725,6 +3740,8 @@
         grafanaLoadButton.type = 'button';
         grafanaLoadButton.className = 'btn btn-outline-success btn-sm';
         grafanaLoadButton.textContent = 'Загрузить графики из Grafana для данного теста';
+        grafanaHeader.appendChild(grafanaTitle);
+        grafanaHeader.appendChild(grafanaLoadButton);
 
         function applyGrafanaPanels(panels) {
             const normalizedPanels = Array.isArray(panels) ? panels : [];
@@ -3809,9 +3826,8 @@
             }
         });
 
-        grafanaSection.appendChild(grafanaTitle);
+        grafanaSection.appendChild(grafanaHeader);
         grafanaSection.appendChild(grafanaPlaceholder);
-        grafanaSection.appendChild(grafanaLoadButton);
         grafanaSection.appendChild(grafanaBox);
 
         wrapper.appendChild(notesSection);
@@ -3900,21 +3916,26 @@
             updateConfigurationStatusIcon(testId, configuration);
             updateTestReleaseFromConfiguration(testId, configuration);
             if (hasConfigurationPayload(configuration)) {
-                renderConfiguration(configurationBox, configuration, testId);
+                renderConfiguration(configurationBox, configuration, testId, {
+                    allowManualCapture: false
+                });
             } else if (isTestCurrentlyActive(test)) {
                 renderConfiguration(configurationBox, configuration, testId, {
-                    emptyMessage: 'Конфигурация для активного теста пока недоступна. Можно повторить запрос вручную.'
+                    emptyMessage: 'Конфигурация для активного теста пока недоступна. Можно повторить запрос вручную.',
+                    allowManualCapture: false
                 });
             } else {
                 renderConfiguration(configurationBox, configuration, testId, {
-                    emptyMessage: 'Для завершенного теста конфигурация не сохранена. Запросите ее вручную.'
+                    emptyMessage: 'Для завершенного теста конфигурация не сохранена. Запросите ее вручную.',
+                    allowManualCapture: false
                 });
             }
         } catch (error) {
             updateConfigurationStatusIcon(testId, null, true);
             renderConfiguration(configurationBox, [], testId, {
                 emptyMessage: `Не удалось загрузить конфигурацию: ${error.message}`,
-                emptyStateClass: 'text-danger'
+                emptyStateClass: 'text-danger',
+                allowManualCapture: false
             });
         }
 
