@@ -35,10 +35,11 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.http.MediaType;
@@ -66,7 +67,11 @@ public class ConfluenceService {
     private static final String TEST_NUMBER_PLACEHOLDER = "@test_number";
     private static final String TEST_TITLE_PLACEHOLDER = "@test_title";
     private static final String TEST_START_PLACEHOLDER = "@test_start";
+    private static final String TEST_START_DATE_PLACEHOLDER = "@test_start_date";
+    private static final String TEST_START_TIME_PLACEHOLDER = "@test_start_time";
     private static final String TEST_END_PLACEHOLDER = "@test_end";
+    private static final String TEST_END_DATE_PLACEHOLDER = "@test_end_date";
+    private static final String TEST_END_TIME_PLACEHOLDER = "@test_end_time";
     private static final String TEST_REPORT_LINK_PLACEHOLDER = "@test_report_link";
     private static final String RELEASE_REPORTS_START_MARKER = "@perfhub_reports_start";
     private static final String RELEASE_REPORTS_END_MARKER = "@perfhub_reports_end";
@@ -657,6 +662,10 @@ public class ConfluenceService {
                 : template.fullName();
         String resolved = getSafeBody(titleTemplate)
                 .replace(RELEASE_PLACEHOLDER, releaseValue)
+                .replace(TEST_START_DATE_PLACEHOLDER, titlePlaceholder(formatTestStartDate(loadTest)))
+                .replace(TEST_START_TIME_PLACEHOLDER, titlePlaceholder(formatTestStartTime(loadTest)))
+                .replace(TEST_END_DATE_PLACEHOLDER, titlePlaceholder(formatTestEndDate(loadTest)))
+                .replace(TEST_END_TIME_PLACEHOLDER, titlePlaceholder(formatTestEndTime(loadTest)))
                 .replace(TEST_START_PLACEHOLDER, titlePlaceholder(formatTestStart(loadTest)))
                 .replace(TEST_END_PLACEHOLDER, titlePlaceholder(formatTestEnd(loadTest)))
                 .replace(CONFIG_PLACEHOLDER, "")
@@ -694,6 +703,10 @@ public class ConfluenceService {
         }
         return getSafeBody(body)
                 .replace(TEST_TYPE_PLACEHOLDER, escape(formatLoadTestType(loadTest.type())))
+                .replace(TEST_START_DATE_PLACEHOLDER, escape(formatTestStartDate(loadTest)))
+                .replace(TEST_START_TIME_PLACEHOLDER, escape(formatTestStartTime(loadTest)))
+                .replace(TEST_END_DATE_PLACEHOLDER, escape(formatTestEndDate(loadTest)))
+                .replace(TEST_END_TIME_PLACEHOLDER, escape(formatTestEndTime(loadTest)))
                 .replace(TEST_START_PLACEHOLDER, escape(formatTestStart(loadTest)))
                 .replace(TEST_END_PLACEHOLDER, escape(formatTestEnd(loadTest)))
                 .replace(TEST_PERIOD_PLACEHOLDER, escape(formatTestPeriod(loadTest)))
@@ -813,6 +826,10 @@ public class ConfluenceService {
                     .replace(TEST_NUMBER_PLACEHOLDER, escape(expandReleaseReportText(values.testNumber(), values)))
                     .replace(TEST_TITLE_PLACEHOLDER, escape(values.testTitle()))
                     .replace(TEST_TYPE_PLACEHOLDER, escape(expandReleaseReportText(values.testType(), values)))
+                    .replace(TEST_START_DATE_PLACEHOLDER, escape(expandReleaseReportText(values.testStartDate(), values)))
+                    .replace(TEST_START_TIME_PLACEHOLDER, escape(expandReleaseReportText(values.testStartTime(), values)))
+                    .replace(TEST_END_DATE_PLACEHOLDER, escape(expandReleaseReportText(values.testEndDate(), values)))
+                    .replace(TEST_END_TIME_PLACEHOLDER, escape(expandReleaseReportText(values.testEndTime(), values)))
                     .replace(TEST_START_PLACEHOLDER, escape(expandReleaseReportText(values.testStart(), values)))
                     .replace(TEST_END_PLACEHOLDER, escape(expandReleaseReportText(values.testEnd(), values)))
                     .replace(TEST_PERIOD_PLACEHOLDER, escape(expandReleaseReportText(values.testPeriod(), values)))
@@ -828,10 +845,15 @@ public class ConfluenceService {
             ConfluenceReleaseReportLink link,
             int index) {
         String release = resolveLinkedRelease(link);
+        LoadTest loadTest = findLinkedLoadTest(link).orElse(null);
         String testNumber = orDefault(link.testNumber(), String.valueOf(index + 1));
         String testType = orPlaceholder(link.testType());
-        String testStart = formatLinkedTestStart(link);
-        String testEnd = formatLinkedTestEnd(link);
+        String testStart = formatTestStart(loadTest);
+        String testStartDate = formatTestStartDate(loadTest);
+        String testStartTime = formatTestStartTime(loadTest);
+        String testEnd = formatTestEnd(loadTest);
+        String testEndDate = formatTestEndDate(loadTest);
+        String testEndTime = formatTestEndTime(loadTest);
         String testPeriod = orPlaceholder(link.testPeriod());
         String testStatus = orPlaceholder(link.testStatus());
         String testSummary = orPlaceholder(link.testSummary());
@@ -841,7 +863,11 @@ public class ConfluenceService {
                 "",
                 testType,
                 testStart,
+                testStartDate,
+                testStartTime,
                 testEnd,
+                testEndDate,
+                testEndTime,
                 testPeriod,
                 testStatus,
                 testSummary);
@@ -852,7 +878,11 @@ public class ConfluenceService {
                 testTitle,
                 testType,
                 testStart,
+                testStartDate,
+                testStartTime,
                 testEnd,
+                testEndDate,
+                testEndTime,
                 testPeriod,
                 testStatus,
                 testSummary);
@@ -865,6 +895,10 @@ public class ConfluenceService {
                 .replace(TEST_NUMBER_PLACEHOLDER, values.testNumber())
                 .replace(TEST_TITLE_PLACEHOLDER, values.testTitle())
                 .replace(TEST_TYPE_PLACEHOLDER, values.testType())
+                .replace(TEST_START_DATE_PLACEHOLDER, values.testStartDate())
+                .replace(TEST_START_TIME_PLACEHOLDER, values.testStartTime())
+                .replace(TEST_END_DATE_PLACEHOLDER, values.testEndDate())
+                .replace(TEST_END_TIME_PLACEHOLDER, values.testEndTime())
                 .replace(TEST_START_PLACEHOLDER, values.testStart())
                 .replace(TEST_END_PLACEHOLDER, values.testEnd())
                 .replace(TEST_PERIOD_PLACEHOLDER, values.testPeriod())
@@ -930,6 +964,22 @@ public class ConfluenceService {
         return StringUtils.hasText(value) ? value : REPORT_PLACEHOLDER_TEXT;
     }
 
+    private String formatTestStartDate(LoadTest loadTest) {
+        if (loadTest == null) {
+            return REPORT_PLACEHOLDER_TEXT;
+        }
+        String value = formatInstantDate(loadTest.start());
+        return StringUtils.hasText(value) ? value : REPORT_PLACEHOLDER_TEXT;
+    }
+
+    private String formatTestStartTime(LoadTest loadTest) {
+        if (loadTest == null) {
+            return REPORT_PLACEHOLDER_TEXT;
+        }
+        String value = formatInstantTime(loadTest.start());
+        return StringUtils.hasText(value) ? value : REPORT_PLACEHOLDER_TEXT;
+    }
+
     private String formatTestEnd(LoadTest loadTest) {
         if (loadTest == null) {
             return REPORT_PLACEHOLDER_TEXT;
@@ -938,22 +988,27 @@ public class ConfluenceService {
         return StringUtils.hasText(value) ? value : REPORT_PLACEHOLDER_TEXT;
     }
 
-    private String formatLinkedTestStart(ConfluenceReleaseReportLink link) {
-        if (link == null || link.testUuid() == null) {
+    private String formatTestEndDate(LoadTest loadTest) {
+        if (loadTest == null) {
             return REPORT_PLACEHOLDER_TEXT;
         }
-        return loadTestRepository.findById(link.testUuid())
-                .map(this::formatTestStart)
-                .orElse(REPORT_PLACEHOLDER_TEXT);
+        String value = formatInstantDate(loadTest.end());
+        return StringUtils.hasText(value) ? value : REPORT_PLACEHOLDER_TEXT;
     }
 
-    private String formatLinkedTestEnd(ConfluenceReleaseReportLink link) {
-        if (link == null || link.testUuid() == null) {
+    private String formatTestEndTime(LoadTest loadTest) {
+        if (loadTest == null) {
             return REPORT_PLACEHOLDER_TEXT;
         }
-        return loadTestRepository.findById(link.testUuid())
-                .map(this::formatTestEnd)
-                .orElse(REPORT_PLACEHOLDER_TEXT);
+        String value = formatInstantTime(loadTest.end());
+        return StringUtils.hasText(value) ? value : REPORT_PLACEHOLDER_TEXT;
+    }
+
+    private Optional<LoadTest> findLinkedLoadTest(ConfluenceReleaseReportLink link) {
+        if (link == null || link.testUuid() == null) {
+            return Optional.empty();
+        }
+        return loadTestRepository.findById(link.testUuid());
     }
 
     private String titlePlaceholder(String value) {
@@ -962,6 +1017,14 @@ public class ConfluenceService {
 
     private String formatInstant(Instant instant) {
         return DateTimeViewUtils.formatInstant(instant);
+    }
+
+    private String formatInstantDate(Instant instant) {
+        return DateTimeViewUtils.formatInstantDate(instant);
+    }
+
+    private String formatInstantTime(Instant instant) {
+        return DateTimeViewUtils.formatInstantTime(instant);
     }
 
     private String formatLoadTestType(LoadTestType type) {
@@ -1393,7 +1456,11 @@ public class ConfluenceService {
             String testTitle,
             String testType,
             String testStart,
+            String testStartDate,
+            String testStartTime,
             String testEnd,
+            String testEndDate,
+            String testEndTime,
             String testPeriod,
             String testStatus,
             String testSummary) {}

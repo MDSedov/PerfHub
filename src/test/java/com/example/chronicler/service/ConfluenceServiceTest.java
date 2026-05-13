@@ -300,8 +300,9 @@ class ConfluenceServiceTest {
                 301,
                 "max",
                 "Шаблон MAX",
-                "Отчет @release @test_start @test_end @config @graphics",
-                "<p>@release</p><p>@test_start</p><p>@test_end</p><p>@config</p><p>@graphics</p>",
+                "Отчет @release @test_start_date @test_start_time @test_end_date @test_end_time @config @graphics",
+                "<p>@release</p><p>@test_start</p><p>@test_start_date</p><p>@test_start_time</p>"
+                        + "<p>@test_end</p><p>@test_end_date</p><p>@test_end_time</p><p>@config</p><p>@graphics</p>",
                 List.of(new ConfluenceTemplateChart(11L, 301, "CPU", "uid-1", 7, 0)));
         when(confluenceTemplateSettingsService.getActiveTemplate(301)).thenReturn(template);
 
@@ -369,7 +370,10 @@ class ConfluenceServiceTest {
         String body = bodyCaptor.getValue();
         assertThat(body).contains("<p>24.1.7</p>");
         assertThat(body).contains("<p>2024-02-01 03:00:00</p>");
+        assertThat(body).contains("<p>2024-02-01</p>");
+        assertThat(body).contains("<p>03:00:00</p>");
         assertThat(body).contains("<p>2024-02-01 05:00:00</p>");
+        assertThat(body).contains("<p>05:00:00</p>");
         assertThat(body).contains("<ac:structured-macro ac:name=\"expand\">");
         assertThat(body).contains("<ac:parameter ac:name=\"title\">Конфигурация стенда</ac:parameter>");
         assertThat(body).contains("ri:attachment ri:filename=\"dropapp-configuration-55.zip\"");
@@ -382,7 +386,11 @@ class ConfluenceServiceTest {
         assertThat(body).doesNotContain("<p><h3>");
         assertThat(body).doesNotContain("@release");
         assertThat(body).doesNotContain("@test_start");
+        assertThat(body).doesNotContain("@test_start_date");
+        assertThat(body).doesNotContain("@test_start_time");
         assertThat(body).doesNotContain("@test_end");
+        assertThat(body).doesNotContain("@test_end_date");
+        assertThat(body).doesNotContain("@test_end_time");
         assertThat(body).doesNotContain("@config");
         assertThat(body).doesNotContain("@graphics");
         assertThat(response.reports().get(0).attachmentNames())
@@ -675,6 +683,7 @@ class ConfluenceServiceTest {
                 "<h2>7. Результаты тестирования</h2>"
                         + "<p>@perfhub_reports_start</p>"
                         + "<h3>@test_number @test_title</h3>"
+                        + "<p>@test_start_date @test_start_time - @test_end_date @test_end_time</p>"
                         + "<p>@test_status</p>"
                         + "<p>@test_summary</p>"
                         + "<p>Подробные результаты: @test_report_link</p>"
@@ -706,6 +715,7 @@ class ConfluenceServiceTest {
         verify(releaseReportLinkRepository).saveBlockTemplate(
                 eq("release-1"),
                 eq("<h3>@test_number @test_title</h3>"
+                        + "<p>@test_start_date @test_start_time - @test_end_date @test_end_time</p>"
                         + "<p>@test_status</p>"
                         + "<p>@test_summary</p>"
                         + "<p>Подробные результаты: @test_report_link</p>"));
@@ -716,12 +726,17 @@ class ConfluenceServiceTest {
         assertThat(updatedBody).contains("@perfhub_reports_start");
         assertThat(updatedBody).contains("@perfhub_reports_end");
         assertThat(updatedBody).contains("<h3>7.1 Определение максимальной производительности Profile 24.1.7</h3>");
+        assertThat(updatedBody).contains("<p>2024-05-01 13:00:00 - 2024-05-01 14:00:00</p>");
         assertThat(updatedBody).contains("<p>Тест прошел успешно.</p>");
         assertThat(updatedBody).contains("<p>Максимальная производительность составила 600 запросов в секунду.</p>");
         assertThat(updatedBody).contains("<ri:page ri:content-title=\"Отчет по тесту\" ri:space-key=\"SPACE\" />");
         assertThat(updatedBody).doesNotContain("@release");
         assertThat(updatedBody).doesNotContain("ri:value=\"https://confluence.example/pages/viewpage.action?pageId=test-page-1\"");
         assertThat(updatedBody).doesNotContain("@test_number");
+        assertThat(updatedBody).doesNotContain("@test_start_date");
+        assertThat(updatedBody).doesNotContain("@test_start_time");
+        assertThat(updatedBody).doesNotContain("@test_end_date");
+        assertThat(updatedBody).doesNotContain("@test_end_time");
         assertThat(updatedBody).doesNotContain("@test_report_link");
     }
 
