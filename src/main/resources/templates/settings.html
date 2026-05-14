@@ -506,19 +506,40 @@
     }
 
     const TEMPLATE_SUFFIX = '_template';
+    const RELEASE_TEMPLATE_SHORT_NAME = 'release_template';
     const KNOWN_TEST_TYPES = new Set(['max', 'stability', 'soak', 'psu', 'dt']);
+    const TEMPLATE_TEST_TYPE_ALIASES = {
+        confirm: 'stability'
+    };
 
-    function inferTemplateTestType(template) {
-        const explicit = normalizeText(template?.testType)?.toLowerCase();
-        if (KNOWN_TEST_TYPES.has(explicit)) {
+    function inferTemplateType(template) {
+        const explicit = normalizeText(template?.templateType)?.toUpperCase();
+        if (explicit === 'RELEASE' || explicit === 'TEST') {
             return explicit;
         }
         const shortName = normalizeText(template?.shortName)?.toLowerCase() ?? '';
+        return shortName === RELEASE_TEMPLATE_SHORT_NAME || shortName === 'release'
+                ? 'RELEASE'
+                : 'TEST';
+    }
+
+    function inferTemplateTestType(template) {
+        const explicit = normalizeText(template?.testType)?.toLowerCase();
+        const normalizedExplicit = TEMPLATE_TEST_TYPE_ALIASES[explicit] ?? explicit;
+        if (KNOWN_TEST_TYPES.has(normalizedExplicit)) {
+            return normalizedExplicit;
+        }
+        const shortName = normalizeText(template?.shortName)?.toLowerCase() ?? '';
+        const directShortName = TEMPLATE_TEST_TYPE_ALIASES[shortName] ?? shortName;
+        if (KNOWN_TEST_TYPES.has(directShortName)) {
+            return directShortName;
+        }
         if (!shortName.endsWith(TEMPLATE_SUFFIX)) {
             return '';
         }
         const candidate = shortName.slice(0, -TEMPLATE_SUFFIX.length);
-        return KNOWN_TEST_TYPES.has(candidate) ? candidate : '';
+        const normalizedCandidate = TEMPLATE_TEST_TYPE_ALIASES[candidate] ?? candidate;
+        return KNOWN_TEST_TYPES.has(normalizedCandidate) ? normalizedCandidate : '';
     }
 
     function normalizeConfluencePageId(rawValue) {
@@ -838,13 +859,15 @@
     }
 
     function normalizeTemplatePayload(template) {
-        const shortName = normalizeText(template?.shortName);
-        const reportTitle = normalizeText(template?.reportTitle);
-        const fullName = normalizeText(template?.fullName) || reportTitle || shortName;
-        const templateType = String(template?.templateType ?? 'TEST').trim().toUpperCase() === 'RELEASE'
-                ? 'RELEASE'
-                : 'TEST';
+        const templateType = inferTemplateType(template);
         const testType = inferTemplateTestType(template);
+        const shortName = templateType === 'RELEASE'
+                ? RELEASE_TEMPLATE_SHORT_NAME
+                : (testType ? `${testType}${TEMPLATE_SUFFIX}` : '');
+        const reportTitle = normalizeText(template?.reportTitle)
+                || normalizeText(template?.fullName)
+                || shortName;
+        const fullName = normalizeText(template?.fullName) || reportTitle || shortName;
         const templatePageId = normalizeConfluencePageId(template?.templatePageId);
         const text = template?.text ?? '';
         if (!shortName || !fullName || !reportTitle || !templatePageId || (templateType === 'TEST' && !testType)) {
@@ -875,19 +898,28 @@
         const byShortName = new Map(existingTemplates
                 .map(template => [normalizeText(template?.shortName)?.toLowerCase(), template])
                 .filter(([key]) => key));
+        let hasReleaseTemplate = existingTemplates.some(template =>
+                String(template?.templateType ?? '').trim().toUpperCase() === 'RELEASE');
         let count = 0;
         for (const template of templates) {
             const payload = normalizeTemplatePayload(template);
             if (!payload) {
                 continue;
             }
-            const existing = byShortName.get(payload.shortName.toLowerCase());
-            await requestJson(existing
-                    ? `/api/settings/confluence-templates/${existing.id}`
-                    : '/api/settings/confluence-templates', {
-                method: existing ? 'PUT' : 'POST',
+            const existing = payload.templateType === 'RELEASE'
+                    ? hasReleaseTemplate
+                    : byShortName.has(payload.shortName.toLowerCase());
+            if (existing) {
+                continue;
+            }
+            await requestJson('/api/settings/confluence-templates', {
+                method: 'POST',
                 body: JSON.stringify(payload)
             });
+            if (payload.templateType === 'RELEASE') {
+                hasReleaseTemplate = true;
+            }
+            byShortName.set(payload.shortName.toLowerCase(), payload);
             count += 1;
         }
         return count;
