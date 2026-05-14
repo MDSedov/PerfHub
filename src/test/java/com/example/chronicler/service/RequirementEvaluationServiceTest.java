@@ -277,6 +277,127 @@ class RequirementEvaluationServiceTest {
     }
 
     @Test
+    void evaluateConvertsGrafanaGraphiteSelectorBeforeQueryingVictoriaMetrics() {
+        UUID testId = UUID.randomUUID();
+        LoadTest loadTest = new LoadTest(
+                testId,
+                Instant.parse("2026-04-13T10:00:00Z"),
+                Instant.parse("2026-04-13T10:30:00Z"),
+                LoadTestType.MAX,
+                null);
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                1,
+                "max",
+                "Max template",
+                "Max report",
+                "<p>Body</p>",
+                List.of(new ConfluenceTemplateChart(1L, 1, "P95", "dash-a", 3, 0)));
+
+        when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max_template"))
+                .thenReturn(Optional.of(template));
+        when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-a", 3))
+                .thenReturn(Optional.of(new GrafanaDashboardPanelRecord(
+                        "dash-a",
+                        "slug-a",
+                        "Dashboard A",
+                        3,
+                        "P95",
+                        "{\"jmeterall.a.pct95\"}",
+                        550.0,
+                        Boolean.FALSE)));
+        when(grafanaVariableService.applyVariables("{\"jmeterall.a.pct95\"}", "dash-a"))
+                .thenReturn("{\"jmeterall.a.pct95\"}");
+        when(victoriaMetricsClient.queryRange(
+                        eq("{__graphite__=\"jmeterall.a.pct95\"}"),
+                        any(Instant.class),
+                        any(Instant.class)))
+                .thenReturn(metricResponse(487.0));
+
+        List<RequirementEvaluationView> result = service.evaluate(testId);
+
+        assertThat(result).singleElement()
+                .extracting(RequirementEvaluationView::measuredValue)
+                .isEqualTo(487.0);
+        verify(evaluationRepository).upsert(
+                eq(testId),
+                eq("dash-a"),
+                eq(3),
+                eq(RequirementEvaluationStatus.PASS),
+                eq(487.0),
+                eq(null),
+                any(),
+                any(Instant.class));
+    }
+
+    @Test
+    void getCachedOrEvaluateRefreshesCachedGraphiteSelectorEvaluation() {
+        UUID testId = UUID.randomUUID();
+        LoadTest loadTest = new LoadTest(
+                testId,
+                Instant.parse("2026-04-13T10:00:00Z"),
+                Instant.parse("2026-04-13T10:30:00Z"),
+                LoadTestType.MAX,
+                null);
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                1,
+                "max",
+                "Max template",
+                "Max report",
+                "<p>Body</p>",
+                List.of(new ConfluenceTemplateChart(1L, 1, "P95", "dash-a", 3, 0)));
+
+        when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max_template"))
+                .thenReturn(Optional.of(template));
+        when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-a", 3))
+                .thenReturn(Optional.of(new GrafanaDashboardPanelRecord(
+                        "dash-a",
+                        "slug-a",
+                        "Dashboard A",
+                        3,
+                        "P95",
+                        "{\"jmeterall.a.pct95\"}",
+                        550.0,
+                        Boolean.FALSE)));
+        when(grafanaVariableService.applyVariables("{\"jmeterall.a.pct95\"}", "dash-a"))
+                .thenReturn("{\"jmeterall.a.pct95\"}");
+        when(evaluationRepository.findByTest(testId)).thenReturn(List.of(new TestRequirementEvaluation(
+                1L,
+                testId,
+                "dash-a",
+                3,
+                RequirementEvaluationStatus.PASS,
+                0.0,
+                null,
+                JsonNodeFactory.instance.objectNode(),
+                Instant.parse("2026-04-13T11:00:00Z"))));
+        when(victoriaMetricsClient.queryRange(
+                        eq("{__graphite__=\"jmeterall.a.pct95\"}"),
+                        any(Instant.class),
+                        any(Instant.class)))
+                .thenReturn(metricResponse(487.0));
+
+        List<RequirementEvaluationView> result = service.getCachedOrEvaluate(testId);
+
+        assertThat(result).singleElement()
+                .extracting(RequirementEvaluationView::measuredValue)
+                .isEqualTo(487.0);
+        verify(evaluationRepository).deleteByTest(testId);
+        verify(evaluationRepository).upsert(
+                eq(testId),
+                eq("dash-a"),
+                eq(3),
+                eq(RequirementEvaluationStatus.PASS),
+                eq(487.0),
+                eq(null),
+                any(),
+                any(Instant.class));
+    }
+
+    @Test
     void buildComplianceViewIgnoresIrrelevantStoredEvaluations() {
         UUID testId = UUID.randomUUID();
         LoadTest loadTest = new LoadTest(

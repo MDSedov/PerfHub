@@ -174,7 +174,10 @@ public class RequirementEvaluationService {
                             eval -> eval,
                             (first, second) -> first));
             boolean hasAllEvaluations = !stored.isEmpty()
-                    && requirements.stream().allMatch(req -> storedByRequirement.containsKey(req.key()));
+                    && requirements.stream().allMatch(req -> {
+                        TestRequirementEvaluation evaluation = storedByRequirement.get(req.key());
+                        return evaluation != null && isStoredEvaluationCurrent(req, evaluation);
+                    });
             if (hasAllEvaluations) {
                 List<RequirementEvaluationView> views = new ArrayList<>(requirements.size());
                 for (PanelRequirement requirement : requirements) {
@@ -195,6 +198,19 @@ public class RequirementEvaluationService {
             evaluationRepository.deleteByTest(testUuid);
             throw ex;
         }
+    }
+
+    private boolean isStoredEvaluationCurrent(PanelRequirement requirement, TestRequirementEvaluation evaluation) {
+        String expectedQuery = normalizeVictoriaMetricsQuery(requirement.query());
+        if (!StringUtils.hasText(expectedQuery)) {
+            return true;
+        }
+        JsonNode storedQuery = evaluation.details() != null ? evaluation.details().path("query") : null;
+        if (storedQuery != null && storedQuery.isTextual()) {
+            return expectedQuery.equals(storedQuery.asText());
+        }
+        String previousQuery = StringUtils.trimWhitespace(requirement.query());
+        return expectedQuery.equals(previousQuery);
     }
 
     private RequirementEvaluationView toView(
@@ -222,11 +238,13 @@ public class RequirementEvaluationService {
             details.put("reason", "Query is not set");
             return new RequirementResult(RequirementEvaluationStatus.NOT_APPLICABLE, null, null, details);
         }
-        JsonNode response = executeExpression(requirement.query(), start, end);
+        String query = normalizeVictoriaMetricsQuery(requirement.query());
+        JsonNode response = executeExpression(query, start, end);
         OptionalDouble maxValueOpt = extractMaxValue(response);
         if (maxValueOpt.isEmpty()) {
             ObjectNode details = objectMapper.createObjectNode();
             details.put("reason", "No data for the selected interval");
+            details.put("query", query);
             return new RequirementResult(RequirementEvaluationStatus.NOT_APPLICABLE, null, null, details);
         }
         double maxValue = maxValueOpt.getAsDouble();
@@ -237,6 +255,7 @@ public class RequirementEvaluationService {
         details.put("maxValue", maxValue);
         details.put("threshold", requirement.threshold());
         details.put("rule", "value <= threshold");
+        details.put("query", query);
         return new RequirementResult(status, maxValue, null, details);
     }
 
@@ -261,6 +280,10 @@ public class RequirementEvaluationService {
         for (JsonNode series : resultNode) {
             JsonNode seriesValues = series.path("values");
             if (!seriesValues.isArray()) {
+                double instantValue = parseInstantVectorValue(series.path("value"));
+                if (!Double.isNaN(instantValue) && !Double.isInfinite(instantValue)) {
+                    values.add(instantValue);
+                }
                 continue;
             }
             for (JsonNode sample : seriesValues) {
@@ -274,6 +297,16 @@ public class RequirementEvaluationService {
             }
         }
         return values;
+    }
+
+    private double parseInstantVectorValue(JsonNode valueNode) {
+        if (valueNode == null || valueNode.isMissingNode()) {
+            return Double.NaN;
+        }
+        if (valueNode.isArray() && valueNode.size() >= 2) {
+            return parseSampleValue(valueNode.get(1));
+        }
+        return parseSampleValue(valueNode);
     }
 
     private OptionalDouble extractMaxValue(JsonNode dataNode) {
@@ -302,6 +335,51 @@ public class RequirementEvaluationService {
             }
         }
         return Double.NaN;
+    }
+
+    private String normalizeVictoriaMetricsQuery(String query) {
+        String normalized = StringUtils.trimWhitespace(query);
+        if (!StringUtils.hasText(normalized)) {
+            return normalized;
+        }
+        return normalizeGraphiteMetricSelector(normalized);
+    }
+
+    private String normalizeGraphiteMetricSelector(String query) {
+        if (!query.startsWith("{") || !query.endsWith("}")) {
+            return query;
+        }
+        String selectorBody = query.substring(1, query.length() - 1).trim();
+        if (!isQuotedGraphiteMetric(selectorBody)) {
+            return query;
+        }
+        String graphiteMetric = unquote(selectorBody);
+        if (!StringUtils.hasText(graphiteMetric)) {
+            return query;
+        }
+        return "{__graphite__=\"" + escapeLabelValue(graphiteMetric) + "\"}";
+    }
+
+    private boolean isQuotedGraphiteMetric(String value) {
+        if (value.length() < 2) {
+            return false;
+        }
+        char quote = value.charAt(0);
+        if ((quote != '"' && quote != '\'') || value.charAt(value.length() - 1) != quote) {
+            return false;
+        }
+        return value.indexOf('=') < 0;
+    }
+
+    private String unquote(String value) {
+        String result = value.substring(1, value.length() - 1);
+        return result.replace("\\\"", "\"")
+                .replace("\\'", "'")
+                .replace("\\\\", "\\");
+    }
+
+    private String escapeLabelValue(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private LoadTest getLoadTest(UUID testUuid) {
