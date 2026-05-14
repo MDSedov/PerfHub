@@ -104,7 +104,7 @@
                                 </div>
                                 <div class="col-12 col-lg-6">
                                     <label for="userLastNameInput" class="form-label">Фамилия</label>
-                                    <input type="text" class="form-control" id="userLastNameInput" autocomplete="off" required>
+                                    <input type="text" class="form-control" id="userLastNameInput" autocomplete="off">
                                 </div>
                                 <div class="col-12 col-lg-6">
                                     <label for="userPasswordInput" class="form-label">Пароль</label>
@@ -419,9 +419,6 @@
         }
         if (!payload.firstName) {
             throw new Error('Укажите имя');
-        }
-        if (!payload.lastName) {
-            throw new Error('Укажите фамилию');
         }
         if (!activeUser?.id && !payload.password) {
             throw new Error('Укажите пароль');

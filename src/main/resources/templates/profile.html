@@ -65,7 +65,7 @@
                             </div>
                             <div class="col-12 col-lg-6">
                                 <label for="profileLastNameInput" class="form-label">Фамилия</label>
-                                <input type="text" class="form-control" id="profileLastNameInput" required>
+                                <input type="text" class="form-control" id="profileLastNameInput">
                             </div>
                             <div class="col-12 col-lg-6">
                                 <label for="profilePasswordInput" class="form-label">Новый пароль</label>
@@ -216,9 +216,6 @@
         }
         if (!payload.firstName) {
             throw new Error('Укажите имя');
-        }
-        if (!payload.lastName) {
-            throw new Error('Укажите фамилию');
         }
         if ((payload.password || payload.passwordConfirmation) && payload.password !== payload.passwordConfirmation) {
             throw new Error('Пароль и подтверждение пароля не совпадают');

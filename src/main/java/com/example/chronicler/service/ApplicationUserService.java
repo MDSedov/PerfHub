@@ -111,12 +111,23 @@ public class ApplicationUserService {
     public ApplicationUser ensureBootstrapAdmin() {
         Optional<ApplicationUser> existingAdmin = userRepository.findActiveByUsername(BOOTSTRAP_ADMIN_USERNAME);
         if (existingAdmin.isPresent()) {
-            return existingAdmin.get();
+            ApplicationUser admin = existingAdmin.get();
+            if ("PerfHub".equals(admin.lastName())) {
+                userRepository.update(
+                        admin.id(),
+                        admin.username(),
+                        admin.firstName(),
+                        "",
+                        admin.role(),
+                        null);
+                return getActiveUser(admin.id());
+            }
+            return admin;
         }
         userRepository.create(
                 BOOTSTRAP_ADMIN_USERNAME,
                 "Администратор",
-                "PerfHub",
+                "",
                 UserRole.ADMIN,
                 passwordHashService.hash(BOOTSTRAP_ADMIN_PASSWORD));
         return userRepository.findActiveByUsername(BOOTSTRAP_ADMIN_USERNAME)
@@ -134,7 +145,7 @@ public class ApplicationUserService {
         }
         String username = normalizeUsername(command.username());
         String firstName = StringUtils.trimWhitespace(command.firstName());
-        String lastName = StringUtils.trimWhitespace(command.lastName());
+        String lastName = Optional.ofNullable(StringUtils.trimWhitespace(command.lastName())).orElse("");
         if (!StringUtils.hasText(username)) {
             throw new IllegalArgumentException("Имя пользователя обязательно");
         }
@@ -143,9 +154,6 @@ public class ApplicationUserService {
         }
         if (!StringUtils.hasText(firstName)) {
             throw new IllegalArgumentException("Имя обязательно");
-        }
-        if (!StringUtils.hasText(lastName)) {
-            throw new IllegalArgumentException("Фамилия обязательна");
         }
         UserRole role = UserRole.fromValue(command.role());
         String password = command.password() == null ? "" : command.password();
