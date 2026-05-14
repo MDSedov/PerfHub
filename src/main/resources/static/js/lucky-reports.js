@@ -10,7 +10,6 @@
     const luckyReportsParentPageIdInput = document.getElementById('luckyReportsParentPageId');
     const luckyReportsParentPageRefreshButton = document.getElementById('luckyReportsParentPageRefreshButton');
     const luckyReportsCreateReleasePageCheckbox = document.getElementById('luckyReportsCreateReleasePage');
-    const luckyReportsReleasePageTemplateSelect = document.getElementById('luckyReportsReleasePageTemplate');
     const luckyReportsSelectedCounter = document.getElementById('luckyReportsSelectedCounter');
     const luckyReportsSelectedSubtitle = document.getElementById('luckyReportsSelectedSubtitle');
     const luckyReportsSelectedWrapper = document.getElementById('luckyReportsSelectedWrapper');
@@ -36,6 +35,7 @@
     };
 
     const ACTIVE_TEST_END_GRACE_MS = 3 * 60 * 1000;
+    const RELEASE_REPORT_RESULT_ID = '__release_report__';
 
     let tests = [];
     let latestReleaseValue = null;
@@ -44,7 +44,6 @@
     let reportTemplatesLoaded = false;
     let reportTemplatesPromise = null;
     let selectedReportTemplateIds = new Map();
-    let selectedReleasePageTemplateId = '';
     let confluenceParentPageOptions = [];
     let confluenceParentPagesLoading = false;
     let confluenceParentPagesErrorMessage = '';
@@ -595,49 +594,9 @@
         updateSubmitState();
     }
 
-    function renderReleasePageTemplateOptions() {
-        if (!luckyReportsReleasePageTemplateSelect) {
-            return;
-        }
-        const releaseTemplates = getReleaseReportTemplates();
-        luckyReportsReleasePageTemplateSelect.innerHTML = '';
-
-        const placeholderOption = document.createElement('option');
-        placeholderOption.value = '';
-        placeholderOption.textContent = !reportTemplatesLoaded
-                ? 'Загружаем шаблоны…'
-                : releaseTemplates.length === 0
-                        ? 'Нет шаблонов отчета по релизу'
-                        : 'Выберите шаблон страницы';
-        luckyReportsReleasePageTemplateSelect.appendChild(placeholderOption);
-
-        releaseTemplates.forEach(template => {
-            const option = document.createElement('option');
-            option.value = String(template.id);
-            option.textContent = template.shortName || template.reportTitle || template.fullName || `template-${template.id}`;
-            luckyReportsReleasePageTemplateSelect.appendChild(option);
-        });
-
-        const nextValue = releaseTemplates.some(template => String(template.id) === selectedReleasePageTemplateId)
-                ? selectedReleasePageTemplateId
-                : '';
-        luckyReportsReleasePageTemplateSelect.value = nextValue;
-        selectedReleasePageTemplateId = nextValue;
-    }
-
-    function updateReleasePageControlsState() {
-        const isEnabled = Boolean(luckyReportsCreateReleasePageCheckbox?.checked);
-        const templatesAvailable = reportTemplatesLoaded && getReleaseReportTemplates().length > 0;
-        if (luckyReportsReleasePageTemplateSelect) {
-            luckyReportsReleasePageTemplateSelect.disabled = !isEnabled || !templatesAvailable;
-        }
-    }
-
     function refreshLuckyReportsModalState() {
         updateLuckyReportsHeadings();
         renderSelectedTests();
-        renderReleasePageTemplateOptions();
-        updateReleasePageControlsState();
         updateSubmitState();
     }
 
@@ -688,7 +647,6 @@
 
     async function loadReportTemplates(forceReload = false) {
         if (!forceReload && reportTemplatesLoaded) {
-            renderReleasePageTemplateOptions();
             refreshLuckyReportsModalState();
             return;
         }
@@ -718,8 +676,6 @@
                         ensureSelectedReportTemplate(test);
                     }
                 });
-                renderReleasePageTemplateOptions();
-                updateReleasePageControlsState();
                 refreshLuckyReportsModalState();
             }
         })();
@@ -836,15 +792,11 @@
                 reportTemplatesLoaded
                 && getTestReportTemplates().length > 0
                 && getSelectedTestsMissingTemplate().length === 0;
-        const shouldCreateReleasePage = Boolean(luckyReportsCreateReleasePageCheckbox?.checked);
-        const hasReleasePageTemplate = (luckyReportsReleasePageTemplateSelect?.value ?? '').trim().length > 0;
-        const hasValidReleasePageConfig = !shouldCreateReleasePage || hasReleasePageTemplate;
         luckyReportsCreateButton.disabled =
                 isReportCreationInProgress
                 || !hasParentPage
                 || !hasSelectedTests
-                || !hasTemplatesForAllSelectedTests
-                || !hasValidReleasePageConfig;
+                || !hasTemplatesForAllSelectedTests;
     }
 
     async function fetchWithTimeout(url, options = {}, timeoutMs = 300000) {
@@ -886,7 +838,7 @@
         return response.json();
     }
 
-    async function createReleaseReportPage(parentPageId, templateId, testIds) {
+    async function createReleaseReportPage(parentPageId, testIds) {
         const response = await fetchWithTimeout('/api/confluence/report/release-page/', {
             method: 'POST',
             headers: {
@@ -894,7 +846,6 @@
             },
             body: JSON.stringify({
                 parentPageId,
-                templateId,
                 testUuids: testIds
             })
         }, 180000);
@@ -919,16 +870,27 @@
         const parentPageId = (luckyReportsParentPageIdInput?.value ?? '').trim();
         const selectedTests = getSelectedLuckyTests();
         const shouldCreateReleasePage = Boolean(luckyReportsCreateReleasePageCheckbox?.checked);
-        const releasePageTemplateId = Number(luckyReportsReleasePageTemplateSelect?.value ?? 0);
-        reportGenerationResults = selectedTests.map((test, index) => ({
-            order: index + 1,
-            testId: test?.id ?? '',
-            status: 'queued',
-            message: '',
-            pageTitle: '',
-            pageUrl: '',
-            contextLabel: buildReportGenerationContextLabel(test)
-        }));
+        reportGenerationResults = [
+            ...(shouldCreateReleasePage ? [{
+                order: 1,
+                testId: RELEASE_REPORT_RESULT_ID,
+                status: 'queued',
+                message: '',
+                pageTitle: 'Отчет по релизу',
+                pageId: '',
+                pageUrl: '',
+                contextLabel: 'Страница отчета по НТ релиза'
+            }] : []),
+            ...selectedTests.map((test, index) => ({
+                order: index + (shouldCreateReleasePage ? 2 : 1),
+                testId: test?.id ?? '',
+                status: 'queued',
+                message: '',
+                pageTitle: '',
+                pageUrl: '',
+                contextLabel: buildReportGenerationContextLabel(test)
+            }))
+        ];
         renderGenerationResults();
 
         isReportCreationInProgress = true;
@@ -948,24 +910,37 @@
         try {
             if (shouldCreateReleasePage) {
                 try {
+                    updateReportGenerationResult(RELEASE_REPORT_RESULT_ID, {
+                        status: 'running',
+                        message: ''
+                    });
                     showToast('Создаем страницу отчета по НТ релиза…', 'info', 6000);
                     const releasePage = await createReleaseReportPage(
                             parentPageId,
-                            releasePageTemplateId,
                             selectedTests.map(test => test?.id).filter(Boolean));
                     if (!releasePage?.pageId) {
                         throw new Error('Confluence не вернул информацию о созданной странице отчета по НТ релиза');
                     }
                     targetParentPageId = releasePage.pageId;
+                    updateReportGenerationResult(RELEASE_REPORT_RESULT_ID, {
+                        status: 'success',
+                        pageTitle: releasePage.pageTitle || 'Отчет по релизу',
+                        pageId: releasePage.pageId || '',
+                        pageUrl: releasePage.pageUrl || '',
+                        message: ''
+                    });
                     showToast('Страница отчета по НТ релиза создана.', 'success', 6000);
                 } catch (error) {
+                    const message = error?.message || 'Не удалось создать страницу отчета по НТ релиза';
                     reportGenerationResults = reportGenerationResults.map(result => ({
                         ...result,
                         status: 'error',
-                        message: error?.message || 'Не удалось создать страницу отчета по НТ релиза'
+                        message: result.testId === RELEASE_REPORT_RESULT_ID
+                                ? message
+                                : 'Не запущен: не удалось создать страницу отчета по релизу'
                     }));
                     renderGenerationResults();
-                    showToast(error?.message || 'Не удалось создать страницу отчета по НТ релиза', 'danger', 12000);
+                    showToast(message, 'danger', 12000);
                     return;
                 }
             }
@@ -1086,14 +1061,6 @@
 
     if (luckyReportsCreateReleasePageCheckbox) {
         luckyReportsCreateReleasePageCheckbox.addEventListener('change', () => {
-            updateReleasePageControlsState();
-            updateSubmitState();
-        });
-    }
-
-    if (luckyReportsReleasePageTemplateSelect) {
-        luckyReportsReleasePageTemplateSelect.addEventListener('change', () => {
-            selectedReleasePageTemplateId = (luckyReportsReleasePageTemplateSelect.value ?? '').trim();
             updateSubmitState();
         });
     }

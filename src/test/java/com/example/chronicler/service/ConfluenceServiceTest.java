@@ -644,13 +644,13 @@ class ConfluenceServiceTest {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID testUuid = UUID.fromString("aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb");
         ConfluenceReleaseReportPageRequest request =
-                new ConfluenceReleaseReportPageRequest("parent-1", 42, List.of(testUuid));
+                new ConfluenceReleaseReportPageRequest("parent-1", null, List.of(testUuid));
         ConfluencePage parentPage = new ConfluencePage("parent-1", "page", "Релизы", 1, "<p>Parent</p>", "SPACE");
         ConfluencePage createdPage =
                 new ConfluencePage("release-1", "page", "Отчет по релизу 24.1.7", 1, "", "SPACE");
         ConfluenceTemplate template = new ConfluenceTemplate(
                 42,
-                "release",
+                "release_template",
                 "Отчет по релизу",
                 "Отчет по релизу @release",
                 ConfluenceTemplateType.RELEASE,
@@ -664,7 +664,9 @@ class ConfluenceServiceTest {
 
         when(confluenceClient.getPage(credentials, "parent-1")).thenReturn(parentPage);
         when(confluenceClient.getPage(credentials, "release-1")).thenReturn(createdPage);
-        when(confluenceTemplateSettingsService.getActiveTemplate(42)).thenReturn(template);
+        when(confluenceTemplateSettingsService.resolveReleaseTemplateShortName()).thenReturn("release_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("release_template"))
+                .thenReturn(Optional.of(template));
         when(kubernetesConfigurationService.getConfigurations(testUuid))
                 .thenReturn(List.of(new KubernetesConfiguration(
                         1L,

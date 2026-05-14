@@ -22,6 +22,7 @@ import com.example.chronicler.exception.ConfluenceOperationException;
 import com.example.chronicler.model.ConfluenceReleaseReportLink;
 import com.example.chronicler.model.ConfluenceTemplate;
 import com.example.chronicler.model.ConfluenceTemplateChart;
+import com.example.chronicler.model.ConfluenceTemplateType;
 import com.example.chronicler.model.KubernetesConfiguration;
 import com.example.chronicler.model.LoadTest;
 import com.example.chronicler.model.LoadTestType;
@@ -85,6 +86,8 @@ public class ConfluenceService {
     private static final Pattern HR_CLOSING_TAG_PATTERN = Pattern.compile("(?i)</hr\\s*>");
     private static final Pattern STYLE_ATTRIBUTE_PATTERN = Pattern.compile("(?i)(\\sstyle\\s*=\\s*)([\"'])(.*?)\\2");
     private static final Pattern DISPLAY_NONE_STYLE_PATTERN = Pattern.compile("(?i)(^|;)\\s*display\\s*:\\s*none\\b");
+    private static final Pattern PAGE_ID_QUERY_PATTERN = Pattern.compile("[?&]pageId=([^&#]+)");
+    private static final Pattern PAGE_ID_PATH_PATTERN = Pattern.compile("/pages/(?:viewpage\\.action/)?([^/?#]+)");
 
     private final ConfluenceClient confluenceClient;
     private final GrafanaService grafanaService;
@@ -136,9 +139,10 @@ public class ConfluenceService {
         if (!StringUtils.hasText(request.parentPageId())) {
             throw new ConfluenceOperationException("parentPageId is required");
         }
+        String parentPageId = normalizeConfluencePageReference(request.parentPageId());
         List<ResolvedReportItem> reportItems = resolveReportItems(request);
 
-        ConfluencePage parentPage = confluenceClient.getPage(credentials, request.parentPageId());
+        ConfluencePage parentPage = confluenceClient.getPage(credentials, parentPageId);
         if (!StringUtils.hasText(parentPage.spaceKey())) {
             throw new ConfluenceOperationException("Parent page does not contain space key information");
         }
@@ -167,6 +171,7 @@ public class ConfluenceService {
         if (!StringUtils.hasText(parentPageId)) {
             throw new ConfluenceOperationException("parentPageId is required");
         }
+        parentPageId = normalizeConfluencePageReference(parentPageId);
 
         ConfluencePage parentPage = confluenceClient.getPage(credentials, parentPageId);
         if (!StringUtils.hasText(parentPage.spaceKey())) {
@@ -196,6 +201,7 @@ public class ConfluenceService {
         String rootPageId = configurationProvider.findValue(CONFLUENCE_SERVICE, REPORTS_PARENT_PAGE_ID_KEY)
                 .map(StringUtils::trimWhitespace)
                 .filter(StringUtils::hasText)
+                .map(this::normalizeConfluencePageReference)
                 .orElseThrow(() -> new ConfluenceOperationException(
                         "В настройках Confluence не заполнено поле \"Номер родительской страницы для отчетов по НТ\""));
 
@@ -214,24 +220,17 @@ public class ConfluenceService {
         if (!StringUtils.hasText(request.parentPageId())) {
             throw new ConfluenceOperationException("parentPageId is required");
         }
-        if (request.templateId() == null) {
-            throw new ConfluenceOperationException("templateId is required");
-        }
+        String parentPageId = normalizeConfluencePageReference(request.parentPageId());
         if (request.testUuids() == null || request.testUuids().isEmpty()) {
             throw new ConfluenceOperationException("testUuids must not be empty");
         }
 
-        ConfluencePage parentPage = confluenceClient.getPage(credentials, request.parentPageId());
+        ConfluencePage parentPage = confluenceClient.getPage(credentials, parentPageId);
         if (!StringUtils.hasText(parentPage.spaceKey())) {
             throw new ConfluenceOperationException("Parent page does not contain space key information");
         }
 
-        ConfluenceTemplate template;
-        try {
-            template = confluenceTemplateSettingsService.getActiveTemplate(request.templateId());
-        } catch (IllegalArgumentException ex) {
-            throw new ConfluenceOperationException(ex.getMessage(), ex);
-        }
+        ConfluenceTemplate template = resolveReleaseReportTemplate(request.templateId());
 
         String releaseValue = resolveReleaseValueForTests(request.testUuids());
         String pageTitle = buildReportTitle(template, releaseValue, null);
@@ -239,7 +238,7 @@ public class ConfluenceService {
         String body = buildReportBody(templateBody, releaseValue, "", "", null);
         ConfluencePage createdPage = confluenceClient.createChildPage(
                 credentials,
-                request.parentPageId(),
+                parentPageId,
                 parentPage.spaceKey(),
                 pageTitle,
                 body);
@@ -249,6 +248,39 @@ public class ConfluenceService {
                 createdPage.id(),
                 createdPage.title(),
                 confluenceClient.buildPageUrl(createdPage.id()));
+    }
+
+    private ConfluenceTemplate resolveReleaseReportTemplate(Integer templateId) {
+        try {
+            ConfluenceTemplate template = templateId == null
+                    ? confluenceTemplateSettingsService.findActiveTemplateByShortName(
+                                    confluenceTemplateSettingsService.resolveReleaseTemplateShortName())
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "Шаблон отчета по релизу не настроен"))
+                    : confluenceTemplateSettingsService.getActiveTemplate(templateId);
+            if (template.templateType() != ConfluenceTemplateType.RELEASE) {
+                throw new IllegalArgumentException("Выбранный шаблон не является шаблоном отчета по релизу");
+            }
+            return template;
+        } catch (IllegalArgumentException ex) {
+            throw new ConfluenceOperationException(ex.getMessage(), ex);
+        }
+    }
+
+    private String normalizeConfluencePageReference(String rawPageId) {
+        String pageId = StringUtils.trimWhitespace(rawPageId);
+        if (!StringUtils.hasText(pageId)) {
+            return "";
+        }
+        Matcher queryMatcher = PAGE_ID_QUERY_PATTERN.matcher(pageId);
+        if (queryMatcher.find()) {
+            return queryMatcher.group(1);
+        }
+        Matcher pathMatcher = PAGE_ID_PATH_PATTERN.matcher(pageId);
+        if (pathMatcher.find()) {
+            return pathMatcher.group(1);
+        }
+        return pageId;
     }
 
     public ConfluenceReleaseReportLinksUpdateResponse updateReleaseReportLinks(
