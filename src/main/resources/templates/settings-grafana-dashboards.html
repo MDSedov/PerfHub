@@ -110,9 +110,6 @@
                     <button type="button" class="btn btn-outline-success" id="fetchDashboardsButton">
                         Запросить данные по дашбордам
                     </button>
-                    <button type="button" class="btn btn-success" id="saveDashboardsButton">
-                        Сохранить
-                    </button>
                 </div>
             </div>
         </div>
@@ -245,7 +242,6 @@
     const dashboardFilterMenu = dashboardFilterDropdown?.querySelector('.dropdown-menu');
     const dashboardsStatus = document.getElementById('dashboardsStatus');
     const fetchDashboardsButton = document.getElementById('fetchDashboardsButton');
-    const saveDashboardsButton = document.getElementById('saveDashboardsButton');
     const toastContainer = document.getElementById('toastContainer');
     const DASHBOARD_TABLE_COLSPAN = 5;
     let dashboardsState = [];
@@ -672,6 +668,72 @@
         return wrapper;
     }
 
+    async function copyTextToClipboard(value) {
+        const normalizedValue = normalizeText(value);
+        if (!normalizedValue) {
+            throw new Error('Нет значения для копирования.');
+        }
+        if (navigator.clipboard?.writeText && window.isSecureContext) {
+            await navigator.clipboard.writeText(normalizedValue);
+            return;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = normalizedValue;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            const copied = document.execCommand('copy');
+            if (!copied) {
+                throw new Error('Команда копирования недоступна.');
+            }
+        } finally {
+            textarea.remove();
+        }
+    }
+
+    function buildCopyableQueryBlock(query) {
+        if (!query) {
+            return buildTextBlock('—', null);
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'grafana-dashboard-cell-stack';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'grafana-dashboard-copy-value';
+        button.setAttribute('data-bs-toggle', 'tooltip');
+        button.setAttribute('data-bs-title', query);
+        button.setAttribute('aria-label', `Скопировать запрос: ${query}`);
+
+        const text = document.createElement('span');
+        text.className = 'grafana-dashboard-copy-text';
+        text.textContent = query;
+
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-clipboard';
+        icon.setAttribute('aria-hidden', 'true');
+
+        button.appendChild(text);
+        button.appendChild(icon);
+        button.addEventListener('click', async () => {
+            try {
+                await copyTextToClipboard(query);
+                showToast('Запрос скопирован в буфер обмена.', 'success', 5000);
+            } catch (error) {
+                showToast('Не удалось скопировать запрос: ' + error.message, 'danger');
+            }
+        });
+
+        wrapper.appendChild(button);
+        return wrapper;
+    }
+
     function buildDashboardPanelRow(dashboard, panel) {
         const row = document.createElement('tr');
         row.dataset.dashboardUid = getDashboardUid(dashboard);
@@ -692,7 +754,7 @@
         const queryCell = document.createElement('td');
         queryCell.className = 'grafana-dashboard-query-cell';
         const query = normalizeText(panel.query);
-        queryCell.appendChild(buildTextBlock(query || '—', null, query));
+        queryCell.appendChild(buildCopyableQueryBlock(query));
 
         const thresholdCell = document.createElement('td');
         thresholdCell.className = 'grafana-dashboard-threshold-cell';
@@ -731,76 +793,6 @@
         }
     }
 
-    function collectDashboardPayload(dashboard) {
-        const uid = getDashboardUid(dashboard);
-        const slug = getDashboardSlug(dashboard);
-        const panelSettings = (Array.isArray(dashboard.panels) ? dashboard.panels : [])
-                .map(panel => {
-                    const panelId = Number.parseInt(panel?.panelId, 10);
-                    if (!Number.isFinite(panelId)) {
-                        return null;
-                    }
-                    return {
-                        panelId,
-                        selected: true,
-                        testQuery: Boolean(panel.testQuery)
-                    };
-                })
-                .filter(Boolean);
-        const variables = (Array.isArray(dashboard.variables) ? dashboard.variables : [])
-                .map(variable => ({
-                    name: variable?.name,
-                    value: variable?.value ?? variable?.defaultValue ?? ''
-                }))
-                .filter(variable => normalizeText(variable.name));
-        const panels = panelSettings
-                .map(panel => panel.panelId)
-                .filter(Number.isFinite);
-        return { uid, slug, panels, panelSettings, variables };
-    }
-
-    async function saveDashboardState(dashboard) {
-        const payload = collectDashboardPayload(dashboard);
-        if (!payload.uid || !payload.slug) {
-            throw new Error('Нет данных о дашборде.');
-        }
-
-        const response = await fetch(`/api/settings/grafana-dashboards/${encodeURIComponent(payload.uid)}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                slug: payload.slug,
-                panels: payload.panels,
-                enabled: dashboard.enabled !== false,
-                panelSettings: payload.panelSettings,
-                variables: payload.variables
-            })
-        });
-        if (!response.ok) {
-            throw new Error('Ответ сервера: ' + response.status);
-        }
-    }
-
-    async function saveAllDashboards() {
-        if (dashboardsState.length === 0) {
-            setDashboardsStatus('Нет дашбордов для сохранения.', 'warning');
-            return;
-        }
-        saveDashboardsButton.disabled = true;
-        saveDashboardsButton.textContent = 'Сохраняем…';
-        try {
-            for (const dashboard of dashboardsState) {
-                await saveDashboardState(dashboard);
-            }
-            setDashboardsStatus('Настройки графиков и требований сохранены.', 'success');
-        } catch (error) {
-            setDashboardsStatus('Не удалось сохранить настройки: ' + error.message, 'danger');
-        } finally {
-            saveDashboardsButton.disabled = false;
-            saveDashboardsButton.textContent = 'Сохранить';
-        }
-    }
-
     async function loadCachedDashboards() {
         await loadDashboards(
                 '/api/settings/grafana-dashboards',
@@ -816,7 +808,6 @@
     }
 
     fetchDashboardsButton.addEventListener('click', refreshDashboardsFromGrafana);
-    saveDashboardsButton.addEventListener('click', saveAllDashboards);
     panelTitleFilterInput.addEventListener('input', renderDashboardTable);
     resetDashboardFiltersButton.addEventListener('click', () => {
         dashboardFilterSelection.clear();

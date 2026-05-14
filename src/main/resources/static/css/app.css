@@ -3297,7 +3297,7 @@ body {
 
         .grafana-dashboard-primary {
             color: #1c231f;
-            font-weight: 600;
+            font-weight: 400;
             line-height: 1.35;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -3342,6 +3342,61 @@ body {
 
         .grafana-dashboard-query-cell {
             width: 36%;
+        }
+
+        .grafana-dashboard-copy-value {
+            display: inline-grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 0.35rem;
+            width: 100%;
+            padding: 0;
+            border: 0;
+            color: #1c231f;
+            background: transparent;
+            font: inherit;
+            font-family: "SF Mono", "JetBrains Mono", "Courier New", monospace;
+            font-size: 0.84rem;
+            line-height: 1.35;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .grafana-dashboard-copy-value:hover,
+        .grafana-dashboard-copy-value:focus {
+            color: #008f45;
+            outline: none;
+        }
+
+        .grafana-dashboard-copy-value:focus-visible {
+            outline: 2px solid rgba(0, 152, 70, 0.35);
+            outline-offset: 3px;
+            border-radius: 4px;
+        }
+
+        .grafana-dashboard-copy-text {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-decoration-thickness: 1px;
+            text-underline-offset: 0.18em;
+        }
+
+        .grafana-dashboard-copy-value:hover .grafana-dashboard-copy-text,
+        .grafana-dashboard-copy-value:focus .grafana-dashboard-copy-text {
+            text-decoration: underline;
+        }
+
+        .grafana-dashboard-copy-value .bi {
+            flex: 0 0 auto;
+            color: #6a7c73;
+            font-size: 0.9rem;
+        }
+
+        .grafana-dashboard-copy-value:hover .bi,
+        .grafana-dashboard-copy-value:focus .bi {
+            color: #008f45;
         }
 
         .grafana-dashboard-query-input {
