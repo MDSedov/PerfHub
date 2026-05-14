@@ -134,10 +134,6 @@
                         <input class="form-check-input" type="checkbox" value="reportTemplates" data-export-section checked>
                         <span>Настройки шаблонов отчетов</span>
                     </label>
-                    <label class="settings-export-option">
-                        <input class="form-check-input" type="checkbox" value="grafanaAndRequirements" data-export-section checked>
-                        <span>Список графиков и нефункциональных требований</span>
-                    </label>
                 </div>
             </div>
             <div class="modal-footer">
@@ -178,8 +174,7 @@
     const SETTINGS_SECTION_LABELS = {
         connections: 'настройки подключений',
         standConfiguration: 'настройки конфигурации стенда',
-        reportTemplates: 'шаблоны отчетов',
-        grafanaAndRequirements: 'графики и требования'
+        reportTemplates: 'шаблоны отчетов'
     };
     const CONNECTION_IMPORT_RESERVED_KEYS = new Set([
         'version',
@@ -558,47 +553,6 @@
         return pathMatch ? pathMatch[1] : null;
     }
 
-    function normalizeDashboardForExport(dashboard) {
-        return {
-            uid: dashboard?.uid ?? '',
-            slug: dashboard?.slug ?? '',
-            title: dashboard?.title ?? '',
-            enabled: dashboard?.enabled !== false,
-            panels: toArray(dashboard?.panels).map(panel => ({
-                panelId: Number(panel?.panelId ?? 0),
-                title: panel?.title ?? '',
-                selected: panel?.selected !== false,
-                query: panel?.query ?? '',
-                threshold: panel?.threshold ?? null,
-                testQuery: Boolean(panel?.testQuery)
-            })),
-            variables: toArray(dashboard?.variables).map(variable => ({
-                name: variable?.name ?? '',
-                label: variable?.label ?? '',
-                type: variable?.type ?? '',
-                value: variable?.value ?? '',
-                defaultValue: variable?.defaultValue ?? '',
-                options: toArray(variable?.options).map(option => ({
-                    value: option?.value ?? '',
-                    text: option?.text ?? '',
-                    selected: Boolean(option?.selected)
-                }))
-            }))
-        };
-    }
-
-    function normalizeRequirementForExport(requirement) {
-        return {
-            code: requirement?.code ?? '',
-            metricType: requirement?.metricType ?? '',
-            thresholdValue: requirement?.thresholdValue ?? null,
-            thresholdUnit: requirement?.thresholdUnit ?? '',
-            active: requirement?.active !== false,
-            parameters: requirement?.parameters ?? {},
-            descriptionRu: requirement?.descriptionRu ?? ''
-        };
-    }
-
     function getSelectedExportSections() {
         return Array.from(document.querySelectorAll('[data-export-section]:checked'))
                 .map(input => input.value)
@@ -626,15 +580,6 @@
             setSettingsStatus('Готовим шаблоны отчетов…', 'info');
             const templates = await requestJson('/api/settings/confluence-templates');
             payload.reportTemplates = toArray(templates).map(normalizeTemplateForExport);
-        }
-        if (selected.has('grafanaAndRequirements')) {
-            setSettingsStatus('Готовим графики и требования…', 'info');
-            const [dashboards, requirements] = await Promise.all([
-                requestJson('/api/settings/grafana-dashboards'),
-                requestJson('/api/settings/non-functional-requirements')
-            ]);
-            payload.grafanaDashboards = toArray(dashboards).map(normalizeDashboardForExport);
-            payload.nonFunctionalRequirements = toArray(requirements).map(normalizeRequirementForExport);
         }
 
         return payload;
@@ -788,76 +733,6 @@
         return 1;
     }
 
-    function normalizeDashboardPanelPayload(panel) {
-        const rawPanelId = typeof panel === 'number' ? panel : panel?.panelId;
-        const panelId = Number.parseInt(rawPanelId, 10);
-        if (!Number.isFinite(panelId) || panelId <= 0) {
-            return null;
-        }
-        const threshold = panel?.threshold === null || panel?.threshold === undefined || panel?.threshold === ''
-                ? null
-                : Number(panel.threshold);
-        return {
-            panelId,
-            selected: panel?.selected !== false,
-            title: normalizeText(panel?.title) ?? `График ${panelId}`,
-            query: panel?.query ?? '',
-            threshold: Number.isFinite(threshold) ? threshold : null,
-            testQuery: Boolean(panel?.testQuery)
-        };
-    }
-
-    function normalizeDashboardVariablePayload(variable) {
-        const name = normalizeText(variable?.name);
-        if (!name) {
-            return null;
-        }
-        return {
-            name,
-            label: normalizeText(variable?.label) ?? name,
-            type: normalizeText(variable?.type),
-            value: variable?.value ?? variable?.defaultValue ?? '',
-            defaultValue: variable?.defaultValue ?? '',
-            options: toArray(variable?.options).map(option => ({
-                value: option?.value ?? '',
-                text: option?.text ?? '',
-                selected: Boolean(option?.selected)
-            }))
-        };
-    }
-
-    async function importGrafanaDashboards(rawDashboards) {
-        const dashboards = toArray(rawDashboards);
-        let count = 0;
-        for (const dashboard of dashboards) {
-            const uid = normalizeText(dashboard?.uid);
-            if (!uid) {
-                continue;
-            }
-            const panelSettings = toArray(dashboard?.panels)
-                    .map(normalizeDashboardPanelPayload)
-                    .filter(Boolean);
-            const panels = panelSettings
-                    .filter(panel => panel.selected)
-                    .map(panel => panel.panelId);
-            await requestJson(`/api/settings/grafana-dashboards/${encodeURIComponent(uid)}`, {
-                method: 'PUT',
-                body: JSON.stringify({
-                    slug: normalizeText(dashboard?.slug) ?? uid,
-                    title: normalizeText(dashboard?.title) ?? normalizeText(dashboard?.slug) ?? uid,
-                    panels,
-                    enabled: dashboard?.enabled !== false,
-                    panelSettings,
-                    variables: toArray(dashboard?.variables)
-                            .map(normalizeDashboardVariablePayload)
-                            .filter(Boolean)
-                })
-            });
-            count += 1;
-        }
-        return count;
-    }
-
     function normalizeTemplatePayload(template) {
         const templateType = inferTemplateType(template);
         const testType = inferTemplateTestType(template);
@@ -925,52 +800,6 @@
         return count;
     }
 
-    function normalizeRequirementPayload(requirement) {
-        const code = normalizeText(requirement?.code);
-        const metricType = normalizeText(requirement?.metricType);
-        const thresholdUnit = normalizeText(requirement?.thresholdUnit);
-        const thresholdValue = Number(requirement?.thresholdValue);
-        if (!code || !metricType || !thresholdUnit || !Number.isFinite(thresholdValue)) {
-            return null;
-        }
-        return {
-            code,
-            metricType,
-            thresholdValue,
-            thresholdUnit,
-            descriptionRu: requirement?.descriptionRu ?? '',
-            active: requirement?.active !== false,
-            parameters: requirement?.parameters ?? {}
-        };
-    }
-
-    async function importNonFunctionalRequirements(rawRequirements) {
-        const requirements = toArray(rawRequirements);
-        if (!requirements.length) {
-            return 0;
-        }
-        const existingRequirements = toArray(await requestJson('/api/settings/non-functional-requirements'));
-        const byCode = new Map(existingRequirements
-                .map(requirement => [normalizeText(requirement?.code)?.toLowerCase(), requirement])
-                .filter(([key]) => key));
-        let count = 0;
-        for (const requirement of requirements) {
-            const payload = normalizeRequirementPayload(requirement);
-            if (!payload) {
-                continue;
-            }
-            const existing = byCode.get(payload.code.toLowerCase());
-            await requestJson(existing
-                    ? `/api/settings/non-functional-requirements/${existing.id}`
-                    : '/api/settings/non-functional-requirements', {
-                method: existing ? 'PUT' : 'POST',
-                body: JSON.stringify(payload)
-            });
-            count += 1;
-        }
-        return count;
-    }
-
     function buildImportSummary(parts) {
         const messages = [];
         if (parts.connectionCount > 0) {
@@ -978,12 +807,6 @@
         }
         if (parts.standCount > 0) {
             messages.push('конфигурация стенда');
-        }
-        if (parts.dashboardCount > 0) {
-            messages.push(`дашборды: ${parts.dashboardCount}`);
-        }
-        if (parts.requirementCount > 0) {
-            messages.push(`требования: ${parts.requirementCount}`);
         }
         if (parts.templateCount > 0) {
             messages.push(`шаблоны: ${parts.templateCount}`);
@@ -1003,11 +826,11 @@
             const parts = {
                 connectionCount: 0,
                 standCount: 0,
-                dashboardCount: 0,
-                requirementCount: 0,
                 templateCount: 0
             };
             let recognized = false;
+            const hasIgnoredGrafanaSettings = Array.isArray(parsed?.grafanaDashboards)
+                    || Array.isArray(parsed?.nonFunctionalRequirements);
 
             const connectionEntries = normalizeImportedConnectionEntries(parsed);
             if (connectionEntries.length) {
@@ -1036,18 +859,6 @@
                 parts.standCount = await importStandConfiguration(parsed.standConfiguration);
             }
 
-            if (Array.isArray(parsed?.grafanaDashboards)) {
-                recognized = true;
-                setSettingsStatus('Загружаем список графиков…', 'info');
-                parts.dashboardCount = await importGrafanaDashboards(parsed.grafanaDashboards);
-            }
-
-            if (Array.isArray(parsed?.nonFunctionalRequirements)) {
-                recognized = true;
-                setSettingsStatus('Загружаем нефункциональные требования…', 'info');
-                parts.requirementCount = await importNonFunctionalRequirements(parsed.nonFunctionalRequirements);
-            }
-
             if (Array.isArray(parsed?.reportTemplates)) {
                 recognized = true;
                 setSettingsStatus('Загружаем шаблоны отчетов…', 'info');
@@ -1055,11 +866,27 @@
             }
 
             if (!recognized) {
+                if (hasIgnoredGrafanaSettings) {
+                    setSettingsStatus(
+                            'В файле есть только графики и требования. Эти данные больше не загружаются из JSON.',
+                            'info');
+                    showToast(
+                            'Графики и требования из файла пропущены: они запрашиваются из Grafana.',
+                            'info',
+                            6000);
+                    return;
+                }
                 throw new Error('Неподдерживаемый формат файла. Используйте JSON из кнопки "Выгрузить настройки".');
             }
 
             const summary = buildImportSummary(parts);
             setSettingsStatus('Настройки загружены из JSON: ' + summary + '.', 'success');
+            if (hasIgnoredGrafanaSettings) {
+                showToast(
+                        'Графики и требования из файла пропущены: они запрашиваются из Grafana.',
+                        'info',
+                        6000);
+            }
             showToast('Настройки загружены из JSON.', 'success', 6000);
         } catch (error) {
             setSettingsStatus('Не удалось загрузить настройки: ' + error.message, 'danger');
