@@ -885,13 +885,6 @@
     }
 
     const NO_CONFIG_MESSAGE = 'Конфигурация стенда для данного теста отсутствует';
-    const CONFIGURATION_COMPONENT_LABELS = {
-        pods: 'Pods',
-        deployments: 'Deployments',
-        configmaps: 'ConfigMaps',
-        services: 'Services',
-        ingress: 'Ingress'
-    };
     const MISSING_RELEASE_VALUE = '__missing__';
     const AUTO_REFRESH_MS = 60_000;
     const ACTIVE_TEST_END_GRACE_MS = 3 * 60 * 1000;
@@ -3035,11 +3028,6 @@
         container.appendChild(grid);
     }
 
-    function resolveConfigurationComponentLabel(code) {
-        const normalized = normalizeReleaseValue(code)?.toLowerCase();
-        return normalized ? (CONFIGURATION_COMPONENT_LABELS[normalized] ?? normalized) : '—';
-    }
-
     function createConfigurationDetailsSection(title) {
         const section = document.createElement('div');
         section.className = 'configuration-details-block';
@@ -3061,6 +3049,37 @@
         content.textContent = valueOrDash(value);
         card.appendChild(kicker);
         card.appendChild(content);
+        return card;
+    }
+
+    function createConfigurationDownloadCard(testId, configuration) {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'configuration-meta-card configuration-download-card';
+        card.setAttribute('aria-label', 'Скачать ZIP с конфигурацией стенда');
+        card.title = 'Скачать ZIP';
+        const textWrapper = document.createElement('span');
+        const kicker = document.createElement('span');
+        kicker.className = 'configuration-meta-label';
+        kicker.textContent = 'Архив';
+        const content = document.createElement('span');
+        content.className = 'configuration-meta-value';
+        content.textContent = 'Скачать ZIP';
+        const icon = document.createElement('span');
+        icon.className = 'configuration-download-icon';
+        icon.innerHTML = '<i class="bi bi-download"></i>';
+
+        textWrapper.appendChild(kicker);
+        textWrapper.appendChild(content);
+        card.appendChild(textWrapper);
+        card.appendChild(icon);
+
+        const hasArchive = Boolean(testId && configuration?.id);
+        card.disabled = !hasArchive;
+        if (!hasArchive) {
+            card.title = 'Архив доступен после повторного получения конфигурации стенда';
+        }
+        card.addEventListener('click', () => triggerTestConfigurationArchiveDownload(testId));
         return card;
     }
 
@@ -3099,33 +3118,6 @@
         return table;
     }
 
-    function buildConfigurationDocumentsTable(documents) {
-        const table = document.createElement('table');
-        table.className = 'table table-sm align-middle mb-0';
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        ['Namespace', 'Компонент', 'Ресурс', 'Файл']
-                .forEach(title => {
-                    const th = document.createElement('th');
-                    th.scope = 'col';
-                    th.textContent = title;
-                    headerRow.appendChild(th);
-                });
-        thead.appendChild(headerRow);
-        const tbody = document.createElement('tbody');
-        documents.forEach(documentItem => {
-            const row = document.createElement('tr');
-            appendConfigCell(row, documentItem?.namespace);
-            appendConfigCell(row, resolveConfigurationComponentLabel(documentItem?.component));
-            appendConfigCell(row, documentItem?.resourceName);
-            appendConfigCell(row, documentItem?.fileName);
-            tbody.appendChild(row);
-        });
-        table.appendChild(thead);
-        table.appendChild(tbody);
-        return table;
-    }
-
     function triggerTestConfigurationArchiveDownload(testId) {
         if (!testId) {
             showToast('Не удалось определить тест для скачивания архива.', 'danger');
@@ -3146,44 +3138,17 @@
         const configuration = normalizeConfigurationPayload(payload);
         const items = configuration.items;
         const documents = configuration.documents;
-        const createCaptureButton = () => {
-            const requestButton = document.createElement('button');
-            requestButton.type = 'button';
-            requestButton.className = 'btn btn-outline-success btn-sm';
-            requestButton.textContent = 'Получить конфигурацию стенда';
-            requestButton.addEventListener('click', async () => {
-                requestButton.disabled = true;
-                requestButton.textContent = 'Запрашиваем…';
-                try {
-                    const captured = await captureConfiguration(testId);
-                    updateConfigurationStatusIcon(testId, captured);
-                    updateTestReleaseFromConfiguration(testId, captured);
-                    renderConfiguration(container, captured, testId);
-                    showToast('Получена конфигурация стенда для теста', 'success');
-                } catch (error) {
-                    showToast('Не удалось получить конфигурацию стенда для теста', 'danger');
-                    requestButton.disabled = false;
-                    requestButton.textContent = 'Получить конфигурацию стенда';
-                }
-            });
-            return requestButton;
-        };
         if (!hasConfigurationPayload(configuration)) {
             const wrapper = document.createElement('div');
             wrapper.className = 'd-flex flex-column align-items-start gap-2';
             const emptyMessage = typeof options.emptyMessage === 'string' ? options.emptyMessage.trim() : '';
             const emptyStateClass = options.emptyStateClass ?? 'text-muted';
-            const allowManualCapture = Boolean(testId) && options.allowManualCapture !== false;
 
             if (emptyMessage) {
                 const message = document.createElement('div');
                 message.className = `${emptyStateClass} small`;
                 message.textContent = emptyMessage;
                 wrapper.appendChild(message);
-            }
-
-            if (allowManualCapture) {
-                wrapper.appendChild(createCaptureButton());
             }
 
             container.innerHTML = '';
@@ -3198,32 +3163,10 @@
         metaGrid.className = 'configuration-meta-grid';
         metaGrid.appendChild(createConfigurationMetaCard('Дата сохранения', configuration.savedAt));
         metaGrid.appendChild(createConfigurationMetaCard('Namespace', configuration.namespaces.join(', ')));
-        metaGrid.appendChild(createConfigurationMetaCard(
-                'Компоненты',
-                configuration.components.map(resolveConfigurationComponentLabel).join(', ')
-        ));
         metaGrid.appendChild(createConfigurationMetaCard('Релиз', configuration.release));
         metaGrid.appendChild(createConfigurationMetaCard('Документов', String(documents.length)));
+        metaGrid.appendChild(createConfigurationDownloadCard(testId, configuration));
         metaSection.appendChild(metaGrid);
-
-        const actionsRow = document.createElement('div');
-        actionsRow.className = 'd-flex flex-wrap align-items-center gap-2 mt-3';
-        if (testId) {
-            actionsRow.appendChild(createCaptureButton());
-            const downloadButton = document.createElement('button');
-            downloadButton.type = 'button';
-            downloadButton.className = 'btn btn-outline-secondary btn-sm';
-            downloadButton.textContent = 'Скачать ZIP';
-            downloadButton.disabled = !configuration.id;
-            if (!configuration.id) {
-                downloadButton.title = 'Архив доступен после повторного получения конфигурации стенда';
-            }
-            downloadButton.addEventListener('click', () => triggerTestConfigurationArchiveDownload(testId));
-            actionsRow.appendChild(downloadButton);
-        }
-        if (actionsRow.childElementCount > 0) {
-            metaSection.appendChild(actionsRow);
-        }
         wrapper.appendChild(metaSection);
 
         const servicesSection = createConfigurationDetailsSection('Сервисы');
@@ -3239,20 +3182,6 @@
             servicesSection.appendChild(tableWrapper);
         }
         wrapper.appendChild(servicesSection);
-
-        const documentsSection = createConfigurationDetailsSection('Файлы конфигурации');
-        if (documents.length === 0) {
-            const emptyState = document.createElement('div');
-            emptyState.className = 'text-muted small';
-            emptyState.textContent = 'Файлы для этой конфигурации отсутствуют.';
-            documentsSection.appendChild(emptyState);
-        } else {
-            const documentsWrapper = document.createElement('div');
-            documentsWrapper.className = 'table-responsive w-100';
-            documentsWrapper.appendChild(buildConfigurationDocumentsTable(documents));
-            documentsSection.appendChild(documentsWrapper);
-        }
-        wrapper.appendChild(documentsSection);
 
         container.innerHTML = '';
         container.appendChild(wrapper);
@@ -3627,9 +3556,7 @@
                 const captured = await captureConfiguration(testId);
                 updateConfigurationStatusIcon(testId, captured);
                 updateTestReleaseFromConfiguration(testId, captured);
-                renderConfiguration(configurationBox, captured, testId, {
-                    allowManualCapture: false
-                });
+                renderConfiguration(configurationBox, captured, testId);
                 showToast('Получена конфигурация стенда для теста', 'success');
             } catch (error) {
                 showToast('Не удалось получить конфигурацию стенда для теста', 'danger');
@@ -3837,26 +3764,21 @@
             updateConfigurationStatusIcon(testId, configuration);
             updateTestReleaseFromConfiguration(testId, configuration);
             if (hasConfigurationPayload(configuration)) {
-                renderConfiguration(configurationBox, configuration, testId, {
-                    allowManualCapture: false
-                });
+                renderConfiguration(configurationBox, configuration, testId);
             } else if (isTestCurrentlyActive(test)) {
                 renderConfiguration(configurationBox, configuration, testId, {
-                    emptyMessage: 'Конфигурация для активного теста пока недоступна. Можно повторить запрос вручную.',
-                    allowManualCapture: false
+                    emptyMessage: 'Конфигурация для активного теста пока недоступна. Можно повторить запрос вручную.'
                 });
             } else {
                 renderConfiguration(configurationBox, configuration, testId, {
-                    emptyMessage: 'Для завершенного теста конфигурация не сохранена. Запросите ее вручную.',
-                    allowManualCapture: false
+                    emptyMessage: 'Для завершенного теста конфигурация не сохранена. Запросите ее вручную.'
                 });
             }
         } catch (error) {
             updateConfigurationStatusIcon(testId, null, true);
             renderConfiguration(configurationBox, [], testId, {
                 emptyMessage: `Не удалось загрузить конфигурацию: ${error.message}`,
-                emptyStateClass: 'text-danger',
-                allowManualCapture: false
+                emptyStateClass: 'text-danger'
             });
         }
 
