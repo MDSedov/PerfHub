@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,8 @@ import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
 import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
 import com.example.chronicler.dto.confluence.ConfluencePage;
+import com.example.chronicler.dto.confluence.ConfluencePageSummary;
+import com.example.chronicler.dto.confluence.ConfluencePageTreeNode;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateRequest;
@@ -578,6 +581,31 @@ class ConfluenceServiceTest {
         assertThatThrownBy(() -> confluenceService.createReportHierarchy(credentials, "321"))
                 .isInstanceOf(ConfluenceOperationException.class)
                 .hasMessage("Parent page does not contain space key information");
+    }
+
+    @Test
+    void getReportParentPageTreeBuildsFreshTreeFromCurrentChildPages() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        when(configurationProvider.findValue("confluence", "reports-parent-page-id")).thenReturn(Optional.of(" root-1 "));
+        when(confluenceClient.getPage(credentials, "root-1"))
+                .thenReturn(new ConfluencePage("root-1", "page", "Отчеты", 3, "", "SPACE"));
+        when(confluenceClient.listChildPages(credentials, "root-1"))
+                .thenReturn(List.of(
+                        new ConfluencePageSummary("release-1", "Релиз 1"),
+                        new ConfluencePageSummary("release-2", "Релиз 2")));
+        when(confluenceClient.listChildPages(credentials, "release-1"))
+                .thenReturn(List.of(new ConfluencePageSummary("test-1", "Тест 1")));
+        when(confluenceClient.listChildPages(credentials, "test-1")).thenReturn(List.of());
+        when(confluenceClient.listChildPages(credentials, "release-2")).thenReturn(List.of());
+
+        ConfluencePageTreeNode response = confluenceService.getReportParentPageTree(credentials);
+
+        assertThat(response.id()).isEqualTo("root-1");
+        assertThat(response.children()).extracting(ConfluencePageTreeNode::id)
+                .containsExactly("release-1", "release-2");
+        assertThat(response.children().get(0).children()).extracting(ConfluencePageTreeNode::id)
+                .containsExactly("test-1");
+        verify(confluenceClient, never()).listPageDescendants(credentials, "root-1");
     }
 
     @Test

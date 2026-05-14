@@ -619,7 +619,9 @@
 
         confluenceParentPagesPromise = (async () => {
             try {
-                const response = await fetch('/api/confluence/report/parent-pages/');
+                const response = await fetch('/api/confluence/report/parent-pages/', {
+                    cache: 'no-store'
+                });
                 if (!response.ok) {
                     throw new Error(
                             extractReportCreationErrorMessage(
@@ -774,7 +776,7 @@
         renderGenerationResults();
         const modalApi = showLuckyReportsModalDialog();
         window.requestAnimationFrame(() => modalApi?.handleUpdate?.());
-        void Promise.all([loadReportTemplates(), loadConfluenceParentPages()]).finally(() => {
+        void Promise.all([loadReportTemplates(), loadConfluenceParentPages(true)]).finally(() => {
             modalApi?.handleUpdate?.();
             if (luckyReportsModalElement?.classList.contains('show')) {
                 luckyReportsParentPageIdInput?.focus();

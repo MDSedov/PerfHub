@@ -465,8 +465,7 @@
                         <div class="modal-footer">
                             <button type="submit"
                                     class="btn btn-success"
-                                    id="generateReportsModalCreateButton"
-                                    disabled>Создать отчеты</button>
+                                    id="generateReportsModalCreateButton">Создать отчеты</button>
                         </div>
                     </form>
                 </div>
@@ -1647,7 +1646,9 @@
 
         confluenceReleasePagesPromise = (async () => {
             try {
-                const response = await fetch('/api/confluence/report/parent-pages/');
+                const response = await fetch('/api/confluence/report/parent-pages/', {
+                    cache: 'no-store'
+                });
                 if (!response.ok) {
                     throw new Error(
                             extractReportCreationErrorMessage(
@@ -1818,18 +1819,8 @@
         if (!generateReportsModalCreateButton) {
             return;
         }
-        const hasSelectedTests = selectedReportTestIds.size > 0;
-        const hasTemplatesForAllSelectedTests =
-                reportTemplatesLoaded
-                && getTestReportTemplates().length > 0
-                && getSelectedTestsMissingTemplate().length === 0;
-        const hasValidReleasePageConfig = hasGenerateReportsReleaseTargetSelected();
         updateGenerateReportsSelectedSectionState();
-        generateReportsModalCreateButton.disabled =
-                isReportCreationInProgress
-                || !hasSelectedTests
-                || !hasTemplatesForAllSelectedTests
-                || !hasValidReleasePageConfig;
+        generateReportsModalCreateButton.disabled = false;
     }
 
     function refreshGenerateReportsModalState() {
@@ -1847,7 +1838,7 @@
         renderGenerateReportsResults();
         const modalApi = showGenerateReportsModalDialog();
         window.requestAnimationFrame(() => modalApi?.handleUpdate?.());
-        void loadConfluenceReleasePages().finally(() => {
+        void loadConfluenceReleasePages(true).finally(() => {
             modalApi?.handleUpdate?.();
             if (generateReportsModalElement?.classList.contains('show')) {
                 focusGenerateReportsPrimaryControl();
@@ -1981,7 +1972,7 @@
 
     async function submitGenerateReports(event) {
         event.preventDefault();
-        if (!generateReportsModalCreateButton || generateReportsModalCreateButton.disabled) {
+        if (!generateReportsModalCreateButton || isReportCreationInProgress) {
             return;
         }
 

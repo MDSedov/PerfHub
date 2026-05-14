@@ -149,6 +149,8 @@ public class ConfluenceClient {
 
         HttpHeaders headers = authorizationHeaders(credentials);
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, max-age=0");
+        headers.set(HttpHeaders.PRAGMA, "no-cache");
 
         int start = 0;
         final int limit = 200;
@@ -159,6 +161,7 @@ public class ConfluenceClient {
                     .pathSegment("content", parentPageId, "child", "page")
                     .queryParam("limit", limit)
                     .queryParam("start", start)
+                    .queryParam("status", "current")
                     .build(true)
                     .toUri();
             logConfluenceRequest(

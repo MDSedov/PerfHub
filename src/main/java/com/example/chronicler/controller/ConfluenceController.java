@@ -17,6 +17,7 @@ import com.example.chronicler.service.ConfigurationProvider;
 import jakarta.validation.Valid;
 
 import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -75,7 +76,9 @@ public class ConfluenceController {
         String resolvedToken = resolveToken(token);
         ConfluenceCredentials credentials = new ConfluenceCredentials(resolvedLogin, resolvedToken);
         ConfluencePageTreeNode response = confluenceService.getReportParentPageTree(credentials);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(response);
     }
 
     @PostMapping(path = "/report/release-page/", consumes = MediaType.APPLICATION_JSON_VALUE)
