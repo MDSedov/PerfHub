@@ -1,6 +1,7 @@
 package com.example.chronicler.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -20,11 +21,13 @@ import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
 import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
 import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
 import com.example.chronicler.client.JiraClient;
+import com.example.chronicler.dto.jira.JiraReleaseDistribution;
 import com.example.chronicler.dto.jira.JiraReleaseIssue;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
+import com.example.chronicler.model.DropAppConfigurationSnapshotDistribution;
 import com.example.chronicler.model.DropAppConfigurationSnapshotItem;
 import com.example.chronicler.repository.DropAppConfigurationSnapshotRepository;
 import java.time.Instant;
@@ -60,6 +63,7 @@ class DropAppConfigurationSnapshotServiceTest {
         lenient().when(standConfigurationSettingsService.resolveServices(any())).thenReturn(List.of());
         lenient().when(standConfigurationSettingsService.resolveNamespaces()).thenReturn(List.of("ns-a"));
         lenient().when(jiraClient.isConfiguredForReleaseLookup()).thenReturn(false);
+        lenient().when(repository.findDistributionsBySnapshotId(any())).thenReturn(List.of());
         service = new DropAppConfigurationSnapshotService(
                 repository,
                 dropAppService,
@@ -211,6 +215,11 @@ class DropAppConfigurationSnapshotServiceTest {
                 .thenReturn(Optional.of(new JiraReleaseIssue(
                         "EPROFILE-4151",
                         "https://jira.example/browse/EPROFILE-4151")));
+        when(jiraClient.findReleaseDistributionsByRelease("2.18.0"))
+                .thenReturn(List.of(new JiraReleaseDistribution(
+                        "profile",
+                        "sp-02/017/00_5.profile",
+                        "https://nexus.example/repository/sp-02/017/00_5.profile")));
         when(repository.insertSnapshot(
                         isNull(),
                         eq("2.18.0"),
@@ -236,14 +245,34 @@ class DropAppConfigurationSnapshotServiceTest {
                 .thenReturn(List.of(new DropAppConfigurationSnapshotItem(
                         1L, 57L, "ns-a", "Pod", "pod-1", "container-1", "1.0.0", "2.18.0", "100m", "200m", "256Mi", "512Mi")));
         when(repository.findDocumentsBySnapshotId(57L)).thenReturn(List.of());
+        when(repository.findDistributionsBySnapshotId(57L))
+                .thenReturn(List.of(new DropAppConfigurationSnapshotDistribution(
+                        1L,
+                        57L,
+                        "profile",
+                        "sp-02/017/00_5.profile",
+                        "https://nexus.example/repository/sp-02/017/00_5.profile")));
 
         DropAppConfigurationCaptureResponse result = service.captureCurrentConfiguration(
                 new DropAppConfigurationCaptureRequest(List.of("ns-a"), List.of("pods"), null));
 
         verify(jiraClient).findReleaseIssueByRelease("2.18.0");
+        verify(jiraClient).findReleaseDistributionsByRelease("2.18.0");
+        verify(repository).saveDistributions(eq(57L), argThat(distributions ->
+                distributions.size() == 1
+                        && "profile".equals(distributions.get(0).serviceName())
+                        && "sp-02/017/00_5.profile".equals(distributions.get(0).distributionName())
+                        && "https://nexus.example/repository/sp-02/017/00_5.profile"
+                        .equals(distributions.get(0).distributionUrl())));
         assertThat(result.release()).isEqualTo("2.18.0");
         assertThat(result.jiraReleaseIssueKey()).isEqualTo("EPROFILE-4151");
         assertThat(result.jiraReleaseIssueUrl()).isEqualTo("https://jira.example/browse/EPROFILE-4151");
+        assertThat(result.jiraReleaseDistributions())
+                .extracting("serviceName", "distributionName", "distributionUrl")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(
+                        "profile",
+                        "sp-02/017/00_5.profile",
+                        "https://nexus.example/repository/sp-02/017/00_5.profile"));
     }
 
     @Test

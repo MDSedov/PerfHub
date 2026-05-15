@@ -11,4 +11,5 @@ public record DropAppConfigurationCaptureResponse(
         String comment,
         List<String> namespaces,
         List<String> components,
+        List<JiraReleaseDistributionDto> jiraReleaseDistributions,
         List<DropAppConfigurationItemDto> items) {}

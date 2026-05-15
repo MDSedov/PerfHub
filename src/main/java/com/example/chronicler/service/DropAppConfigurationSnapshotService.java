@@ -14,12 +14,15 @@ import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
 import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
+import com.example.chronicler.dto.dropapp.JiraReleaseDistributionDto;
+import com.example.chronicler.dto.jira.JiraReleaseDistribution;
 import com.example.chronicler.dto.jira.JiraReleaseIssue;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.exception.JiraClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
+import com.example.chronicler.model.DropAppConfigurationSnapshotDistribution;
 import com.example.chronicler.model.DropAppConfigurationSnapshotItem;
 import com.example.chronicler.repository.DropAppConfigurationSnapshotRepository;
 import com.example.chronicler.util.DateTimeViewUtils;
@@ -150,6 +153,7 @@ public class DropAppConfigurationSnapshotService {
                 savedSnapshot.comment(),
                 savedSnapshot.namespaces(),
                 savedSnapshot.components(),
+                savedSnapshot.jiraReleaseDistributions(),
                 savedSnapshot.items());
     }
 
@@ -209,7 +213,10 @@ public class DropAppConfigurationSnapshotService {
         List<DropAppConfigurationDocumentDto> documents = repository.findDocumentsBySnapshotId(snapshotId).stream()
                 .map(this::toDocumentDto)
                 .toList();
-        return Optional.of(toDetailsDto(snapshotOpt.get(), items, documents));
+        List<JiraReleaseDistributionDto> distributions = repository.findDistributionsBySnapshotId(snapshotId).stream()
+                .map(this::toDto)
+                .toList();
+        return Optional.of(toDetailsDto(snapshotOpt.get(), items, distributions, documents));
     }
 
     public Optional<DropAppConfigurationSnapshotDetailsDto> findLatestTestSnapshotDetails(UUID testUuid) {
@@ -250,11 +257,14 @@ public class DropAppConfigurationSnapshotService {
         String comment = normalizeText(request != null ? request.comment() : snapshot.comment());
         String jiraReleaseIssueKey = normalizeText(snapshot.jiraReleaseIssueKey());
         String jiraReleaseIssueUrl = normalizeText(snapshot.jiraReleaseIssueUrl());
+        List<JiraReleaseDistributionDto> jiraReleaseDistributions = null;
         if (!Objects.equals(currentRelease, release)
-                || (StringUtils.hasText(release) && !StringUtils.hasText(jiraReleaseIssueUrl))) {
+                || (StringUtils.hasText(release) && (!StringUtils.hasText(jiraReleaseIssueUrl)
+                || repository.findDistributionsBySnapshotId(snapshotId).isEmpty()))) {
             Optional<JiraReleaseIssue> jiraReleaseIssue = resolveJiraReleaseIssue(release);
             jiraReleaseIssueKey = jiraReleaseIssue.map(JiraReleaseIssue::key).orElse(null);
             jiraReleaseIssueUrl = jiraReleaseIssue.map(JiraReleaseIssue::url).orElse(null);
+            jiraReleaseDistributions = resolveJiraReleaseDistributions(release);
         }
 
         repository.updateSnapshot(
@@ -263,6 +273,14 @@ public class DropAppConfigurationSnapshotService {
                 jiraReleaseIssueKey,
                 jiraReleaseIssueUrl,
                 comment);
+        if (jiraReleaseDistributions != null) {
+            repository.deleteDistributionsBySnapshotId(snapshotId);
+            repository.saveDistributions(
+                    snapshotId,
+                    jiraReleaseDistributions.stream()
+                            .map(distribution -> toSnapshotDistribution(snapshotId, distribution))
+                            .toList());
+        }
 
         return findSnapshotDetails(snapshotId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -290,6 +308,10 @@ public class DropAppConfigurationSnapshotService {
                 ZipOutputStream zip = new ZipOutputStream(buffer, StandardCharsets.UTF_8)) {
             writeZipEntry(zip, "snapshot-info.txt", buildSnapshotInfo(details));
             writeZipEntry(zip, "resources.csv", buildResourcesCsv(details.items()));
+            if (details.jiraReleaseDistributions() != null && !details.jiraReleaseDistributions().isEmpty()) {
+                writeZipEntry(zip, "jira-release-distributions.csv",
+                        buildJiraReleaseDistributionsCsv(details.jiraReleaseDistributions()));
+            }
             for (DropAppConfigurationSnapshotDocument document : documents) {
                 writeZipEntry(
                         zip,
@@ -351,6 +373,7 @@ public class DropAppConfigurationSnapshotService {
         List<String> componentCodes = normalizeComponents(requestedComponents);
         String serializedComponents = componentCodes.isEmpty() ? null : String.join(", ", componentCodes);
         Optional<JiraReleaseIssue> jiraReleaseIssue = resolveJiraReleaseIssue(release);
+        List<JiraReleaseDistributionDto> jiraReleaseDistributions = resolveJiraReleaseDistributions(release);
         Instant now = Instant.now();
 
         long snapshotId = repository.insertSnapshot(
@@ -371,6 +394,11 @@ public class DropAppConfigurationSnapshotService {
                 snapshotId,
                 normalizeDocuments(requestedDocuments).stream()
                         .map(document -> withSnapshotId(snapshotId, document))
+                        .toList());
+        repository.saveDistributions(
+                snapshotId,
+                jiraReleaseDistributions.stream()
+                        .map(distribution -> toSnapshotDistribution(snapshotId, distribution))
                         .toList());
 
         return findSnapshotDetails(snapshotId)
@@ -424,6 +452,7 @@ public class DropAppConfigurationSnapshotService {
     private DropAppConfigurationSnapshotDetailsDto toDetailsDto(
             DropAppConfigurationSnapshot snapshot,
             List<DropAppConfigurationItemDto> items,
+            List<JiraReleaseDistributionDto> distributions,
             List<DropAppConfigurationDocumentDto> documents) {
         return new DropAppConfigurationSnapshotDetailsDto(
                 snapshot.id(),
@@ -435,6 +464,7 @@ public class DropAppConfigurationSnapshotService {
                 parseCommaSeparatedValues(snapshot.namespaces()),
                 parseComponents(snapshot.components()),
                 items,
+                distributions != null ? distributions : List.of(),
                 documents);
     }
 
@@ -476,6 +506,20 @@ public class DropAppConfigurationSnapshotService {
                 buildDocumentFileName(document.namespace(), document.componentCode(), document.resourceName()));
     }
 
+    private JiraReleaseDistributionDto toDto(DropAppConfigurationSnapshotDistribution distribution) {
+        return new JiraReleaseDistributionDto(
+                distribution.serviceName(),
+                distribution.distributionName(),
+                distribution.distributionUrl());
+    }
+
+    private JiraReleaseDistributionDto toDto(JiraReleaseDistribution distribution) {
+        return new JiraReleaseDistributionDto(
+                distribution.serviceName(),
+                distribution.distributionName(),
+                distribution.distributionUrl());
+    }
+
     private DropAppConfigurationItemDto normalizeItem(DropAppConfigurationItemDto item) {
         return new DropAppConfigurationItemDto(
                 normalizeText(item.namespace()),
@@ -508,6 +552,17 @@ public class DropAppConfigurationSnapshotService {
                 item.limitRam());
     }
 
+    private DropAppConfigurationSnapshotDistribution toSnapshotDistribution(
+            long snapshotId,
+            JiraReleaseDistributionDto distribution) {
+        return new DropAppConfigurationSnapshotDistribution(
+                null,
+                snapshotId,
+                normalizeText(distribution.serviceName()),
+                normalizeText(distribution.distributionName()),
+                normalizeText(distribution.distributionUrl()));
+    }
+
     private String resolveRelease(Collection<DropAppConfigurationItemDto> items) {
         if (items == null || items.isEmpty()) {
             return null;
@@ -534,6 +589,29 @@ public class DropAppConfigurationSnapshotService {
         } catch (JiraClientException ex) {
             log.warn("Не удалось найти задачу релиза {} в Jira: {}", release, ex.getMessage());
             return Optional.empty();
+        }
+    }
+
+    private List<JiraReleaseDistributionDto> resolveJiraReleaseDistributions(String release) {
+        if (!StringUtils.hasText(release)) {
+            return List.of();
+        }
+        if (!jiraClient.isConfiguredForReleaseLookup()) {
+            return List.of();
+        }
+        try {
+            List<JiraReleaseDistributionDto> distributions = jiraClient.findReleaseDistributionsByRelease(release).stream()
+                    .map(this::toDto)
+                    .filter(distribution -> StringUtils.hasText(distribution.serviceName())
+                            && StringUtils.hasText(distribution.distributionName()))
+                    .toList();
+            if (distributions.isEmpty()) {
+                log.info("Дистрибутивы релиза {} в инфраструктурной задаче Jira не найдены", release);
+            }
+            return distributions;
+        } catch (JiraClientException ex) {
+            log.warn("Не удалось найти дистрибутивы релиза {} в Jira: {}", release, ex.getMessage());
+            return List.of();
         }
     }
 
@@ -607,6 +685,8 @@ public class DropAppConfigurationSnapshotService {
         lines.add("Release: " + valueOrDash(details.release()));
         lines.add("Jira Release Issue: " + valueOrDash(details.jiraReleaseIssueKey()));
         lines.add("Jira Release Issue URL: " + valueOrDash(details.jiraReleaseIssueUrl()));
+        lines.add("Jira Release Distributions: "
+                + (details.jiraReleaseDistributions() != null ? details.jiraReleaseDistributions().size() : 0));
         lines.add("Comment: " + valueOrDash(details.comment()));
         lines.add("Namespaces: " + joinOrDash(details.namespaces()));
         lines.add("Components: " + joinOrDash(details.components()));
@@ -628,6 +708,17 @@ public class DropAppConfigurationSnapshotService {
                     .append(csv(item.limitCpu())).append(',')
                     .append(csv(item.requestRam())).append(',')
                     .append(csv(item.limitRam())).append('\n');
+        }
+        return builder.toString();
+    }
+
+    private String buildJiraReleaseDistributionsCsv(List<JiraReleaseDistributionDto> distributions) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Service,Distribution,Nexus URL\n");
+        for (JiraReleaseDistributionDto distribution : distributions) {
+            builder.append(csv(distribution.serviceName())).append(',')
+                    .append(csv(distribution.distributionName())).append(',')
+                    .append(csv(distribution.distributionUrl())).append('\n');
         }
         return builder.toString();
     }

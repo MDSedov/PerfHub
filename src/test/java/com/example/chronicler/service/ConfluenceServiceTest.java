@@ -26,6 +26,7 @@ import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
+import com.example.chronicler.dto.dropapp.JiraReleaseDistributionDto;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
@@ -310,7 +311,8 @@ class ConfluenceServiceTest {
                 "Отчет @release @jira_release_task @test_start_date @test_start_time @test_end_date @test_end_time @config @graphics",
                 "<p>@release</p><p>@test_start</p><p>@test_start_date</p><p>@test_start_time</p>"
                         + "<p>@test_end</p><p>@test_end_date</p><p>@test_end_time</p>"
-                        + "<p>@jira_release_task</p><p>@jira_release_link</p><p>@config</p><p>@graphics</p>",
+                        + "<p>@jira_release_task</p><p>@jira_release_link</p>"
+                        + "<p>@jira_release_distr_table</p><p>@config</p><p>@graphics</p>",
                 List.of(new ConfluenceTemplateChart(11L, 301, "CPU", "uid-1", 7, 0)));
         when(confluenceTemplateSettingsService.getActiveTemplate(301)).thenReturn(template);
 
@@ -340,6 +342,10 @@ class ConfluenceServiceTest {
                         List.of("prod"),
                         List.of("pods"),
                         List.of(),
+                        List.of(new JiraReleaseDistributionDto(
+                                "profile",
+                                "sp-02/017/00_5.profile",
+                                "https://nexus.example/repository/sp-02/017/00_5.profile")),
                         List.of()));
 
         byte[] image = new byte[] {1, 9, 7};
@@ -397,6 +403,10 @@ class ConfluenceServiceTest {
         assertThat(body).contains("<p>EPROFILE-4151</p>");
         assertThat(body).contains("<ri:url ri:value=\"https://jira.example/browse/EPROFILE-4151\" />");
         assertThat(body).contains("<ac:plain-text-link-body><![CDATA[EPROFILE-4151]]>");
+        assertThat(body).contains("<th>Сервис</th>");
+        assertThat(body).contains("<td>profile</td>");
+        assertThat(body).contains("<ri:url ri:value=\"https://nexus.example/repository/sp-02/017/00_5.profile\" />");
+        assertThat(body).contains("<ac:plain-text-link-body><![CDATA[sp-02/017/00_5.profile]]>");
         assertThat(body).contains("<ac:structured-macro ac:name=\"expand\">");
         assertThat(body).contains("<ac:parameter ac:name=\"title\">Конфигурация стенда</ac:parameter>");
         assertThat(body).contains("ri:attachment ri:filename=\"dropapp-configuration-55.zip\"");
@@ -416,6 +426,7 @@ class ConfluenceServiceTest {
         assertThat(body).doesNotContain("@test_end_time");
         assertThat(body).doesNotContain("@jira_release_task");
         assertThat(body).doesNotContain("@jira_release_link");
+        assertThat(body).doesNotContain("@jira_release_distr_table");
         assertThat(body).doesNotContain("@config");
         assertThat(body).doesNotContain("@graphics");
         assertThat(response.reports().get(0).attachmentNames())

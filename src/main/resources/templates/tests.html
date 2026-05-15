@@ -2383,6 +2383,7 @@
                 namespaces: [],
                 components: [],
                 items: payload,
+                jiraReleaseDistributions: [],
                 documents: []
             };
         }
@@ -2396,13 +2397,18 @@
             namespaces: Array.isArray(payload?.namespaces) ? payload.namespaces : [],
             components: Array.isArray(payload?.components) ? payload.components : [],
             items: Array.isArray(payload?.items) ? payload.items : [],
+            jiraReleaseDistributions: Array.isArray(payload?.jiraReleaseDistributions)
+                    ? payload.jiraReleaseDistributions
+                    : [],
             documents: Array.isArray(payload?.documents) ? payload.documents : []
         };
     }
 
     function hasConfigurationPayload(payload) {
         const configuration = normalizeConfigurationPayload(payload);
-        return configuration.items.length > 0 || configuration.documents.length > 0;
+        return configuration.items.length > 0
+                || configuration.jiraReleaseDistributions.length > 0
+                || configuration.documents.length > 0;
     }
 
     function deriveReleaseFromConfigurationItems(items) {
@@ -3181,6 +3187,45 @@
         return table;
     }
 
+    function buildJiraReleaseDistributionsTable(distributions) {
+        const table = document.createElement('table');
+        table.className = 'table table-sm align-middle mb-0';
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        ['Сервис', 'Дистрибутив']
+                .forEach(title => {
+                    const th = document.createElement('th');
+                    th.scope = 'col';
+                    th.textContent = title;
+                    headerRow.appendChild(th);
+                });
+        thead.appendChild(headerRow);
+        const tbody = document.createElement('tbody');
+        (Array.isArray(distributions) ? distributions : []).forEach(distribution => {
+            const row = document.createElement('tr');
+            appendConfigCell(row, distribution?.serviceName);
+            const distributionCell = document.createElement('td');
+            const distributionName = normalizeReleaseValue(distribution?.distributionName);
+            const distributionUrl = normalizeReleaseValue(distribution?.distributionUrl);
+            if (distributionUrl && distributionName) {
+                const link = document.createElement('a');
+                link.className = 'release-issue-link';
+                link.href = distributionUrl;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = distributionName;
+                distributionCell.appendChild(link);
+            } else {
+                distributionCell.textContent = distributionName ?? '—';
+            }
+            row.appendChild(distributionCell);
+            tbody.appendChild(row);
+        });
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        return table;
+    }
+
     function triggerTestConfigurationArchiveDownload(testId) {
         if (!testId) {
             showToast('Не удалось определить тест для скачивания архива.', 'danger');
@@ -3201,6 +3246,7 @@
         const configuration = normalizeConfigurationPayload(payload);
         const items = configuration.items;
         const documents = configuration.documents;
+        const distributions = configuration.jiraReleaseDistributions;
         if (!hasConfigurationPayload(configuration)) {
             const wrapper = document.createElement('div');
             wrapper.className = 'd-flex flex-column align-items-start gap-2';
@@ -3231,6 +3277,15 @@
         metaGrid.appendChild(createConfigurationDownloadCard(testId, configuration));
         metaSection.appendChild(metaGrid);
         wrapper.appendChild(metaSection);
+
+        if (distributions.length > 0) {
+            const distributionsSection = createConfigurationDetailsSection('Дистрибутивы из Jira');
+            const distributionsWrapper = document.createElement('div');
+            distributionsWrapper.className = 'table-responsive w-100';
+            distributionsWrapper.appendChild(buildJiraReleaseDistributionsTable(distributions));
+            distributionsSection.appendChild(distributionsWrapper);
+            wrapper.appendChild(distributionsSection);
+        }
 
         const servicesSection = createConfigurationDetailsSection('Сервисы');
         if (items.length === 0) {

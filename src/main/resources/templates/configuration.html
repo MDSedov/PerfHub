@@ -1000,6 +1000,50 @@
             return table;
         };
 
+        const buildJiraReleaseDistributionsTable = (distributions) => {
+            const table = document.createElement('table');
+            table.className = 'table table-sm align-middle mb-0';
+
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            ['Сервис', 'Дистрибутив']
+                    .forEach(title => {
+                        const th = document.createElement('th');
+                        th.scope = 'col';
+                        th.textContent = title;
+                        headerRow.appendChild(th);
+                    });
+            thead.appendChild(headerRow);
+
+            const tbody = document.createElement('tbody');
+            (Array.isArray(distributions) ? distributions : []).forEach(distribution => {
+                const row = document.createElement('tr');
+                appendCell(row, distribution?.serviceName);
+
+                const distributionCell = document.createElement('td');
+                const distributionName = normalizeText(distribution?.distributionName);
+                const distributionUrl = normalizeText(distribution?.distributionUrl);
+                if (distributionName && distributionUrl) {
+                    const link = document.createElement('a');
+                    link.className = 'release-issue-link';
+                    link.href = distributionUrl;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = distributionName;
+                    distributionCell.appendChild(link);
+                } else {
+                    distributionCell.textContent = valueOrDash(distributionName);
+                }
+                row.appendChild(distributionCell);
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            return table;
+        };
+
+
         const triggerSnapshotArchiveDownload = (snapshotId) => {
             if (!snapshotId) {
                 showToast('Не удалось определить сохранённую конфигурацию для скачивания архива.', 'danger');
@@ -1106,6 +1150,9 @@
             const normalizedMode = mode === 'saved' ? 'saved' : 'preview';
             const items = Array.isArray(payload?.items) ? payload.items : [];
             const documents = Array.isArray(payload?.documents) ? payload.documents : [];
+            const distributions = Array.isArray(payload?.jiraReleaseDistributions)
+                    ? payload.jiraReleaseDistributions
+                    : [];
             const resourceItems = items.filter(isResourceConfigurationItem);
 
             configurationModalTitle.textContent = normalizedMode === 'saved'
@@ -1212,6 +1259,15 @@
                 editorCard.appendChild(actionsRow);
                 editSection.appendChild(editorCard);
                 stack.appendChild(editSection);
+            }
+
+            if (distributions.length > 0) {
+                const distributionsSection = createDetailsSection('Дистрибутивы из Jira');
+                const distributionsWrapper = document.createElement('div');
+                distributionsWrapper.className = 'table-responsive';
+                distributionsWrapper.appendChild(buildJiraReleaseDistributionsTable(distributions));
+                distributionsSection.appendChild(distributionsWrapper);
+                stack.appendChild(distributionsSection);
             }
 
             const tableSection = createDetailsSection('Состав конфигурации');

@@ -186,6 +186,7 @@ public class KubernetesConfigurationService {
                 namespaces,
                 List.of(),
                 items,
+                List.of(),
                 List.of());
     }
 

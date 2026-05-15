@@ -13,4 +13,5 @@ public record DropAppConfigurationSnapshotDetailsDto(
         List<String> namespaces,
         List<String> components,
         List<DropAppConfigurationItemDto> items,
+        List<JiraReleaseDistributionDto> jiraReleaseDistributions,
         List<DropAppConfigurationDocumentDto> documents) {}

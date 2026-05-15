@@ -15,6 +15,7 @@ import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
+import com.example.chronicler.dto.dropapp.JiraReleaseDistributionDto;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
@@ -62,6 +63,7 @@ public class ConfluenceService {
     private static final String RELEASE_PLACEHOLDER = "@release";
     private static final String JIRA_RELEASE_TASK_PLACEHOLDER = "@jira_release_task";
     private static final String JIRA_RELEASE_LINK_PLACEHOLDER = "@jira_release_link";
+    private static final String JIRA_RELEASE_DISTRIBUTION_TABLE_PLACEHOLDER = "@jira_release_distr_table";
     private static final String CONFIG_PLACEHOLDER = "@config";
     private static final String GRAPHICS_PLACEHOLDER = "@graphics";
     private static final String TEST_TYPE_PLACEHOLDER = "@test_type";
@@ -706,6 +708,7 @@ public class ConfluenceService {
                 .replace(RELEASE_PLACEHOLDER, releaseValue)
                 .replace(JIRA_RELEASE_TASK_PLACEHOLDER, titlePlaceholder(safeJiraReleaseValues.task()))
                 .replace(JIRA_RELEASE_LINK_PLACEHOLDER, "")
+                .replace(JIRA_RELEASE_DISTRIBUTION_TABLE_PLACEHOLDER, "")
                 .replace(TEST_START_DATE_PLACEHOLDER, titlePlaceholder(formatTestStartDate(loadTest)))
                 .replace(TEST_START_TIME_PLACEHOLDER, titlePlaceholder(formatTestStartTime(loadTest)))
                 .replace(TEST_END_DATE_PLACEHOLDER, titlePlaceholder(formatTestEndDate(loadTest)))
@@ -739,6 +742,10 @@ public class ConfluenceService {
         String body = getSafeBody(templateBody).replace(RELEASE_PLACEHOLDER, escape(releaseValue));
         body = body.replace(JIRA_RELEASE_TASK_PLACEHOLDER, escape(orPlaceholder(safeJiraReleaseValues.task())));
         body = body.replace(JIRA_RELEASE_LINK_PLACEHOLDER, buildJiraReleaseLink(safeJiraReleaseValues));
+        body = replaceSectionPlaceholder(
+                body,
+                JIRA_RELEASE_DISTRIBUTION_TABLE_PLACEHOLDER,
+                buildJiraReleaseDistributionTable(safeJiraReleaseValues));
         body = replaceSectionPlaceholder(body, CONFIG_PLACEHOLDER, configurationSection);
         body = replaceSectionPlaceholder(body, GRAPHICS_PLACEHOLDER, chartsSection);
         body = replaceTestPlaceholders(body, loadTest);
@@ -773,7 +780,8 @@ public class ConfluenceService {
         }
         return new JiraReleasePlaceholderValues(
                 normalizeOptionalText(details.jiraReleaseIssueKey()),
-                normalizeOptionalText(details.jiraReleaseIssueUrl()));
+                normalizeOptionalText(details.jiraReleaseIssueUrl()),
+                details.jiraReleaseDistributions() != null ? details.jiraReleaseDistributions() : List.of());
     }
 
     private JiraReleasePlaceholderValues resolveJiraReleaseValuesForTests(List<UUID> testUuids) {
@@ -796,15 +804,24 @@ public class ConfluenceService {
     }
 
     private JiraReleasePlaceholderValues safeJiraReleaseValues(JiraReleasePlaceholderValues values) {
-        return values != null ? values : emptyJiraReleaseValues();
+        if (values == null) {
+            return emptyJiraReleaseValues();
+        }
+        return new JiraReleasePlaceholderValues(
+                values.task(),
+                values.url(),
+                values.distributions() != null ? values.distributions() : List.of());
     }
 
     private JiraReleasePlaceholderValues emptyJiraReleaseValues() {
-        return new JiraReleasePlaceholderValues(null, null);
+        return new JiraReleasePlaceholderValues(null, null, List.of());
     }
 
     private boolean hasJiraReleaseValues(JiraReleasePlaceholderValues values) {
-        return values != null && (StringUtils.hasText(values.task()) || StringUtils.hasText(values.url()));
+        return values != null
+                && (StringUtils.hasText(values.task())
+                || StringUtils.hasText(values.url())
+                || (values.distributions() != null && !values.distributions().isEmpty()));
     }
 
     private String buildJiraReleaseLink(JiraReleasePlaceholderValues values) {
@@ -817,6 +834,40 @@ public class ConfluenceService {
                 + escape(safeValues.url())
                 + "\" /><ac:plain-text-link-body><![CDATA["
                 + escapeCdata(task)
+                + "]]></ac:plain-text-link-body></ac:link>";
+    }
+
+    private String buildJiraReleaseDistributionTable(JiraReleasePlaceholderValues values) {
+        JiraReleasePlaceholderValues safeValues = safeJiraReleaseValues(values);
+        List<JiraReleaseDistributionDto> distributions = safeValues.distributions();
+        if (distributions == null || distributions.isEmpty()) {
+            return "<p>" + escape(REPORT_PLACEHOLDER_TEXT) + "</p>";
+        }
+        StringBuilder bodyBuilder = new StringBuilder();
+        bodyBuilder.append("<table>\n")
+                .append("<tr>")
+                .append("<th>Сервис</th>")
+                .append("<th>Дистрибутив</th>")
+                .append("</tr>\n");
+        for (JiraReleaseDistributionDto distribution : distributions) {
+            bodyBuilder.append("<tr>")
+                    .append("<td>").append(escape(distribution.serviceName())).append("</td>")
+                    .append("<td>").append(buildDistributionLink(distribution)).append("</td>")
+                    .append("</tr>\n");
+        }
+        bodyBuilder.append("</table>\n");
+        return bodyBuilder.toString();
+    }
+
+    private String buildDistributionLink(JiraReleaseDistributionDto distribution) {
+        String distributionName = orPlaceholder(distribution.distributionName());
+        if (!StringUtils.hasText(distribution.distributionUrl())) {
+            return escape(distributionName);
+        }
+        return "<ac:link><ri:url ri:value=\""
+                + escape(distribution.distributionUrl())
+                + "\" /><ac:plain-text-link-body><![CDATA["
+                + escapeCdata(distributionName)
                 + "]]></ac:plain-text-link-body></ac:link>";
     }
 
@@ -978,7 +1029,10 @@ public class ConfluenceService {
                     .replace(TEST_TITLE_PLACEHOLDER, escape(values.testTitle()))
                     .replace(JIRA_RELEASE_TASK_PLACEHOLDER, escape(expandReleaseReportText(values.jiraReleaseTask(), values)))
                     .replace(JIRA_RELEASE_LINK_PLACEHOLDER, buildJiraReleaseLink(
-                            new JiraReleasePlaceholderValues(values.jiraReleaseTask(), values.jiraReleaseUrl())))
+                            new JiraReleasePlaceholderValues(
+                                    values.jiraReleaseTask(),
+                                    values.jiraReleaseUrl(),
+                                    values.jiraReleaseDistributions())))
                     .replace(TEST_TYPE_PLACEHOLDER, escape(expandReleaseReportText(values.testType(), values)))
                     .replace(TEST_START_DATE_PLACEHOLDER, escape(expandReleaseReportText(values.testStartDate(), values)))
                     .replace(TEST_START_TIME_PLACEHOLDER, escape(expandReleaseReportText(values.testStartTime(), values)))
@@ -990,6 +1044,13 @@ public class ConfluenceService {
                     .replace(TEST_STATUS_PLACEHOLDER, escape(expandReleaseReportText(values.testStatus(), values)))
                     .replace(TEST_SUMMARY_PLACEHOLDER, escape(expandReleaseReportText(values.testSummary(), values)))
                     .replace(TEST_REPORT_LINK_PLACEHOLDER, buildReportPageLink(link, spaceKey));
+            rendered = replaceSectionPlaceholder(
+                    rendered,
+                    JIRA_RELEASE_DISTRIBUTION_TABLE_PLACEHOLDER,
+                    buildJiraReleaseDistributionTable(new JiraReleasePlaceholderValues(
+                            values.jiraReleaseTask(),
+                            values.jiraReleaseUrl(),
+                            values.jiraReleaseDistributions())));
             bodyBuilder.append(rendered);
         }
         return bodyBuilder.toString();
@@ -1016,6 +1077,7 @@ public class ConfluenceService {
                 release,
                 orPlaceholder(jiraReleaseValues.task()),
                 jiraReleaseValues.url(),
+                jiraReleaseValues.distributions(),
                 testNumber,
                 "",
                 testType,
@@ -1033,6 +1095,7 @@ public class ConfluenceService {
                 release,
                 orPlaceholder(jiraReleaseValues.task()),
                 jiraReleaseValues.url(),
+                jiraReleaseValues.distributions(),
                 testNumber,
                 testTitle,
                 testType,
@@ -1053,6 +1116,7 @@ public class ConfluenceService {
                 .replace(RELEASE_PLACEHOLDER, values.release())
                 .replace(JIRA_RELEASE_TASK_PLACEHOLDER, values.jiraReleaseTask())
                 .replace(JIRA_RELEASE_LINK_PLACEHOLDER, values.jiraReleaseTask())
+                .replace(JIRA_RELEASE_DISTRIBUTION_TABLE_PLACEHOLDER, "")
                 .replace(TEST_NUMBER_PLACEHOLDER, values.testNumber())
                 .replace(TEST_TITLE_PLACEHOLDER, values.testTitle())
                 .replace(TEST_TYPE_PLACEHOLDER, values.testType())
@@ -1558,12 +1622,16 @@ public class ConfluenceService {
 
     private record ReleaseReportsBlock(int replacementStart, int replacementEnd, String itemTemplate) {}
 
-    private record JiraReleasePlaceholderValues(String task, String url) {}
+    private record JiraReleasePlaceholderValues(
+            String task,
+            String url,
+            List<JiraReleaseDistributionDto> distributions) {}
 
     private record ReleaseReportPlaceholderValues(
             String release,
             String jiraReleaseTask,
             String jiraReleaseUrl,
+            List<JiraReleaseDistributionDto> jiraReleaseDistributions,
             String testNumber,
             String testTitle,
             String testType,

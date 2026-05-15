@@ -2,6 +2,7 @@ package com.example.chronicler.repository;
 
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
+import com.example.chronicler.model.DropAppConfigurationSnapshotDistribution;
 import com.example.chronicler.model.DropAppConfigurationSnapshotItem;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -108,6 +109,24 @@ public class DropAppConfigurationSnapshotRepository {
             VALUES (?, ?, ?, ?, ?)
             """;
 
+    private static final String SELECT_DISTRIBUTIONS_BY_SNAPSHOT_SQL = """
+            SELECT id, snapshot_id, service_name, distribution_name, distribution_url
+            FROM dropapp_configuration_snapshot_distributions
+            WHERE snapshot_id = ?
+            ORDER BY service_name, distribution_name
+            """;
+
+    private static final String INSERT_DISTRIBUTION_SQL = """
+            INSERT INTO dropapp_configuration_snapshot_distributions
+                (snapshot_id, service_name, distribution_name, distribution_url)
+            VALUES (?, ?, ?, ?)
+            """;
+
+    private static final String DELETE_DISTRIBUTIONS_BY_SNAPSHOT_SQL = """
+            DELETE FROM dropapp_configuration_snapshot_distributions
+            WHERE snapshot_id = ?
+            """;
+
     private final JdbcTemplate jdbcTemplate;
     private final RowMapper<DropAppConfigurationSnapshot> snapshotRowMapper =
             DropAppConfigurationSnapshotRepository::mapSnapshotRow;
@@ -115,6 +134,8 @@ public class DropAppConfigurationSnapshotRepository {
             DropAppConfigurationSnapshotRepository::mapItemRow;
     private final RowMapper<DropAppConfigurationSnapshotDocument> documentRowMapper =
             DropAppConfigurationSnapshotRepository::mapDocumentRow;
+    private final RowMapper<DropAppConfigurationSnapshotDistribution> distributionRowMapper =
+            DropAppConfigurationSnapshotRepository::mapDistributionRow;
 
     public DropAppConfigurationSnapshotRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -154,6 +175,13 @@ public class DropAppConfigurationSnapshotRepository {
                 SELECT_DOCUMENTS_BY_SNAPSHOT_SQL,
                 ps -> ps.setLong(1, snapshotId),
                 documentRowMapper);
+    }
+
+    public List<DropAppConfigurationSnapshotDistribution> findDistributionsBySnapshotId(Long snapshotId) {
+        return jdbcTemplate.query(
+                SELECT_DISTRIBUTIONS_BY_SNAPSHOT_SQL,
+                ps -> ps.setLong(1, snapshotId),
+                distributionRowMapper);
     }
 
     public long insertSnapshot(String release, String comment, String namespaces, String components, Instant savedAt) {
@@ -292,6 +320,26 @@ public class DropAppConfigurationSnapshotRepository {
                 });
     }
 
+    public void saveDistributions(long snapshotId, List<DropAppConfigurationSnapshotDistribution> distributions) {
+        if (CollectionUtils.isEmpty(distributions)) {
+            return;
+        }
+        jdbcTemplate.batchUpdate(
+                INSERT_DISTRIBUTION_SQL,
+                distributions,
+                distributions.size(),
+                (ps, distribution) -> {
+                    ps.setLong(1, snapshotId);
+                    ps.setString(2, distribution.serviceName());
+                    ps.setString(3, distribution.distributionName());
+                    ps.setString(4, distribution.distributionUrl());
+                });
+    }
+
+    public int deleteDistributionsBySnapshotId(long snapshotId) {
+        return jdbcTemplate.update(DELETE_DISTRIBUTIONS_BY_SNAPSHOT_SQL, snapshotId);
+    }
+
     private static DropAppConfigurationSnapshot mapSnapshotRow(ResultSet rs, int rowNum) throws SQLException {
         Timestamp savedAt = rs.getTimestamp("saved_at");
         return new DropAppConfigurationSnapshot(
@@ -331,6 +379,16 @@ public class DropAppConfigurationSnapshotRepository {
                 rs.getString("component_code"),
                 rs.getString("resource_name"),
                 rs.getString("content"));
+    }
+
+    private static DropAppConfigurationSnapshotDistribution mapDistributionRow(ResultSet rs, int rowNum)
+            throws SQLException {
+        return new DropAppConfigurationSnapshotDistribution(
+                rs.getObject("id", Long.class),
+                rs.getObject("snapshot_id", Long.class),
+                rs.getString("service_name"),
+                rs.getString("distribution_name"),
+                rs.getString("distribution_url"));
     }
 
     private static Integer readInteger(ResultSet rs, String column) throws SQLException {

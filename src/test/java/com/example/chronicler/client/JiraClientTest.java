@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.startsWith;
 
+import com.example.chronicler.dto.jira.JiraReleaseDistribution;
 import com.example.chronicler.dto.jira.JiraReleaseIssue;
 import com.example.chronicler.exception.JiraClientException;
 import com.example.chronicler.service.ConfigurationProvider;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -140,6 +142,76 @@ class JiraClientTest {
 
         mockServer.verify();
         assertThat(result).hasValue(new JiraReleaseIssue("EPROFILE-4151", "https://jira.example/browse/EPROFILE-4151"));
+    }
+
+    @Test
+    void findReleaseDistributionsByReleaseShouldParseRenderedInstallationTable() {
+        JiraClient client = new JiraClient(restTemplate, new InMemoryConfigurationProvider(Map.of(
+                key("base-url"), "https://jira.example",
+                key("api-path"), "/rest/api/2",
+                key("personal-access-token"), "jira-token",
+                key("project-name"), "EPROFILE")));
+
+        mockServer.expect(MockRestRequestMatchers.requestTo(startsWith("https://jira.example/rest/api/2/search?")))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer jira-token"))
+                .andExpect(MockRestRequestMatchers.queryParam("fields", "summary,description,fixVersions"))
+                .andExpect(MockRestRequestMatchers.queryParam("expand", "renderedFields"))
+                .andExpect(MockRestRequestMatchers.queryParam("maxResults", "50"))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        {
+                          "issues": [
+                            {
+                              "key":"EPROFILE-5000",
+                              "renderedFields":{
+                                "description":"<h2>Установка на НТ</h2><table><tr><th>Сервис</th><th>Дистрибутив</th></tr><tr><td>profile</td><td><a href=\\"https://nexus.example/repository/sp-02/017/00_5.profile\\">sp-02/017/00_5.profile</a></td></tr></table>"
+                              },
+                              "fields":{"description":"ignored"}
+                            }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        List<JiraReleaseDistribution> result = client.findReleaseDistributionsByRelease("2.17.0");
+
+        mockServer.verify();
+        assertThat(result)
+                .containsExactly(new JiraReleaseDistribution(
+                        "profile",
+                        "sp-02/017/00_5.profile",
+                        "https://nexus.example/repository/sp-02/017/00_5.profile"));
+    }
+
+    @Test
+    void findReleaseDistributionsByReleaseShouldFallbackToWikiDescriptionTable() {
+        JiraClient client = new JiraClient(restTemplate, new InMemoryConfigurationProvider(Map.of(
+                key("base-url"), "https://jira.example",
+                key("api-path"), "/rest/api/2",
+                key("personal-access-token"), "jira-token",
+                key("project-name"), "EPROFILE")));
+
+        mockServer.expect(MockRestRequestMatchers.requestTo(startsWith("https://jira.example/rest/api/2/search?")))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        {
+                          "issues": [
+                            {
+                              "key":"EPROFILE-5000",
+                              "fields":{
+                                "description":"Установка на НТ\\n||Сервис||Дистрибутив||\\n|profile|[sp-02/017/00_5.profile|https://nexus.example/repository/sp-02/017/00_5.profile]|"
+                              }
+                            }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        List<JiraReleaseDistribution> result = client.findReleaseDistributionsByRelease("2.17");
+
+        mockServer.verify();
+        assertThat(result)
+                .containsExactly(new JiraReleaseDistribution(
+                        "profile",
+                        "sp-02/017/00_5.profile",
+                        "https://nexus.example/repository/sp-02/017/00_5.profile"));
     }
 
     @Test
