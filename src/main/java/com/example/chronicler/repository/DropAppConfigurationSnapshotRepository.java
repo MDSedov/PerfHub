@@ -110,7 +110,7 @@ public class DropAppConfigurationSnapshotRepository {
             """;
 
     private static final String SELECT_DISTRIBUTIONS_BY_SNAPSHOT_SQL = """
-            SELECT id, snapshot_id, service_name, distribution_name, distribution_url
+            SELECT id, snapshot_id, service_name, service_url, distribution_name, distribution_url
             FROM dropapp_configuration_snapshot_distributions
             WHERE snapshot_id = ?
             ORDER BY service_name, distribution_name
@@ -118,8 +118,8 @@ public class DropAppConfigurationSnapshotRepository {
 
     private static final String INSERT_DISTRIBUTION_SQL = """
             INSERT INTO dropapp_configuration_snapshot_distributions
-                (snapshot_id, service_name, distribution_name, distribution_url)
-            VALUES (?, ?, ?, ?)
+                (snapshot_id, service_name, service_url, distribution_name, distribution_url)
+            VALUES (?, ?, ?, ?, ?)
             """;
 
     private static final String DELETE_DISTRIBUTIONS_BY_SNAPSHOT_SQL = """
@@ -331,8 +331,9 @@ public class DropAppConfigurationSnapshotRepository {
                 (ps, distribution) -> {
                     ps.setLong(1, snapshotId);
                     ps.setString(2, distribution.serviceName());
-                    ps.setString(3, distribution.distributionName());
-                    ps.setString(4, distribution.distributionUrl());
+                    ps.setString(3, distribution.serviceUrl());
+                    ps.setString(4, distribution.distributionName());
+                    ps.setString(5, distribution.distributionUrl());
                 });
     }
 
@@ -387,6 +388,7 @@ public class DropAppConfigurationSnapshotRepository {
                 rs.getObject("id", Long.class),
                 rs.getObject("snapshot_id", Long.class),
                 rs.getString("service_name"),
+                rs.getString("service_url"),
                 rs.getString("distribution_name"),
                 rs.getString("distribution_url"));
     }

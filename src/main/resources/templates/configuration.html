@@ -1006,7 +1006,7 @@
 
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
-            ['Сервис', 'Дистрибутив']
+            ['Сервис в DPM', 'Дистрибутив в Nexus']
                     .forEach(title => {
                         const th = document.createElement('th');
                         th.scope = 'col';
@@ -1018,7 +1018,21 @@
             const tbody = document.createElement('tbody');
             (Array.isArray(distributions) ? distributions : []).forEach(distribution => {
                 const row = document.createElement('tr');
-                appendCell(row, distribution?.serviceName);
+                const serviceCell = document.createElement('td');
+                const serviceName = normalizeText(distribution?.serviceName);
+                const serviceUrl = normalizeText(distribution?.serviceUrl);
+                if (serviceName && serviceUrl) {
+                    const link = document.createElement('a');
+                    link.className = 'release-issue-link';
+                    link.href = serviceUrl;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = serviceName;
+                    serviceCell.appendChild(link);
+                } else {
+                    serviceCell.textContent = valueOrDash(serviceName);
+                }
+                row.appendChild(serviceCell);
 
                 const distributionCell = document.createElement('td');
                 const distributionName = normalizeText(distribution?.distributionName);

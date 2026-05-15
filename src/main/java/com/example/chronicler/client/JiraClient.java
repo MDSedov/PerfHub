@@ -293,37 +293,40 @@ public class JiraClient {
     }
 
     private JiraReleaseDistribution buildHtmlDistribution(List<String> cells) {
-        String serviceName = stripHtml(cells.get(0));
-        DistributionLink link = findHtmlDistributionLink(cells.subList(1, cells.size()));
-        String distributionName = link != null ? link.text() : firstNonBlankText(cells.subList(1, cells.size()));
-        String distributionUrl = link != null ? link.url() : findPlainUrl(distributionName);
-        if (isDistributionHeader(serviceName, distributionName)) {
+        List<DistributionCell> normalizedCells = cells.stream()
+                .map(this::extractHtmlDistributionCell)
+                .toList();
+        if (isDistributionHeaderRow(normalizedCells)) {
             return null;
         }
-        return buildDistribution(serviceName, distributionName, distributionUrl);
+        DistributionCell distributionCell = resolveDistributionCell(normalizedCells);
+        DistributionCell serviceCell = resolveServiceCell(normalizedCells, distributionCell);
+        if (serviceCell == null || distributionCell == null) {
+            return null;
+        }
+        return buildDistribution(
+                serviceCell.text(),
+                serviceCell.url(),
+                distributionCell.text(),
+                distributionCell.url());
     }
 
-    private DistributionLink findHtmlDistributionLink(List<String> cells) {
-        for (String cell : cells) {
-            Matcher linkMatcher = HTML_LINK_PATTERN.matcher(cell);
-            if (linkMatcher.find()) {
-                String url = normalizeText(HtmlUtils.htmlUnescape(linkMatcher.group(2)));
-                String text = normalizeText(stripHtml(linkMatcher.group(3)));
-                if (!StringUtils.hasText(text)) {
-                    text = lastUrlSegment(url);
-                }
-                if (StringUtils.hasText(text) || StringUtils.hasText(url)) {
-                    return new DistributionLink(text, url);
-                }
+    private DistributionCell extractHtmlDistributionCell(String cell) {
+        Matcher linkMatcher = HTML_LINK_PATTERN.matcher(cell);
+        if (linkMatcher.find()) {
+            String url = normalizeText(HtmlUtils.htmlUnescape(linkMatcher.group(2)));
+            String text = normalizeText(stripHtml(linkMatcher.group(3)));
+            if (!StringUtils.hasText(text)) {
+                text = lastUrlSegment(url);
             }
-            String text = stripHtml(cell);
-            String url = findPlainUrl(text);
-            if (StringUtils.hasText(url)) {
-                String name = normalizeText(text.replace(url, ""));
-                return new DistributionLink(StringUtils.hasText(name) ? name : lastUrlSegment(url), url);
-            }
+            return new DistributionCell(text, url);
         }
-        return null;
+        String text = stripHtml(cell);
+        String url = findPlainUrl(text);
+        if (StringUtils.hasText(url) && text != null && text.equals(url)) {
+            text = lastUrlSegment(url);
+        }
+        return new DistributionCell(text, url);
     }
 
     private List<JiraReleaseDistribution> parseWikiDistributionTable(String rawDescription) {
@@ -387,41 +390,139 @@ public class JiraClient {
     }
 
     private JiraReleaseDistribution buildWikiDistribution(List<String> cells) {
-        String serviceName = normalizeText(cells.get(0));
-        DistributionLink link = findWikiDistributionLink(cells.subList(1, cells.size()));
-        String distributionName = link != null ? link.text() : firstNonBlank(cells.subList(1, cells.size()));
-        String distributionUrl = link != null ? link.url() : findPlainUrl(distributionName);
-        if (isDistributionHeader(serviceName, distributionName)) {
+        List<DistributionCell> normalizedCells = cells.stream()
+                .map(this::extractWikiDistributionCell)
+                .toList();
+        if (isDistributionHeaderRow(normalizedCells)) {
             return null;
         }
-        return buildDistribution(serviceName, distributionName, distributionUrl);
+        DistributionCell distributionCell = resolveDistributionCell(normalizedCells);
+        DistributionCell serviceCell = resolveServiceCell(normalizedCells, distributionCell);
+        if (serviceCell == null || distributionCell == null) {
+            return null;
+        }
+        return buildDistribution(
+                serviceCell.text(),
+                serviceCell.url(),
+                distributionCell.text(),
+                distributionCell.url());
     }
 
-    private DistributionLink findWikiDistributionLink(List<String> cells) {
-        for (String cell : cells) {
-            Matcher markdownMatcher = MARKDOWN_LINK_PATTERN.matcher(cell);
-            if (markdownMatcher.find()) {
-                return new DistributionLink(
-                        normalizeText(markdownMatcher.group(1)),
-                        normalizeText(markdownMatcher.group(2)));
-            }
-            Matcher wikiMatcher = WIKI_LINK_PATTERN.matcher(cell);
-            if (wikiMatcher.find()) {
-                return new DistributionLink(
-                        normalizeText(wikiMatcher.group(1)),
-                        normalizeText(wikiMatcher.group(2)));
-            }
-            String url = findPlainUrl(cell);
-            if (StringUtils.hasText(url)) {
-                String name = normalizeText(cell.replace(url, ""));
-                return new DistributionLink(StringUtils.hasText(name) ? name : lastUrlSegment(url), url);
+    private DistributionCell extractWikiDistributionCell(String cell) {
+        Matcher markdownMatcher = MARKDOWN_LINK_PATTERN.matcher(cell);
+        if (markdownMatcher.find()) {
+            return new DistributionCell(
+                    normalizeText(markdownMatcher.group(1)),
+                    normalizeText(markdownMatcher.group(2)));
+        }
+        Matcher wikiMatcher = WIKI_LINK_PATTERN.matcher(cell);
+        if (wikiMatcher.find()) {
+            return new DistributionCell(
+                    normalizeText(wikiMatcher.group(1)),
+                    normalizeText(wikiMatcher.group(2)));
+        }
+        String text = normalizeText(cell);
+        String url = findPlainUrl(text);
+        if (StringUtils.hasText(url)) {
+            String name = normalizeText(text.replace(url, ""));
+            return new DistributionCell(StringUtils.hasText(name) ? name : lastUrlSegment(url), url);
+        }
+        return new DistributionCell(text, null);
+    }
+
+    private DistributionCell resolveServiceCell(List<DistributionCell> cells, DistributionCell distributionCell) {
+        if (cells == null || cells.isEmpty()) {
+            return null;
+        }
+        return cells.stream()
+                .filter(cell -> cell != distributionCell)
+                .filter(cell -> !isStatusCell(cell))
+                .filter(cell -> isDpmCell(cell))
+                .findFirst()
+                .or(() -> cells.stream()
+                        .filter(cell -> cell != distributionCell)
+                        .filter(cell -> !isStatusCell(cell))
+                        .filter(cell -> StringUtils.hasText(cell.text()))
+                        .findFirst())
+                .orElse(null);
+    }
+
+    private DistributionCell resolveDistributionCell(List<DistributionCell> cells) {
+        if (cells == null || cells.isEmpty()) {
+            return null;
+        }
+        Optional<DistributionCell> nexusCell = cells.stream()
+                .filter(this::isNexusCell)
+                .findFirst();
+        if (nexusCell.isPresent()) {
+            return nexusCell.get();
+        }
+        for (int index = cells.size() - 1; index >= 0; index--) {
+            DistributionCell cell = cells.get(index);
+            if (!isStatusCell(cell) && isDistributionCell(cell)) {
+                return cell;
             }
         }
-        return null;
+        if (cells.size() >= 3) {
+            return cells.get(cells.size() - 1);
+        }
+        return cells.stream()
+                .filter(cell -> !isStatusCell(cell))
+                .reduce((first, second) -> second)
+                .orElse(null);
     }
 
-    private JiraReleaseDistribution buildDistribution(String serviceName, String distributionName, String distributionUrl) {
+    private boolean isDpmCell(DistributionCell cell) {
+        return containsIgnoreCase(cell != null ? cell.url() : null, "dpm");
+    }
+
+    private boolean isNexusCell(DistributionCell cell) {
+        return containsIgnoreCase(cell != null ? cell.url() : null, "nexus");
+    }
+
+    private boolean isDistributionCell(DistributionCell cell) {
+        if (cell == null) {
+            return false;
+        }
+        return isNexusCell(cell)
+                || containsIgnoreCase(cell.text(), "sp-")
+                || containsIgnoreCase(cell.text(), "distrib")
+                || containsIgnoreCase(cell.text(), ".zip");
+    }
+
+    private boolean isStatusCell(DistributionCell cell) {
+        String text = normalizeMessage(cell != null ? cell.text() : null).toLowerCase(Locale.ROOT);
+        return text.equals("готов")
+                || text.equals("готово")
+                || text.equals("done")
+                || text.equals("success");
+    }
+
+    private boolean isDistributionHeaderRow(List<DistributionCell> cells) {
+        if (cells == null || cells.isEmpty()) {
+            return false;
+        }
+        String joined = cells.stream()
+                .map(DistributionCell::text)
+                .map(this::normalizeMessage)
+                .reduce("", (left, right) -> left + " " + right)
+                .toLowerCase(Locale.ROOT);
+        return joined.contains("сервис")
+                && (joined.contains("дистрибутив") || joined.contains("nexus"));
+    }
+
+    private boolean containsIgnoreCase(String value, String search) {
+        return value != null && search != null
+                && value.toLowerCase(Locale.ROOT).contains(search.toLowerCase(Locale.ROOT));
+    }
+
+    private JiraReleaseDistribution buildDistribution(
+            String serviceName,
+            String serviceUrl,
+            String distributionName,
+            String distributionUrl) {
         String service = normalizeText(serviceName);
+        String serviceLink = normalizeText(serviceUrl);
         String name = normalizeText(distributionName);
         String url = normalizeText(distributionUrl);
         if (!StringUtils.hasText(service) || (!StringUtils.hasText(name) && !StringUtils.hasText(url))) {
@@ -430,7 +531,10 @@ public class JiraClient {
         if (!StringUtils.hasText(name)) {
             name = lastUrlSegment(url);
         }
-        return new JiraReleaseDistribution(service, name, url);
+        if (url != null && url.equals(name)) {
+            name = lastUrlSegment(url);
+        }
+        return new JiraReleaseDistribution(service, serviceLink, name, url);
     }
 
     private List<JiraReleaseDistribution> normalizeDistributions(List<JiraReleaseDistribution> distributions) {
@@ -445,13 +549,15 @@ public class JiraClient {
             }
             JiraReleaseDistribution normalized = buildDistribution(
                     distribution.serviceName(),
+                    distribution.serviceUrl(),
                     distribution.distributionName(),
                     distribution.distributionUrl());
             if (normalized == null) {
                 continue;
             }
-            String key = "%s\u0000%s\u0000%s".formatted(
+            String key = "%s\u0000%s\u0000%s\u0000%s".formatted(
                     normalized.serviceName(),
+                    normalized.serviceUrl(),
                     normalized.distributionName(),
                     normalized.distributionUrl());
             if (seen.add(key)) {
@@ -459,26 +565,6 @@ public class JiraClient {
             }
         }
         return result;
-    }
-
-    private String firstNonBlankText(List<String> htmlCells) {
-        for (String cell : htmlCells) {
-            String text = stripHtml(cell);
-            if (StringUtils.hasText(text)) {
-                return text;
-            }
-        }
-        return null;
-    }
-
-    private String firstNonBlank(List<String> values) {
-        for (String value : values) {
-            String normalized = normalizeText(value);
-            if (StringUtils.hasText(normalized)) {
-                return normalized;
-            }
-        }
-        return null;
     }
 
     private String stripHtml(String value) {
@@ -704,5 +790,5 @@ public class JiraClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record JiraRenderedIssueFields(JsonNode description) {}
 
-    private record DistributionLink(String text, String url) {}
+    private record DistributionCell(String text, String url) {}
 }

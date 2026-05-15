@@ -257,10 +257,13 @@ public class DropAppConfigurationSnapshotService {
         String comment = normalizeText(request != null ? request.comment() : snapshot.comment());
         String jiraReleaseIssueKey = normalizeText(snapshot.jiraReleaseIssueKey());
         String jiraReleaseIssueUrl = normalizeText(snapshot.jiraReleaseIssueUrl());
+        List<DropAppConfigurationSnapshotDistribution> currentDistributions =
+                repository.findDistributionsBySnapshotId(snapshotId);
         List<JiraReleaseDistributionDto> jiraReleaseDistributions = null;
         if (!Objects.equals(currentRelease, release)
                 || (StringUtils.hasText(release) && (!StringUtils.hasText(jiraReleaseIssueUrl)
-                || repository.findDistributionsBySnapshotId(snapshotId).isEmpty()))) {
+                || currentDistributions.isEmpty()
+                || hasLegacyMisparsedDistributions(currentDistributions)))) {
             Optional<JiraReleaseIssue> jiraReleaseIssue = resolveJiraReleaseIssue(release);
             jiraReleaseIssueKey = jiraReleaseIssue.map(JiraReleaseIssue::key).orElse(null);
             jiraReleaseIssueUrl = jiraReleaseIssue.map(JiraReleaseIssue::url).orElse(null);
@@ -509,6 +512,7 @@ public class DropAppConfigurationSnapshotService {
     private JiraReleaseDistributionDto toDto(DropAppConfigurationSnapshotDistribution distribution) {
         return new JiraReleaseDistributionDto(
                 distribution.serviceName(),
+                distribution.serviceUrl(),
                 distribution.distributionName(),
                 distribution.distributionUrl());
     }
@@ -516,6 +520,7 @@ public class DropAppConfigurationSnapshotService {
     private JiraReleaseDistributionDto toDto(JiraReleaseDistribution distribution) {
         return new JiraReleaseDistributionDto(
                 distribution.serviceName(),
+                distribution.serviceUrl(),
                 distribution.distributionName(),
                 distribution.distributionUrl());
     }
@@ -559,6 +564,7 @@ public class DropAppConfigurationSnapshotService {
                 null,
                 snapshotId,
                 normalizeText(distribution.serviceName()),
+                normalizeText(distribution.serviceUrl()),
                 normalizeText(distribution.distributionName()),
                 normalizeText(distribution.distributionUrl()));
     }
@@ -613,6 +619,28 @@ public class DropAppConfigurationSnapshotService {
             log.warn("Не удалось найти дистрибутивы релиза {} в Jira: {}", release, ex.getMessage());
             return List.of();
         }
+    }
+
+    private boolean hasLegacyMisparsedDistributions(
+            List<DropAppConfigurationSnapshotDistribution> distributions) {
+        if (distributions == null || distributions.isEmpty()) {
+            return false;
+        }
+        return distributions.stream().anyMatch(distribution ->
+                !StringUtils.hasText(distribution.serviceUrl())
+                        && isReadyStatus(distribution.serviceName())
+                        && containsIgnoreCase(distribution.distributionUrl(), "dpm"));
+    }
+
+    private boolean isReadyStatus(String value) {
+        String normalized = normalizeText(value);
+        return normalized != null
+                && (normalized.equalsIgnoreCase("готов") || normalized.equalsIgnoreCase("готово"));
+    }
+
+    private boolean containsIgnoreCase(String value, String search) {
+        return value != null && search != null
+                && value.toLowerCase(Locale.ROOT).contains(search.toLowerCase(Locale.ROOT));
     }
 
     private List<String> parseComponents(String components) {
@@ -714,9 +742,10 @@ public class DropAppConfigurationSnapshotService {
 
     private String buildJiraReleaseDistributionsCsv(List<JiraReleaseDistributionDto> distributions) {
         StringBuilder builder = new StringBuilder();
-        builder.append("Service,Distribution,Nexus URL\n");
+        builder.append("Service in DPM,DPM URL,Distribution in Nexus,Nexus URL\n");
         for (JiraReleaseDistributionDto distribution : distributions) {
             builder.append(csv(distribution.serviceName())).append(',')
+                    .append(csv(distribution.serviceUrl())).append(',')
                     .append(csv(distribution.distributionName())).append(',')
                     .append(csv(distribution.distributionUrl())).append('\n');
         }

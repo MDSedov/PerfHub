@@ -5,5 +5,6 @@ public record DropAppConfigurationSnapshotDistribution(
         Long id,
         Long snapshotId,
         String serviceName,
+        String serviceUrl,
         String distributionName,
         String distributionUrl) {}

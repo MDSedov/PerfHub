@@ -827,14 +827,7 @@ public class ConfluenceService {
     private String buildJiraReleaseLink(JiraReleasePlaceholderValues values) {
         JiraReleasePlaceholderValues safeValues = safeJiraReleaseValues(values);
         String task = orPlaceholder(safeValues.task());
-        if (!StringUtils.hasText(safeValues.url())) {
-            return escape(task);
-        }
-        return "<ac:link><ri:url ri:value=\""
-                + escape(safeValues.url())
-                + "\" /><ac:plain-text-link-body><![CDATA["
-                + escapeCdata(task)
-                + "]]></ac:plain-text-link-body></ac:link>";
+        return buildExternalLink(safeValues.url(), task);
     }
 
     private String buildJiraReleaseDistributionTable(JiraReleasePlaceholderValues values) {
@@ -846,12 +839,12 @@ public class ConfluenceService {
         StringBuilder bodyBuilder = new StringBuilder();
         bodyBuilder.append("<table>\n")
                 .append("<tr>")
-                .append("<th>Сервис</th>")
-                .append("<th>Дистрибутив</th>")
+                .append("<th>Сервис в DPM</th>")
+                .append("<th>Дистрибутив в Nexus</th>")
                 .append("</tr>\n");
         for (JiraReleaseDistributionDto distribution : distributions) {
             bodyBuilder.append("<tr>")
-                    .append("<td>").append(escape(distribution.serviceName())).append("</td>")
+                    .append("<td>").append(buildServiceLink(distribution)).append("</td>")
                     .append("<td>").append(buildDistributionLink(distribution)).append("</td>")
                     .append("</tr>\n");
         }
@@ -859,16 +852,22 @@ public class ConfluenceService {
         return bodyBuilder.toString();
     }
 
+    private String buildServiceLink(JiraReleaseDistributionDto distribution) {
+        String serviceName = orPlaceholder(distribution.serviceName());
+        return buildExternalLink(distribution.serviceUrl(), serviceName);
+    }
+
     private String buildDistributionLink(JiraReleaseDistributionDto distribution) {
         String distributionName = orPlaceholder(distribution.distributionName());
-        if (!StringUtils.hasText(distribution.distributionUrl())) {
-            return escape(distributionName);
+        return buildExternalLink(distribution.distributionUrl(), distributionName);
+    }
+
+    private String buildExternalLink(String url, String text) {
+        String linkText = orPlaceholder(text);
+        if (!StringUtils.hasText(url)) {
+            return escape(linkText);
         }
-        return "<ac:link><ri:url ri:value=\""
-                + escape(distribution.distributionUrl())
-                + "\" /><ac:plain-text-link-body><![CDATA["
-                + escapeCdata(distributionName)
-                + "]]></ac:plain-text-link-body></ac:link>";
+        return "<a href=\"" + escape(url) + "\">" + escape(linkText) + "</a>";
     }
 
     private String loadTemplateBody(ConfluenceCredentials credentials, ConfluenceTemplate template) {
@@ -1146,9 +1145,7 @@ public class ConfluenceService {
             String url = StringUtils.hasText(link.reportPageUrl())
                     ? link.reportPageUrl()
                     : confluenceClient.buildPageUrl(link.reportPageId());
-            return "<ac:link><ri:url ri:value=\""
-                    + escape(url)
-                    + "\" /><ac:plain-text-link-body><![CDATA[Отчет по тесту]]></ac:plain-text-link-body></ac:link>";
+            return buildExternalLink(url, "Отчет по тесту");
         }
         String title = link.reportPageTitle().trim();
         String spaceKeyAttribute = StringUtils.hasText(spaceKey)

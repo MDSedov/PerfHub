@@ -344,6 +344,7 @@ class ConfluenceServiceTest {
                         List.of(),
                         List.of(new JiraReleaseDistributionDto(
                                 "profile",
+                                "https://dpm.example/service/profile",
                                 "sp-02/017/00_5.profile",
                                 "https://nexus.example/repository/sp-02/017/00_5.profile")),
                         List.of()));
@@ -401,12 +402,11 @@ class ConfluenceServiceTest {
         assertThat(body).contains("<p>2024-02-01 05:00:00</p>");
         assertThat(body).contains("<p>05:00:00</p>");
         assertThat(body).contains("<p>EPROFILE-4151</p>");
-        assertThat(body).contains("<ri:url ri:value=\"https://jira.example/browse/EPROFILE-4151\" />");
-        assertThat(body).contains("<ac:plain-text-link-body><![CDATA[EPROFILE-4151]]>");
-        assertThat(body).contains("<th>Сервис</th>");
-        assertThat(body).contains("<td>profile</td>");
-        assertThat(body).contains("<ri:url ri:value=\"https://nexus.example/repository/sp-02/017/00_5.profile\" />");
-        assertThat(body).contains("<ac:plain-text-link-body><![CDATA[sp-02/017/00_5.profile]]>");
+        assertThat(body).contains("<a href=\"https://jira.example/browse/EPROFILE-4151\">EPROFILE-4151</a>");
+        assertThat(body).contains("<th>Сервис в DPM</th>");
+        assertThat(body).contains("<th>Дистрибутив в Nexus</th>");
+        assertThat(body).contains("<a href=\"https://dpm.example/service/profile\">profile</a>");
+        assertThat(body).contains("<a href=\"https://nexus.example/repository/sp-02/017/00_5.profile\">sp-02/017/00_5.profile</a>");
         assertThat(body).contains("<ac:structured-macro ac:name=\"expand\">");
         assertThat(body).contains("<ac:parameter ac:name=\"title\">Конфигурация стенда</ac:parameter>");
         assertThat(body).contains("ri:attachment ri:filename=\"dropapp-configuration-55.zip\"");

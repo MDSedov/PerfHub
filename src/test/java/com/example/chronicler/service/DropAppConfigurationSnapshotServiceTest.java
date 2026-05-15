@@ -218,6 +218,7 @@ class DropAppConfigurationSnapshotServiceTest {
         when(jiraClient.findReleaseDistributionsByRelease("2.18.0"))
                 .thenReturn(List.of(new JiraReleaseDistribution(
                         "profile",
+                        "https://dpm.example/service/profile",
                         "sp-02/017/00_5.profile",
                         "https://nexus.example/repository/sp-02/017/00_5.profile")));
         when(repository.insertSnapshot(
@@ -250,6 +251,7 @@ class DropAppConfigurationSnapshotServiceTest {
                         1L,
                         57L,
                         "profile",
+                        "https://dpm.example/service/profile",
                         "sp-02/017/00_5.profile",
                         "https://nexus.example/repository/sp-02/017/00_5.profile")));
 
@@ -261,6 +263,7 @@ class DropAppConfigurationSnapshotServiceTest {
         verify(repository).saveDistributions(eq(57L), argThat(distributions ->
                 distributions.size() == 1
                         && "profile".equals(distributions.get(0).serviceName())
+                        && "https://dpm.example/service/profile".equals(distributions.get(0).serviceUrl())
                         && "sp-02/017/00_5.profile".equals(distributions.get(0).distributionName())
                         && "https://nexus.example/repository/sp-02/017/00_5.profile"
                         .equals(distributions.get(0).distributionUrl())));
@@ -268,9 +271,10 @@ class DropAppConfigurationSnapshotServiceTest {
         assertThat(result.jiraReleaseIssueKey()).isEqualTo("EPROFILE-4151");
         assertThat(result.jiraReleaseIssueUrl()).isEqualTo("https://jira.example/browse/EPROFILE-4151");
         assertThat(result.jiraReleaseDistributions())
-                .extracting("serviceName", "distributionName", "distributionUrl")
+                .extracting("serviceName", "serviceUrl", "distributionName", "distributionUrl")
                 .containsExactly(org.assertj.core.groups.Tuple.tuple(
                         "profile",
+                        "https://dpm.example/service/profile",
                         "sp-02/017/00_5.profile",
                         "https://nexus.example/repository/sp-02/017/00_5.profile"));
     }

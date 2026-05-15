@@ -164,7 +164,7 @@ class JiraClientTest {
                             {
                               "key":"EPROFILE-5000",
                               "renderedFields":{
-                                "description":"<h2>Установка на НТ</h2><table><tr><th>Сервис</th><th>Дистрибутив</th></tr><tr><td>profile</td><td><a href=\\"https://nexus.example/repository/sp-02/017/00_5.profile\\">sp-02/017/00_5.profile</a></td></tr></table>"
+                                "description":"<h2>Установка на НТ</h2><table><tr><th>Статус</th><th>Сервис</th><th>Дистрибутив</th></tr><tr><td>Готов</td><td><a href=\\"https://dpm.example/service/profile\\">profile</a></td><td><a href=\\"https://nexus.example/repository/sp-02/017/00_5.profile\\">sp-02/017/00_5.profile</a></td></tr></table>"
                               },
                               "fields":{"description":"ignored"}
                             }
@@ -178,6 +178,7 @@ class JiraClientTest {
         assertThat(result)
                 .containsExactly(new JiraReleaseDistribution(
                         "profile",
+                        "https://dpm.example/service/profile",
                         "sp-02/017/00_5.profile",
                         "https://nexus.example/repository/sp-02/017/00_5.profile"));
     }
@@ -197,7 +198,7 @@ class JiraClientTest {
                             {
                               "key":"EPROFILE-5000",
                               "fields":{
-                                "description":"Установка на НТ\\n||Сервис||Дистрибутив||\\n|profile|[sp-02/017/00_5.profile|https://nexus.example/repository/sp-02/017/00_5.profile]|"
+                                "description":"Установка на НТ\\n||Статус||Сервис||Дистрибутив||\\n|Готов|[profile|https://dpm.example/service/profile]|[sp-02/017/00_5.profile|https://nexus.example/repository/sp-02/017/00_5.profile]|"
                               }
                             }
                           ]
@@ -210,6 +211,7 @@ class JiraClientTest {
         assertThat(result)
                 .containsExactly(new JiraReleaseDistribution(
                         "profile",
+                        "https://dpm.example/service/profile",
                         "sp-02/017/00_5.profile",
                         "https://nexus.example/repository/sp-02/017/00_5.profile"));
     }
