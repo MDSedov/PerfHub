@@ -413,6 +413,22 @@ SELECT 'confluence', 'reports-parent-page-id', '', 'Номер родитель�
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'confluence' AND "key" = 'reports-parent-page-id');
 
 INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'jira', 'base-url', '', 'Базовый URL', 10
+WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'jira' AND "key" = 'base-url');
+
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'jira', 'api-path', '/rest/api/2', 'Путь до REST API', 20
+WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'jira' AND "key" = 'api-path');
+
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'jira', 'personal-access-token', '', 'Персональный токен доступа', 30
+WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'jira' AND "key" = 'personal-access-token');
+
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
+SELECT 'jira', 'project-name', '', 'Название проекта', 40
+WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'jira' AND "key" = 'project-name');
+
+INSERT INTO configurations (service, "key", config_value, description, sort_order)
 SELECT 'dropapp', 'base-url', '', 'Базовый URL сервиса DropApp', 10
 WHERE NOT EXISTS (SELECT 1 FROM configurations WHERE service = 'dropapp' AND "key" = 'base-url');
 
@@ -464,6 +480,29 @@ UPDATE configurations SET sort_order = 40 WHERE service = 'confluence' AND "key"
 UPDATE configurations
 SET description = 'Номер родительской страницы для отчетов по НТ'
 WHERE service = 'confluence' AND "key" = 'reports-parent-page-id';
+
+UPDATE configurations SET sort_order = 10 WHERE service = 'jira' AND "key" = 'base-url';
+UPDATE configurations SET sort_order = 20 WHERE service = 'jira' AND "key" = 'api-path';
+UPDATE configurations SET sort_order = 30 WHERE service = 'jira' AND "key" = 'personal-access-token';
+UPDATE configurations SET sort_order = 40 WHERE service = 'jira' AND "key" = 'project-name';
+UPDATE configurations
+SET description = 'Базовый URL'
+WHERE service = 'jira' AND "key" = 'base-url';
+UPDATE configurations
+SET description = 'Путь до REST API'
+WHERE service = 'jira' AND "key" = 'api-path';
+UPDATE configurations
+SET config_value = '/rest/api/2'
+WHERE service = 'jira' AND "key" = 'api-path' AND LENGTH(config_value) = 0;
+UPDATE configurations
+SET description = 'Персональный токен доступа'
+WHERE service = 'jira' AND "key" = 'personal-access-token';
+UPDATE configurations
+SET description = 'Название проекта'
+WHERE service = 'jira' AND "key" = 'project-name';
+UPDATE user_configurations
+SET config_value = '/rest/api/2'
+WHERE service = 'jira' AND "key" = 'api-path' AND LENGTH(config_value) = 0;
 
 UPDATE configurations SET sort_order = 10 WHERE service = 'dropapp' AND "key" = 'base-url';
 UPDATE configurations SET sort_order = 30 WHERE service = 'dropapp' AND "key" = 'token';

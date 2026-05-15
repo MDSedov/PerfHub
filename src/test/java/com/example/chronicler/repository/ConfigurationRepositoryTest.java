@@ -82,6 +82,31 @@ class ConfigurationRepositoryTest {
                 repository.findValue("dropapp", "base-url", bobId).orElseThrow());
     }
 
+    @Test
+    void jiraConnectionSettingsHaveExpectedLabelsAndDefaultApiPath() {
+        List<ConfigurationEntry> entries = repository.findAllOrdered();
+
+        assertConfiguration(entries, "jira", "base-url", "", "Базовый URL");
+        assertConfiguration(entries, "jira", "api-path", "/rest/api/2", "Путь до REST API");
+        assertConfiguration(entries, "jira", "personal-access-token", "", "Персональный токен доступа");
+        assertConfiguration(entries, "jira", "project-name", "", "Название проекта");
+    }
+
+    private void assertConfiguration(
+            List<ConfigurationEntry> entries,
+            String service,
+            String key,
+            String value,
+            String description) {
+        ConfigurationEntry entry = entries.stream()
+                .filter(candidate -> candidate.service().equals(service))
+                .filter(candidate -> candidate.key().equals(key))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(value, entry.value());
+        assertEquals(description, entry.description());
+    }
+
     private long createUser(String username) {
         jdbcTemplate.update("""
                 INSERT INTO app_users (username, first_name, last_name, role, password_hash)

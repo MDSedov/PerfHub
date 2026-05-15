@@ -2,6 +2,7 @@ package com.example.chronicler.service;
 
 import com.example.chronicler.client.ConfluenceClient;
 import com.example.chronicler.client.GrafanaClient;
+import com.example.chronicler.client.JiraClient;
 import com.example.chronicler.client.VictoriaMetricsClient;
 import com.example.chronicler.dto.configuration.ConnectionTestResponse;
 import com.example.chronicler.dto.confluence.ConfluenceCredentials;
@@ -24,6 +25,7 @@ public class ConnectionTestService {
     private final GigachatService gigachatService;
     private final GrafanaClient grafanaClient;
     private final ConfluenceClient confluenceClient;
+    private final JiraClient jiraClient;
     private final DropAppService dropAppService;
     private final ConfigurationProvider configurationProvider;
 
@@ -32,12 +34,14 @@ public class ConnectionTestService {
             GigachatService gigachatService,
             GrafanaClient grafanaClient,
             ConfluenceClient confluenceClient,
+            JiraClient jiraClient,
             DropAppService dropAppService,
             ConfigurationProvider configurationProvider) {
         this.victoriaMetricsClient = victoriaMetricsClient;
         this.gigachatService = gigachatService;
         this.grafanaClient = grafanaClient;
         this.confluenceClient = confluenceClient;
+        this.jiraClient = jiraClient;
         this.dropAppService = dropAppService;
         this.configurationProvider = configurationProvider;
     }
@@ -52,6 +56,7 @@ public class ConnectionTestService {
             case "gigachat" -> testGigachat();
             case "grafana" -> testGrafana();
             case "confluence" -> testConfluence();
+            case "jira" -> testJira();
             case "dropapp" -> testDropApp();
             default -> new ConnectionTestResponse(
                     service, false, "Проверка для сервиса '" + service + "' не поддерживается");
@@ -96,6 +101,16 @@ public class ConnectionTestService {
             ConfluenceCredentials credentials = new ConfluenceCredentials(token, token);
             String status = confluenceClient.checkConnection(credentials);
             return success(service, "Confluence ответила: " + status);
+        } catch (Exception ex) {
+            return failure(service, ex);
+        }
+    }
+
+    private ConnectionTestResponse testJira() {
+        String service = "jira";
+        try {
+            String status = jiraClient.checkConnection();
+            return success(service, "Jira ответила: " + status);
         } catch (Exception ex) {
             return failure(service, ex);
         }

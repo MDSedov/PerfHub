@@ -18,9 +18,10 @@ public class ConfigurationRepository {
             "grafana",
             "dropapp",
             "confluence",
+            "jira",
             "gigachat");
     private static final String CONNECTION_SERVICES_SQL =
-            "'victoria-metrics', 'grafana', 'dropapp', 'confluence', 'gigachat'";
+            "'victoria-metrics', 'grafana', 'dropapp', 'confluence', 'jira', 'gigachat'";
     private static final String SELECT_ALL_SQL = """
             SELECT c.id,
                    c.service,
