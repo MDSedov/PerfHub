@@ -2,6 +2,7 @@ package com.example.chronicler.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -94,6 +95,100 @@ class ConfluenceTemplateSettingsServiceTest {
                 ConfluenceTemplateType.TEST,
                 "123456",
                 "");
+    }
+
+    @Test
+    void createTemplateAllowsInlineBodyWithoutTemplatePageId() {
+        ConfluenceTemplateSettingsService savingService =
+                new ConfluenceTemplateSettingsService(
+                        templateRepository,
+                        chartRepository,
+                        grafanaDashboardPanelRepository,
+                        null);
+        when(templateRepository.create(
+                        eq("max_template"),
+                        eq("Отчет"),
+                        eq("Отчет"),
+                        eq(ConfluenceTemplateType.TEST),
+                        eq(""),
+                        eq("<p>Body</p>")))
+                .thenReturn(43);
+        when(templateRepository.findActiveById(43))
+                .thenReturn(Optional.of(new ConfluenceTemplate(
+                        43,
+                        "max_template",
+                        "Отчет",
+                        "Отчет",
+                        ConfluenceTemplateType.TEST,
+                        "",
+                        "<p>Body</p>",
+                        List.of())));
+        when(chartRepository.findByTemplateId(43)).thenReturn(List.of());
+
+        savingService.createTemplate(new ConfluenceTemplateSettingsService.TemplateSaveCommand(
+                null,
+                null,
+                "Отчет",
+                "TEST",
+                "max",
+                "",
+                "<p>Body</p>",
+                List.of()));
+
+        verify(templateRepository).create(
+                "max_template",
+                "Отчет",
+                "Отчет",
+                ConfluenceTemplateType.TEST,
+                "",
+                "<p>Body</p>");
+    }
+
+    @Test
+    void createTemplateCanSkipGrafanaPanelValidationForSettingsImport() {
+        ConfluenceTemplateSettingsService savingService =
+                new ConfluenceTemplateSettingsService(
+                        templateRepository,
+                        chartRepository,
+                        grafanaDashboardPanelRepository,
+                        null);
+        when(templateRepository.create(
+                        eq("max_template"),
+                        eq("Отчет"),
+                        eq("Отчет"),
+                        eq(ConfluenceTemplateType.TEST),
+                        eq("123456"),
+                        eq("")))
+                .thenReturn(44);
+        when(templateRepository.findActiveById(44))
+                .thenReturn(Optional.of(new ConfluenceTemplate(
+                        44,
+                        "max_template",
+                        "Отчет",
+                        "Отчет",
+                        ConfluenceTemplateType.TEST,
+                        "123456",
+                        "",
+                        List.of())));
+        when(chartRepository.findByTemplateId(44)).thenReturn(List.of());
+
+        savingService.createTemplate(
+                new ConfluenceTemplateSettingsService.TemplateSaveCommand(
+                        null,
+                        null,
+                        "Отчет",
+                        "TEST",
+                        "max",
+                        "123456",
+                        "",
+                        List.of(new ConfluenceTemplateSettingsService.TemplateChartCommand(
+                                "CPU",
+                                "dashboard-uid",
+                                7))),
+                false);
+
+        verify(chartRepository).replaceForTemplate(eq(44), any());
+        verifyNoInteractions(grafanaDashboardPanelRepository);
     }
 
     @Test

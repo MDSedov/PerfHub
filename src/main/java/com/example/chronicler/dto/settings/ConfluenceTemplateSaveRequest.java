@@ -12,7 +12,7 @@ public record ConfluenceTemplateSaveRequest(
         @NotBlank String reportTitle,
         @NotBlank String templateType,
         String testType,
-        @NotBlank String templatePageId,
+        String templatePageId,
         String text,
         @Valid List<TemplateChartPayload> charts) {
 

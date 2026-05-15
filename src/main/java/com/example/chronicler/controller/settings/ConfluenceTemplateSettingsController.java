@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -40,6 +41,13 @@ public class ConfluenceTemplateSettingsController {
                 .toList();
     }
 
+    @GetMapping("/export")
+    public List<ConfluenceTemplateDto> exportTemplates() {
+        return settingsService.listTemplates().stream()
+                .map(template -> toDto(template, Map.of()))
+                .toList();
+    }
+
     @GetMapping("/panel-options")
     public List<ConfluenceTemplatePanelOptionDto> listPanelOptions() {
         return settingsService.listPanelOptions().stream()
@@ -53,15 +61,22 @@ public class ConfluenceTemplateSettingsController {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ConfluenceTemplateDto createTemplate(@Valid @RequestBody ConfluenceTemplateSaveRequest request) {
-        return toDto(settingsService.createTemplate(toCommand(request)), buildPanelCodeMap());
+    public ConfluenceTemplateDto createTemplate(
+            @Valid @RequestBody ConfluenceTemplateSaveRequest request,
+            @RequestParam(name = "validateCharts", defaultValue = "true") boolean validateCharts) {
+        return toDto(
+                settingsService.createTemplate(toCommand(request), validateCharts),
+                validateCharts ? buildPanelCodeMap() : Map.of());
     }
 
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ConfluenceTemplateDto updateTemplate(
             @PathVariable("id") int id,
-            @Valid @RequestBody ConfluenceTemplateSaveRequest request) {
-        return toDto(settingsService.updateTemplate(id, toCommand(request)), buildPanelCodeMap());
+            @Valid @RequestBody ConfluenceTemplateSaveRequest request,
+            @RequestParam(name = "validateCharts", defaultValue = "true") boolean validateCharts) {
+        return toDto(
+                settingsService.updateTemplate(id, toCommand(request), validateCharts),
+                validateCharts ? buildPanelCodeMap() : Map.of());
     }
 
     @DeleteMapping("/{id}")

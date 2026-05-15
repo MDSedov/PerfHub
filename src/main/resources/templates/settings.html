@@ -491,8 +491,8 @@
             reportTitle: template?.reportTitle ?? '',
             templateType: template?.templateType ?? 'TEST',
             testType: template?.testType ?? inferTemplateTestType(template),
-            templatePageId: normalizeConfluencePageId(template?.templatePageId) ?? '',
-            text: template?.text ?? '',
+            templatePageId: normalizeConfluencePageId(template?.templatePageId ?? template?.pageId) ?? '',
+            text: template?.text ?? template?.body ?? '',
             charts: toArray(template?.charts).map(chart => ({
                 title: chart?.title ?? '',
                 dashboardUid: chart?.dashboardUid ?? '',
@@ -579,8 +579,11 @@
         }
         if (selected.has('reportTemplates')) {
             setSettingsStatus('Готовим шаблоны отчетов…', 'info');
-            const templates = await requestJson('/api/settings/confluence-templates');
-            payload.reportTemplates = toArray(templates).map(normalizeTemplateForExport);
+            const templates = await requestJson('/api/settings/confluence-templates/export');
+            if (!Array.isArray(templates)) {
+                throw new Error('Сервер вернул некорректный список шаблонов отчетов.');
+            }
+            payload.reportTemplates = templates.map(normalizeTemplateForExport);
         }
 
         return payload;
@@ -744,9 +747,13 @@
                 || normalizeText(template?.fullName)
                 || shortName;
         const fullName = normalizeText(template?.fullName) || reportTitle || shortName;
-        const templatePageId = normalizeConfluencePageId(template?.templatePageId);
-        const text = template?.text ?? '';
-        if (!shortName || !fullName || !reportTitle || !templatePageId || (templateType === 'TEST' && !testType)) {
+        const templatePageId = normalizeConfluencePageId(template?.templatePageId ?? template?.pageId);
+        const text = template?.text ?? template?.body ?? '';
+        if (!shortName
+                || !fullName
+                || !reportTitle
+                || (!templatePageId && !normalizeText(text))
+                || (templateType === 'TEST' && !testType)) {
             return null;
         }
         return {
@@ -770,11 +777,11 @@
         if (!templates.length) {
             return 0;
         }
-        const existingTemplates = toArray(await requestJson('/api/settings/confluence-templates'));
+        const existingTemplates = toArray(await requestJson('/api/settings/confluence-templates/export'));
         const byShortName = new Map(existingTemplates
                 .map(template => [normalizeText(template?.shortName)?.toLowerCase(), template])
                 .filter(([key]) => key));
-        let hasReleaseTemplate = existingTemplates.some(template =>
+        let releaseTemplate = existingTemplates.find(template =>
                 String(template?.templateType ?? '').trim().toUpperCase() === 'RELEASE');
         let count = 0;
         for (const template of templates) {
@@ -783,19 +790,19 @@
                 continue;
             }
             const existing = payload.templateType === 'RELEASE'
-                    ? hasReleaseTemplate
-                    : byShortName.has(payload.shortName.toLowerCase());
-            if (existing) {
-                continue;
-            }
-            await requestJson('/api/settings/confluence-templates', {
-                method: 'POST',
+                    ? releaseTemplate
+                    : byShortName.get(payload.shortName.toLowerCase());
+            const url = existing?.id
+                    ? `/api/settings/confluence-templates/${existing.id}?validateCharts=false`
+                    : '/api/settings/confluence-templates?validateCharts=false';
+            const saved = await requestJson(url, {
+                method: existing?.id ? 'PUT' : 'POST',
                 body: JSON.stringify(payload)
             });
+            byShortName.set(payload.shortName.toLowerCase(), saved ?? payload);
             if (payload.templateType === 'RELEASE') {
-                hasReleaseTemplate = true;
+                releaseTemplate = saved ?? payload;
             }
-            byShortName.set(payload.shortName.toLowerCase(), payload);
             count += 1;
         }
         return count;

@@ -104,7 +104,12 @@ public class ConfluenceTemplateSettingsService {
 
     @Transactional
     public ConfluenceTemplate createTemplate(TemplateSaveCommand command) {
-        SanitizedTemplate sanitized = sanitize(command);
+        return createTemplate(command, true);
+    }
+
+    @Transactional
+    public ConfluenceTemplate createTemplate(TemplateSaveCommand command, boolean validateCharts) {
+        SanitizedTemplate sanitized = sanitize(command, validateCharts);
         validateUniqueNames(sanitized.shortName(), null);
         int templateId = templateRepository.create(
                 sanitized.shortName(),
@@ -119,9 +124,14 @@ public class ConfluenceTemplateSettingsService {
 
     @Transactional
     public ConfluenceTemplate updateTemplate(int id, TemplateSaveCommand command) {
+        return updateTemplate(id, command, true);
+    }
+
+    @Transactional
+    public ConfluenceTemplate updateTemplate(int id, TemplateSaveCommand command, boolean validateCharts) {
         templateRepository.findActiveById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Шаблон отчета не найден"));
-        SanitizedTemplate sanitized = sanitize(command);
+        SanitizedTemplate sanitized = sanitize(command, validateCharts);
         validateUniqueNames(sanitized.shortName(), id);
         templateRepository.update(
                 id,
@@ -174,7 +184,7 @@ public class ConfluenceTemplateSettingsService {
                 panelName);
     }
 
-    private SanitizedTemplate sanitize(TemplateSaveCommand command) {
+    private SanitizedTemplate sanitize(TemplateSaveCommand command, boolean validateCharts) {
         if (command == null) {
             throw new IllegalArgumentException("Данные шаблона не переданы");
         }
@@ -184,10 +194,11 @@ public class ConfluenceTemplateSettingsService {
         String shortName = resolveSystemShortName(templateType, testType);
         String reportTitle = StringUtils.trimWhitespace(command.reportTitle());
         String templatePageId = normalizeTemplatePageId(command.templatePageId());
+        String text = command.text() == null ? "" : command.text();
         if (!StringUtils.hasText(reportTitle)) {
             throw new IllegalArgumentException("Название отчета обязательно");
         }
-        if (!StringUtils.hasText(templatePageId)) {
+        if (!StringUtils.hasText(templatePageId) && !StringUtils.hasText(text)) {
             throw new IllegalArgumentException("ID страницы с шаблоном отчета в Confluence обязателен");
         }
 
@@ -206,9 +217,11 @@ public class ConfluenceTemplateSettingsService {
             if (!StringUtils.hasText(dashboardUid) || chart.panelId() <= 0) {
                 throw new IllegalArgumentException("Код графика обязателен");
             }
-            grafanaDashboardPanelRepository.findByUidAndPanelId(dashboardUid, chart.panelId())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "График %s (panelId=%s) не найден в кэше Grafana".formatted(dashboardUid, chart.panelId())));
+            if (validateCharts) {
+                grafanaDashboardPanelRepository.findByUidAndPanelId(dashboardUid, chart.panelId())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "График %s (panelId=%s) не найден в кэше Grafana".formatted(dashboardUid, chart.panelId())));
+            }
             charts.add(new SanitizedChart(title, dashboardUid, chart.panelId(), index));
         }
 
@@ -218,7 +231,7 @@ public class ConfluenceTemplateSettingsService {
                 reportTitle,
                 templateType,
                 templatePageId,
-                command.text() == null ? "" : command.text(),
+                text,
                 List.copyOf(charts));
     }
 
