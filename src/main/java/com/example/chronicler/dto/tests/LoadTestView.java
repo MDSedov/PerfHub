@@ -14,6 +14,7 @@ public record LoadTestView(
         String end,
         String type,
         String release,
+        String jiraReleaseIssueUrl,
         boolean hasSavedConfiguration,
         long durationSeconds,
         RequirementComplianceView requirementCompliance,
@@ -35,6 +36,15 @@ public record LoadTestView(
 
     public static LoadTestView fromModel(
             LoadTest loadTest, RequirementComplianceView compliance, String release, boolean hasSavedConfiguration) {
+        return fromModel(loadTest, compliance, release, null, hasSavedConfiguration);
+    }
+
+    public static LoadTestView fromModel(
+            LoadTest loadTest,
+            RequirementComplianceView compliance,
+            String release,
+            String jiraReleaseIssueUrl,
+            boolean hasSavedConfiguration) {
         LoadTestType type = loadTest.type() == null ? LoadTestType.UNKNOWN : loadTest.type();
         return new LoadTestView(
                 loadTest.id().toString(),
@@ -42,6 +52,7 @@ public record LoadTestView(
                 formatInstant(loadTest.end()),
                 type.value(),
                 normalizeRelease(release),
+                normalizeRelease(jiraReleaseIssueUrl),
                 hasSavedConfiguration,
                 calculateDurationSeconds(loadTest.start(), loadTest.end()),
                 compliance,

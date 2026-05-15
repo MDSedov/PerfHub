@@ -8,6 +8,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,20 +24,20 @@ import org.springframework.util.CollectionUtils;
 public class DropAppConfigurationSnapshotRepository {
 
     private static final String SELECT_ALL_SNAPSHOTS_SQL = """
-            SELECT id, test_uuid, release, comment, namespaces, components, saved_at
+            SELECT id, test_uuid, release, jira_release_issue_key, jira_release_issue_url, comment, namespaces, components, saved_at
             FROM dropapp_configuration_snapshots
             WHERE test_uuid IS NULL
             ORDER BY saved_at DESC, id DESC
             """;
 
     private static final String SELECT_SNAPSHOT_BY_ID_SQL = """
-            SELECT id, test_uuid, release, comment, namespaces, components, saved_at
+            SELECT id, test_uuid, release, jira_release_issue_key, jira_release_issue_url, comment, namespaces, components, saved_at
             FROM dropapp_configuration_snapshots
             WHERE id = ?
             """;
 
     private static final String SELECT_LATEST_SNAPSHOT_BY_TEST_SQL = """
-            SELECT id, test_uuid, release, comment, namespaces, components, saved_at
+            SELECT id, test_uuid, release, jira_release_issue_key, jira_release_issue_url, comment, namespaces, components, saved_at
             FROM dropapp_configuration_snapshots
             WHERE test_uuid = ?
             ORDER BY saved_at DESC, id DESC
@@ -44,14 +45,29 @@ public class DropAppConfigurationSnapshotRepository {
             """;
 
     private static final String INSERT_SNAPSHOT_SQL = """
-            INSERT INTO dropapp_configuration_snapshots (test_uuid, release, comment, namespaces, components, saved_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO dropapp_configuration_snapshots
+                (test_uuid, release, jira_release_issue_key, jira_release_issue_url, comment, namespaces, components, saved_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String UPDATE_SNAPSHOT_SQL = """
             UPDATE dropapp_configuration_snapshots
-            SET release = ?, comment = ?
+            SET release = ?, jira_release_issue_key = ?, jira_release_issue_url = ?, comment = ?
             WHERE id = ?
+            """;
+
+    private static final String SELECT_RELEASE_ISSUE_URLS_BY_TEST_SQL = """
+            SELECT test_uuid, jira_release_issue_url
+            FROM (
+                SELECT test_uuid,
+                       jira_release_issue_url,
+                       ROW_NUMBER() OVER (PARTITION BY test_uuid ORDER BY saved_at DESC, id DESC) AS row_number
+                FROM dropapp_configuration_snapshots
+                WHERE test_uuid IN (%s)
+                  AND jira_release_issue_url IS NOT NULL
+                  AND LENGTH(jira_release_issue_url) > 0
+            ) latest
+            WHERE row_number = 1
             """;
 
     private static final String DELETE_SNAPSHOT_SQL = """
@@ -141,12 +157,14 @@ public class DropAppConfigurationSnapshotRepository {
     }
 
     public long insertSnapshot(String release, String comment, String namespaces, String components, Instant savedAt) {
-        return insertSnapshot(null, release, comment, namespaces, components, savedAt);
+        return insertSnapshot(null, release, null, null, comment, namespaces, components, savedAt);
     }
 
     public long insertSnapshot(
             UUID testUuid,
             String release,
+            String jiraReleaseIssueKey,
+            String jiraReleaseIssueUrl,
             String comment,
             String namespaces,
             String components,
@@ -156,10 +174,12 @@ public class DropAppConfigurationSnapshotRepository {
             PreparedStatement ps = connection.prepareStatement(INSERT_SNAPSHOT_SQL, new String[] {"id"});
             ps.setObject(1, testUuid);
             ps.setString(2, release);
-            ps.setString(3, comment);
-            ps.setString(4, namespaces);
-            ps.setString(5, components);
-            ps.setTimestamp(6, savedAt != null ? Timestamp.from(savedAt) : Timestamp.from(Instant.now()));
+            ps.setString(3, jiraReleaseIssueKey);
+            ps.setString(4, jiraReleaseIssueUrl);
+            ps.setString(5, comment);
+            ps.setString(6, namespaces);
+            ps.setString(7, components);
+            ps.setTimestamp(8, savedAt != null ? Timestamp.from(savedAt) : Timestamp.from(Instant.now()));
             return ps;
         }, keyHolder);
         Number key = null;
@@ -184,8 +204,39 @@ public class DropAppConfigurationSnapshotRepository {
         return key.longValue();
     }
 
-    public void updateSnapshot(long snapshotId, String release, String comment) {
-        jdbcTemplate.update(UPDATE_SNAPSHOT_SQL, release, comment, snapshotId);
+    public Map<UUID, String> findLatestJiraReleaseIssueUrlsByTestUuids(List<UUID> testUuids) {
+        if (CollectionUtils.isEmpty(testUuids)) {
+            return Map.of();
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(testUuids.size(), "?"));
+        List<Object> args = testUuids.stream().map(uuid -> (Object) uuid).toList();
+        return jdbcTemplate.query(
+                SELECT_RELEASE_ISSUE_URLS_BY_TEST_SQL.formatted(placeholders),
+                ps -> {
+                    for (int index = 0; index < args.size(); index++) {
+                        ps.setObject(index + 1, args.get(index));
+                    }
+                },
+                rs -> {
+                    Map<UUID, String> result = new HashMap<>();
+                    while (rs.next()) {
+                        UUID testUuid = rs.getObject("test_uuid", UUID.class);
+                        String url = rs.getString("jira_release_issue_url");
+                        if (testUuid != null && url != null && !url.isBlank()) {
+                            result.put(testUuid, url);
+                        }
+                    }
+                    return result;
+                });
+    }
+
+    public void updateSnapshot(
+            long snapshotId,
+            String release,
+            String jiraReleaseIssueKey,
+            String jiraReleaseIssueUrl,
+            String comment) {
+        jdbcTemplate.update(UPDATE_SNAPSHOT_SQL, release, jiraReleaseIssueKey, jiraReleaseIssueUrl, comment, snapshotId);
     }
 
     public int deleteSnapshot(long snapshotId) {
@@ -247,6 +298,8 @@ public class DropAppConfigurationSnapshotRepository {
                 rs.getObject("id", Long.class),
                 rs.getObject("test_uuid", UUID.class),
                 rs.getString("release"),
+                rs.getString("jira_release_issue_key"),
+                rs.getString("jira_release_issue_url"),
                 rs.getString("comment"),
                 rs.getString("namespaces"),
                 rs.getString("components"),

@@ -8,6 +8,8 @@ public record DropAppConfigurationSnapshot(
         Long id,
         UUID testUuid,
         String release,
+        String jiraReleaseIssueKey,
+        String jiraReleaseIssueUrl,
         String comment,
         String namespaces,
         String components,

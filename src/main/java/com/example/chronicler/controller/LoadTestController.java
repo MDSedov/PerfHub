@@ -53,12 +53,14 @@ public class LoadTestController {
         List<LoadTest> tests = loadTestRepository.findAllOrderByStartDesc();
         List<UUID> testIds = tests.stream().map(LoadTest::id).collect(Collectors.toList());
         Map<UUID, String> releases = kubernetesConfigurationService.findMaxReleases(testIds);
+        Map<UUID, String> jiraReleaseIssueUrls = kubernetesConfigurationService.findJiraReleaseIssueUrls(testIds);
         Set<UUID> configuredTests = kubernetesConfigurationService.findConfiguredTestIds(testIds);
         return tests.stream()
                 .map(loadTest -> LoadTestView.fromModel(
                         loadTest,
                         buildComplianceView(loadTest),
                         releases.get(loadTest.id()),
+                        jiraReleaseIssueUrls.get(loadTest.id()),
                         configuredTests.contains(loadTest.id())))
                 .collect(Collectors.toList());
     }
@@ -97,6 +99,7 @@ public class LoadTestController {
                 updated,
                 buildComplianceView(updated),
                 kubernetesConfigurationService.findMaxRelease(testUuid),
+                jiraReleaseIssueUrl(testUuid),
                 kubernetesConfigurationService.hasConfiguration(testUuid));
     }
 
@@ -113,6 +116,7 @@ public class LoadTestController {
                 updated,
                 buildComplianceView(updated),
                 kubernetesConfigurationService.findMaxRelease(testUuid),
+                jiraReleaseIssueUrl(testUuid),
                 kubernetesConfigurationService.hasConfiguration(testUuid));
     }
 
@@ -134,10 +138,15 @@ public class LoadTestController {
                 updated,
                 buildComplianceView(updated),
                 kubernetesConfigurationService.findMaxRelease(testUuid),
+                jiraReleaseIssueUrl(testUuid),
                 kubernetesConfigurationService.hasConfiguration(testUuid));
     }
 
     private RequirementComplianceView buildComplianceView(LoadTest loadTest) {
         return requirementEvaluationService.buildComplianceView(loadTest);
+    }
+
+    private String jiraReleaseIssueUrl(UUID testUuid) {
+        return kubernetesConfigurationService.findJiraReleaseIssueUrls(List.of(testUuid)).get(testUuid);
     }
 }

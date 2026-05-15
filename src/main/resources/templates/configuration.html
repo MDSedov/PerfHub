@@ -401,6 +401,27 @@
 
         const normalizeReleaseValue = (value) => normalizeText(value);
 
+        const getJiraReleaseIssueUrl = (source) => normalizeReleaseValue(source?.jiraReleaseIssueUrl);
+
+        const createReleaseValueNode = (release, issueUrl) => {
+            const normalizedRelease = normalizeReleaseValue(release);
+            const normalizedUrl = normalizeReleaseValue(issueUrl);
+            if (!normalizedRelease) {
+                return document.createTextNode('—');
+            }
+            if (!normalizedUrl) {
+                return document.createTextNode(normalizedRelease);
+            }
+            const link = document.createElement('a');
+            link.className = 'release-issue-link';
+            link.href = normalizedUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.title = 'Открыть задачу релиза в Jira';
+            link.textContent = normalizedRelease;
+            return link;
+        };
+
         const compareReleaseValues = (left, right) => {
             const normalizedLeft = normalizeReleaseValue(left);
             const normalizedRight = normalizeReleaseValue(right);
@@ -818,6 +839,18 @@
             row.appendChild(cell);
         };
 
+        const appendReleaseCell = (row, release, issueUrl, className = '', rowSpan = 1) => {
+            const cell = document.createElement('td');
+            if (className) {
+                cell.className = className;
+            }
+            if (rowSpan > 1) {
+                cell.rowSpan = rowSpan;
+            }
+            cell.appendChild(createReleaseValueNode(release, issueUrl));
+            row.appendChild(cell);
+        };
+
         const isResourceConfigurationItem = (item) => {
             const serviceName = normalizeText(item?.serviceName)?.toLowerCase() ?? '';
             const podCount = Number(item?.podCount);
@@ -908,9 +941,17 @@
             return section;
         };
 
-        const createMetaCard = (label, value, extraClass = '') => {
-            const card = document.createElement('div');
-            card.className = `configuration-meta-card${extraClass ? ` ${extraClass}` : ''}`;
+        const createMetaCard = (label, value, extraClass = '', issueUrl = null) => {
+            const normalizedUrl = normalizeReleaseValue(issueUrl);
+            const hasLink = normalizeReleaseValue(value) && normalizedUrl;
+            const card = document.createElement(hasLink ? 'a' : 'div');
+            card.className = `configuration-meta-card${extraClass ? ` ${extraClass}` : ''}${hasLink ? ' configuration-meta-link-card' : ''}`;
+            if (hasLink) {
+                card.href = normalizedUrl;
+                card.target = '_blank';
+                card.rel = 'noopener noreferrer';
+                card.title = 'Открыть задачу релиза в Jira';
+            }
 
             const kicker = document.createElement('div');
             kicker.className = 'configuration-meta-label';
@@ -1102,9 +1143,10 @@
                 ));
             }
             if (normalizedMode === 'saved') {
+                metaGrid.appendChild(createMetaCard('Релиз', payload?.release, '', payload?.jiraReleaseIssueUrl));
                 metaGrid.appendChild(createMetaCard('YAML документов', String(documents.length)));
             } else {
-                metaGrid.appendChild(createMetaCard('Релиз', payload?.release));
+                metaGrid.appendChild(createMetaCard('Релиз', payload?.release, '', payload?.jiraReleaseIssueUrl));
                 metaGrid.appendChild(createMetaCard('Комментарий', payload?.comment, 'configuration-meta-card-wide'));
             }
             metaSection.appendChild(metaGrid);
@@ -1232,7 +1274,7 @@
             savedItems.forEach(item => {
                 const row = document.createElement('tr');
                 appendCell(row, item?.savedAt);
-                appendCell(row, item?.release);
+                appendReleaseCell(row, item?.release, getJiraReleaseIssueUrl(item));
                 appendCell(row, item?.comment);
 
                 const actionsCell = document.createElement('td');

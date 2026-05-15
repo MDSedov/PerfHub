@@ -3,6 +3,7 @@ package com.example.chronicler.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.chronicler.dto.jira.JiraReleaseIssue;
 import com.example.chronicler.exception.JiraClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.util.Map;
@@ -78,6 +79,38 @@ class JiraClientTest {
                 .isInstanceOf(JiraClientException.class)
                 .hasMessageContaining("HTTP 401")
                 .hasMessageContaining("Token is invalid");
+    }
+
+    @Test
+    void findReleaseIssueByReleaseShouldMatchVersionDescriptionAndBuildIssueUrl() {
+        JiraClient client = new JiraClient(restTemplate, new InMemoryConfigurationProvider(Map.of(
+                key("base-url"), "https://jira.example",
+                key("api-path"), "/rest/api/2",
+                key("personal-access-token"), "jira-token",
+                key("project-name"), "EPROFILE")));
+
+        mockServer.expect(MockRestRequestMatchers.requestTo("https://jira.example/rest/api/2/project/EPROFILE/versions"))
+                .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer jira-token"))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        [
+                          {"name":"EPROFILE-4150","description":"2.17.0"},
+                          {"name":"EPROFILE-4151","description":"2.18.0"}
+                        ]
+                        """, MediaType.APPLICATION_JSON));
+
+        Optional<JiraReleaseIssue> result = client.findReleaseIssueByRelease("2.18.0");
+
+        mockServer.verify();
+        assertThat(result).hasValue(new JiraReleaseIssue("EPROFILE-4151", "https://jira.example/browse/EPROFILE-4151"));
+    }
+
+    @Test
+    void isConfiguredForReleaseLookupShouldRequireProjectName() {
+        JiraClient client = new JiraClient(restTemplate, new InMemoryConfigurationProvider(Map.of(
+                key("base-url"), "https://jira.example",
+                key("personal-access-token"), "jira-token")));
+
+        assertThat(client.isConfiguredForReleaseLookup()).isFalse();
     }
 
     private static String key(String key) {

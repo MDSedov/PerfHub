@@ -1,9 +1,12 @@
 package com.example.chronicler.client;
 
+import com.example.chronicler.dto.jira.JiraReleaseIssue;
 import com.example.chronicler.exception.JiraClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -31,6 +34,7 @@ public class JiraClient {
     private static final String BASE_URL_KEY = "base-url";
     private static final String API_PATH_KEY = "api-path";
     private static final String TOKEN_KEY = "personal-access-token";
+    private static final String PROJECT_NAME_KEY = "project-name";
     private static final String DEFAULT_API_PATH = "/rest/api/2";
 
     private final RestTemplate restTemplate;
@@ -54,6 +58,49 @@ public class JiraClient {
             return response.getStatusCode().toString();
         } catch (RestClientException ex) {
             throw new JiraClientException(buildErrorMessage("Failed to check Jira connection", ex), ex);
+        } catch (IllegalArgumentException ex) {
+            throw new JiraClientException("Invalid Jira connection configuration: " + ex.getMessage(), ex);
+        }
+    }
+
+    public boolean isConfiguredForReleaseLookup() {
+        return hasConfiguredValue(BASE_URL_KEY)
+                && hasConfiguredValue(TOKEN_KEY)
+                && hasConfiguredValue(PROJECT_NAME_KEY);
+    }
+
+    public Optional<JiraReleaseIssue> findReleaseIssueByRelease(String release) {
+        String normalizedRelease = normalizeText(release);
+        if (!StringUtils.hasText(normalizedRelease)) {
+            return Optional.empty();
+        }
+        String projectName = required(PROJECT_NAME_KEY).trim();
+        URI uri = apiUriBuilder()
+                .pathSegment("project", projectName, "versions")
+                .build()
+                .encode()
+                .toUri();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON, MediaType.ALL));
+        headers.setBearerAuth(required(TOKEN_KEY));
+
+        try {
+            ResponseEntity<JiraVersion[]> response =
+                    restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), JiraVersion[].class);
+            JiraVersion[] versions = response.getBody();
+            if (versions == null || versions.length == 0) {
+                return Optional.empty();
+            }
+            return Arrays.stream(versions)
+                    .filter(version -> version != null)
+                    .filter(version -> normalizedRelease.equals(normalizeText(version.description())))
+                    .map(JiraVersion::name)
+                    .map(this::normalizeText)
+                    .filter(StringUtils::hasText)
+                    .findFirst()
+                    .map(key -> new JiraReleaseIssue(key, buildIssueUrl(key)));
+        } catch (RestClientException ex) {
+            throw new JiraClientException(buildErrorMessage("Failed to load Jira project versions", ex), ex);
         } catch (IllegalArgumentException ex) {
             throw new JiraClientException("Invalid Jira connection configuration: " + ex.getMessage(), ex);
         }
@@ -94,6 +141,28 @@ public class JiraClient {
                             .formatted(SERVICE, key),
                     ex);
         }
+    }
+
+    private boolean hasConfiguredValue(String key) {
+        return configurationProvider.findValue(SERVICE, key)
+                .map(this::normalizeText)
+                .filter(StringUtils::hasText)
+                .isPresent();
+    }
+
+    private String buildIssueUrl(String key) {
+        return UriComponentsBuilder.fromHttpUrl(baseUrl())
+                .pathSegment("browse", key)
+                .build()
+                .encode()
+                .toUriString();
+    }
+
+    private String normalizeText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 
     private String buildErrorMessage(String prefix, RestClientException ex) {
@@ -137,4 +206,6 @@ public class JiraClient {
         }
         return message.substring(0, 297) + "...";
     }
+
+    private record JiraVersion(String name, String description) {}
 }

@@ -19,6 +19,8 @@ import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
 import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
 import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
+import com.example.chronicler.client.JiraClient;
+import com.example.chronicler.dto.jira.JiraReleaseIssue;
 import com.example.chronicler.exception.DropAppClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
@@ -46,6 +48,9 @@ class DropAppConfigurationSnapshotServiceTest {
     @Mock
     private StandConfigurationSettingsService standConfigurationSettingsService;
 
+    @Mock
+    private JiraClient jiraClient;
+
     private DropAppConfigurationSnapshotService service;
 
     @BeforeEach
@@ -54,10 +59,12 @@ class DropAppConfigurationSnapshotServiceTest {
                 .thenReturn(DropAppConfigurationComponent.defaultSelection());
         lenient().when(standConfigurationSettingsService.resolveServices(any())).thenReturn(List.of());
         lenient().when(standConfigurationSettingsService.resolveNamespaces()).thenReturn(List.of("ns-a"));
+        lenient().when(jiraClient.isConfiguredForReleaseLookup()).thenReturn(false);
         service = new DropAppConfigurationSnapshotService(
                 repository,
                 dropAppService,
-                standConfigurationSettingsService);
+                standConfigurationSettingsService,
+                jiraClient);
     }
 
     @Test
@@ -110,11 +117,12 @@ class DropAppConfigurationSnapshotServiceTest {
         DropAppConfigurationItemDto item = new DropAppConfigurationItemDto(
                 "ns-a", null, "pod-1", "container-1", "1.0.0", "2.12.1", "100m", "200m", "256Mi", "512Mi");
         Instant savedAt = Instant.parse("2026-04-03T10:15:30Z");
-        when(repository.insertSnapshot(isNull(), eq("2.12.7"), eq("комментарий"), eq("ns-a"), eq(null), any(Instant.class)))
+        when(repository.insertSnapshot(
+                        isNull(), eq("2.12.7"), eq(null), eq(null), eq("комментарий"), eq("ns-a"), eq(null), any(Instant.class)))
                 .thenReturn(42L);
         when(repository.findSnapshotById(42L))
                 .thenReturn(Optional.of(new DropAppConfigurationSnapshot(
-                        42L, null, "2.12.7", "комментарий", "ns-a", null, savedAt)));
+                        42L, null, "2.12.7", null, null, "комментарий", "ns-a", null, savedAt)));
         when(repository.findItemsBySnapshotId(42L))
                 .thenReturn(List.of(new DropAppConfigurationSnapshotItem(
                         1L, 42L, "ns-a", null, "pod-1", "container-1", "1.0.0", "2.12.1", "100m", "200m", "256Mi", "512Mi")));
@@ -152,11 +160,12 @@ class DropAppConfigurationSnapshotServiceTest {
                         "configmaps",
                         "cm-main",
                         "apiVersion: v1\nkind: ConfigMap")));
-        when(repository.insertSnapshot(isNull(), eq("2.12.7"), eq("для стенда A"), eq("ns-a"), eq("pods, configmaps"), any(Instant.class)))
+        when(repository.insertSnapshot(
+                        isNull(), eq("2.12.7"), eq(null), eq(null), eq("для стенда A"), eq("ns-a"), eq("pods, configmaps"), any(Instant.class)))
                 .thenReturn(55L);
         when(repository.findSnapshotById(55L))
                 .thenReturn(Optional.of(new DropAppConfigurationSnapshot(
-                        55L, null, "2.12.7", "для стенда A", "ns-a", "pods, configmaps", savedAt)));
+                        55L, null, "2.12.7", null, null, "для стенда A", "ns-a", "pods, configmaps", savedAt)));
         when(repository.findItemsBySnapshotId(55L))
                 .thenReturn(List.of(
                         new DropAppConfigurationSnapshotItem(
@@ -190,6 +199,54 @@ class DropAppConfigurationSnapshotServiceTest {
     }
 
     @Test
+    void captureCurrentConfigurationStoresJiraReleaseIssueWhenConfigured() {
+        Instant savedAt = Instant.parse("2026-04-03T10:15:30Z");
+        when(dropAppService.resolveNamespaces(List.of("ns-a"))).thenReturn(List.of("ns-a"));
+        when(dropAppService.loadConfiguration(any(), any(), any()))
+                .thenReturn(List.of(new DropAppPodConfiguration(
+                        "ns-a", "Pod", "pod-1", "container-1", "1.0.0", "2.18.0", "100m", "200m", "256Mi", "512Mi")));
+        when(dropAppService.loadConfigurationDocuments(any(), any(), any())).thenReturn(List.of());
+        when(jiraClient.isConfiguredForReleaseLookup()).thenReturn(true);
+        when(jiraClient.findReleaseIssueByRelease("2.18.0"))
+                .thenReturn(Optional.of(new JiraReleaseIssue(
+                        "EPROFILE-4151",
+                        "https://jira.example/browse/EPROFILE-4151")));
+        when(repository.insertSnapshot(
+                        isNull(),
+                        eq("2.18.0"),
+                        eq("EPROFILE-4151"),
+                        eq("https://jira.example/browse/EPROFILE-4151"),
+                        eq(null),
+                        eq("ns-a"),
+                        eq("pods"),
+                        any(Instant.class)))
+                .thenReturn(57L);
+        when(repository.findSnapshotById(57L))
+                .thenReturn(Optional.of(new DropAppConfigurationSnapshot(
+                        57L,
+                        null,
+                        "2.18.0",
+                        "EPROFILE-4151",
+                        "https://jira.example/browse/EPROFILE-4151",
+                        null,
+                        "ns-a",
+                        "pods",
+                        savedAt)));
+        when(repository.findItemsBySnapshotId(57L))
+                .thenReturn(List.of(new DropAppConfigurationSnapshotItem(
+                        1L, 57L, "ns-a", "Pod", "pod-1", "container-1", "1.0.0", "2.18.0", "100m", "200m", "256Mi", "512Mi")));
+        when(repository.findDocumentsBySnapshotId(57L)).thenReturn(List.of());
+
+        DropAppConfigurationCaptureResponse result = service.captureCurrentConfiguration(
+                new DropAppConfigurationCaptureRequest(List.of("ns-a"), List.of("pods"), null));
+
+        verify(jiraClient).findReleaseIssueByRelease("2.18.0");
+        assertThat(result.release()).isEqualTo("2.18.0");
+        assertThat(result.jiraReleaseIssueKey()).isEqualTo("EPROFILE-4151");
+        assertThat(result.jiraReleaseIssueUrl()).isEqualTo("https://jira.example/browse/EPROFILE-4151");
+    }
+
+    @Test
     void captureCurrentConfigurationFiltersSelectedServicesBeforeResolvingRelease() {
         Instant savedAt = Instant.parse("2026-04-03T10:15:30Z");
         when(dropAppService.resolveNamespaces(List.of("ns-a"))).thenReturn(List.of("ns-a"));
@@ -207,11 +264,12 @@ class DropAppConfigurationSnapshotServiceTest {
                         "configmaps",
                         "billing-config",
                         "apiVersion: v1\nkind: ConfigMap")));
-        when(repository.insertSnapshot(isNull(), eq("2.12.7"), eq(null), eq("ns-a"), eq("pods, configmaps"), any(Instant.class)))
+        when(repository.insertSnapshot(
+                        isNull(), eq("2.12.7"), eq(null), eq(null), eq(null), eq("ns-a"), eq("pods, configmaps"), any(Instant.class)))
                 .thenReturn(56L);
         when(repository.findSnapshotById(56L))
                 .thenReturn(Optional.of(new DropAppConfigurationSnapshot(
-                        56L, null, "2.12.7", null, "ns-a", "pods, configmaps", savedAt)));
+                        56L, null, "2.12.7", null, null, null, "ns-a", "pods, configmaps", savedAt)));
         when(repository.findItemsBySnapshotId(56L))
                 .thenReturn(List.of(
                         new DropAppConfigurationSnapshotItem(
@@ -252,6 +310,8 @@ class DropAppConfigurationSnapshotServiceTest {
                                 77L,
                                 null,
                                 "2.12.7",
+                                null,
+                                null,
                                 "старый комментарий",
                                 "ns-a",
                                 "pods, services",
@@ -260,6 +320,8 @@ class DropAppConfigurationSnapshotServiceTest {
                                 77L,
                                 null,
                                 "2.12.8",
+                                null,
+                                null,
                                 "новый комментарий",
                                 "ns-a",
                                 "pods, services",
@@ -275,7 +337,7 @@ class DropAppConfigurationSnapshotServiceTest {
                 77L,
                 new DropAppConfigurationSnapshotUpdateRequest("2.12.8", "новый комментарий"));
 
-        verify(repository).updateSnapshot(77L, "2.12.8", "новый комментарий");
+        verify(repository).updateSnapshot(77L, "2.12.8", null, null, "новый комментарий");
         assertThat(result.release()).isEqualTo("2.12.8");
         assertThat(result.comment()).isEqualTo("новый комментарий");
         assertThat(result.components()).containsExactly("pods", "services");

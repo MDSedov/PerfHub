@@ -55,6 +55,13 @@ public class KubernetesConfigurationService {
         return repository.findConfiguredTestIds(testUuids);
     }
 
+    public Map<UUID, String> findJiraReleaseIssueUrls(Collection<UUID> testUuids) {
+        if (testUuids == null || testUuids.isEmpty()) {
+            return Map.of();
+        }
+        return snapshotService.findLatestJiraReleaseIssueUrlsByTestUuids(testUuids.stream().toList());
+    }
+
     public String findMaxRelease(UUID testUuid) {
         return repository.findMaxRelease(testUuid);
     }
@@ -173,6 +180,8 @@ public class KubernetesConfigurationService {
                 null,
                 DateTimeViewUtils.formatInstant(capturedAt),
                 release,
+                null,
+                null,
                 null,
                 namespaces,
                 List.of(),

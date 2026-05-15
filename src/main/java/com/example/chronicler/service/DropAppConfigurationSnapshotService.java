@@ -1,5 +1,6 @@
 package com.example.chronicler.service;
 
+import com.example.chronicler.client.JiraClient;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureRequest;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureResponse;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationDocumentDto;
@@ -13,7 +14,9 @@ import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
 import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
 import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
 import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
+import com.example.chronicler.dto.jira.JiraReleaseIssue;
 import com.example.chronicler.exception.DropAppClientException;
+import com.example.chronicler.exception.JiraClientException;
 import com.example.chronicler.model.DropAppConfigurationComponent;
 import com.example.chronicler.model.DropAppConfigurationSnapshot;
 import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
@@ -31,6 +34,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -55,14 +59,17 @@ public class DropAppConfigurationSnapshotService {
     private final DropAppConfigurationSnapshotRepository repository;
     private final DropAppService dropAppService;
     private final StandConfigurationSettingsService standConfigurationSettingsService;
+    private final JiraClient jiraClient;
 
     public DropAppConfigurationSnapshotService(
             DropAppConfigurationSnapshotRepository repository,
             DropAppService dropAppService,
-            StandConfigurationSettingsService standConfigurationSettingsService) {
+            StandConfigurationSettingsService standConfigurationSettingsService,
+            JiraClient jiraClient) {
         this.repository = repository;
         this.dropAppService = dropAppService;
         this.standConfigurationSettingsService = standConfigurationSettingsService;
+        this.jiraClient = jiraClient;
     }
 
     public DropAppNamespaceOptionsDto getNamespaceOptions() {
@@ -138,6 +145,8 @@ public class DropAppConfigurationSnapshotService {
                 savedSnapshot.id(),
                 savedSnapshot.savedAt(),
                 savedSnapshot.release(),
+                savedSnapshot.jiraReleaseIssueKey(),
+                savedSnapshot.jiraReleaseIssueUrl(),
                 savedSnapshot.comment(),
                 savedSnapshot.namespaces(),
                 savedSnapshot.components(),
@@ -179,6 +188,10 @@ public class DropAppConfigurationSnapshotService {
         return repository.findAllSnapshots().stream()
                 .map(this::toSummaryDto)
                 .toList();
+    }
+
+    public Map<UUID, String> findLatestJiraReleaseIssueUrlsByTestUuids(List<UUID> testUuids) {
+        return repository.findLatestJiraReleaseIssueUrlsByTestUuids(testUuids);
     }
 
     public Optional<DropAppConfigurationSnapshotDetailsDto> findSnapshotDetails(Long snapshotId) {
@@ -232,10 +245,24 @@ public class DropAppConfigurationSnapshotService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Сохраненная конфигурация DropApp не найдена"));
 
+        String currentRelease = normalizeText(snapshot.release());
+        String release = normalizeText(request != null ? request.release() : snapshot.release());
+        String comment = normalizeText(request != null ? request.comment() : snapshot.comment());
+        String jiraReleaseIssueKey = normalizeText(snapshot.jiraReleaseIssueKey());
+        String jiraReleaseIssueUrl = normalizeText(snapshot.jiraReleaseIssueUrl());
+        if (!Objects.equals(currentRelease, release)
+                || (StringUtils.hasText(release) && !StringUtils.hasText(jiraReleaseIssueUrl))) {
+            Optional<JiraReleaseIssue> jiraReleaseIssue = resolveJiraReleaseIssue(release);
+            jiraReleaseIssueKey = jiraReleaseIssue.map(JiraReleaseIssue::key).orElse(null);
+            jiraReleaseIssueUrl = jiraReleaseIssue.map(JiraReleaseIssue::url).orElse(null);
+        }
+
         repository.updateSnapshot(
                 snapshotId,
-                normalizeText(request != null ? request.release() : snapshot.release()),
-                normalizeText(request != null ? request.comment() : snapshot.comment()));
+                release,
+                jiraReleaseIssueKey,
+                jiraReleaseIssueUrl,
+                comment);
 
         return findSnapshotDetails(snapshotId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -323,11 +350,14 @@ public class DropAppConfigurationSnapshotService {
         String serializedNamespaces = namespaces.isEmpty() ? null : String.join(", ", namespaces);
         List<String> componentCodes = normalizeComponents(requestedComponents);
         String serializedComponents = componentCodes.isEmpty() ? null : String.join(", ", componentCodes);
+        Optional<JiraReleaseIssue> jiraReleaseIssue = resolveJiraReleaseIssue(release);
         Instant now = Instant.now();
 
         long snapshotId = repository.insertSnapshot(
                 testUuid,
                 release,
+                jiraReleaseIssue.map(JiraReleaseIssue::key).orElse(null),
+                jiraReleaseIssue.map(JiraReleaseIssue::url).orElse(null),
                 comment,
                 serializedNamespaces,
                 serializedComponents,
@@ -386,6 +416,8 @@ public class DropAppConfigurationSnapshotService {
                 snapshot.id(),
                 DateTimeViewUtils.formatInstant(snapshot.savedAt()),
                 normalizeText(snapshot.release()),
+                normalizeText(snapshot.jiraReleaseIssueKey()),
+                normalizeText(snapshot.jiraReleaseIssueUrl()),
                 normalizeText(snapshot.comment()));
     }
 
@@ -397,6 +429,8 @@ public class DropAppConfigurationSnapshotService {
                 snapshot.id(),
                 DateTimeViewUtils.formatInstant(snapshot.savedAt()),
                 normalizeText(snapshot.release()),
+                normalizeText(snapshot.jiraReleaseIssueKey()),
+                normalizeText(snapshot.jiraReleaseIssueUrl()),
                 normalizeText(snapshot.comment()),
                 parseCommaSeparatedValues(snapshot.namespaces()),
                 parseComponents(snapshot.components()),
@@ -483,6 +517,18 @@ public class DropAppConfigurationSnapshotService {
                 .toList());
     }
 
+    private Optional<JiraReleaseIssue> resolveJiraReleaseIssue(String release) {
+        if (!StringUtils.hasText(release) || !jiraClient.isConfiguredForReleaseLookup()) {
+            return Optional.empty();
+        }
+        try {
+            return jiraClient.findReleaseIssueByRelease(release);
+        } catch (JiraClientException ex) {
+            log.warn("Не удалось найти задачу релиза {} в Jira: {}", release, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
     private List<String> parseComponents(String components) {
         return parseCommaSeparatedValues(components).stream()
                 .map(this::normalizeComponent)
@@ -551,6 +597,8 @@ public class DropAppConfigurationSnapshotService {
         lines.add("Snapshot ID: " + valueOrDash(details.id()));
         lines.add("Saved At: " + valueOrDash(details.savedAt()));
         lines.add("Release: " + valueOrDash(details.release()));
+        lines.add("Jira Release Issue: " + valueOrDash(details.jiraReleaseIssueKey()));
+        lines.add("Jira Release Issue URL: " + valueOrDash(details.jiraReleaseIssueUrl()));
         lines.add("Comment: " + valueOrDash(details.comment()));
         lines.add("Namespaces: " + joinOrDash(details.namespaces()));
         lines.add("Components: " + joinOrDash(details.components()));

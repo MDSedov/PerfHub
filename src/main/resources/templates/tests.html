@@ -2340,12 +2340,45 @@
         return normalizeReleaseValue(test.release);
     }
 
+    function getJiraReleaseIssueUrl(source) {
+        return normalizeReleaseValue(source?.jiraReleaseIssueUrl);
+    }
+
+    function createReleaseValueNode(release, issueUrl) {
+        const normalizedRelease = normalizeReleaseValue(release);
+        const normalizedUrl = normalizeReleaseValue(issueUrl);
+        if (!normalizedRelease) {
+            return document.createTextNode('—');
+        }
+        if (!normalizedUrl) {
+            return document.createTextNode(normalizedRelease);
+        }
+        const link = document.createElement('a');
+        link.className = 'release-issue-link';
+        link.href = normalizedUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.title = 'Открыть задачу релиза в Jira';
+        link.textContent = normalizedRelease;
+        return link;
+    }
+
+    function renderReleaseCell(cell, release, issueUrl) {
+        if (!cell) {
+            return;
+        }
+        cell.innerHTML = '';
+        cell.appendChild(createReleaseValueNode(release, issueUrl));
+    }
+
     function normalizeConfigurationPayload(payload) {
         if (Array.isArray(payload)) {
             return {
                 id: null,
                 savedAt: null,
                 release: null,
+                jiraReleaseIssueKey: null,
+                jiraReleaseIssueUrl: null,
                 comment: null,
                 namespaces: [],
                 components: [],
@@ -2357,6 +2390,8 @@
             id: payload?.id ?? null,
             savedAt: normalizeReleaseValue(payload?.savedAt),
             release: normalizeReleaseValue(payload?.release),
+            jiraReleaseIssueKey: normalizeReleaseValue(payload?.jiraReleaseIssueKey),
+            jiraReleaseIssueUrl: normalizeReleaseValue(payload?.jiraReleaseIssueUrl),
             comment: normalizeReleaseValue(payload?.comment),
             namespaces: Array.isArray(payload?.namespaces) ? payload.namespaces : [],
             components: Array.isArray(payload?.components) ? payload.components : [],
@@ -2389,20 +2424,23 @@
         return configuration.release ?? deriveReleaseFromConfigurationItems(configuration.items);
     }
 
-    function setTestRelease(testId, release) {
+    function setTestRelease(testId, release, issueUrl = null) {
         const normalized = normalizeReleaseValue(release);
         if (!normalized) {
             return;
         }
         const test = findTestById(testId);
-        if (!test || test.release === normalized) {
+        const normalizedIssueUrl = normalizeReleaseValue(issueUrl);
+        if (!test) {
+            return;
+        }
+        if (test.release === normalized && getJiraReleaseIssueUrl(test) === normalizedIssueUrl) {
             return;
         }
         test.release = normalized;
+        test.jiraReleaseIssueUrl = normalizedIssueUrl;
         const cell = releaseCells.get(testId);
-        if (cell) {
-            cell.textContent = normalized;
-        }
+        renderReleaseCell(cell, normalized, normalizedIssueUrl);
         refreshGenerateReportsModalState();
         updateReleaseOptions(allTests);
         if ((filterState.releases ?? []).length > 0) {
@@ -2410,10 +2448,11 @@
         }
     }
 
-    function updateTestReleaseFromConfiguration(testId, items) {
-        const release = deriveReleaseFromConfiguration(items);
+    function updateTestReleaseFromConfiguration(testId, payload) {
+        const configuration = normalizeConfigurationPayload(payload);
+        const release = configuration.release ?? deriveReleaseFromConfigurationItems(configuration.items);
         if (release) {
-            setTestRelease(testId, release);
+            setTestRelease(testId, release, configuration.jiraReleaseIssueUrl);
         }
     }
 
@@ -3038,9 +3077,17 @@
         return section;
     }
 
-    function createConfigurationMetaCard(label, value, extraClass = '') {
-        const card = document.createElement('div');
-        card.className = `configuration-meta-card${extraClass ? ` ${extraClass}` : ''}`;
+    function createConfigurationMetaCard(label, value, extraClass = '', issueUrl = null) {
+        const normalizedUrl = normalizeReleaseValue(issueUrl);
+        const hasLink = normalizeReleaseValue(value) && normalizedUrl;
+        const card = document.createElement(hasLink ? 'a' : 'div');
+        card.className = `configuration-meta-card${extraClass ? ` ${extraClass}` : ''}${hasLink ? ' configuration-meta-link-card' : ''}`;
+        if (hasLink) {
+            card.href = normalizedUrl;
+            card.target = '_blank';
+            card.rel = 'noopener noreferrer';
+            card.title = 'Открыть задачу релиза в Jira';
+        }
         const kicker = document.createElement('div');
         kicker.className = 'configuration-meta-label';
         kicker.textContent = label;
@@ -3163,7 +3210,7 @@
         metaGrid.className = 'configuration-meta-grid';
         metaGrid.appendChild(createConfigurationMetaCard('Дата сохранения', configuration.savedAt));
         metaGrid.appendChild(createConfigurationMetaCard('Namespace', configuration.namespaces.join(', ')));
-        metaGrid.appendChild(createConfigurationMetaCard('Релиз', configuration.release));
+        metaGrid.appendChild(createConfigurationMetaCard('Релиз', configuration.release, '', configuration.jiraReleaseIssueUrl));
         metaGrid.appendChild(createConfigurationMetaCard('Документов', String(documents.length)));
         metaGrid.appendChild(createConfigurationDownloadCard(testId, configuration));
         metaSection.appendChild(metaGrid);
@@ -3953,7 +4000,7 @@
 
             const releaseCell = document.createElement('td');
             const releaseValue = getReleaseValue(test);
-            releaseCell.textContent = releaseValue ?? '—';
+            renderReleaseCell(releaseCell, releaseValue, getJiraReleaseIssueUrl(test));
             if (test?.id) {
                 releaseCells.set(test.id, releaseCell);
             }
