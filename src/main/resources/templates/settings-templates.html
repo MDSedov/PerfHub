@@ -197,6 +197,7 @@
                                            placeholder="Например, Отчет по релизу @release">
                                     <div class="template-placeholder-actions mt-2" data-placeholder-target="title">
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
+                                        <button type="button" class="template-placeholder-button" data-placeholder-token="@jira_release_task">@jira_release_task</button>
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start">@test_start</button>
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start_date">@test_start_date</button>
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start_time">@test_start_time</button>
@@ -217,6 +218,8 @@
                                         <h6 class="test-details-section-title mb-2">Переменные шаблона</h6>
                                         <div class="template-placeholder-actions" data-placeholder-target="copy">
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@jira_release_task">@jira_release_task</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@jira_release_link">@jira_release_link</button>
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@perfhub_reports_start">@perfhub_reports_start</button>
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@perfhub_reports_end">@perfhub_reports_end</button>
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start">@test_start</button>
@@ -296,6 +299,8 @@
 
                             <div class="template-placeholder-actions mt-3" data-placeholder-target="body">
                                 <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
+                                <button type="button" class="template-placeholder-button" data-placeholder-token="@jira_release_task">@jira_release_task</button>
+                                <button type="button" class="template-placeholder-button" data-placeholder-token="@jira_release_link">@jira_release_link</button>
                                 <button type="button" class="template-placeholder-button" data-placeholder-token="@perfhub_reports_start">@perfhub_reports_start</button>
                                 <button type="button" class="template-placeholder-button" data-placeholder-token="@perfhub_reports_end">@perfhub_reports_end</button>
                                 <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start">@test_start</button>
@@ -409,6 +414,8 @@
     };
     const PLACEHOLDER_DESCRIPTIONS = {
         '@release': 'Номер релиза для отчета.',
+        '@jira_release_task': 'Номер задачи релиза в Jira.',
+        '@jira_release_link': 'Ссылка на задачу релиза в Jira с текстом номера задачи.',
         '@perfhub_reports_start': 'Начало блока со списком тестов в отчете по релизу.',
         '@perfhub_reports_end': 'Конец блока со списком тестов в отчете по релизу.',
         '@test_start': 'Дата и время начала нагрузочного теста.',

@@ -1796,6 +1796,22 @@ body {
             outline: none;
         }
 
+        .configuration-meta-link-card-with-icon {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .configuration-meta-link-text {
+            min-width: 0;
+        }
+
+        .configuration-meta-link-card-with-icon .configuration-meta-label,
+        .configuration-meta-link-card-with-icon .configuration-meta-value {
+            display: block;
+        }
+
         .configuration-download-card {
             font: inherit;
             width: 100%;

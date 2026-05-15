@@ -14,6 +14,7 @@ import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageResponse
 import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
 import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
+import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
@@ -59,6 +60,8 @@ public class ConfluenceService {
     private static final String CONFLUENCE_SERVICE = "confluence";
     private static final String REPORTS_PARENT_PAGE_ID_KEY = "reports-parent-page-id";
     private static final String RELEASE_PLACEHOLDER = "@release";
+    private static final String JIRA_RELEASE_TASK_PLACEHOLDER = "@jira_release_task";
+    private static final String JIRA_RELEASE_LINK_PLACEHOLDER = "@jira_release_link";
     private static final String CONFIG_PLACEHOLDER = "@config";
     private static final String GRAPHICS_PLACEHOLDER = "@graphics";
     private static final String TEST_TYPE_PLACEHOLDER = "@test_type";
@@ -232,9 +235,10 @@ public class ConfluenceService {
         ConfluenceTemplate template = resolveReleaseReportTemplate(request.templateId());
 
         String releaseValue = resolveReleaseValueForTests(request.testUuids());
-        String pageTitle = buildReportTitle(template, releaseValue, null);
+        JiraReleasePlaceholderValues jiraReleaseValues = resolveJiraReleaseValuesForTests(request.testUuids());
+        String pageTitle = buildReportTitle(template, releaseValue, null, jiraReleaseValues);
         String templateBody = loadTemplateBody(credentials, template);
-        String body = buildReportBody(templateBody, releaseValue, "", "", null);
+        String body = buildReportBody(templateBody, releaseValue, "", "", null, jiraReleaseValues);
         ConfluencePage createdPage = confluenceClient.createChildPage(
                 credentials,
                 parentPageId,
@@ -386,7 +390,8 @@ public class ConfluenceService {
             throw new ConfluenceOperationException("Не удалось подготовить все графики для выбранного шаблона");
         }
 
-        String pageTitle = buildReportTitle(template, releaseValue, loadTest);
+        JiraReleasePlaceholderValues jiraReleaseValues = resolveJiraReleaseValues(testUuid);
+        String pageTitle = buildReportTitle(template, releaseValue, loadTest, jiraReleaseValues);
         String templateBody = loadTemplateBody(credentials, template);
         ConfluencePage reportPage = createReportPage(
                 credentials, parentPageId, spaceKey, pageTitle, templateBody, loadTest.id());
@@ -415,7 +420,8 @@ public class ConfluenceService {
                 releaseValue,
                 configurationSection,
                 buildChartsSection(chartAttachments),
-                loadTest);
+                loadTest,
+                jiraReleaseValues);
         updatePageWithRetry(credentials, reportPage, updatedBody);
 
         return new ConfluenceReportResponse.ReportPage(
@@ -690,12 +696,16 @@ public class ConfluenceService {
     private String buildReportTitle(
             ConfluenceTemplate template,
             String releaseValue,
-            LoadTest loadTest) {
+            LoadTest loadTest,
+            JiraReleasePlaceholderValues jiraReleaseValues) {
+        JiraReleasePlaceholderValues safeJiraReleaseValues = safeJiraReleaseValues(jiraReleaseValues);
         String titleTemplate = StringUtils.hasText(template.reportTitle())
                 ? template.reportTitle()
                 : template.fullName();
         String resolved = getSafeBody(titleTemplate)
                 .replace(RELEASE_PLACEHOLDER, releaseValue)
+                .replace(JIRA_RELEASE_TASK_PLACEHOLDER, titlePlaceholder(safeJiraReleaseValues.task()))
+                .replace(JIRA_RELEASE_LINK_PLACEHOLDER, "")
                 .replace(TEST_START_DATE_PLACEHOLDER, titlePlaceholder(formatTestStartDate(loadTest)))
                 .replace(TEST_START_TIME_PLACEHOLDER, titlePlaceholder(formatTestStartTime(loadTest)))
                 .replace(TEST_END_DATE_PLACEHOLDER, titlePlaceholder(formatTestEndDate(loadTest)))
@@ -723,8 +733,12 @@ public class ConfluenceService {
             String releaseValue,
             String configurationSection,
             String chartsSection,
-            LoadTest loadTest) {
+            LoadTest loadTest,
+            JiraReleasePlaceholderValues jiraReleaseValues) {
+        JiraReleasePlaceholderValues safeJiraReleaseValues = safeJiraReleaseValues(jiraReleaseValues);
         String body = getSafeBody(templateBody).replace(RELEASE_PLACEHOLDER, escape(releaseValue));
+        body = body.replace(JIRA_RELEASE_TASK_PLACEHOLDER, escape(orPlaceholder(safeJiraReleaseValues.task())));
+        body = body.replace(JIRA_RELEASE_LINK_PLACEHOLDER, buildJiraReleaseLink(safeJiraReleaseValues));
         body = replaceSectionPlaceholder(body, CONFIG_PLACEHOLDER, configurationSection);
         body = replaceSectionPlaceholder(body, GRAPHICS_PLACEHOLDER, chartsSection);
         body = replaceTestPlaceholders(body, loadTest);
@@ -747,6 +761,63 @@ public class ConfluenceService {
                 .replace(TEST_PERIOD_PLACEHOLDER, escape(formatTestPeriod(loadTest)))
                 .replace(TEST_STATUS_PLACEHOLDER, escape(orPlaceholder(loadTest.reportStatus())))
                 .replace(TEST_SUMMARY_PLACEHOLDER, escape(orPlaceholder(loadTest.reportSummary())));
+    }
+
+    private JiraReleasePlaceholderValues resolveJiraReleaseValues(UUID testUuid) {
+        if (testUuid == null) {
+            return emptyJiraReleaseValues();
+        }
+        DropAppConfigurationSnapshotDetailsDto details = kubernetesConfigurationService.getConfigurationDetails(testUuid);
+        if (details == null) {
+            return emptyJiraReleaseValues();
+        }
+        return new JiraReleasePlaceholderValues(
+                normalizeOptionalText(details.jiraReleaseIssueKey()),
+                normalizeOptionalText(details.jiraReleaseIssueUrl()));
+    }
+
+    private JiraReleasePlaceholderValues resolveJiraReleaseValuesForTests(List<UUID> testUuids) {
+        if (testUuids == null || testUuids.isEmpty()) {
+            return emptyJiraReleaseValues();
+        }
+        return testUuids.stream()
+                .filter(Objects::nonNull)
+                .map(this::resolveJiraReleaseValues)
+                .filter(this::hasJiraReleaseValues)
+                .findFirst()
+                .orElseGet(this::emptyJiraReleaseValues);
+    }
+
+    private JiraReleasePlaceholderValues resolveLinkedJiraReleaseValues(ConfluenceReleaseReportLink link) {
+        if (link == null) {
+            return emptyJiraReleaseValues();
+        }
+        return resolveJiraReleaseValues(link.testUuid());
+    }
+
+    private JiraReleasePlaceholderValues safeJiraReleaseValues(JiraReleasePlaceholderValues values) {
+        return values != null ? values : emptyJiraReleaseValues();
+    }
+
+    private JiraReleasePlaceholderValues emptyJiraReleaseValues() {
+        return new JiraReleasePlaceholderValues(null, null);
+    }
+
+    private boolean hasJiraReleaseValues(JiraReleasePlaceholderValues values) {
+        return values != null && (StringUtils.hasText(values.task()) || StringUtils.hasText(values.url()));
+    }
+
+    private String buildJiraReleaseLink(JiraReleasePlaceholderValues values) {
+        JiraReleasePlaceholderValues safeValues = safeJiraReleaseValues(values);
+        String task = orPlaceholder(safeValues.task());
+        if (!StringUtils.hasText(safeValues.url())) {
+            return escape(task);
+        }
+        return "<ac:link><ri:url ri:value=\""
+                + escape(safeValues.url())
+                + "\" /><ac:plain-text-link-body><![CDATA["
+                + escapeCdata(task)
+                + "]]></ac:plain-text-link-body></ac:link>";
     }
 
     private String loadTemplateBody(ConfluenceCredentials credentials, ConfluenceTemplate template) {
@@ -905,6 +976,9 @@ public class ConfluenceService {
             String rendered = template
                     .replace(TEST_NUMBER_PLACEHOLDER, escape(expandReleaseReportText(values.testNumber(), values)))
                     .replace(TEST_TITLE_PLACEHOLDER, escape(values.testTitle()))
+                    .replace(JIRA_RELEASE_TASK_PLACEHOLDER, escape(expandReleaseReportText(values.jiraReleaseTask(), values)))
+                    .replace(JIRA_RELEASE_LINK_PLACEHOLDER, buildJiraReleaseLink(
+                            new JiraReleasePlaceholderValues(values.jiraReleaseTask(), values.jiraReleaseUrl())))
                     .replace(TEST_TYPE_PLACEHOLDER, escape(expandReleaseReportText(values.testType(), values)))
                     .replace(TEST_START_DATE_PLACEHOLDER, escape(expandReleaseReportText(values.testStartDate(), values)))
                     .replace(TEST_START_TIME_PLACEHOLDER, escape(expandReleaseReportText(values.testStartTime(), values)))
@@ -925,6 +999,7 @@ public class ConfluenceService {
             ConfluenceReleaseReportLink link,
             int index) {
         String release = resolveLinkedRelease(link);
+        JiraReleasePlaceholderValues jiraReleaseValues = resolveLinkedJiraReleaseValues(link);
         LoadTest loadTest = findLinkedLoadTest(link).orElse(null);
         String testNumber = orDefault(link.testNumber(), String.valueOf(index + 1));
         String testType = orPlaceholder(link.testType());
@@ -939,6 +1014,8 @@ public class ConfluenceService {
         String testSummary = orPlaceholder(link.testSummary());
         ReleaseReportPlaceholderValues rawValues = new ReleaseReportPlaceholderValues(
                 release,
+                orPlaceholder(jiraReleaseValues.task()),
+                jiraReleaseValues.url(),
                 testNumber,
                 "",
                 testType,
@@ -954,6 +1031,8 @@ public class ConfluenceService {
         String testTitle = expandReleaseReportText(orPlaceholder(link.testTitle()), rawValues);
         return new ReleaseReportPlaceholderValues(
                 release,
+                orPlaceholder(jiraReleaseValues.task()),
+                jiraReleaseValues.url(),
                 testNumber,
                 testTitle,
                 testType,
@@ -972,6 +1051,8 @@ public class ConfluenceService {
         String safeValue = orPlaceholder(value);
         return safeValue
                 .replace(RELEASE_PLACEHOLDER, values.release())
+                .replace(JIRA_RELEASE_TASK_PLACEHOLDER, values.jiraReleaseTask())
+                .replace(JIRA_RELEASE_LINK_PLACEHOLDER, values.jiraReleaseTask())
                 .replace(TEST_NUMBER_PLACEHOLDER, values.testNumber())
                 .replace(TEST_TITLE_PLACEHOLDER, values.testTitle())
                 .replace(TEST_TYPE_PLACEHOLDER, values.testType())
@@ -1142,6 +1223,11 @@ public class ConfluenceService {
     private String orDefault(String value, String fallback) {
         String normalized = value == null ? "" : value.trim();
         return StringUtils.hasText(normalized) ? normalized : fallback;
+    }
+
+    private String normalizeOptionalText(String value) {
+        String normalized = value == null ? "" : value.trim();
+        return StringUtils.hasText(normalized) ? normalized : null;
     }
 
     private String escapeCdata(String value) {
@@ -1472,8 +1558,12 @@ public class ConfluenceService {
 
     private record ReleaseReportsBlock(int replacementStart, int replacementEnd, String itemTemplate) {}
 
+    private record JiraReleasePlaceholderValues(String task, String url) {}
+
     private record ReleaseReportPlaceholderValues(
             String release,
+            String jiraReleaseTask,
+            String jiraReleaseUrl,
             String testNumber,
             String testTitle,
             String testType,

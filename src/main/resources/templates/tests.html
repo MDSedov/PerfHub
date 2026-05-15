@@ -3081,7 +3081,7 @@
         const normalizedUrl = normalizeReleaseValue(issueUrl);
         const hasLink = normalizeReleaseValue(value) && normalizedUrl;
         const card = document.createElement(hasLink ? 'a' : 'div');
-        card.className = `configuration-meta-card${extraClass ? ` ${extraClass}` : ''}${hasLink ? ' configuration-meta-link-card' : ''}`;
+        card.className = `configuration-meta-card${extraClass ? ` ${extraClass}` : ''}${hasLink ? ' configuration-meta-link-card configuration-meta-link-card-with-icon' : ''}`;
         if (hasLink) {
             card.href = normalizedUrl;
             card.target = '_blank';
@@ -3094,8 +3094,24 @@
         const content = document.createElement('div');
         content.className = 'configuration-meta-value';
         content.textContent = valueOrDash(value);
-        card.appendChild(kicker);
-        card.appendChild(content);
+
+        if (hasLink) {
+            const textWrapper = document.createElement('div');
+            textWrapper.className = 'configuration-meta-link-text';
+            const icon = document.createElement('span');
+            icon.className = 'configuration-download-icon configuration-meta-link-icon';
+            const iconGlyph = document.createElement('i');
+            iconGlyph.className = 'bi bi-box-arrow-up-right';
+            iconGlyph.setAttribute('aria-hidden', 'true');
+            icon.appendChild(iconGlyph);
+            textWrapper.appendChild(kicker);
+            textWrapper.appendChild(content);
+            card.appendChild(textWrapper);
+            card.appendChild(icon);
+        } else {
+            card.appendChild(kicker);
+            card.appendChild(content);
+        }
         return card;
     }
 
