@@ -518,11 +518,19 @@ public class DropAppConfigurationSnapshotService {
     }
 
     private Optional<JiraReleaseIssue> resolveJiraReleaseIssue(String release) {
-        if (!StringUtils.hasText(release) || !jiraClient.isConfiguredForReleaseLookup()) {
+        if (!StringUtils.hasText(release)) {
+            return Optional.empty();
+        }
+        if (!jiraClient.isConfiguredForReleaseLookup()) {
+            log.info("Jira lookup для релиза {} пропущен: не заполнены базовый URL, токен или название проекта", release);
             return Optional.empty();
         }
         try {
-            return jiraClient.findReleaseIssueByRelease(release);
+            Optional<JiraReleaseIssue> issue = jiraClient.findReleaseIssueByRelease(release);
+            if (issue.isEmpty()) {
+                log.info("Задача релиза {} в Jira не найдена", release);
+            }
+            return issue;
         } catch (JiraClientException ex) {
             log.warn("Не удалось найти задачу релиза {} в Jira: {}", release, ex.getMessage());
             return Optional.empty();

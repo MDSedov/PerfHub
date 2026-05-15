@@ -1,5 +1,7 @@
 package com.example.chronicler.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.example.chronicler.dto.jira.JiraReleaseIssue;
 import com.example.chronicler.exception.JiraClientException;
 import com.example.chronicler.service.ConfigurationProvider;
@@ -30,6 +32,7 @@ public class JiraClient {
     private static final Pattern JSON_MESSAGE_PATTERN =
             Pattern.compile("\"(?:message|error|errorMessages)\"\\s*:\\s*(\"([^\"]+)\"|\\[\"([^\"]+)\"\\])",
                     Pattern.CASE_INSENSITIVE);
+    private static final Pattern ISSUE_KEY_PATTERN = Pattern.compile("[A-Z][A-Z0-9]+-\\d+");
     private static final String SERVICE = "jira";
     private static final String BASE_URL_KEY = "base-url";
     private static final String API_PATH_KEY = "api-path";
@@ -88,22 +91,66 @@ public class JiraClient {
             ResponseEntity<JiraVersion[]> response =
                     restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), JiraVersion[].class);
             JiraVersion[] versions = response.getBody();
-            if (versions == null || versions.length == 0) {
-                return Optional.empty();
+            Optional<JiraReleaseIssue> versionIssue = findReleaseIssueInVersions(normalizedRelease, versions);
+            if (versionIssue.isPresent()) {
+                return versionIssue;
             }
-            return Arrays.stream(versions)
-                    .filter(version -> version != null)
-                    .filter(version -> normalizedRelease.equals(normalizeText(version.description())))
-                    .map(JiraVersion::name)
-                    .map(this::normalizeText)
-                    .filter(StringUtils::hasText)
-                    .findFirst()
-                    .map(key -> new JiraReleaseIssue(key, buildIssueUrl(key)));
         } catch (RestClientException ex) {
-            throw new JiraClientException(buildErrorMessage("Failed to load Jira project versions", ex), ex);
+            log.debug("Failed to load Jira project versions, falling back to search API", ex);
+        }
+
+        try {
+            return findReleaseIssueBySearch(normalizedRelease, projectName, headers);
+        } catch (RestClientException ex) {
+            throw new JiraClientException(buildErrorMessage("Failed to find Jira release issue", ex), ex);
         } catch (IllegalArgumentException ex) {
             throw new JiraClientException("Invalid Jira connection configuration: " + ex.getMessage(), ex);
         }
+    }
+
+    private Optional<JiraReleaseIssue> findReleaseIssueInVersions(String normalizedRelease, JiraVersion[] versions) {
+        if (versions == null || versions.length == 0) {
+            return Optional.empty();
+        }
+        return Arrays.stream(versions)
+                .filter(version -> version != null)
+                .filter(version -> normalizedRelease.equals(normalizeText(version.description())))
+                .map(JiraVersion::name)
+                .map(this::normalizeText)
+                .filter(this::looksLikeIssueKey)
+                .findFirst()
+                .map(key -> new JiraReleaseIssue(key, buildIssueUrl(key)));
+    }
+
+    private Optional<JiraReleaseIssue> findReleaseIssueBySearch(
+            String normalizedRelease,
+            String projectName,
+            HttpHeaders headers) {
+        String jql = "project = \"%s\" AND text ~ \"%s\""
+                .formatted(escapeJql(projectName), escapeJql(normalizedRelease));
+        URI uri = apiUriBuilder()
+                .pathSegment("search")
+                .queryParam("jql", jql)
+                .queryParam("fields", "summary,description")
+                .queryParam("maxResults", 50)
+                .build()
+                .encode()
+                .toUri();
+
+        ResponseEntity<JiraSearchResponse> response =
+                restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), JiraSearchResponse.class);
+        JiraSearchResponse body = response.getBody();
+        if (body == null || body.issues() == null || body.issues().isEmpty()) {
+            return Optional.empty();
+        }
+
+        return body.issues().stream()
+                .filter(issue -> issue != null)
+                .filter(issue -> looksLikeIssueKey(normalizeText(issue.key())))
+                .filter(issue -> issueContainsRelease(issue, normalizedRelease))
+                .map(issue -> normalizeText(issue.key()))
+                .findFirst()
+                .map(key -> new JiraReleaseIssue(key, buildIssueUrl(key)));
     }
 
     private UriComponentsBuilder apiUriBuilder() {
@@ -158,6 +205,55 @@ public class JiraClient {
                 .toUriString();
     }
 
+    private boolean looksLikeIssueKey(String value) {
+        return StringUtils.hasText(value) && ISSUE_KEY_PATTERN.matcher(value).matches();
+    }
+
+    private boolean issueContainsRelease(JiraIssue issue, String normalizedRelease) {
+        JiraIssueFields fields = issue.fields();
+        if (fields == null) {
+            return false;
+        }
+        String description = normalizeMessage(extractJsonText(fields.description()));
+        String summary = normalizeMessage(extractJsonText(fields.summary()));
+        return containsRelease(description, normalizedRelease) || containsRelease(summary, normalizedRelease);
+    }
+
+    private boolean containsRelease(String value, String normalizedRelease) {
+        return StringUtils.hasText(value)
+                && (value.equals(normalizedRelease) || value.contains(normalizedRelease));
+    }
+
+    private String extractJsonText(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        StringBuilder builder = new StringBuilder();
+        appendJsonText(node, builder);
+        return builder.toString();
+    }
+
+    private void appendJsonText(JsonNode node, StringBuilder builder) {
+        if (node == null || node.isNull()) {
+            return;
+        }
+        if (node.isValueNode()) {
+            String value = node.asText(null);
+            if (StringUtils.hasText(value)) {
+                if (builder.length() > 0) {
+                    builder.append(' ');
+                }
+                builder.append(value);
+            }
+            return;
+        }
+        node.elements().forEachRemaining(child -> appendJsonText(child, builder));
+    }
+
+    private String escapeJql(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
     private String normalizeText(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -207,5 +303,15 @@ public class JiraClient {
         return message.substring(0, 297) + "...";
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private record JiraVersion(String name, String description) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record JiraSearchResponse(List<JiraIssue> issues) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record JiraIssue(String key, JiraIssueFields fields) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record JiraIssueFields(JsonNode summary, JsonNode description) {}
 }

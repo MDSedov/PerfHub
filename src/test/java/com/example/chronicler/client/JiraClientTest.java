@@ -2,6 +2,7 @@ package com.example.chronicler.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.startsWith;
 
 import com.example.chronicler.dto.jira.JiraReleaseIssue;
 import com.example.chronicler.exception.JiraClientException;
@@ -99,6 +100,43 @@ class JiraClientTest {
                         """, MediaType.APPLICATION_JSON));
 
         Optional<JiraReleaseIssue> result = client.findReleaseIssueByRelease("2.18.0");
+
+        mockServer.verify();
+        assertThat(result).hasValue(new JiraReleaseIssue("EPROFILE-4151", "https://jira.example/browse/EPROFILE-4151"));
+    }
+
+    @Test
+    void findReleaseIssueByReleaseShouldFallbackToSearchWhenVersionNameIsNotIssueKey() {
+        JiraClient client = new JiraClient(restTemplate, new InMemoryConfigurationProvider(Map.of(
+                key("base-url"), "https://jira.example",
+                key("api-path"), "/rest/api/2",
+                key("personal-access-token"), "jira-token",
+                key("project-name"), "EPROFILE")));
+
+        mockServer.expect(MockRestRequestMatchers.requestTo("https://jira.example/rest/api/2/project/EPROFILE/versions"))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        [
+                          {"name":"2.17.0","description":"2.17.0"}
+                        ]
+                        """, MediaType.APPLICATION_JSON));
+        mockServer.expect(MockRestRequestMatchers.requestTo(startsWith("https://jira.example/rest/api/2/search?")))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer jira-token"))
+                .andExpect(MockRestRequestMatchers.queryParam(
+                        "jql",
+                        "project%20%3D%20%22EPROFILE%22%20AND%20text%20~%20%222.17.0%22"))
+                .andExpect(MockRestRequestMatchers.queryParam("fields", "summary,description"))
+                .andExpect(MockRestRequestMatchers.queryParam("maxResults", "50"))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        {
+                          "issues": [
+                            {"key":"EPROFILE-4100","fields":{"summary":"Релиз","description":"2.16.0"}},
+                            {"key":"EPROFILE-4151","fields":{"summary":"Релиз","description":"2.17.0"}}
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        Optional<JiraReleaseIssue> result = client.findReleaseIssueByRelease("2.17.0");
 
         mockServer.verify();
         assertThat(result).hasValue(new JiraReleaseIssue("EPROFILE-4151", "https://jira.example/browse/EPROFILE-4151"));
