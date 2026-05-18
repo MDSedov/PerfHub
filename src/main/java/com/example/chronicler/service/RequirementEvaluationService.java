@@ -4,6 +4,7 @@ import com.example.chronicler.client.VictoriaMetricsClient;
 import com.example.chronicler.dto.RequirementEvaluationView;
 import com.example.chronicler.dto.tests.RequirementComplianceView;
 import com.example.chronicler.exception.RequirementEvaluationException;
+import com.example.chronicler.exception.VictoriaMetricsClientException;
 import com.example.chronicler.model.ConfluenceTemplate;
 import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.model.LoadTest;
@@ -204,15 +205,43 @@ public class RequirementEvaluationService {
         if (!isStoredThresholdCurrent(requirement.threshold(), evaluation.details())) {
             return false;
         }
-        String expectedQuery = normalizeVictoriaMetricsQuery(requirement.query());
-        if (!StringUtils.hasText(expectedQuery)) {
+        List<String> expectedQueries = normalizeVictoriaMetricsQueries(requirement.query());
+        if (expectedQueries.isEmpty()) {
             return true;
+        }
+        if (isStoredNoDataEvaluation(evaluation)) {
+            return areStoredQueryCandidatesCurrent(evaluation.details(), expectedQueries);
         }
         JsonNode storedQuery = evaluation.details() != null ? evaluation.details().path("query") : null;
         if (storedQuery != null && storedQuery.isTextual()) {
-            return expectedQuery.equals(storedQuery.asText());
+            return expectedQueries.contains(storedQuery.asText());
         }
         return false;
+    }
+
+    private boolean isStoredNoDataEvaluation(TestRequirementEvaluation evaluation) {
+        if (evaluation == null
+                || evaluation.status() != RequirementEvaluationStatus.NOT_APPLICABLE
+                || evaluation.measuredValue() != null
+                || evaluation.details() == null) {
+            return false;
+        }
+        JsonNode reason = evaluation.details().path("reason");
+        return reason.isTextual() && "No data for the selected interval".equals(reason.asText());
+    }
+
+    private boolean areStoredQueryCandidatesCurrent(JsonNode details, List<String> expectedQueries) {
+        JsonNode queryCandidates = details != null ? details.path("queryCandidates") : null;
+        if (!queryCandidates.isArray() || queryCandidates.size() != expectedQueries.size()) {
+            return false;
+        }
+        for (int index = 0; index < expectedQueries.size(); index++) {
+            JsonNode candidate = queryCandidates.get(index);
+            if (!candidate.isTextual() || !expectedQueries.get(index).equals(candidate.asText())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean isStoredThresholdCurrent(Double expectedThreshold, JsonNode details) {
@@ -256,15 +285,35 @@ public class RequirementEvaluationService {
             details.put("rule", "value <= threshold");
             return new RequirementResult(RequirementEvaluationStatus.NOT_APPLICABLE, null, null, details);
         }
-        String query = normalizeVictoriaMetricsQuery(requirement.query());
-        JsonNode response = executeExpression(query, start, end);
-        OptionalDouble maxValueOpt = extractMaxValue(response);
+        List<String> queries = normalizeVictoriaMetricsQueries(requirement.query());
+        OptionalDouble maxValueOpt = OptionalDouble.empty();
+        String query = null;
+        boolean hasSuccessfulQuery = false;
+        VictoriaMetricsClientException lastQueryException = null;
+        for (String candidate : queries) {
+            JsonNode response;
+            try {
+                response = executeExpression(candidate, start, end);
+                hasSuccessfulQuery = true;
+            } catch (VictoriaMetricsClientException ex) {
+                lastQueryException = ex;
+                continue;
+            }
+            maxValueOpt = extractMaxValue(response);
+            if (maxValueOpt.isPresent()) {
+                query = candidate;
+                break;
+            }
+        }
+        if (!hasSuccessfulQuery && lastQueryException != null) {
+            throw lastQueryException;
+        }
         if (maxValueOpt.isEmpty()) {
             ObjectNode details = objectMapper.createObjectNode();
             details.put("reason", "No data for the selected interval");
             details.put("threshold", requirement.threshold());
             details.put("rule", "value <= threshold");
-            details.put("query", query);
+            putQueryDetails(details, queries, queries.isEmpty() ? null : queries.get(0));
             return new RequirementResult(RequirementEvaluationStatus.NOT_APPLICABLE, null, null, details);
         }
         double maxValue = maxValueOpt.getAsDouble();
@@ -275,8 +324,18 @@ public class RequirementEvaluationService {
         details.put("maxValue", maxValue);
         details.put("threshold", requirement.threshold());
         details.put("rule", "value <= threshold");
-        details.put("query", query);
+        putQueryDetails(details, queries, query);
         return new RequirementResult(status, maxValue, null, details);
+    }
+
+    private void putQueryDetails(ObjectNode details, List<String> queries, String query) {
+        if (StringUtils.hasText(query)) {
+            details.put("query", query);
+        }
+        if (queries != null && queries.size() > 1) {
+            var candidatesNode = details.putArray("queryCandidates");
+            queries.forEach(candidatesNode::add);
+        }
     }
 
     private JsonNode executeExpression(String expression, Instant start, Instant end) {
@@ -358,26 +417,44 @@ public class RequirementEvaluationService {
     }
 
     private String normalizeVictoriaMetricsQuery(String query) {
-        String normalized = StringUtils.trimWhitespace(query);
-        if (!StringUtils.hasText(normalized)) {
-            return normalized;
-        }
-        return normalizeGraphiteMetricSelector(normalized);
+        List<String> queries = normalizeVictoriaMetricsQueries(query);
+        return queries.isEmpty() ? StringUtils.trimWhitespace(query) : queries.get(0);
     }
 
-    private String normalizeGraphiteMetricSelector(String query) {
+    private List<String> normalizeVictoriaMetricsQueries(String query) {
+        String normalized = StringUtils.trimWhitespace(query);
+        if (!StringUtils.hasText(normalized)) {
+            return List.of();
+        }
+        Optional<String> graphiteMetric = extractQuotedGraphiteMetric(normalized);
+        if (graphiteMetric.isEmpty()) {
+            return List.of(normalized);
+        }
+        List<String> queries = new ArrayList<>();
+        addQueryCandidate(queries, "{__graphite__=\"" + escapeLabelValue(graphiteMetric.get()) + "\"}");
+        addQueryCandidate(queries, "{__name__=\"" + escapeLabelValue(graphiteMetric.get()) + "\"}");
+        return List.copyOf(queries);
+    }
+
+    private Optional<String> extractQuotedGraphiteMetric(String query) {
         if (!query.startsWith("{") || !query.endsWith("}")) {
-            return query;
+            return Optional.empty();
         }
         String selectorBody = query.substring(1, query.length() - 1).trim();
         if (!isQuotedGraphiteMetric(selectorBody)) {
-            return query;
+            return Optional.empty();
         }
         String graphiteMetric = unquote(selectorBody);
         if (!StringUtils.hasText(graphiteMetric)) {
-            return query;
+            return Optional.empty();
         }
-        return "{__graphite__=\"" + escapeLabelValue(graphiteMetric) + "\"}";
+        return Optional.of(graphiteMetric);
+    }
+
+    private void addQueryCandidate(List<String> queries, String query) {
+        if (StringUtils.hasText(query) && !queries.contains(query)) {
+            queries.add(query);
+        }
     }
 
     private boolean isQuotedGraphiteMetric(String value) {
