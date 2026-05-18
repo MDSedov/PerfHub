@@ -398,6 +398,122 @@ class RequirementEvaluationServiceTest {
     }
 
     @Test
+    void getCachedOrEvaluateRefreshesCachedEvaluationCreatedBeforeThresholdWasAvailable() {
+        UUID testId = UUID.randomUUID();
+        LoadTest loadTest = new LoadTest(
+                testId,
+                Instant.parse("2026-04-13T10:00:00Z"),
+                Instant.parse("2026-04-13T10:30:00Z"),
+                LoadTestType.MAX,
+                null);
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                1,
+                "max",
+                "Max template",
+                "Max report",
+                "<p>Body</p>",
+                List.of(new ConfluenceTemplateChart(1L, 1, "CPU chart", "dash-a", 1, 0)));
+
+        when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max_template"))
+                .thenReturn(Optional.of(template));
+        when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-a", 1))
+                .thenReturn(Optional.of(new GrafanaDashboardPanelRecord(
+                        "dash-a",
+                        "slug-a",
+                        "Dashboard A",
+                        1,
+                        "CPU",
+                        "cpu_query",
+                        70.0,
+                        Boolean.FALSE)));
+        when(grafanaVariableService.applyVariables("cpu_query", "dash-a")).thenReturn("cpu_query");
+        when(evaluationRepository.findByTest(testId)).thenReturn(List.of(new TestRequirementEvaluation(
+                1L,
+                testId,
+                "dash-a",
+                1,
+                RequirementEvaluationStatus.PASS,
+                null,
+                null,
+                JsonNodeFactory.instance.objectNode().put("reason", "Requirement threshold is not set"),
+                Instant.parse("2026-04-13T11:00:00Z"))));
+        when(victoriaMetricsClient.queryRange(eq("cpu_query"), any(Instant.class), any(Instant.class)))
+                .thenReturn(metricResponse(65.0));
+
+        List<RequirementEvaluationView> result = service.getCachedOrEvaluate(testId);
+
+        assertThat(result).singleElement()
+                .extracting(RequirementEvaluationView::measuredValue)
+                .isEqualTo(65.0);
+        verify(evaluationRepository).deleteByTest(testId);
+        verify(evaluationRepository).upsert(
+                eq(testId),
+                eq("dash-a"),
+                eq(1),
+                eq(RequirementEvaluationStatus.PASS),
+                eq(65.0),
+                eq(null),
+                any(),
+                any(Instant.class));
+    }
+
+    @Test
+    void getCachedOrEvaluateKeepsCachedEvaluationWhenQueryAndThresholdMatch() {
+        UUID testId = UUID.randomUUID();
+        LoadTest loadTest = new LoadTest(
+                testId,
+                Instant.parse("2026-04-13T10:00:00Z"),
+                Instant.parse("2026-04-13T10:30:00Z"),
+                LoadTestType.MAX,
+                null);
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                1,
+                "max",
+                "Max template",
+                "Max report",
+                "<p>Body</p>",
+                List.of(new ConfluenceTemplateChart(1L, 1, "CPU chart", "dash-a", 1, 0)));
+
+        when(loadTestRepository.findById(testId)).thenReturn(Optional.of(loadTest));
+        when(confluenceTemplateSettingsService.resolveDefaultTemplateShortName(LoadTestType.MAX)).thenReturn("max_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max_template"))
+                .thenReturn(Optional.of(template));
+        when(grafanaDashboardPanelRepository.findByUidAndPanelId("dash-a", 1))
+                .thenReturn(Optional.of(new GrafanaDashboardPanelRecord(
+                        "dash-a",
+                        "slug-a",
+                        "Dashboard A",
+                        1,
+                        "CPU",
+                        "cpu_query",
+                        70.0,
+                        Boolean.FALSE)));
+        when(grafanaVariableService.applyVariables("cpu_query", "dash-a")).thenReturn("cpu_query");
+        when(evaluationRepository.findByTest(testId)).thenReturn(List.of(new TestRequirementEvaluation(
+                1L,
+                testId,
+                "dash-a",
+                1,
+                RequirementEvaluationStatus.PASS,
+                65.0,
+                null,
+                JsonNodeFactory.instance.objectNode()
+                        .put("query", "cpu_query")
+                        .put("threshold", 70.0),
+                Instant.parse("2026-04-13T11:00:00Z"))));
+
+        List<RequirementEvaluationView> result = service.getCachedOrEvaluate(testId);
+
+        assertThat(result).singleElement()
+                .extracting(RequirementEvaluationView::measuredValue)
+                .isEqualTo(65.0);
+        verify(evaluationRepository, never()).deleteByTest(testId);
+        verify(victoriaMetricsClient, never()).queryRange(eq("cpu_query"), any(Instant.class), any(Instant.class));
+    }
+
+    @Test
     void buildComplianceViewIgnoresIrrelevantStoredEvaluations() {
         UUID testId = UUID.randomUUID();
         LoadTest loadTest = new LoadTest(

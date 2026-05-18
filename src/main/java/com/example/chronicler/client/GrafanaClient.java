@@ -431,8 +431,14 @@ public class GrafanaClient {
             return null;
         }
         for (GrafanaTarget target : targets) {
-            if (target != null && StringUtils.hasText(target.expr())) {
+            if (target == null) {
+                continue;
+            }
+            if (StringUtils.hasText(target.expr())) {
                 return target.expr();
+            }
+            if (StringUtils.hasText(target.target())) {
+                return target.target();
             }
         }
         return null;
@@ -577,7 +583,7 @@ public class GrafanaClient {
             GrafanaFieldConfig fieldConfig) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record GrafanaTarget(String expr) {}
+    private record GrafanaTarget(String expr, String target) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaFieldConfig(GrafanaDefaults defaults) {}

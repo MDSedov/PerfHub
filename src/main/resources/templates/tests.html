@@ -3045,6 +3045,40 @@
         return wrapper;
     }
 
+    function parseMetricNumber(value) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+        if (typeof value === 'string') {
+            const normalized = value.trim().replace(',', '.');
+            if (!normalized) {
+                return null;
+            }
+            const parsed = Number(normalized);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+        return null;
+    }
+
+    function resolveMetricNumber(...values) {
+        for (const value of values) {
+            const parsed = parseMetricNumber(value);
+            if (parsed !== null) {
+                return parsed;
+            }
+        }
+        return null;
+    }
+
+    function formatRequirementMetric(value, unit = '') {
+        const parsed = parseMetricNumber(value);
+        if (parsed === null) {
+            return '—';
+        }
+        const suffix = typeof unit === 'string' ? unit.trim() : '';
+        return `${parsed} ${suffix}`.trim();
+    }
+
     function renderRequirementResults(container, evaluation) {
         container.innerHTML = '';
         const requirements = evaluation?.requirements ?? [];
@@ -3078,17 +3112,17 @@
             titleCell.textContent = requirement?.title ?? '—';
 
             const thresholdCell = document.createElement('td');
-            const thresholdValue = requirement?.thresholdValue ?? '—';
-            const thresholdUnit = requirement?.thresholdUnit ?? '';
-            thresholdCell.textContent = `${thresholdValue} ${thresholdUnit}`.trim();
+            thresholdCell.textContent = formatRequirementMetric(
+                    requirement?.thresholdValue,
+                    requirement?.thresholdUnit);
 
             const measuredCell = document.createElement('td');
-            if (typeof requirement?.measuredValue === 'number') {
-                const measuredUnit = requirement?.measuredUnit ?? '';
-                measuredCell.textContent = `${requirement.measuredValue} ${measuredUnit}`.trim();
-            } else {
-                measuredCell.textContent = '—';
-            }
+            const measuredValue = resolveMetricNumber(
+                    requirement?.measuredValue,
+                    requirement?.details?.maxValue);
+            measuredCell.textContent = formatRequirementMetric(
+                    measuredValue,
+                    requirement?.measuredUnit);
 
             const statusCell = document.createElement('td');
             const statusKey = requirement?.status ?? 'ERROR';

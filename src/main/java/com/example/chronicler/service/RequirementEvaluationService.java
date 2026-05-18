@@ -201,6 +201,9 @@ public class RequirementEvaluationService {
     }
 
     private boolean isStoredEvaluationCurrent(PanelRequirement requirement, TestRequirementEvaluation evaluation) {
+        if (!isStoredThresholdCurrent(requirement.threshold(), evaluation.details())) {
+            return false;
+        }
         String expectedQuery = normalizeVictoriaMetricsQuery(requirement.query());
         if (!StringUtils.hasText(expectedQuery)) {
             return true;
@@ -209,8 +212,17 @@ public class RequirementEvaluationService {
         if (storedQuery != null && storedQuery.isTextual()) {
             return expectedQuery.equals(storedQuery.asText());
         }
-        String previousQuery = StringUtils.trimWhitespace(requirement.query());
-        return expectedQuery.equals(previousQuery);
+        return false;
+    }
+
+    private boolean isStoredThresholdCurrent(Double expectedThreshold, JsonNode details) {
+        if (!hasThreshold(expectedThreshold)) {
+            return true;
+        }
+        JsonNode storedThreshold = details != null ? details.path("threshold") : null;
+        return storedThreshold != null
+                && storedThreshold.isNumber()
+                && Double.compare(storedThreshold.asDouble(), expectedThreshold) == 0;
     }
 
     private RequirementEvaluationView toView(
@@ -231,11 +243,17 @@ public class RequirementEvaluationService {
         if (!hasThreshold(requirement.threshold())) {
             ObjectNode details = objectMapper.createObjectNode();
             details.put("reason", "Requirement threshold is not set");
+            String query = normalizeVictoriaMetricsQuery(requirement.query());
+            if (StringUtils.hasText(query)) {
+                details.put("query", query);
+            }
             return new RequirementResult(RequirementEvaluationStatus.PASS, null, null, details);
         }
         if (!StringUtils.hasText(requirement.query())) {
             ObjectNode details = objectMapper.createObjectNode();
             details.put("reason", "Query is not set");
+            details.put("threshold", requirement.threshold());
+            details.put("rule", "value <= threshold");
             return new RequirementResult(RequirementEvaluationStatus.NOT_APPLICABLE, null, null, details);
         }
         String query = normalizeVictoriaMetricsQuery(requirement.query());
@@ -244,6 +262,8 @@ public class RequirementEvaluationService {
         if (maxValueOpt.isEmpty()) {
             ObjectNode details = objectMapper.createObjectNode();
             details.put("reason", "No data for the selected interval");
+            details.put("threshold", requirement.threshold());
+            details.put("rule", "value <= threshold");
             details.put("query", query);
             return new RequirementResult(RequirementEvaluationStatus.NOT_APPLICABLE, null, null, details);
         }

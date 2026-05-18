@@ -139,6 +139,69 @@ class GrafanaClientTest {
                 .hasMessageContaining("renderer route not found");
     }
 
+    @Test
+    void discoverDashboardsShouldReadGraphiteTargetQueryAndThreshold() {
+        mockServer.expect(MockRestRequestMatchers.requestTo("http://localhost:3000/api/search?type=dash-db"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        [
+                          {
+                            "uid": "dashboard-uid",
+                            "url": "/d/dashboard-uid/dashboard-slug",
+                            "title": "Performance"
+                          }
+                        ]
+                        """, MediaType.APPLICATION_JSON));
+
+        mockServer.expect(MockRestRequestMatchers.requestTo("http://localhost:3000/api/dashboards/uid/dashboard-uid"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        {
+                          "meta": {
+                            "url": "/d/dashboard-uid/dashboard-slug"
+                          },
+                          "dashboard": {
+                            "title": "Performance dashboard",
+                            "panels": [
+                              {
+                                "id": 7,
+                                "title": "P95 latency",
+                                "targets": [
+                                  {
+                                    "target": "{\\"jmeterall.a.pct95\\"}"
+                                  }
+                                ],
+                                "fieldConfig": {
+                                  "defaults": {
+                                    "thresholds": {
+                                      "steps": [
+                                        {"color": "green", "value": null},
+                                        {"color": "red", "value": 550.0}
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var dashboards = grafanaClient.discoverDashboards();
+
+        mockServer.verify();
+        assertThat(dashboards).hasSize(1);
+        assertThat(dashboards.get(0).title()).isEqualTo("Performance dashboard");
+        assertThat(dashboards.get(0).panels()).singleElement()
+                .satisfies(panel -> {
+                    assertThat(panel.panelId()).isEqualTo(7);
+                    assertThat(panel.query()).isEqualTo("{\"jmeterall.a.pct95\"}");
+                    assertThat(panel.threshold()).isEqualTo(550.0);
+                });
+    }
+
     private static String key(String key) {
         return "grafana:" + key;
     }
