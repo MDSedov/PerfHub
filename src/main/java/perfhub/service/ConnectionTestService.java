@@ -1,11 +1,11 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.client.ConfluenceClient;
-import com.example.chronicler.client.GrafanaClient;
-import com.example.chronicler.client.JiraClient;
-import com.example.chronicler.client.VictoriaMetricsClient;
-import com.example.chronicler.dto.configuration.ConnectionTestResponse;
-import com.example.chronicler.dto.confluence.ConfluenceCredentials;
+import perfhub.client.ConfluenceClient;
+import perfhub.client.GrafanaClient;
+import perfhub.client.JiraClient;
+import perfhub.client.VictoriaMetricsClient;
+import perfhub.dto.configuration.ConnectionTestResponse;
+import perfhub.dto.confluence.ConfluenceCredentials;
 import java.time.Duration;
 import java.time.Instant;
 import org.slf4j.Logger;

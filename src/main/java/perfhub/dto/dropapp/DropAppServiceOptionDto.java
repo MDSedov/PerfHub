@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.dropapp;
+package perfhub.dto.dropapp;
 
 /** Сервис DropApp, доступный для выгрузки в выбранном namespace. */
 public record DropAppServiceOptionDto(

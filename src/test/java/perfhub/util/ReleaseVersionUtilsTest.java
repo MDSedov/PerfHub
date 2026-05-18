@@ -1,4 +1,4 @@
-package com.example.chronicler.util;
+package perfhub.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

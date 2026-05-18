@@ -1,15 +1,15 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.client.DropAppClient;
-import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
-import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
-import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
-import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
-import com.example.chronicler.exception.DropAppClientException;
-import com.example.chronicler.model.DropAppConfigurationComponent;
-import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
-import com.example.chronicler.util.DropAppConfigurationUtils;
-import com.example.chronicler.util.ReleaseVersionUtils;
+import perfhub.client.DropAppClient;
+import perfhub.dto.dropapp.DropAppConfigurationItemDto;
+import perfhub.dto.dropapp.DropAppPodConfiguration;
+import perfhub.dto.dropapp.DropAppServiceOptionDto;
+import perfhub.dto.dropapp.DropAppServiceSelectionDto;
+import perfhub.exception.DropAppClientException;
+import perfhub.model.DropAppConfigurationComponent;
+import perfhub.model.DropAppConfigurationSnapshotDocument;
+import perfhub.util.DropAppConfigurationUtils;
+import perfhub.util.ReleaseVersionUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;

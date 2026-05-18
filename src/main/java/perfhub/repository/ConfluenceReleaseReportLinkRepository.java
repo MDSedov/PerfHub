@@ -1,6 +1,6 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.ConfluenceReleaseReportLink;
+import perfhub.model.ConfluenceReleaseReportLink;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;

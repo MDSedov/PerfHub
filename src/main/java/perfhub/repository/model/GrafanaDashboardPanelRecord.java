@@ -1,4 +1,4 @@
-package com.example.chronicler.repository.model;
+package perfhub.repository.model;
 
 public record GrafanaDashboardPanelRecord(
         String dashboardUid,

@@ -1,4 +1,4 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -8,19 +8,19 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.example.chronicler.client.VictoriaMetricsClient;
-import com.example.chronicler.dto.RequirementEvaluationView;
-import com.example.chronicler.dto.tests.RequirementComplianceView;
-import com.example.chronicler.model.ConfluenceTemplate;
-import com.example.chronicler.model.ConfluenceTemplateChart;
-import com.example.chronicler.model.LoadTest;
-import com.example.chronicler.model.LoadTestType;
-import com.example.chronicler.model.RequirementEvaluationStatus;
-import com.example.chronicler.model.TestRequirementEvaluation;
-import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
-import com.example.chronicler.repository.LoadTestRepository;
-import com.example.chronicler.repository.TestRequirementEvaluationRepository;
-import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
+import perfhub.client.VictoriaMetricsClient;
+import perfhub.dto.RequirementEvaluationView;
+import perfhub.dto.tests.RequirementComplianceView;
+import perfhub.model.ConfluenceTemplate;
+import perfhub.model.ConfluenceTemplateChart;
+import perfhub.model.LoadTest;
+import perfhub.model.LoadTestType;
+import perfhub.model.RequirementEvaluationStatus;
+import perfhub.model.TestRequirementEvaluation;
+import perfhub.repository.GrafanaDashboardPanelRepository;
+import perfhub.repository.LoadTestRepository;
+import perfhub.repository.TestRequirementEvaluationRepository;
+import perfhub.repository.model.GrafanaDashboardPanelRecord;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import java.time.Instant;
@@ -189,7 +189,7 @@ class RequirementEvaluationServiceTest {
         when(confluenceTemplateSettingsService.findActiveTemplateByShortName("max_template")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.evaluate(testId))
-                .isInstanceOf(com.example.chronicler.exception.RequirementEvaluationException.class)
+                .isInstanceOf(perfhub.exception.RequirementEvaluationException.class)
                 .hasMessage("Для данного типа теста отсутствует шаблона отчета");
 
         verify(evaluationRepository).deleteByTest(testId);
@@ -218,7 +218,7 @@ class RequirementEvaluationServiceTest {
                 .thenReturn(Optional.of(template));
 
         assertThatThrownBy(() -> service.evaluate(testId))
-                .isInstanceOf(com.example.chronicler.exception.RequirementEvaluationException.class)
+                .isInstanceOf(perfhub.exception.RequirementEvaluationException.class)
                 .hasMessage("В шаблоне отчета для данного типа теста отсутствуют графики");
 
         verify(evaluationRepository).deleteByTest(testId);

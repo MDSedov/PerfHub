@@ -1,10 +1,10 @@
-package com.example.chronicler.controller.admin;
+package perfhub.controller.admin;
 
-import com.example.chronicler.dto.user.UserDto;
-import com.example.chronicler.dto.user.UserSaveRequest;
-import com.example.chronicler.model.ApplicationUser;
-import com.example.chronicler.model.UserRole;
-import com.example.chronicler.service.ApplicationUserService;
+import perfhub.dto.user.UserDto;
+import perfhub.dto.user.UserSaveRequest;
+import perfhub.model.ApplicationUser;
+import perfhub.model.UserRole;
+import perfhub.service.ApplicationUserService;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;

@@ -1,6 +1,6 @@
-package com.example.chronicler.controller.advice;
+package perfhub.controller.advice;
 
-import com.example.chronicler.controller.settings.ConfluenceTemplateSettingsController;
+import perfhub.controller.settings.ConfluenceTemplateSettingsController;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;

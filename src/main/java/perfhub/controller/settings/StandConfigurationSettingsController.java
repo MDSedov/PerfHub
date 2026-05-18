@@ -1,8 +1,8 @@
-package com.example.chronicler.controller.settings;
+package perfhub.controller.settings;
 
-import com.example.chronicler.dto.settings.StandConfigurationSettingsDto;
-import com.example.chronicler.dto.settings.StandConfigurationSettingsUpdateRequest;
-import com.example.chronicler.service.StandConfigurationSettingsService;
+import perfhub.dto.settings.StandConfigurationSettingsDto;
+import perfhub.dto.settings.StandConfigurationSettingsUpdateRequest;
+import perfhub.service.StandConfigurationSettingsService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;

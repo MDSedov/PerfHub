@@ -1,6 +1,6 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
+import perfhub.repository.model.GrafanaDashboardPanelRecord;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Collection;

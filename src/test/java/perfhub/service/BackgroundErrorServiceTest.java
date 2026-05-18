@@ -1,9 +1,9 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.example.chronicler.dto.BackgroundErrorDto;
+import perfhub.dto.BackgroundErrorDto;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

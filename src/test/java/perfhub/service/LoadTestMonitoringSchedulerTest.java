@@ -1,4 +1,4 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -7,8 +7,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.example.chronicler.model.LoadTest;
-import com.example.chronicler.model.LoadTestType;
+import perfhub.model.LoadTest;
+import perfhub.model.LoadTestType;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;

@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.dropapp;
+package perfhub.dto.dropapp;
 
 /** Метаданные сохраненного YAML-документа ресурса Kubernetes. */
 public record DropAppConfigurationDocumentDto(

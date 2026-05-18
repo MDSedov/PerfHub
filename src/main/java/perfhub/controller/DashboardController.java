@@ -1,6 +1,6 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.model.RequirementMetricType;
+import perfhub.model.RequirementMetricType;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.stereotype.Controller;

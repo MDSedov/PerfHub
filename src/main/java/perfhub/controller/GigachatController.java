@@ -1,8 +1,8 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.dto.gigachat.GigachatRequest;
-import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
-import com.example.chronicler.service.GigachatService;
+import perfhub.dto.gigachat.GigachatRequest;
+import perfhub.dto.gigachat.GigachatTokenResponse;
+import perfhub.service.GigachatService;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 

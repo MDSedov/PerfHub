@@ -1,8 +1,8 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.dto.grafana.GrafanaRenderOptions;
-import com.example.chronicler.model.GrafanaRenderedPanelCacheEntry;
-import com.example.chronicler.repository.GrafanaRenderedPanelCacheRepository;
+import perfhub.dto.grafana.GrafanaRenderOptions;
+import perfhub.model.GrafanaRenderedPanelCacheEntry;
+import perfhub.repository.GrafanaRenderedPanelCacheRepository;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -37,7 +37,7 @@ public class GrafanaRenderedPanelCacheService {
 
     public GrafanaRenderedPanelCacheService(
             GrafanaRenderedPanelCacheRepository repository,
-            @Value("${chronicler.grafana-render-cache.directory:grafana-render-cache}") String cacheDirectory) {
+            @Value("${perfhub.grafana-render-cache.directory:grafana-render-cache}") String cacheDirectory) {
         this.repository = repository;
         String resolvedDirectory = StringUtils.hasText(cacheDirectory) ? cacheDirectory.trim() : "grafana-render-cache";
         this.cacheRoot = Paths.get(resolvedDirectory).toAbsolutePath().normalize();

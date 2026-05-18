@@ -1,6 +1,6 @@
-package com.example.chronicler.security;
+package perfhub.security;
 
-import com.example.chronicler.model.ApplicationUser;
+import perfhub.model.ApplicationUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.util.Optional;

@@ -1,6 +1,6 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.GrafanaRenderedPanelCacheEntry;
+import perfhub.model.GrafanaRenderedPanelCacheEntry;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;

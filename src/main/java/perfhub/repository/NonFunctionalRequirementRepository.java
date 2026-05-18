@@ -1,7 +1,7 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.NonFunctionalRequirement;
-import com.example.chronicler.model.RequirementMetricType;
+import perfhub.model.NonFunctionalRequirement;
+import perfhub.model.RequirementMetricType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

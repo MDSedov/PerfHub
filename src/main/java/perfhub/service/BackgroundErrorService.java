@@ -1,6 +1,6 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.dto.BackgroundErrorDto;
+import perfhub.dto.BackgroundErrorDto;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;

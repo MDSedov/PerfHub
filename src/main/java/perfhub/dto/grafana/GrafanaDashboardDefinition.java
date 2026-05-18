@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.grafana;
+package perfhub.dto.grafana;
 
 import java.util.List;
 

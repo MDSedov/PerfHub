@@ -1,10 +1,10 @@
-package com.example.chronicler.controller.advice;
+package perfhub.controller.advice;
 
-import com.example.chronicler.controller.RequirementController;
-import com.example.chronicler.exception.RequirementEvaluationException;
-import com.example.chronicler.exception.VictoriaMetricsClientException;
-import com.example.chronicler.exception.VictoriaMetricsResponseProcessingException;
-import com.example.chronicler.exception.VmQueryNotFoundException;
+import perfhub.controller.RequirementController;
+import perfhub.exception.RequirementEvaluationException;
+import perfhub.exception.VictoriaMetricsClientException;
+import perfhub.exception.VictoriaMetricsResponseProcessingException;
+import perfhub.exception.VmQueryNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;

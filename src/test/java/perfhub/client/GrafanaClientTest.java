@@ -1,10 +1,10 @@
-package com.example.chronicler.client;
+package perfhub.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.example.chronicler.exception.GrafanaClientException;
-import com.example.chronicler.service.ConfigurationProvider;
+import perfhub.exception.GrafanaClientException;
+import perfhub.service.ConfigurationProvider;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;

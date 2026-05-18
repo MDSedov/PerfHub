@@ -1,11 +1,11 @@
-package com.example.chronicler.controller.settings;
+package perfhub.controller.settings;
 
-import com.example.chronicler.dto.settings.GrafanaDashboardCreateRequest;
-import com.example.chronicler.dto.settings.GrafanaDashboardDetailsDto;
-import com.example.chronicler.dto.settings.GrafanaDashboardDto;
-import com.example.chronicler.dto.settings.GrafanaDashboardUpdateRequest;
-import com.example.chronicler.model.GrafanaDashboard;
-import com.example.chronicler.service.GrafanaDashboardSettingsService;
+import perfhub.dto.settings.GrafanaDashboardCreateRequest;
+import perfhub.dto.settings.GrafanaDashboardDetailsDto;
+import perfhub.dto.settings.GrafanaDashboardDto;
+import perfhub.dto.settings.GrafanaDashboardUpdateRequest;
+import perfhub.model.GrafanaDashboard;
+import perfhub.service.GrafanaDashboardSettingsService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.MediaType;

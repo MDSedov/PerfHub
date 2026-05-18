@@ -1,8 +1,8 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.example.chronicler.model.ConfigurationEntry;
+import perfhub.model.ConfigurationEntry;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

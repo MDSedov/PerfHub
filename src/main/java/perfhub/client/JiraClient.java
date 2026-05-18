@@ -1,11 +1,11 @@
-package com.example.chronicler.client;
+package perfhub.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.example.chronicler.dto.jira.JiraReleaseDistribution;
-import com.example.chronicler.dto.jira.JiraReleaseIssue;
-import com.example.chronicler.exception.JiraClientException;
-import com.example.chronicler.service.ConfigurationProvider;
+import perfhub.dto.jira.JiraReleaseDistribution;
+import perfhub.dto.jira.JiraReleaseIssue;
+import perfhub.exception.JiraClientException;
+import perfhub.service.ConfigurationProvider;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;

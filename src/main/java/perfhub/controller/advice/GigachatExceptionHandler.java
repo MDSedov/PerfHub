@@ -1,10 +1,10 @@
-package com.example.chronicler.controller.advice;
+package perfhub.controller.advice;
 
-import com.example.chronicler.controller.GigachatController;
-import com.example.chronicler.exception.GigachatClientException;
-import com.example.chronicler.exception.GigachatPromptLoadingException;
-import com.example.chronicler.exception.GigachatPromptNotFoundException;
-import com.example.chronicler.exception.VmDataNotCachedException;
+import perfhub.controller.GigachatController;
+import perfhub.exception.GigachatClientException;
+import perfhub.exception.GigachatPromptLoadingException;
+import perfhub.exception.GigachatPromptNotFoundException;
+import perfhub.exception.VmDataNotCachedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;

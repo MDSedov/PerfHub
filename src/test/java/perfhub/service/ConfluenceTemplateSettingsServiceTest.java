@@ -1,4 +1,4 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -8,12 +8,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.example.chronicler.model.ConfluenceTemplate;
-import com.example.chronicler.model.ConfluenceTemplateType;
-import com.example.chronicler.model.LoadTestType;
-import com.example.chronicler.repository.ConfluenceTemplateChartRepository;
-import com.example.chronicler.repository.ConfluenceTemplateRepository;
-import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
+import perfhub.model.ConfluenceTemplate;
+import perfhub.model.ConfluenceTemplateType;
+import perfhub.model.LoadTestType;
+import perfhub.repository.ConfluenceTemplateChartRepository;
+import perfhub.repository.ConfluenceTemplateRepository;
+import perfhub.repository.GrafanaDashboardPanelRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

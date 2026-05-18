@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.grafana;
+package perfhub.dto.grafana;
 
 /**
  * Описание панели Grafana, используемое при синхронизации списка дашбордов.

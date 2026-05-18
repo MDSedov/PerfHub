@@ -1,4 +1,4 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

@@ -1,19 +1,19 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.dto.confluence.ConfluenceCredentials;
-import com.example.chronicler.dto.confluence.ConfluenceChartsAppendRequest;
-import com.example.chronicler.dto.confluence.ConfluenceChartsAppendResponse;
-import com.example.chronicler.dto.confluence.ConfluencePageTreeNode;
-import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateRequest;
-import com.example.chronicler.dto.confluence.ConfluenceReleaseReportLinksUpdateResponse;
-import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageRequest;
-import com.example.chronicler.dto.confluence.ConfluenceReleaseReportPageResponse;
-import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyRequest;
-import com.example.chronicler.dto.confluence.ConfluenceReportHierarchyResponse;
-import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
-import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
-import com.example.chronicler.service.ConfluenceService;
-import com.example.chronicler.service.ConfigurationProvider;
+import perfhub.dto.confluence.ConfluenceCredentials;
+import perfhub.dto.confluence.ConfluenceChartsAppendRequest;
+import perfhub.dto.confluence.ConfluenceChartsAppendResponse;
+import perfhub.dto.confluence.ConfluencePageTreeNode;
+import perfhub.dto.confluence.ConfluenceReleaseReportLinksUpdateRequest;
+import perfhub.dto.confluence.ConfluenceReleaseReportLinksUpdateResponse;
+import perfhub.dto.confluence.ConfluenceReleaseReportPageRequest;
+import perfhub.dto.confluence.ConfluenceReleaseReportPageResponse;
+import perfhub.dto.confluence.ConfluenceReportHierarchyRequest;
+import perfhub.dto.confluence.ConfluenceReportHierarchyResponse;
+import perfhub.dto.confluence.ConfluenceReportRequest;
+import perfhub.dto.confluence.ConfluenceReportResponse;
+import perfhub.service.ConfluenceService;
+import perfhub.service.ConfigurationProvider;
 import jakarta.validation.Valid;
 
 import org.springframework.http.MediaType;

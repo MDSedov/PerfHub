@@ -1,9 +1,9 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.DropAppConfigurationSnapshot;
-import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
-import com.example.chronicler.model.DropAppConfigurationSnapshotDistribution;
-import com.example.chronicler.model.DropAppConfigurationSnapshotItem;
+import perfhub.model.DropAppConfigurationSnapshot;
+import perfhub.model.DropAppConfigurationSnapshotDocument;
+import perfhub.model.DropAppConfigurationSnapshotDistribution;
+import perfhub.model.DropAppConfigurationSnapshotItem;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;

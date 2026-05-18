@@ -1,10 +1,10 @@
-package com.example.chronicler.controller.settings;
+package perfhub.controller.settings;
 
-import com.example.chronicler.dto.settings.NonFunctionalRequirementDto;
-import com.example.chronicler.dto.settings.NonFunctionalRequirementRequest;
-import com.example.chronicler.model.NonFunctionalRequirement;
-import com.example.chronicler.model.RequirementMetricType;
-import com.example.chronicler.service.NonFunctionalRequirementSettingsService;
+import perfhub.dto.settings.NonFunctionalRequirementDto;
+import perfhub.dto.settings.NonFunctionalRequirementRequest;
+import perfhub.model.NonFunctionalRequirement;
+import perfhub.model.RequirementMetricType;
+import perfhub.service.NonFunctionalRequirementSettingsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import jakarta.validation.Valid;

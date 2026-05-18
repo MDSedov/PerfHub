@@ -1,4 +1,4 @@
-package com.example.chronicler.model;
+package perfhub.model;
 
 public enum RequirementMetricType {
     LATENCY_P90,

@@ -1,8 +1,8 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.dto.VictoriaMetricsRequest;
-import com.example.chronicler.dto.VictoriaMetricsTestsRequest;
-import com.example.chronicler.service.VictoriaMetricsService;
+import perfhub.dto.VictoriaMetricsRequest;
+import perfhub.dto.VictoriaMetricsTestsRequest;
+import perfhub.service.VictoriaMetricsService;
 import jakarta.validation.Valid;
 import java.util.List;
 

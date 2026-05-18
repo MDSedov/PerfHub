@@ -1,4 +1,4 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Optional;

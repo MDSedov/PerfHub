@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.dropapp;
+package perfhub.dto.dropapp;
 
 /** Дистрибутив из инфраструктурной задачи Jira, связанный со снимком конфигурации. */
 public record JiraReleaseDistributionDto(

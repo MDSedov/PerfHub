@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.gigachat;
+package perfhub.dto.gigachat;
 
 import jakarta.validation.constraints.NotBlank;
 import java.util.Map;

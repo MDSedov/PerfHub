@@ -29,7 +29,7 @@
 <div class="app-shell">
     <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar}">
         <a class="sidebar-brand" th:href="@{/main}">
-            <img src="/img/chronicler-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
+            <img src="/img/perfhub-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
         </a>
         <div class="sidebar-menu">
             <a class="sidebar-link" th:href="@{/tests}"
@@ -372,12 +372,12 @@
     }
 
     function ensureFallbackBackdrop() {
-        let backdrop = document.querySelector('.modal-backdrop.chronicler-fallback-backdrop');
+        let backdrop = document.querySelector('.modal-backdrop.perfhub-fallback-backdrop');
         if (backdrop) {
             return backdrop;
         }
         backdrop = document.createElement('div');
-        backdrop.className = 'modal-backdrop fade show chronicler-fallback-backdrop';
+        backdrop.className = 'modal-backdrop fade show perfhub-fallback-backdrop';
         document.body.appendChild(backdrop);
         return backdrop;
     }
@@ -386,7 +386,7 @@
         if (document.querySelector('.modal.show')) {
             return;
         }
-        const backdrop = document.querySelector('.modal-backdrop.chronicler-fallback-backdrop');
+        const backdrop = document.querySelector('.modal-backdrop.perfhub-fallback-backdrop');
         if (backdrop) {
             backdrop.remove();
         }

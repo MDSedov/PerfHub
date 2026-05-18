@@ -1,13 +1,13 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
-import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
-import com.example.chronicler.exception.DropAppClientException;
-import com.example.chronicler.model.KubernetesConfiguration;
-import com.example.chronicler.repository.KubernetesConfigurationRepository;
-import com.example.chronicler.util.DateTimeViewUtils;
-import com.example.chronicler.util.DropAppConfigurationUtils;
-import com.example.chronicler.util.ReleaseVersionUtils;
+import perfhub.dto.dropapp.DropAppConfigurationItemDto;
+import perfhub.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
+import perfhub.exception.DropAppClientException;
+import perfhub.model.KubernetesConfiguration;
+import perfhub.repository.KubernetesConfigurationRepository;
+import perfhub.util.DateTimeViewUtils;
+import perfhub.util.DropAppConfigurationUtils;
+import perfhub.util.ReleaseVersionUtils;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;

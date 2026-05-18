@@ -1,4 +1,4 @@
-package com.example.chronicler.security;
+package perfhub.security;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;

@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.dropapp;
+package perfhub.dto.dropapp;
 
 /** Запрос на обновление метаданных сохраненной конфигурации DropApp. */
 public record DropAppConfigurationSnapshotUpdateRequest(

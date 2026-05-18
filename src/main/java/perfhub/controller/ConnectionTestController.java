@@ -1,7 +1,7 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.dto.configuration.ConnectionTestResponse;
-import com.example.chronicler.service.ConnectionTestService;
+import perfhub.dto.configuration.ConnectionTestResponse;
+import perfhub.service.ConnectionTestService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping(path = "/api/chronicler/connections", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = "/api/perfhub/connections", produces = MediaType.APPLICATION_JSON_VALUE)
 public class ConnectionTestController {
 
     private final ConnectionTestService connectionTestService;

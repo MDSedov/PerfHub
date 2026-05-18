@@ -1,4 +1,4 @@
-package com.example.chronicler.dto;
+package perfhub.dto;
 
 import jakarta.validation.constraints.NotBlank;
 

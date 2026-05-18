@@ -29,7 +29,7 @@
 <div class="app-shell">
     <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar}">
         <a class="sidebar-brand" th:href="@{/main}">
-            <img src="/img/chronicler-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
+            <img src="/img/perfhub-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
         </a>
         <div class="sidebar-menu">
             <a class="sidebar-link" th:href="@{/tests}"
@@ -661,7 +661,7 @@
             key: item.key,
             value: normalizeSettingValue(valuesByKey.get(item.key))
         }));
-        const response = await fetch('/api/chronicler/properties/', {
+        const response = await fetch('/api/perfhub/properties/', {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json'
@@ -678,7 +678,7 @@
     }
 
     async function testConnection(serviceId) {
-        const response = await fetch(`/api/chronicler/connections/${encodeURIComponent(serviceId)}/test`, {
+        const response = await fetch(`/api/perfhub/connections/${encodeURIComponent(serviceId)}/test`, {
             method: 'POST'
         });
         if (!response.ok) {
@@ -999,7 +999,7 @@
     async function loadConnections() {
         showConnectionsStatus('Загружаем подключения...', 'info');
         try {
-            const response = await fetch('/api/chronicler/properties/');
+            const response = await fetch('/api/perfhub/properties/');
             if (!response.ok) {
                 throw new Error('Ответ сервера: ' + response.status);
             }

@@ -1,7 +1,7 @@
-package com.example.chronicler.dto.tests;
+package perfhub.dto.tests;
 
-import com.example.chronicler.model.LoadTest;
-import com.example.chronicler.model.LoadTestType;
+import perfhub.model.LoadTest;
+import perfhub.model.LoadTestType;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;

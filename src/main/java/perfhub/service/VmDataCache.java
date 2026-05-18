@@ -1,4 +1,4 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import java.time.Instant;
 import java.util.List;

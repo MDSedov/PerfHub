@@ -1,6 +1,6 @@
-package com.example.chronicler.config;
+package perfhub.config;
 
-import com.example.chronicler.security.AuthenticationInterceptor;
+import perfhub.security.AuthenticationInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;

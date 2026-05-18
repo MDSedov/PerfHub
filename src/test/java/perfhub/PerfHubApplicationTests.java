@@ -1,10 +1,10 @@
-package com.example.chronicler;
+package perfhub;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class ChroniclerApplicationTests {
+class PerfHubApplicationTests {
 
     @Test
     void contextLoads() {

@@ -1,4 +1,4 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;

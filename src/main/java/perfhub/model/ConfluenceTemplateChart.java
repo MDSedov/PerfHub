@@ -1,4 +1,4 @@
-package com.example.chronicler.model;
+package perfhub.model;
 
 public record ConfluenceTemplateChart(
         long id,

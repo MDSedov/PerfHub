@@ -1,4 +1,4 @@
-package com.example.chronicler.model;
+package perfhub.model;
 
 /** Дистрибутив из Jira, сохраненный вместе со снимком конфигурации DropApp. */
 public record DropAppConfigurationSnapshotDistribution(

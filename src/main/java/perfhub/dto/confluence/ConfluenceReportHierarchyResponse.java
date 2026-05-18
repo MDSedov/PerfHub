@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.confluence;
+package perfhub.dto.confluence;
 
 import java.util.List;
 

@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.gigachat;
+package perfhub.dto.gigachat;
 
 import java.util.Objects;
 

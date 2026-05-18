@@ -1,7 +1,7 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.dto.BackgroundErrorDto;
-import com.example.chronicler.service.BackgroundErrorService;
+import perfhub.dto.BackgroundErrorDto;
+import perfhub.service.BackgroundErrorService;
 import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;

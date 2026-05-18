@@ -1,4 +1,4 @@
-package com.example.chronicler.model;
+package perfhub.model;
 
 import org.springframework.util.StringUtils;
 

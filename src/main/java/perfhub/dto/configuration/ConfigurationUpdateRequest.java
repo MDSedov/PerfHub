@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.configuration;
+package perfhub.dto.configuration;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;

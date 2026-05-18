@@ -1,6 +1,6 @@
-package com.example.chronicler.registry;
+package perfhub.registry;
 
-import com.example.chronicler.exception.GigachatPromptLoadingException;
+import perfhub.exception.GigachatPromptLoadingException;
 import org.springframework.stereotype.Component;
 
 @Component

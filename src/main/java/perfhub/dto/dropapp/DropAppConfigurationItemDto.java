@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.dropapp;
+package perfhub.dto.dropapp;
 
 /** Элемент конфигурации DropApp, подготовленный для фронтенда. */
 public record DropAppConfigurationItemDto(

@@ -1,7 +1,7 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.RequirementEvaluationStatus;
-import com.example.chronicler.model.TestRequirementEvaluation;
+import perfhub.model.RequirementEvaluationStatus;
+import perfhub.model.TestRequirementEvaluation;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -1,6 +1,6 @@
-package com.example.chronicler.dto;
+package perfhub.dto;
 
-import com.example.chronicler.model.RequirementEvaluationStatus;
+import perfhub.model.RequirementEvaluationStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
 

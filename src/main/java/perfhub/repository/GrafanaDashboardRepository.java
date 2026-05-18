@@ -1,6 +1,6 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.GrafanaDashboard;
+import perfhub.model.GrafanaDashboard;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;

@@ -1,7 +1,7 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.exception.TemplateLoadingException;
-import com.example.chronicler.repository.ConfluenceTemplateRepository;
+import perfhub.exception.TemplateLoadingException;
+import perfhub.repository.ConfluenceTemplateRepository;
 import java.util.Locale;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;

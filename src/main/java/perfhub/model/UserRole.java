@@ -1,4 +1,4 @@
-package com.example.chronicler.model;
+package perfhub.model;
 
 public enum UserRole {
     USER("Пользователь"),

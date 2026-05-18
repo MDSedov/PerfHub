@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.settings;
+package perfhub.dto.settings;
 
 import java.util.List;
 

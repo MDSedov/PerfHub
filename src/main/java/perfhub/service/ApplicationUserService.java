@@ -1,9 +1,9 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.model.ApplicationUser;
-import com.example.chronicler.model.UserRole;
-import com.example.chronicler.repository.ApplicationUserRepository;
-import com.example.chronicler.security.PasswordHashService;
+import perfhub.model.ApplicationUser;
+import perfhub.model.UserRole;
+import perfhub.repository.ApplicationUserRepository;
+import perfhub.security.PasswordHashService;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;

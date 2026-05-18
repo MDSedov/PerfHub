@@ -1,6 +1,6 @@
-package com.example.chronicler.dto.settings;
+package perfhub.dto.settings;
 
-import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
+import perfhub.dto.dropapp.DropAppServiceSelectionDto;
 import java.util.List;
 
 /** Запрос на обновление настроек конфигурации стенда. */

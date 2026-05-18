@@ -1,14 +1,14 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.client.GigachatClient;
-import com.example.chronicler.dto.gigachat.GigachatMessage;
-import com.example.chronicler.dto.gigachat.GigachatRequest;
-import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
-import com.example.chronicler.exception.GigachatPromptNotFoundException;
-import com.example.chronicler.exception.VmDataNotCachedException;
-import com.example.chronicler.registry.GigachatPromptRegistry;
-import com.example.chronicler.registry.GigachatCompliancePromptProvider;
-import com.example.chronicler.registry.GigachatTestsPromptProvider;
+import perfhub.client.GigachatClient;
+import perfhub.dto.gigachat.GigachatMessage;
+import perfhub.dto.gigachat.GigachatRequest;
+import perfhub.dto.gigachat.GigachatTokenResponse;
+import perfhub.exception.GigachatPromptNotFoundException;
+import perfhub.exception.VmDataNotCachedException;
+import perfhub.registry.GigachatPromptRegistry;
+import perfhub.registry.GigachatCompliancePromptProvider;
+import perfhub.registry.GigachatTestsPromptProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
 import java.time.Instant;

@@ -1,10 +1,10 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.dto.RequirementEvaluationRequest;
-import com.example.chronicler.dto.RequirementEvaluationResponse;
-import com.example.chronicler.dto.RequirementEvaluationView;
-import com.example.chronicler.model.RequirementEvaluationStatus;
-import com.example.chronicler.service.RequirementEvaluationService;
+import perfhub.dto.RequirementEvaluationRequest;
+import perfhub.dto.RequirementEvaluationResponse;
+import perfhub.dto.RequirementEvaluationView;
+import perfhub.model.RequirementEvaluationStatus;
+import perfhub.service.RequirementEvaluationService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.MediaType;

@@ -1,4 +1,4 @@
-package com.example.chronicler.model;
+package perfhub.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;

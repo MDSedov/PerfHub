@@ -1,32 +1,32 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.example.chronicler.client.GrafanaClient;
-import com.example.chronicler.model.ConfluenceTemplate;
-import com.example.chronicler.model.ConfluenceTemplateChart;
-import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
-import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
-import com.example.chronicler.dto.grafana.GrafanaRenderOptions;
-import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
-import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
-import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
-import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
-import com.example.chronicler.exception.GrafanaClientException;
-import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
-import com.example.chronicler.exception.GrafanaRenderingException;
-import com.example.chronicler.model.GrafanaDashboard;
-import com.example.chronicler.model.LoadTest;
-import com.example.chronicler.model.LoadTestType;
-import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
-import com.example.chronicler.repository.GrafanaDashboardRepository;
-import com.example.chronicler.repository.GrafanaDashboardVariableRepository;
-import com.example.chronicler.repository.LoadTestRepository;
-import com.example.chronicler.repository.TestTypeRepository;
-import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
-import com.example.chronicler.repository.model.GrafanaDashboardVariableRecord;
-import com.example.chronicler.repository.model.GrafanaVariableOptionRecord;
+import perfhub.client.GrafanaClient;
+import perfhub.model.ConfluenceTemplate;
+import perfhub.model.ConfluenceTemplateChart;
+import perfhub.dto.grafana.GrafanaPanelMetadata;
+import perfhub.dto.grafana.GrafanaPanelSelection;
+import perfhub.dto.grafana.GrafanaRenderOptions;
+import perfhub.dto.grafana.GrafanaRenderRequest;
+import perfhub.dto.grafana.GrafanaRenderRangeRequest;
+import perfhub.dto.grafana.GrafanaRenderResponse;
+import perfhub.dto.grafana.GrafanaRenderedPanel;
+import perfhub.exception.GrafanaClientException;
+import perfhub.exception.GrafanaInvalidTimeRangeException;
+import perfhub.exception.GrafanaRenderingException;
+import perfhub.model.GrafanaDashboard;
+import perfhub.model.LoadTest;
+import perfhub.model.LoadTestType;
+import perfhub.repository.GrafanaDashboardPanelRepository;
+import perfhub.repository.GrafanaDashboardRepository;
+import perfhub.repository.GrafanaDashboardVariableRepository;
+import perfhub.repository.LoadTestRepository;
+import perfhub.repository.TestTypeRepository;
+import perfhub.repository.model.GrafanaDashboardPanelRecord;
+import perfhub.repository.model.GrafanaDashboardVariableRecord;
+import perfhub.repository.model.GrafanaVariableOptionRecord;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -482,7 +482,7 @@ class GrafanaServiceTest {
                         new GrafanaDashboardVariableRecord("uid", "namespace", "namespace", "query", null, null, List.of())));
         grafanaClient.setRenderedPanel(12, new byte[] {8});
 
-        List<com.example.chronicler.dto.grafana.GrafanaRenderedPanel> panels = grafanaService.renderSelectedPanels(
+        List<perfhub.dto.grafana.GrafanaRenderedPanel> panels = grafanaService.renderSelectedPanels(
                 from,
                 to,
                 List.of(new GrafanaPanelSelection("uid", 12)));
@@ -604,7 +604,7 @@ class GrafanaServiceTest {
         private final Map<String, String> currentSlugsByDashboard = new HashMap<>();
 
         private StubGrafanaClient() {
-            super(new RestTemplate(), new com.example.chronicler.service.ConfigurationProvider() {
+            super(new RestTemplate(), new perfhub.service.ConfigurationProvider() {
                 @Override
                 public String getRequiredValue(String service, String key) {
                     return findValue(service, key)
@@ -792,7 +792,7 @@ class GrafanaServiceTest {
 
     private static final class StubGrafanaDashboardVariableRepository extends GrafanaDashboardVariableRepository {
 
-        private final Map<String, List<com.example.chronicler.repository.model.GrafanaDashboardVariableRecord>>
+        private final Map<String, List<perfhub.repository.model.GrafanaDashboardVariableRecord>>
                 variablesByDashboard = new HashMap<>();
 
         private StubGrafanaDashboardVariableRepository() {
@@ -800,7 +800,7 @@ class GrafanaServiceTest {
         }
 
         @Override
-        public List<com.example.chronicler.repository.model.GrafanaDashboardVariableRecord> findByDashboardUid(
+        public List<perfhub.repository.model.GrafanaDashboardVariableRecord> findByDashboardUid(
                 String dashboardUid) {
             return variablesByDashboard.getOrDefault(dashboardUid, List.of());
         }

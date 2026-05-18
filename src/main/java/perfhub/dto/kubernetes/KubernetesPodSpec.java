@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.kubernetes;
+package perfhub.dto.kubernetes;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;

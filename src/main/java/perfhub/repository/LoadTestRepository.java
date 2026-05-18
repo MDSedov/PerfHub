@@ -1,7 +1,7 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.LoadTest;
-import com.example.chronicler.model.LoadTestType;
+import perfhub.model.LoadTest;
+import perfhub.model.LoadTestType;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;

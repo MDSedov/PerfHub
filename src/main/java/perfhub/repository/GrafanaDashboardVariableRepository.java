@@ -1,7 +1,7 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.repository.model.GrafanaDashboardVariableRecord;
-import com.example.chronicler.repository.model.GrafanaVariableOptionRecord;
+import perfhub.repository.model.GrafanaDashboardVariableRecord;
+import perfhub.repository.model.GrafanaVariableOptionRecord;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

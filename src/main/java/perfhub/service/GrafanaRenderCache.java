@@ -1,6 +1,6 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
+import perfhub.dto.grafana.GrafanaRenderResponse;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.stereotype.Component;

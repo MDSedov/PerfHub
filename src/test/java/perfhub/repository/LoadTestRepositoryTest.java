@@ -1,9 +1,9 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.example.chronicler.model.LoadTest;
-import com.example.chronicler.model.LoadTestType;
+import perfhub.model.LoadTest;
+import perfhub.model.LoadTestType;
 import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

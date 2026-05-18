@@ -1,11 +1,11 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
-import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
-import com.example.chronicler.dto.settings.StandConfigurationSettingsDto;
-import com.example.chronicler.dto.settings.StandConfigurationSettingsUpdateRequest;
-import com.example.chronicler.model.ConfigurationEntry;
-import com.example.chronicler.model.DropAppConfigurationComponent;
+import perfhub.dto.dropapp.DropAppServiceOptionDto;
+import perfhub.dto.dropapp.DropAppServiceSelectionDto;
+import perfhub.dto.settings.StandConfigurationSettingsDto;
+import perfhub.dto.settings.StandConfigurationSettingsUpdateRequest;
+import perfhub.model.ConfigurationEntry;
+import perfhub.model.DropAppConfigurationComponent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

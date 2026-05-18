@@ -1,15 +1,15 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.client.VictoriaMetricsClient;
-import com.example.chronicler.dto.VictoriaMetricsRequest;
-import com.example.chronicler.exception.InvalidTimeRangeException;
-import com.example.chronicler.exception.VictoriaMetricsResponseProcessingException;
-import com.example.chronicler.exception.VmQueryNotFoundException;
-import com.example.chronicler.model.LoadTest;
-import com.example.chronicler.model.LoadTestType;
-import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
-import com.example.chronicler.repository.LoadTestRepository;
-import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
+import perfhub.client.VictoriaMetricsClient;
+import perfhub.dto.VictoriaMetricsRequest;
+import perfhub.exception.InvalidTimeRangeException;
+import perfhub.exception.VictoriaMetricsResponseProcessingException;
+import perfhub.exception.VmQueryNotFoundException;
+import perfhub.model.LoadTest;
+import perfhub.model.LoadTestType;
+import perfhub.repository.GrafanaDashboardPanelRepository;
+import perfhub.repository.LoadTestRepository;
+import perfhub.repository.model.GrafanaDashboardPanelRecord;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

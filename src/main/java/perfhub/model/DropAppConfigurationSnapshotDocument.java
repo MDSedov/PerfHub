@@ -1,4 +1,4 @@
-package com.example.chronicler.model;
+package perfhub.model;
 
 /** YAML-документ ресурса Kubernetes, сохраненный внутри снапшота конфигурации DropApp. */
 public record DropAppConfigurationSnapshotDocument(

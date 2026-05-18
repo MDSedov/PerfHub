@@ -1,7 +1,7 @@
-package com.example.chronicler.dto.settings;
+package perfhub.dto.settings;
 
-import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
-import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
+import perfhub.dto.dropapp.DropAppServiceOptionDto;
+import perfhub.dto.dropapp.DropAppServiceSelectionDto;
 import java.util.List;
 
 /** Настройки состава конфигурации стенда для сохранения из DropApp. */

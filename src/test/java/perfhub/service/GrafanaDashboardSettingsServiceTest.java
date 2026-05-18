@@ -1,20 +1,20 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 
-import com.example.chronicler.client.GrafanaClient;
-import com.example.chronicler.dto.grafana.GrafanaDashboardDefinition;
-import com.example.chronicler.dto.grafana.GrafanaPanelDefinition;
-import com.example.chronicler.dto.grafana.GrafanaVariableDefinition;
-import com.example.chronicler.dto.settings.GrafanaDashboardDetailsDto;
-import com.example.chronicler.dto.settings.GrafanaDashboardPanelDto;
-import com.example.chronicler.model.GrafanaDashboard;
-import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
-import com.example.chronicler.repository.GrafanaDashboardRepository;
-import com.example.chronicler.repository.GrafanaDashboardVariableRepository;
-import com.example.chronicler.repository.model.GrafanaDashboardPanelRecord;
-import com.example.chronicler.repository.model.GrafanaDashboardVariableRecord;
+import perfhub.client.GrafanaClient;
+import perfhub.dto.grafana.GrafanaDashboardDefinition;
+import perfhub.dto.grafana.GrafanaPanelDefinition;
+import perfhub.dto.grafana.GrafanaVariableDefinition;
+import perfhub.dto.settings.GrafanaDashboardDetailsDto;
+import perfhub.dto.settings.GrafanaDashboardPanelDto;
+import perfhub.model.GrafanaDashboard;
+import perfhub.repository.GrafanaDashboardPanelRepository;
+import perfhub.repository.GrafanaDashboardRepository;
+import perfhub.repository.GrafanaDashboardVariableRepository;
+import perfhub.repository.model.GrafanaDashboardPanelRecord;
+import perfhub.repository.model.GrafanaDashboardVariableRecord;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -307,7 +307,7 @@ class GrafanaDashboardSettingsServiceTest {
         private List<GrafanaDashboardDefinition> dashboards = List.of();
 
         private StubGrafanaClient() {
-            super(new RestTemplate(), new com.example.chronicler.service.ConfigurationProvider() {
+            super(new RestTemplate(), new perfhub.service.ConfigurationProvider() {
                 @Override
                 public String getRequiredValue(String service, String key) {
                     return findValue(service, key)

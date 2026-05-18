@@ -1,4 +1,4 @@
-package com.example.chronicler.repository.model;
+package perfhub.repository.model;
 
 import java.util.List;
 

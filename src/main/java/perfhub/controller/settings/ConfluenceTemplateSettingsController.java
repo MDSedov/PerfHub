@@ -1,12 +1,12 @@
-package com.example.chronicler.controller.settings;
+package perfhub.controller.settings;
 
-import com.example.chronicler.dto.settings.ConfluenceTemplateChartDto;
-import com.example.chronicler.dto.settings.ConfluenceTemplateDto;
-import com.example.chronicler.dto.settings.ConfluenceTemplatePanelOptionDto;
-import com.example.chronicler.dto.settings.ConfluenceTemplateSaveRequest;
-import com.example.chronicler.model.ConfluenceTemplate;
-import com.example.chronicler.model.ConfluenceTemplateChart;
-import com.example.chronicler.service.ConfluenceTemplateSettingsService;
+import perfhub.dto.settings.ConfluenceTemplateChartDto;
+import perfhub.dto.settings.ConfluenceTemplateDto;
+import perfhub.dto.settings.ConfluenceTemplatePanelOptionDto;
+import perfhub.dto.settings.ConfluenceTemplateSaveRequest;
+import perfhub.model.ConfluenceTemplate;
+import perfhub.model.ConfluenceTemplateChart;
+import perfhub.service.ConfluenceTemplateSettingsService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -97,7 +97,7 @@ public class ConfluenceTemplateSettingsController {
                 template.reportTitle(),
                 template.reportTitleShort(),
                 template.templateType().name(),
-                settingsService.resolveTemplateTestType(template).map(com.example.chronicler.model.LoadTestType::value).orElse(null),
+                settingsService.resolveTemplateTestType(template).map(perfhub.model.LoadTestType::value).orElse(null),
                 template.templatePageId(),
                 template.text(),
                 charts);

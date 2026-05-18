@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.dropapp;
+package perfhub.dto.dropapp;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;

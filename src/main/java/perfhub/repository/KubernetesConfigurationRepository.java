@@ -1,7 +1,7 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.KubernetesConfiguration;
-import com.example.chronicler.util.ReleaseVersionUtils;
+import perfhub.model.KubernetesConfiguration;
+import perfhub.util.ReleaseVersionUtils;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;

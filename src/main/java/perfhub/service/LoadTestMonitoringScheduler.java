@@ -1,6 +1,6 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.model.LoadTest;
+import perfhub.model.LoadTest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;

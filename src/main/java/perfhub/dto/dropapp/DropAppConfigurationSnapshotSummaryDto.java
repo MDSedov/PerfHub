@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.dropapp;
+package perfhub.dto.dropapp;
 
 /** Краткая информация о сохраненной конфигурации DropApp. */
 public record DropAppConfigurationSnapshotSummaryDto(

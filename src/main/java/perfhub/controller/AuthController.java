@@ -1,8 +1,8 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.model.ApplicationUser;
-import com.example.chronicler.security.SessionAttributes;
-import com.example.chronicler.service.ApplicationUserService;
+import perfhub.model.ApplicationUser;
+import perfhub.security.SessionAttributes;
+import perfhub.service.ApplicationUserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;

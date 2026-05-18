@@ -1,4 +1,4 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -6,9 +6,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.example.chronicler.model.ConfigurationEntry;
-import com.example.chronicler.repository.ConfigurationRepository;
-import com.example.chronicler.security.CurrentUserProvider;
+import perfhub.model.ConfigurationEntry;
+import perfhub.repository.ConfigurationRepository;
+import perfhub.security.CurrentUserProvider;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;

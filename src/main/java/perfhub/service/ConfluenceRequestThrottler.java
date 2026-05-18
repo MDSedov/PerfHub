@@ -1,6 +1,6 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.exception.ConfluenceOperationException;
+import perfhub.exception.ConfluenceOperationException;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Value;

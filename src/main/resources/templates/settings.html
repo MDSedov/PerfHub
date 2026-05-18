@@ -29,7 +29,7 @@
 <div class="app-shell">
     <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar}">
         <a class="sidebar-brand" th:href="@{/main}">
-            <img src="/img/chronicler-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
+            <img src="/img/perfhub-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
         </a>
         <div class="sidebar-menu">
             <a class="sidebar-link" th:href="@{/tests}"
@@ -435,7 +435,7 @@
 
     async function testConnection(service) {
         try {
-            const result = await requestJson(`/api/chronicler/connections/${encodeURIComponent(service)}/test`, {
+            const result = await requestJson(`/api/perfhub/connections/${encodeURIComponent(service)}/test`, {
                 method: 'POST'
             });
             const success = Boolean(result?.success);
@@ -447,7 +447,7 @@
     }
 
     async function fetchApplicationProperties() {
-        const data = await requestJson('/api/chronicler/properties/');
+        const data = await requestJson('/api/perfhub/properties/');
         settingsCache = Array.isArray(data) ? data : [];
         return settingsCache;
     }
@@ -613,7 +613,7 @@
         try {
             const payload = await buildSettingsExportPayload(sections);
             const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-            downloadJson(payload, `chronicler-settings-${stamp}.json`);
+            downloadJson(payload, `perfhub-settings-${stamp}.json`);
             exportSettingsModal?.hide();
             setSettingsStatus('Настройки выгружены в JSON.', 'success');
         } catch (error) {
@@ -698,7 +698,7 @@
         });
 
         if (parameters.length) {
-            const data = await requestJson('/api/chronicler/properties/', {
+            const data = await requestJson('/api/perfhub/properties/', {
                 method: 'PATCH',
                 body: JSON.stringify({parameters})
             });

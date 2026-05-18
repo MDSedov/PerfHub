@@ -1,9 +1,9 @@
-package com.example.chronicler.client;
+package perfhub.client;
 
-import com.example.chronicler.dto.gigachat.GigachatMessage;
-import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
-import com.example.chronicler.exception.GigachatClientException;
-import com.example.chronicler.service.ConfigurationProvider;
+import perfhub.dto.gigachat.GigachatMessage;
+import perfhub.dto.gigachat.GigachatTokenResponse;
+import perfhub.exception.GigachatClientException;
+import perfhub.service.ConfigurationProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
 import java.util.ArrayList;

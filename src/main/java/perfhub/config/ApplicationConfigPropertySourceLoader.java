@@ -1,4 +1,4 @@
-package com.example.chronicler.config;
+package perfhub.config;
 
 import java.io.IOException;
 import java.util.List;

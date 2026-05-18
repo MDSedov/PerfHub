@@ -1,4 +1,4 @@
-package com.example.chronicler.exception;
+package perfhub.exception;
 
 public class VmDataNotCachedException extends RuntimeException {
 

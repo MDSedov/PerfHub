@@ -1,8 +1,8 @@
-package com.example.chronicler.controller.advice;
+package perfhub.controller.advice;
 
-import com.example.chronicler.controller.DropAppController;
-import com.example.chronicler.controller.LoadTestController;
-import com.example.chronicler.exception.DropAppClientException;
+import perfhub.controller.DropAppController;
+import perfhub.controller.LoadTestController;
+import perfhub.exception.DropAppClientException;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

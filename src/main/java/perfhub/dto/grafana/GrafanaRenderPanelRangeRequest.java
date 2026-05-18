@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.grafana;
+package perfhub.dto.grafana;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;

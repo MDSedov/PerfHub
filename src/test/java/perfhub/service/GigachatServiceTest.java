@@ -1,4 +1,4 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -6,12 +6,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.example.chronicler.client.GigachatClient;
-import com.example.chronicler.dto.gigachat.GigachatMessage;
-import com.example.chronicler.dto.gigachat.GigachatTokenResponse;
-import com.example.chronicler.registry.GigachatCompliancePromptProvider;
-import com.example.chronicler.registry.GigachatPromptRegistry;
-import com.example.chronicler.registry.GigachatTestsPromptProvider;
+import perfhub.client.GigachatClient;
+import perfhub.dto.gigachat.GigachatMessage;
+import perfhub.dto.gigachat.GigachatTokenResponse;
+import perfhub.registry.GigachatCompliancePromptProvider;
+import perfhub.registry.GigachatPromptRegistry;
+import perfhub.registry.GigachatTestsPromptProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;

@@ -29,7 +29,7 @@
 <div class="app-shell">
     <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar}">
         <a class="sidebar-brand" th:href="@{/main}">
-            <img src="/img/chronicler-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
+            <img src="/img/perfhub-logo.png?v=perfhub-4" alt="PerfHub" class="brand-logo" loading="lazy">
         </a>
         <div class="sidebar-menu">
             <a class="sidebar-link" th:href="@{/tests}"
@@ -536,7 +536,7 @@
     const DAYS_TO_FETCH = 30;
     const MS_IN_DAY = 24 * 60 * 60 * 1000;
     const RELEASE_REPORT_RESULT_ID = '__release_report__';
-    const CONFLUENCE_RELEASE_PAGES_CACHE_KEY = 'chronicler.confluence.release-pages.v1';
+    const CONFLUENCE_RELEASE_PAGES_CACHE_KEY = 'perfhub.confluence.release-pages.v1';
     const REPORT_SELECTION_HINT =
             'Выберите тесты для которых необходимо сформировать отчеты в Confluence. Выбрать тесты можно в колонке "В ОТЧЕТ" таблицы со списком всех тестов.';
     const MOSCOW_FORMATTER = new Intl.DateTimeFormat('sv-SE', {

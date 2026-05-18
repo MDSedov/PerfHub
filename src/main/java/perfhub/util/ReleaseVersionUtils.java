@@ -1,4 +1,4 @@
-package com.example.chronicler.util;
+package perfhub.util;
 
 import java.util.ArrayList;
 import java.util.Collection;

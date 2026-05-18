@@ -1,14 +1,14 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.dto.settings.GrafanaDashboardDetailsDto;
-import com.example.chronicler.dto.settings.GrafanaDashboardPanelDto;
-import com.example.chronicler.model.ConfluenceTemplateChart;
-import com.example.chronicler.model.ConfluenceTemplate;
-import com.example.chronicler.model.ConfluenceTemplateType;
-import com.example.chronicler.model.LoadTestType;
-import com.example.chronicler.repository.ConfluenceTemplateChartRepository;
-import com.example.chronicler.repository.ConfluenceTemplateRepository;
-import com.example.chronicler.repository.GrafanaDashboardPanelRepository;
+import perfhub.dto.settings.GrafanaDashboardDetailsDto;
+import perfhub.dto.settings.GrafanaDashboardPanelDto;
+import perfhub.model.ConfluenceTemplateChart;
+import perfhub.model.ConfluenceTemplate;
+import perfhub.model.ConfluenceTemplateType;
+import perfhub.model.LoadTestType;
+import perfhub.repository.ConfluenceTemplateChartRepository;
+import perfhub.repository.ConfluenceTemplateRepository;
+import perfhub.repository.GrafanaDashboardPanelRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

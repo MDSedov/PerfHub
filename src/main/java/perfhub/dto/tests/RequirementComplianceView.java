@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.tests;
+package perfhub.dto.tests;
 
 /** Представление сведений о соответствии теста нефункциональным требованиям. */
 public record RequirementComplianceView(

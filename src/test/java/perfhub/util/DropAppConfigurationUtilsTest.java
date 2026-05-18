@@ -1,8 +1,8 @@
-package com.example.chronicler.util;
+package perfhub.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
+import perfhub.dto.dropapp.DropAppConfigurationItemDto;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

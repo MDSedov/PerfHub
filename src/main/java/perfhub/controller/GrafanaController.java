@@ -1,11 +1,11 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
-import com.example.chronicler.dto.grafana.GrafanaRenderPanelRangeRequest;
-import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
-import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
-import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
-import com.example.chronicler.service.GrafanaService;
+import perfhub.dto.grafana.GrafanaRenderRequest;
+import perfhub.dto.grafana.GrafanaRenderPanelRangeRequest;
+import perfhub.dto.grafana.GrafanaRenderResponse;
+import perfhub.dto.grafana.GrafanaRenderRangeRequest;
+import perfhub.dto.grafana.GrafanaRenderedPanel;
+import perfhub.service.GrafanaService;
 import jakarta.validation.Valid;
 
 import org.springframework.http.MediaType;

@@ -1,13 +1,13 @@
-package com.example.chronicler.client;
+package perfhub.client;
 
-import com.example.chronicler.dto.grafana.GrafanaDashboardDefinition;
-import com.example.chronicler.dto.grafana.GrafanaPanelDefinition;
-import com.example.chronicler.dto.grafana.GrafanaVariableDefinition;
-import com.example.chronicler.dto.grafana.GrafanaVariableOption;
-import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
-import com.example.chronicler.dto.grafana.GrafanaRenderOptions;
-import com.example.chronicler.exception.GrafanaClientException;
-import com.example.chronicler.service.ConfigurationProvider;
+import perfhub.dto.grafana.GrafanaDashboardDefinition;
+import perfhub.dto.grafana.GrafanaPanelDefinition;
+import perfhub.dto.grafana.GrafanaVariableDefinition;
+import perfhub.dto.grafana.GrafanaVariableOption;
+import perfhub.dto.grafana.GrafanaPanelMetadata;
+import perfhub.dto.grafana.GrafanaRenderOptions;
+import perfhub.exception.GrafanaClientException;
+import perfhub.service.ConfigurationProvider;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;

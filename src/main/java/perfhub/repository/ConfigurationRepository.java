@@ -1,6 +1,6 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.ConfigurationEntry;
+import perfhub.model.ConfigurationEntry;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;

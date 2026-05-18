@@ -1,9 +1,9 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.dto.configuration.ConfigurationItemDto;
-import com.example.chronicler.dto.configuration.ConfigurationUpdateRequest;
-import com.example.chronicler.model.ConfigurationEntry;
-import com.example.chronicler.service.ConfigurationService;
+import perfhub.dto.configuration.ConfigurationItemDto;
+import perfhub.dto.configuration.ConfigurationUpdateRequest;
+import perfhub.model.ConfigurationEntry;
+import perfhub.service.ConfigurationService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping(path = "/api/chronicler/properties/", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = "/api/perfhub/properties/", produces = MediaType.APPLICATION_JSON_VALUE)
 public class ConfigurationController {
 
     private final ConfigurationService configurationService;

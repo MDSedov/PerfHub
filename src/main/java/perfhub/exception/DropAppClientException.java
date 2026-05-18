@@ -1,4 +1,4 @@
-package com.example.chronicler.exception;
+package perfhub.exception;
 
 /** Исключение клиента DropApp. */
 public class DropAppClientException extends RuntimeException {

@@ -1,4 +1,4 @@
-package com.example.chronicler.model;
+package perfhub.model;
 
 import java.util.Arrays;
 import java.util.List;

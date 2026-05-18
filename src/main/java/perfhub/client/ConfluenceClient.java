@@ -1,12 +1,12 @@
-package com.example.chronicler.client;
+package perfhub.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.example.chronicler.dto.confluence.ConfluenceCredentials;
-import com.example.chronicler.dto.confluence.ConfluencePageDescendant;
-import com.example.chronicler.dto.confluence.ConfluencePage;
-import com.example.chronicler.dto.confluence.ConfluencePageSummary;
-import com.example.chronicler.exception.ConfluenceClientException;
-import com.example.chronicler.service.ConfigurationProvider;
+import perfhub.dto.confluence.ConfluenceCredentials;
+import perfhub.dto.confluence.ConfluencePageDescendant;
+import perfhub.dto.confluence.ConfluencePage;
+import perfhub.dto.confluence.ConfluencePageSummary;
+import perfhub.exception.ConfluenceClientException;
+import perfhub.service.ConfigurationProvider;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

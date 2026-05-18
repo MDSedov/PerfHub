@@ -1,9 +1,9 @@
-package com.example.chronicler.controller.advice;
+package perfhub.controller.advice;
 
-import com.example.chronicler.controller.GrafanaController;
-import com.example.chronicler.exception.GrafanaClientException;
-import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
-import com.example.chronicler.exception.GrafanaRenderingException;
+import perfhub.controller.GrafanaController;
+import perfhub.exception.GrafanaClientException;
+import perfhub.exception.GrafanaInvalidTimeRangeException;
+import perfhub.exception.GrafanaRenderingException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;

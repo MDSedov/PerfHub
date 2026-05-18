@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.gigachat;
+package perfhub.dto.gigachat;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

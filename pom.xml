@@ -3,11 +3,11 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.example</groupId>
-    <artifactId>chronicler</artifactId>
+    <groupId>perfhub</groupId>
+    <artifactId>perfhub</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>Chronicler</name>
-    <description>Basic Spring Boot project targeting JDK 17</description>
+    <name>PerfHub</name>
+    <description>PerfHub Spring Boot application targeting JDK 17</description>
     <packaging>jar</packaging>
 
     <parent>

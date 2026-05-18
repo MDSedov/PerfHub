@@ -1,7 +1,7 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.model.NonFunctionalRequirement;
-import com.example.chronicler.repository.NonFunctionalRequirementRepository;
+import perfhub.model.NonFunctionalRequirement;
+import perfhub.repository.NonFunctionalRequirementRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import java.util.List;

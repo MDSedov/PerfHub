@@ -1,8 +1,8 @@
-package com.example.chronicler.config;
+package perfhub.config;
 
-import com.example.chronicler.model.ApplicationUser;
-import com.example.chronicler.repository.ConfigurationRepository;
-import com.example.chronicler.service.ApplicationUserService;
+import perfhub.model.ApplicationUser;
+import perfhub.repository.ConfigurationRepository;
+import perfhub.service.ApplicationUserService;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;

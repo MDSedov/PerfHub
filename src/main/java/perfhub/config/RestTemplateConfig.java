@@ -1,4 +1,4 @@
-package com.example.chronicler.config;
+package perfhub.config;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,7 +16,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
-import com.example.chronicler.service.ConfigurationProvider;
+import perfhub.service.ConfigurationProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.RestTemplateBuilder;

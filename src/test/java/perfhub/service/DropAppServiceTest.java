@@ -1,15 +1,15 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.example.chronicler.client.DropAppClient;
-import com.example.chronicler.dto.dropapp.DropAppPodConfiguration;
-import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
-import com.example.chronicler.dto.dropapp.DropAppServiceSelectionDto;
-import com.example.chronicler.model.DropAppConfigurationComponent;
-import com.example.chronicler.model.DropAppConfigurationSnapshotDocument;
+import perfhub.client.DropAppClient;
+import perfhub.dto.dropapp.DropAppPodConfiguration;
+import perfhub.dto.dropapp.DropAppServiceOptionDto;
+import perfhub.dto.dropapp.DropAppServiceSelectionDto;
+import perfhub.model.DropAppConfigurationComponent;
+import perfhub.model.DropAppConfigurationSnapshotDocument;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;

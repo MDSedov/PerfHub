@@ -1,6 +1,6 @@
-# Летописец
+# PerfHub
 
-Летописец — внутренняя веб-утилита для сопровождения нагрузочного тестирования.
+PerfHub — внутренняя веб-утилита для сопровождения нагрузочного тестирования.
 Она собирает в одном интерфейсе данные из VictoriaMetrics, Grafana, DropApp и
 Confluence, помогает находить проведённые тесты, фиксировать конфигурацию
 стенда, проверять результаты на соответствие требованиям и формировать страницы
@@ -14,7 +14,7 @@ Confluence, помогает находить проведённые тесты,
 
 ## Для чего используется
 
-Летописец полезен командам, которые регулярно проводят нагрузочные тесты и
+PerfHub полезен командам, которые регулярно проводят нагрузочные тесты и
 готовят по ним отчётность. Утилита помогает:
 
 - быстро найти нагрузочные тесты за выбранный период;
@@ -51,7 +51,7 @@ Confluence, помогает находить проведённые тесты,
 Требования привязываются к данным из Grafana и VictoriaMetrics: для выбранных
 панелей задаются PromQL-запросы и пороговые значения.
 
-При проверке Летописец берёт фактические метрики за интервал теста, сравнивает
+При проверке PerfHub берёт фактические метрики за интервал теста, сравнивает
 их с заданными порогами и сохраняет результат. В списке тестов видно, прошёл ли
 тест проверку, а в деталях можно посмотреть измеренные значения и причину
 статуса.
@@ -61,7 +61,7 @@ Confluence, помогает находить проведённые тесты,
 Утилита умеет создавать страницы Confluence по выбранным нагрузочным тестам. Для
 этого используются настраиваемые шаблоны отчётов.
 
-При генерации отчёта Летописец:
+При генерации отчёта PerfHub:
 
 - определяет релиз и параметры теста;
 - подставляет данные в шаблон страницы;
@@ -167,7 +167,7 @@ Confluence, помогает находить проведённые тесты,
 
 ## Что получает команда
 
-Летописец делает подготовку отчётов по нагрузочному тестированию более
+PerfHub делает подготовку отчётов по нагрузочному тестированию более
 повторяемой и прозрачной. Вместо ручного сбора данных из нескольких систем
 команда получает единый интерфейс, где можно увидеть тест, его метрики,
 конфигурацию стенда, статус требований и готовые ссылки на страницы Confluence.
@@ -180,7 +180,7 @@ Confluence, помогает находить проведённые тесты,
 Приложение реализовано как Spring Boot веб-приложение с Thymeleaf-интерфейсом.
 По умолчанию запускается на порту `6500`.
 
-Локальная база данных хранится в `./config/chronicler-db` и использует H2 в
+Локальная база данных хранится в `./config/perfhub-db` и использует H2 в
 режиме совместимости с PostgreSQL. Внешние настройки базы подключаются из
 `config/application.properties`.
 
@@ -215,23 +215,23 @@ mvn -DskipTests clean package
 После сборки файл появится в каталоге `target`:
 
 ```text
-target/chronicler-0.0.1-SNAPSHOT.jar
+target/perfhub-0.0.1-SNAPSHOT.jar
 ```
 
 На Linux-сервере можно разместить приложение, например, в каталоге
-`/opt/chronicler`:
+`/opt/perfhub`:
 
 ```bash
-sudo mkdir -p /opt/chronicler/config /opt/chronicler/logs
-sudo cp target/chronicler-0.0.1-SNAPSHOT.jar /opt/chronicler/
-sudo cp config/application.properties /opt/chronicler/config/
+sudo mkdir -p /opt/perfhub/config /opt/perfhub/logs
+sudo cp target/perfhub-0.0.1-SNAPSHOT.jar /opt/perfhub/
+sudo cp config/application.properties /opt/perfhub/config/
 ```
 
 Если приложение запускается не от `root`, нужно выдать права пользователю,
 который будет его запускать:
 
 ```bash
-sudo chown -R chronicler:chronicler /opt/chronicler
+sudo chown -R perfhub:perfhub /opt/perfhub
 ```
 
 Пример небольшого скрипта для запуска через `tmux`:
@@ -240,9 +240,9 @@ sudo chown -R chronicler:chronicler /opt/chronicler
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/opt/chronicler"
-JAR_NAME="chronicler-0.0.1-SNAPSHOT.jar"
-SESSION_NAME="chronicler"
+APP_DIR="/opt/perfhub"
+JAR_NAME="perfhub-0.0.1-SNAPSHOT.jar"
+SESSION_NAME="perfhub"
 JAVA_OPTS="${JAVA_OPTS:--Xms256m -Xmx1024m}"
 SPRING_OPTS="${SPRING_OPTS:---server.port=6500}"
 
@@ -254,25 +254,25 @@ if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
 fi
 
 tmux new-session -d -s "$SESSION_NAME" \
-  "java $JAVA_OPTS -jar '$APP_DIR/$JAR_NAME' $SPRING_OPTS 2>&1 | tee -a '$APP_DIR/logs/chronicler.log'"
+  "java $JAVA_OPTS -jar '$APP_DIR/$JAR_NAME' $SPRING_OPTS 2>&1 | tee -a '$APP_DIR/logs/perfhub.log'"
 
-echo "Летописец запущен в tmux-сессии: $SESSION_NAME"
+echo "PerfHub запущен в tmux-сессии: $SESSION_NAME"
 echo "Открыть консоль: tmux attach -t $SESSION_NAME"
 echo "Выйти из консоли без остановки приложения: Ctrl+B, затем D"
 ```
 
-Сохранить скрипт можно как `/opt/chronicler/run-chronicler.sh`, затем сделать
+Сохранить скрипт можно как `/opt/perfhub/run-perfhub.sh`, затем сделать
 его исполняемым и запустить:
 
 ```bash
-chmod +x /opt/chronicler/run-chronicler.sh
-/opt/chronicler/run-chronicler.sh
+chmod +x /opt/perfhub/run-perfhub.sh
+/opt/perfhub/run-perfhub.sh
 ```
 
 Полезные команды `tmux`:
 
 ```bash
-tmux attach -t chronicler      # открыть консоль приложения
+tmux attach -t perfhub      # открыть консоль приложения
 tmux ls                        # посмотреть активные сессии
-tmux kill-session -t chronicler # остановить приложение
+tmux kill-session -t perfhub # остановить приложение
 ```

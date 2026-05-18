@@ -1,6 +1,6 @@
 (function () {
     const DEFAULT_INTERVAL_MS = 30000;
-    const STORAGE_KEY = '__chroniclerBackgroundErrorPolling';
+    const STORAGE_KEY = '__perfhubBackgroundErrorPolling';
 
     function buildErrorsUrl(scope) {
         const normalizedScope = typeof scope === 'string' ? scope.trim() : '';

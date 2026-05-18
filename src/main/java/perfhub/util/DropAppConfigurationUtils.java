@@ -1,6 +1,6 @@
-package com.example.chronicler.util;
+package perfhub.util;
 
-import com.example.chronicler.dto.dropapp.DropAppConfigurationItemDto;
+import perfhub.dto.dropapp.DropAppConfigurationItemDto;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;

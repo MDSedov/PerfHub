@@ -1,7 +1,7 @@
-package com.example.chronicler.client;
+package perfhub.client;
 
-import com.example.chronicler.exception.VictoriaMetricsClientException;
-import com.example.chronicler.service.ConfigurationProvider;
+import perfhub.exception.VictoriaMetricsClientException;
+import perfhub.service.ConfigurationProvider;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.time.Duration;

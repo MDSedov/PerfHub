@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.grafana;
+package perfhub.dto.grafana;
 
 /**
  * Метаданные панели Grafana, включающие заголовок и описание, полученные из REST API.

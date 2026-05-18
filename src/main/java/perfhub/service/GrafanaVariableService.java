@@ -1,7 +1,7 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.repository.GrafanaDashboardVariableRepository;
-import com.example.chronicler.repository.model.GrafanaDashboardVariableRecord;
+import perfhub.repository.GrafanaDashboardVariableRepository;
+import perfhub.repository.model.GrafanaDashboardVariableRecord;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;

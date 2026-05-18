@@ -1,15 +1,15 @@
-package com.example.chronicler.controller;
+package perfhub.controller;
 
-import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
-import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureRequest;
-import com.example.chronicler.dto.dropapp.DropAppConfigurationCaptureResponse;
-import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSaveRequest;
-import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotSummaryDto;
-import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotUpdateRequest;
-import com.example.chronicler.dto.dropapp.DropAppConfigurationViewDto;
-import com.example.chronicler.dto.dropapp.DropAppNamespaceOptionsDto;
-import com.example.chronicler.dto.dropapp.DropAppServiceOptionDto;
-import com.example.chronicler.service.DropAppConfigurationSnapshotService;
+import perfhub.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
+import perfhub.dto.dropapp.DropAppConfigurationCaptureRequest;
+import perfhub.dto.dropapp.DropAppConfigurationCaptureResponse;
+import perfhub.dto.dropapp.DropAppConfigurationSnapshotSaveRequest;
+import perfhub.dto.dropapp.DropAppConfigurationSnapshotSummaryDto;
+import perfhub.dto.dropapp.DropAppConfigurationSnapshotUpdateRequest;
+import perfhub.dto.dropapp.DropAppConfigurationViewDto;
+import perfhub.dto.dropapp.DropAppNamespaceOptionsDto;
+import perfhub.dto.dropapp.DropAppServiceOptionDto;
+import perfhub.service.DropAppConfigurationSnapshotService;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;

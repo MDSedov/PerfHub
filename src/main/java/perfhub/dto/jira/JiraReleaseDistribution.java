@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.jira;
+package perfhub.dto.jira;
 
 public record JiraReleaseDistribution(
         String serviceName,

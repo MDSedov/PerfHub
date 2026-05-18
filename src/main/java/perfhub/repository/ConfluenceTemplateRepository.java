@@ -1,7 +1,7 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.ConfluenceTemplate;
-import com.example.chronicler.model.ConfluenceTemplateType;
+import perfhub.model.ConfluenceTemplate;
+import perfhub.model.ConfluenceTemplateType;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.List;

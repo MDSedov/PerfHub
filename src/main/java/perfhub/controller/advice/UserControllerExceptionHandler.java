@@ -1,7 +1,7 @@
-package com.example.chronicler.controller.advice;
+package perfhub.controller.advice;
 
-import com.example.chronicler.controller.ProfileController;
-import com.example.chronicler.controller.admin.UserAdminController;
+import perfhub.controller.ProfileController;
+import perfhub.controller.admin.UserAdminController;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

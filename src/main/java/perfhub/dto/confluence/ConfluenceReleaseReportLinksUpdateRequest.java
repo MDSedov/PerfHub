@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.confluence;
+package perfhub.dto.confluence;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

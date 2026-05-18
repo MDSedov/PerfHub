@@ -1,11 +1,11 @@
-package com.example.chronicler.client;
+package perfhub.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.example.chronicler.service.ConfigurationProvider;
+import perfhub.service.ConfigurationProvider;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;

@@ -1,4 +1,4 @@
-package com.example.chronicler.model;
+package perfhub.model;
 
 /** Элемент сохраненной конфигурации DropApp. */
 public record DropAppConfigurationSnapshotItem(

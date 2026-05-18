@@ -1,4 +1,4 @@
-package com.example.chronicler.security;
+package perfhub.security;
 
 public final class SessionAttributes {
 

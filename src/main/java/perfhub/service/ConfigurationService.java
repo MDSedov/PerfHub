@@ -1,8 +1,8 @@
-package com.example.chronicler.service;
+package perfhub.service;
 
-import com.example.chronicler.model.ConfigurationEntry;
-import com.example.chronicler.repository.ConfigurationRepository;
-import com.example.chronicler.security.CurrentUserProvider;
+import perfhub.model.ConfigurationEntry;
+import perfhub.repository.ConfigurationRepository;
+import perfhub.security.CurrentUserProvider;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;

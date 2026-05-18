@@ -1,7 +1,7 @@
-package com.example.chronicler.repository;
+package perfhub.repository;
 
-import com.example.chronicler.model.ApplicationUser;
-import com.example.chronicler.model.UserRole;
+import perfhub.model.ApplicationUser;
+import perfhub.model.UserRole;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;

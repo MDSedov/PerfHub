@@ -1,4 +1,4 @@
-package com.example.chronicler.dto.user;
+package perfhub.dto.user;
 
 public record ProfileUpdateRequest(
         String username,

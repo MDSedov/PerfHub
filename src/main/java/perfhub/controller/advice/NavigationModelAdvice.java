@@ -1,9 +1,9 @@
-package com.example.chronicler.controller.advice;
+package perfhub.controller.advice;
 
-import com.example.chronicler.model.ApplicationUser;
-import com.example.chronicler.repository.ApplicationUserRepository;
-import com.example.chronicler.security.AuthenticationInterceptor;
-import com.example.chronicler.security.SessionAttributes;
+import perfhub.model.ApplicationUser;
+import perfhub.repository.ApplicationUserRepository;
+import perfhub.security.AuthenticationInterceptor;
+import perfhub.security.SessionAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.ControllerAdvice;
