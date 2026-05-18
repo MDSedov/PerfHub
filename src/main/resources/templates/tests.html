@@ -3326,6 +3326,7 @@
                 .replace(/\s+/g, ' ')
                 .replace(/\s*,\s*/g, ', ');
         return normalized === 'deployments'
+                || normalized === 'configmaps'
                 || normalized === 'ingress'
                 || normalized === 'services'
                 || normalized === 'deployments ingress'
