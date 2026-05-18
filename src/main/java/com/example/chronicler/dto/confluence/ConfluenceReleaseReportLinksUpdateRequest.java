@@ -15,6 +15,7 @@ public record ConfluenceReleaseReportLinksUpdateRequest(
             @NotNull(message = "testUuid is required") UUID testUuid,
             String testNumber,
             String testTitle,
+            String testTitleShort,
             @NotBlank(message = "reportPageId is required") String reportPageId,
             String reportPageTitle,
             String reportPageUrl) {}

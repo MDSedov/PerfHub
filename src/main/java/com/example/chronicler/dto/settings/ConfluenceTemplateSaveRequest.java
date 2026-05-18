@@ -10,6 +10,7 @@ public record ConfluenceTemplateSaveRequest(
         @Size(max = 30) String shortName,
         String fullName,
         @NotBlank String reportTitle,
+        @Size(max = 512) String reportTitleShort,
         @NotBlank String templateType,
         String testType,
         String templatePageId,

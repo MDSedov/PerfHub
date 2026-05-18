@@ -656,6 +656,16 @@
                 || 'Отчет по нагрузочному тесту';
     }
 
+    function resolveReportTitleShortFromSelectedTemplate(test) {
+        const templateId = selectedReportTemplateIds.get(test?.id) || ensureSelectedReportTemplate(test);
+        const template = findReportTemplateById(templateId);
+        return template?.reportTitleShort
+                || template?.reportTitle
+                || template?.fullName
+                || template?.shortName
+                || 'Отчет по нагрузочному тесту';
+    }
+
     function getSelectedTestsMissingTemplate() {
         return getSelectedReportTests().filter(test => {
             if (!test?.id) {
@@ -2133,6 +2143,7 @@
                         testUuid: testId,
                         testNumber: metadata.testNumber || '',
                         testTitle: resolveReportTitleFromSelectedTemplate(test),
+                        testTitleShort: resolveReportTitleShortFromSelectedTemplate(test),
                         reportPageId: report.pageId,
                         reportPageTitle: report.pageTitle || '',
                         reportPageUrl

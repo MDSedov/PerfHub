@@ -20,6 +20,7 @@ public class ConfluenceTemplateRepository {
                    short_name,
                    full_name,
                    report_title,
+                   report_title_short,
                    template_type,
                    template_page_id,
                    body
@@ -32,9 +33,9 @@ public class ConfluenceTemplateRepository {
     private static final String SELECT_LEGACY_TEMPLATE_BODY_SQL =
             "SELECT text FROM confluence_templates WHERE name = ?";
     private static final String INSERT_SQL =
-            "INSERT INTO confluence_report_templates (short_name, full_name, report_title, template_type, template_page_id, body) VALUES (?, ?, ?, ?, ?, ?)";
+            "INSERT INTO confluence_report_templates (short_name, full_name, report_title, report_title_short, template_type, template_page_id, body) VALUES (?, ?, ?, ?, ?, ?, ?)";
     private static final String UPDATE_SQL =
-            "UPDATE confluence_report_templates SET short_name = ?, full_name = ?, report_title = ?, template_type = ?, template_page_id = ?, body = ? WHERE id = ? AND deleted_at IS NULL";
+            "UPDATE confluence_report_templates SET short_name = ?, full_name = ?, report_title = ?, report_title_short = ?, template_type = ?, template_page_id = ?, body = ? WHERE id = ? AND deleted_at IS NULL";
     private static final String SOFT_DELETE_SQL =
             "UPDATE confluence_report_templates SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL";
     private static final String EXISTS_ACTIVE_SHORT_NAME_SQL = """
@@ -58,6 +59,7 @@ public class ConfluenceTemplateRepository {
             rs.getString("short_name"),
             rs.getString("full_name"),
             rs.getString("report_title"),
+            rs.getString("report_title_short"),
             ConfluenceTemplateType.fromDatabaseValue(rs.getString("template_type")),
             rs.getString("template_page_id"),
             rs.getString("body"),
@@ -92,6 +94,7 @@ public class ConfluenceTemplateRepository {
             String shortName,
             String fullName,
             String reportTitle,
+            String reportTitleShort,
             ConfluenceTemplateType templateType,
             String templatePageId,
             String body) {
@@ -102,9 +105,10 @@ public class ConfluenceTemplateRepository {
             statement.setString(1, shortName);
             statement.setString(2, fullName);
             statement.setString(3, reportTitle);
-            statement.setString(4, (templateType == null ? ConfluenceTemplateType.TEST : templateType).name());
-            statement.setString(5, templatePageId);
-            statement.setString(6, body);
+            statement.setString(4, reportTitleShort);
+            statement.setString(5, (templateType == null ? ConfluenceTemplateType.TEST : templateType).name());
+            statement.setString(6, templatePageId);
+            statement.setString(7, body);
             return statement;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -119,6 +123,7 @@ public class ConfluenceTemplateRepository {
             String shortName,
             String fullName,
             String reportTitle,
+            String reportTitleShort,
             ConfluenceTemplateType templateType,
             String templatePageId,
             String body) {
@@ -127,6 +132,7 @@ public class ConfluenceTemplateRepository {
                 shortName,
                 fullName,
                 reportTitle,
+                reportTitleShort,
                 (templateType == null ? ConfluenceTemplateType.TEST : templateType).name(),
                 templatePageId,
                 body,

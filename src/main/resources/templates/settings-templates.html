@@ -190,12 +190,12 @@
                                     <div class="d-flex flex-wrap gap-2" id="templateTestTypeCards"></div>
                                 </div>
                                 <div class="col-12 col-lg-6">
-                                    <label for="templateReportTitleInput" class="form-label">Название отчета</label>
+                                    <label for="templateReportTitleShortInput" class="form-label">Короткое название отчета</label>
                                     <input type="text"
                                            class="form-control"
-                                           id="templateReportTitleInput"
-                                           placeholder="Например, Отчет по релизу @release">
-                                    <div class="template-placeholder-actions mt-2" data-placeholder-target="title">
+                                           id="templateReportTitleShortInput"
+                                           placeholder="Например, Кратко @release">
+                                    <div class="template-placeholder-actions mt-2" data-placeholder-target="short-title">
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@jira_release_task">@jira_release_task</button>
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start">@test_start</button>
@@ -204,6 +204,23 @@
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@test_end">@test_end</button>
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@test_end_date">@test_end_date</button>
                                         <button type="button" class="template-placeholder-button" data-placeholder-token="@test_end_time">@test_end_time</button>
+                                    </div>
+                                    <div class="mt-3">
+                                        <label for="templateReportTitleInput" class="form-label">Название отчета</label>
+                                        <input type="text"
+                                               class="form-control"
+                                               id="templateReportTitleInput"
+                                               placeholder="Например, Отчет по релизу @release">
+                                        <div class="template-placeholder-actions mt-2" data-placeholder-target="title">
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@release">@release</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@jira_release_task">@jira_release_task</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start">@test_start</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start_date">@test_start_date</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@test_start_time">@test_start_time</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@test_end">@test_end</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@test_end_date">@test_end_date</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@test_end_time">@test_end_time</button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-12 col-lg-6">
@@ -234,6 +251,7 @@
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@test_period">@test_period</button>
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@test_number">@test_number</button>
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@test_title">@test_title</button>
+                                            <button type="button" class="template-placeholder-button" data-placeholder-token="@test_title_short">@test_title_short</button>
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@test_status">@test_status</button>
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@test_summary">@test_summary</button>
                                             <button type="button" class="template-placeholder-button" data-placeholder-token="@test_report_link">@test_report_link</button>
@@ -386,6 +404,7 @@
     const templateTestTypeGroup = document.getElementById('templateTestTypeGroup');
     const templateTestTypeInput = document.getElementById('templateTestTypeInput');
     const templateTestTypeCards = document.getElementById('templateTestTypeCards');
+    const templateReportTitleShortInput = document.getElementById('templateReportTitleShortInput');
     const templateReportTitleInput = document.getElementById('templateReportTitleInput');
     const templatePageIdInput = document.getElementById('templatePageIdInput');
     const templateEditorToolbar = document.getElementById('templateEditorToolbar');
@@ -434,6 +453,7 @@
         '@test_period': 'Период выполнения теста от начала до окончания.',
         '@test_number': 'Номер теста из окна генерации отчетов.',
         '@test_title': 'Название теста в отчете.',
+        '@test_title_short': 'Короткое название теста в отчете.',
         '@test_status': 'Статус теста из детальной информации или стандартная заглушка.',
         '@test_summary': 'Краткое описание теста из детальной информации или стандартная заглушка.',
         '@test_report_link': 'Ссылка на созданную страницу отчета по конкретному тесту.',
@@ -447,6 +467,7 @@
             shortName: '',
             fullName: '',
             reportTitle: '',
+            reportTitleShort: '',
             templateType: 'TEST',
             testType: '',
             templatePageId: '',
@@ -461,6 +482,7 @@
             shortName: template?.shortName ?? '',
             fullName: template?.fullName ?? '',
             reportTitle: template?.reportTitle ?? '',
+            reportTitleShort: template?.reportTitleShort ?? template?.reportTitle ?? '',
             templateType: template?.templateType ?? 'TEST',
             testType: template?.testType ?? inferTemplateTestType(template),
             templatePageId: template?.templatePageId ?? '',
@@ -1286,6 +1308,7 @@
         if (templateTestTypeInput) {
             templateTestTypeInput.value = activeTemplateDraft.testType ?? '';
         }
+        templateReportTitleShortInput.value = activeTemplateDraft.reportTitleShort ?? activeTemplateDraft.reportTitle ?? '';
         templateReportTitleInput.value = activeTemplateDraft.reportTitle ?? '';
         if (templatePageIdInput) {
             const normalizedPageId = normalizeTemplatePageIdValue(activeTemplateDraft.templatePageId);
@@ -1318,6 +1341,7 @@
         const templateType = normalizeTemplateType(templateTypeInput?.value ?? activeTemplateDraft.templateType);
         const testType = templateType === 'TEST' ? normalizeTestType(activeTemplateDraft.testType) : '';
         const shortName = systemShortNameForTemplateType(templateType, testType);
+        const reportTitleShort = templateReportTitleShortInput.value.trim();
         const reportTitle = templateReportTitleInput.value.trim();
         const fullName = reportTitle || shortName;
         const rawTemplatePageId = (templatePageIdInput?.value ?? '').trim();
@@ -1363,6 +1387,7 @@
             shortName,
             fullName,
             reportTitle,
+            reportTitleShort: reportTitleShort || reportTitle,
             templateType,
             testType,
             templatePageId,
@@ -1516,6 +1541,12 @@
         });
     }
 
+    if (templateReportTitleShortInput) {
+        templateReportTitleShortInput.addEventListener('input', () => {
+            activeTemplateDraft.reportTitleShort = templateReportTitleShortInput.value;
+        });
+    }
+
     if (templateReportTitleInput) {
         templateReportTitleInput.addEventListener('input', () => {
             activeTemplateDraft.reportTitle = templateReportTitleInput.value;
@@ -1576,7 +1607,9 @@
             if (!token) {
                 return;
             }
-            if (container.dataset.placeholderTarget === 'title') {
+            if (container.dataset.placeholderTarget === 'short-title') {
+                insertTextIntoInput(templateReportTitleShortInput, token);
+            } else if (container.dataset.placeholderTarget === 'title') {
                 insertTextIntoInput(templateReportTitleInput, token);
             } else if (container.dataset.placeholderTarget === 'copy') {
                 void copyPlaceholderToken(token);

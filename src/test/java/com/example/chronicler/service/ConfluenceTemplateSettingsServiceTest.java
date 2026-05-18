@@ -69,6 +69,7 @@ class ConfluenceTemplateSettingsServiceTest {
                         eq("max_template"),
                         eq("Отчет"),
                         eq("Отчет"),
+                        eq("Отчет"),
                         eq(ConfluenceTemplateType.TEST),
                         eq("123456"),
                         eq("")))
@@ -92,6 +93,7 @@ class ConfluenceTemplateSettingsServiceTest {
                 "max_template",
                 "Отчет",
                 "Отчет",
+                "Отчет",
                 ConfluenceTemplateType.TEST,
                 "123456",
                 "");
@@ -107,6 +109,7 @@ class ConfluenceTemplateSettingsServiceTest {
                         null);
         when(templateRepository.create(
                         eq("max_template"),
+                        eq("Отчет"),
                         eq("Отчет"),
                         eq("Отчет"),
                         eq(ConfluenceTemplateType.TEST),
@@ -139,6 +142,7 @@ class ConfluenceTemplateSettingsServiceTest {
                 "max_template",
                 "Отчет",
                 "Отчет",
+                "Отчет",
                 ConfluenceTemplateType.TEST,
                 "",
                 "<p>Body</p>");
@@ -154,6 +158,7 @@ class ConfluenceTemplateSettingsServiceTest {
                         null);
         when(templateRepository.create(
                         eq("max_template"),
+                        eq("Отчет"),
                         eq("Отчет"),
                         eq("Отчет"),
                         eq(ConfluenceTemplateType.TEST),

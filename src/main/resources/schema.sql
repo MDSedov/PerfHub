@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS confluence_report_templates (
     short_name VARCHAR(30) NOT NULL,
     full_name VARCHAR(256) NOT NULL,
     report_title VARCHAR(512) NOT NULL,
+    report_title_short VARCHAR(512),
     template_type VARCHAR(32) NOT NULL DEFAULT 'TEST',
     template_page_id VARCHAR(64),
     body CLOB NOT NULL,
@@ -197,12 +198,16 @@ CREATE TABLE IF NOT EXISTS confluence_report_templates (
 
 ALTER TABLE confluence_report_templates ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 ALTER TABLE confluence_report_templates ADD COLUMN IF NOT EXISTS report_title VARCHAR(512);
+ALTER TABLE confluence_report_templates ADD COLUMN IF NOT EXISTS report_title_short VARCHAR(512);
 ALTER TABLE confluence_report_templates ADD COLUMN IF NOT EXISTS template_type VARCHAR(32) DEFAULT 'TEST';
 ALTER TABLE confluence_report_templates ADD COLUMN IF NOT EXISTS template_page_id VARCHAR(64);
 ALTER TABLE confluence_report_templates ALTER COLUMN short_name VARCHAR(30);
 UPDATE confluence_report_templates
 SET report_title = full_name
 WHERE report_title IS NULL OR TRIM(report_title) = '';
+UPDATE confluence_report_templates
+SET report_title_short = report_title
+WHERE report_title_short IS NULL OR TRIM(report_title_short) = '';
 UPDATE confluence_report_templates
 SET template_type = 'TEST'
 WHERE template_type IS NULL OR TRIM(template_type) = '';
@@ -238,12 +243,15 @@ CREATE TABLE IF NOT EXISTS confluence_release_report_links (
     report_page_url CLOB,
     test_number VARCHAR(64),
     test_title VARCHAR(512),
+    test_title_short VARCHAR(512),
     test_type VARCHAR(128),
     test_period VARCHAR(256),
     test_status CLOB,
     test_summary CLOB,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE confluence_release_report_links ADD COLUMN IF NOT EXISTS test_title_short VARCHAR(512);
 
 CREATE INDEX IF NOT EXISTS idx_confluence_release_report_links_release
     ON confluence_release_report_links (release_page_id, created_at, id);

@@ -845,6 +845,7 @@ class ConfluenceServiceTest {
                         testUuid,
                         "7.1",
                         "Определение максимальной производительности Profile @release",
+                        "Максимум Profile @release",
                         "test-page-1",
                         "Отчет по тесту",
                         "https://confluence.example/pages/viewpage.action?pageId=test-page-1")));
@@ -882,6 +883,7 @@ class ConfluenceServiceTest {
                 "<h2>7. Результаты тестирования</h2>"
                         + "<p>@perfhub_reports_start</p>"
                         + "<h3>@test_number @test_title</h3>"
+                        + "<p>@test_title_short</p>"
                         + "<p>@test_start_date @test_start_time - @test_end_date @test_end_time</p>"
                         + "<p>@test_status</p>"
                         + "<p>@test_summary</p>"
@@ -900,6 +902,7 @@ class ConfluenceServiceTest {
                         "https://confluence.example/pages/viewpage.action?pageId=test-page-1",
                         "7.1",
                         "Определение максимальной производительности Profile @release",
+                        "Максимум Profile @release",
                         "Максимум",
                         "2024-05-01 13:00:00 - 2024-05-01 14:00:00",
                         "Тест прошел успешно.",
@@ -914,6 +917,7 @@ class ConfluenceServiceTest {
         verify(releaseReportLinkRepository).saveBlockTemplate(
                 eq("release-1"),
                 eq("<h3>@test_number @test_title</h3>"
+                        + "<p>@test_title_short</p>"
                         + "<p>@test_start_date @test_start_time - @test_end_date @test_end_time</p>"
                         + "<p>@test_status</p>"
                         + "<p>@test_summary</p>"
@@ -927,6 +931,7 @@ class ConfluenceServiceTest {
         assertThat(updatedBody).doesNotContain("<p>@perfhub_reports_start</p>");
         assertThat(updatedBody).doesNotContain("<p>@perfhub_reports_end</p>");
         assertThat(updatedBody).contains("<h3>7.1 Определение максимальной производительности Profile 24.1.7</h3>");
+        assertThat(updatedBody).contains("<p>Максимум Profile 24.1.7</p>");
         assertThat(updatedBody).contains("<p>2024-05-01 13:00:00 - 2024-05-01 14:00:00</p>");
         assertThat(updatedBody).contains("<p>Тест прошел успешно.</p>");
         assertThat(updatedBody).contains("<p>Максимальная производительность составила 600 запросов в секунду.</p>");

@@ -74,6 +74,7 @@ public class ConfluenceService {
     private static final String TEST_SUMMARY_PLACEHOLDER = "@test_summary";
     private static final String TEST_NUMBER_PLACEHOLDER = "@test_number";
     private static final String TEST_TITLE_PLACEHOLDER = "@test_title";
+    private static final String TEST_TITLE_SHORT_PLACEHOLDER = "@test_title_short";
     private static final String TEST_START_PLACEHOLDER = "@test_start";
     private static final String TEST_START_DATE_PLACEHOLDER = "@test_start_date";
     private static final String TEST_START_TIME_PLACEHOLDER = "@test_start_time";
@@ -755,6 +756,7 @@ public class ConfluenceService {
                 .replace(TEST_STATUS_PLACEHOLDER, "")
                 .replace(TEST_SUMMARY_PLACEHOLDER, "")
                 .replace(TEST_NUMBER_PLACEHOLDER, "")
+                .replace(TEST_TITLE_SHORT_PLACEHOLDER, "")
                 .replace(TEST_TITLE_PLACEHOLDER, "")
                 .replace(TEST_REPORT_LINK_PLACEHOLDER, "")
                 .replace('\n', ' ')
@@ -1002,6 +1004,9 @@ public class ConfluenceService {
         String testTitle = StringUtils.hasText(item.testTitle())
                 ? item.testTitle().trim()
                 : defaultTestTitle(loadTest.type());
+        String testTitleShort = StringUtils.hasText(item.testTitleShort())
+                ? item.testTitleShort().trim()
+                : testTitle;
         return new ConfluenceReleaseReportLink(
                 null,
                 releasePageId,
@@ -1011,6 +1016,7 @@ public class ConfluenceService {
                 StringUtils.hasText(item.reportPageUrl()) ? item.reportPageUrl().trim() : confluenceClient.buildPageUrl(item.reportPageId()),
                 StringUtils.hasText(item.testNumber()) ? item.testNumber().trim() : "",
                 testTitle,
+                testTitleShort,
                 formatLoadTestType(loadTest.type()),
                 formatTestPeriod(loadTest),
                 orPlaceholder(loadTest.reportStatus()),
@@ -1143,6 +1149,7 @@ public class ConfluenceService {
             }
             rendered = rendered
                     .replace(TEST_NUMBER_PLACEHOLDER, escape(expandReleaseReportText(values.testNumber(), values)))
+                    .replace(TEST_TITLE_SHORT_PLACEHOLDER, escape(values.testTitleShort()))
                     .replace(TEST_TITLE_PLACEHOLDER, escape(values.testTitle()))
                     .replace(JIRA_RELEASE_TASK_PLACEHOLDER, escape(expandReleaseReportText(values.jiraReleaseTask(), values)))
                     .replace(JIRA_RELEASE_LINK_PLACEHOLDER, buildJiraReleaseLink(
@@ -1197,6 +1204,7 @@ public class ConfluenceService {
                 jiraReleaseValues.distributions(),
                 testNumber,
                 "",
+                "",
                 testType,
                 testStart,
                 testStartDate,
@@ -1208,6 +1216,25 @@ public class ConfluenceService {
                 testStatus,
                 testSummary);
         String testTitle = expandReleaseReportText(orPlaceholder(link.testTitle()), rawValues);
+        ReleaseReportPlaceholderValues valuesWithTitle = new ReleaseReportPlaceholderValues(
+                release,
+                orPlaceholder(jiraReleaseValues.task()),
+                jiraReleaseValues.url(),
+                jiraReleaseValues.distributions(),
+                testNumber,
+                testTitle,
+                "",
+                testType,
+                testStart,
+                testStartDate,
+                testStartTime,
+                testEnd,
+                testEndDate,
+                testEndTime,
+                testPeriod,
+                testStatus,
+                testSummary);
+        String testTitleShort = expandReleaseReportText(orDefault(link.testTitleShort(), testTitle), valuesWithTitle);
         return new ReleaseReportPlaceholderValues(
                 release,
                 orPlaceholder(jiraReleaseValues.task()),
@@ -1215,6 +1242,7 @@ public class ConfluenceService {
                 jiraReleaseValues.distributions(),
                 testNumber,
                 testTitle,
+                testTitleShort,
                 testType,
                 testStart,
                 testStartDate,
@@ -1236,6 +1264,7 @@ public class ConfluenceService {
                 .replace(JIRA_RELEASE_LINK_PLACEHOLDER, values.jiraReleaseTask())
                 .replace(JIRA_RELEASE_DISTRIBUTION_TABLE_PLACEHOLDER, "")
                 .replace(TEST_NUMBER_PLACEHOLDER, values.testNumber())
+                .replace(TEST_TITLE_SHORT_PLACEHOLDER, values.testTitleShort())
                 .replace(TEST_TITLE_PLACEHOLDER, values.testTitle())
                 .replace(TEST_TYPE_PLACEHOLDER, values.testType())
                 .replace(TEST_START_DATE_PLACEHOLDER, values.testStartDate())
@@ -1752,6 +1781,7 @@ public class ConfluenceService {
             List<JiraReleaseDistributionDto> jiraReleaseDistributions,
             String testNumber,
             String testTitle,
+            String testTitleShort,
             String testType,
             String testStart,
             String testStartDate,

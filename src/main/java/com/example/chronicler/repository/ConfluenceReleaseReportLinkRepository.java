@@ -26,11 +26,12 @@ public class ConfluenceReleaseReportLinkRepository {
                 report_page_url,
                 test_number,
                 test_title,
+                test_title_short,
                 test_type,
                 test_period,
                 test_status,
                 test_summary)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String SELECT_BY_RELEASE_SQL = """
@@ -42,6 +43,7 @@ public class ConfluenceReleaseReportLinkRepository {
                    report_page_url,
                    test_number,
                    test_title,
+                   test_title_short,
                    test_type,
                    test_period,
                    test_status,
@@ -93,10 +95,11 @@ public class ConfluenceReleaseReportLinkRepository {
                 ps.setString(5, link.reportPageUrl());
                 ps.setString(6, link.testNumber());
                 ps.setString(7, link.testTitle());
-                ps.setString(8, link.testType());
-                ps.setString(9, link.testPeriod());
-                ps.setString(10, link.testStatus());
-                ps.setString(11, link.testSummary());
+                ps.setString(8, link.testTitleShort());
+                ps.setString(9, link.testType());
+                ps.setString(10, link.testPeriod());
+                ps.setString(11, link.testStatus());
+                ps.setString(12, link.testSummary());
             }
 
             @Override
@@ -137,6 +140,7 @@ public class ConfluenceReleaseReportLinkRepository {
                 rs.getString("report_page_url"),
                 rs.getString("test_number"),
                 rs.getString("test_title"),
+                rs.getString("test_title_short"),
                 rs.getString("test_type"),
                 rs.getString("test_period"),
                 rs.getString("test_status"),

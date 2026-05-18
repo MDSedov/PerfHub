@@ -7,6 +7,7 @@ public record ConfluenceTemplateDto(
         String shortName,
         String fullName,
         String reportTitle,
+        String reportTitleShort,
         String templateType,
         String testType,
         String templatePageId,

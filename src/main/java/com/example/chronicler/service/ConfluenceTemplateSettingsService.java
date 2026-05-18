@@ -115,6 +115,7 @@ public class ConfluenceTemplateSettingsService {
                 sanitized.shortName(),
                 sanitized.fullName(),
                 sanitized.reportTitle(),
+                sanitized.reportTitleShort(),
                 sanitized.templateType(),
                 sanitized.templatePageId(),
                 sanitized.text());
@@ -138,6 +139,7 @@ public class ConfluenceTemplateSettingsService {
                 sanitized.shortName(),
                 sanitized.fullName(),
                 sanitized.reportTitle(),
+                sanitized.reportTitleShort(),
                 sanitized.templateType(),
                 sanitized.templatePageId(),
                 sanitized.text());
@@ -156,6 +158,7 @@ public class ConfluenceTemplateSettingsService {
                 template.shortName(),
                 template.fullName(),
                 template.reportTitle(),
+                template.reportTitleShort(),
                 template.templateType(),
                 template.templatePageId(),
                 template.text(),
@@ -193,6 +196,7 @@ public class ConfluenceTemplateSettingsService {
         LoadTestType testType = resolveCommandTestType(command.testType(), templateType);
         String shortName = resolveSystemShortName(templateType, testType);
         String reportTitle = StringUtils.trimWhitespace(command.reportTitle());
+        String reportTitleShort = StringUtils.trimWhitespace(command.reportTitleShort());
         String templatePageId = normalizeTemplatePageId(command.templatePageId());
         String text = command.text() == null ? "" : command.text();
         if (!StringUtils.hasText(reportTitle)) {
@@ -229,6 +233,7 @@ public class ConfluenceTemplateSettingsService {
                 shortName,
                 resolveFullName(command.fullName(), reportTitle, shortName),
                 reportTitle,
+                StringUtils.hasText(reportTitleShort) ? reportTitleShort : reportTitle,
                 templateType,
                 templatePageId,
                 text,
@@ -305,11 +310,25 @@ public class ConfluenceTemplateSettingsService {
             String shortName,
             String fullName,
             String reportTitle,
+            String reportTitleShort,
             String templateType,
             String testType,
             String templatePageId,
             String text,
-            List<TemplateChartCommand> charts) {}
+            List<TemplateChartCommand> charts) {
+
+        public TemplateSaveCommand(
+                String shortName,
+                String fullName,
+                String reportTitle,
+                String templateType,
+                String testType,
+                String templatePageId,
+                String text,
+                List<TemplateChartCommand> charts) {
+            this(shortName, fullName, reportTitle, reportTitle, templateType, testType, templatePageId, text, charts);
+        }
+    }
 
     public record TemplateChartCommand(String title, String dashboardUid, int panelId) {}
 
@@ -324,6 +343,7 @@ public class ConfluenceTemplateSettingsService {
             String shortName,
             String fullName,
             String reportTitle,
+            String reportTitleShort,
             ConfluenceTemplateType templateType,
             String templatePageId,
             String text,

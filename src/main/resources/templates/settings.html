@@ -489,6 +489,7 @@
             shortName: template?.shortName ?? '',
             fullName: template?.fullName ?? '',
             reportTitle: template?.reportTitle ?? '',
+            reportTitleShort: template?.reportTitleShort ?? template?.reportTitle ?? '',
             templateType: template?.templateType ?? 'TEST',
             testType: template?.testType ?? inferTemplateTestType(template),
             templatePageId: normalizeConfluencePageId(template?.templatePageId ?? template?.pageId) ?? '',
@@ -746,6 +747,7 @@
         const reportTitle = normalizeText(template?.reportTitle)
                 || normalizeText(template?.fullName)
                 || shortName;
+        const reportTitleShort = normalizeText(template?.reportTitleShort) || reportTitle;
         const fullName = normalizeText(template?.fullName) || reportTitle || shortName;
         const templatePageId = normalizeConfluencePageId(template?.templatePageId ?? template?.pageId);
         const text = template?.text ?? template?.body ?? '';
@@ -760,6 +762,7 @@
             shortName,
             fullName,
             reportTitle,
+            reportTitleShort,
             templateType,
             testType,
             templatePageId,
