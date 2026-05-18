@@ -2933,13 +2933,13 @@
         }
     }
 
-    async function fetchGrafanaPanels(testId) {
+    async function fetchGrafanaPanels(testId, forceRefresh = false) {
         const response = await fetch('/api/grafana/panels/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ testUuid: testId })
+            body: JSON.stringify({ testUuid: testId, forceRefresh })
         });
         const responseText = await response.text();
         if (!response.ok) {
@@ -3908,17 +3908,21 @@
         }
 
         grafanaLoadButton.addEventListener('click', async () => {
+            const forceRefresh = grafanaPanelsCache.has(testId) || grafanaRenderedPanels.has(testId);
             grafanaLoadButton.disabled = true;
             grafanaLoadButton.textContent = 'Загружаем…';
             grafanaPlaceholder.textContent = 'Загружаем графики…';
             grafanaPlaceholder.classList.remove('visually-hidden');
             showToast('Загружаем графики…', 'info', 6000);
             try {
-                const panelsData = await ensureGrafanaPanels(testId);
+                const panelsData = forceRefresh
+                        ? await fetchGrafanaPanels(testId, true)
+                        : await ensureGrafanaPanels(testId);
                 const panels = Array.isArray(panelsData?.panels) ? panelsData.panels : [];
                 if (!panels || panels.length === 0) {
                     grafanaPlaceholder.textContent = '';
                     grafanaBox.innerHTML = '';
+                    grafanaRenderedPanels.delete(testId);
                     showToast('Графиков не найдено для этого теста.', 'warning', 6000);
                 } else {
                     grafanaPlaceholder.textContent = '';
@@ -3933,7 +3937,9 @@
                 showToast(`Графики загрузить не удалось${reason}`, 'danger', 12000);
             } finally {
                 grafanaLoadButton.disabled = false;
-                grafanaLoadButton.textContent = 'Загрузить графики';
+                grafanaLoadButton.textContent = grafanaRenderedPanels.has(testId)
+                        ? 'Обновить графики из Grafana для данного теста'
+                        : 'Загрузить графики';
             }
         });
 

@@ -5,6 +5,7 @@ import com.example.chronicler.dto.grafana.GrafanaPanelDefinition;
 import com.example.chronicler.dto.grafana.GrafanaVariableDefinition;
 import com.example.chronicler.dto.grafana.GrafanaVariableOption;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
+import com.example.chronicler.dto.grafana.GrafanaRenderOptions;
 import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -106,17 +107,26 @@ public class GrafanaClient {
             Instant from,
             Instant to,
             Map<String, String> variables) {
+        return renderPanel(dashboardUid, dashboardSlug, panelId, from, to, variables, loadRenderOptions());
+    }
+
+    public byte[] renderPanel(
+            String dashboardUid,
+            String dashboardSlug,
+            int panelId,
+            Instant from,
+            Instant to,
+            Map<String, String> variables,
+            GrafanaRenderOptions renderOptions) {
         requireText(dashboardUid, "dashboardUid must not be empty");
         requireText(dashboardSlug, "dashboardSlug must not be empty");
         requirePositive(panelId, "panelId must be positive");
         requireNonNull(from, "from must not be null");
         requireNonNull(to, "to must not be null");
+        requireNonNull(renderOptions, "renderOptions must not be null");
 
         String baseUrl = required(BASE_URL_KEY);
         String renderPath = required(RENDER_PATH_KEY);
-        int imageWidth = requiredInt(IMAGE_WIDTH_KEY);
-        int imageHeight = requiredInt(IMAGE_HEIGHT_KEY);
-        String timezone = required(TIMEZONE_KEY);
 
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .path(ensurePathEndsWithSlash(renderPath))
@@ -124,9 +134,9 @@ public class GrafanaClient {
                 .queryParam("panelId", panelId)
                 .queryParam("from", from.toEpochMilli())
                 .queryParam("to", to.toEpochMilli())
-                .queryParam("width", imageWidth)
-                .queryParam("height", imageHeight)
-                .queryParam("tz", timezone);
+                .queryParam("width", renderOptions.width())
+                .queryParam("height", renderOptions.height())
+                .queryParam("tz", renderOptions.timezone());
         appendVariables(builder, variables);
 
         // Кодируем query-параметры (включая var-*) как обычные значения, чтобы спецсимволы
@@ -164,6 +174,13 @@ public class GrafanaClient {
             log.error("{} via {}", message, uri, ex);
             throw new GrafanaClientException(message, ex);
         }
+    }
+
+    public GrafanaRenderOptions loadRenderOptions() {
+        return new GrafanaRenderOptions(
+                requiredInt(IMAGE_WIDTH_KEY),
+                requiredInt(IMAGE_HEIGHT_KEY),
+                required(TIMEZONE_KEY));
     }
 
     public String loadDashboardSlug(String dashboardUid) {

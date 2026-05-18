@@ -16,7 +16,6 @@ import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
 import com.example.chronicler.dto.dropapp.JiraReleaseDistributionDto;
-import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceClientException;
@@ -394,12 +393,7 @@ public class ConfluenceService {
         List<ConfluenceTemplateChart> templateCharts = template.charts() == null ? List.of() : template.charts();
         List<KubernetesConfiguration> configurations = kubernetesConfigurationService.getConfigurations(testUuid);
         String releaseValue = resolveReleaseValue(configurations);
-        List<GrafanaRenderedPanel> renderedPanels = grafanaService.renderSelectedPanels(
-                loadTest.start(),
-                loadTest.end(),
-                templateCharts.stream()
-                        .map(chart -> new GrafanaPanelSelection(chart.dashboardUid(), chart.panelId()))
-                        .toList());
+        List<GrafanaRenderedPanel> renderedPanels = grafanaService.renderTemplatePanelsForTest(loadTest, template);
         if (renderedPanels.size() != templateCharts.size()) {
             throw new ConfluenceOperationException("Не удалось подготовить все графики для выбранного шаблона");
         }

@@ -6,6 +6,7 @@ import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
+import com.example.chronicler.dto.grafana.GrafanaRenderOptions;
 import com.example.chronicler.dto.grafana.GrafanaRenderPanelRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
@@ -48,6 +49,7 @@ public class GrafanaService {
     private final GrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
     private final GrafanaVariableService grafanaVariableService;
     private final ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
+    private final GrafanaRenderedPanelCacheService renderedPanelCacheService;
 
     public GrafanaService(
             GrafanaClient grafanaClient,
@@ -56,7 +58,8 @@ public class GrafanaService {
             GrafanaDashboardRepository grafanaDashboardRepository,
             GrafanaDashboardPanelRepository grafanaDashboardPanelRepository,
             GrafanaVariableService grafanaVariableService,
-            ConfluenceTemplateSettingsService confluenceTemplateSettingsService) {
+            ConfluenceTemplateSettingsService confluenceTemplateSettingsService,
+            GrafanaRenderedPanelCacheService renderedPanelCacheService) {
         this.grafanaClient = grafanaClient;
         this.grafanaRenderCache = grafanaRenderCache;
         this.loadTestRepository = loadTestRepository;
@@ -64,6 +67,7 @@ public class GrafanaService {
         this.grafanaDashboardPanelRepository = grafanaDashboardPanelRepository;
         this.grafanaVariableService = grafanaVariableService;
         this.confluenceTemplateSettingsService = confluenceTemplateSettingsService;
+        this.renderedPanelCacheService = renderedPanelCacheService;
     }
 
     /**
@@ -91,7 +95,7 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        return renderPanelsForTest(loadTest, from, to);
+        return renderPanelsForTest(loadTest, from, to, request.shouldForceRefresh());
     }
 
     /**
@@ -105,7 +109,7 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        return renderPanelsForTemplate(resolveTemplate(request.templateId()), from, to);
+        return renderPanelsForTemplate(resolveTemplate(request.templateId()), null, from, to, false);
     }
 
     public List<GrafanaRenderedPanel> renderTemplatePanelsByRange(GrafanaRenderRangeRequest request) {
@@ -116,7 +120,7 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        return renderTemplatePanels(resolveTemplate(request.templateId()), from, to);
+        return renderTemplatePanels(resolveTemplate(request.templateId()), null, from, to, false);
     }
 
     public GrafanaRenderedPanel renderPanelByRange(GrafanaRenderPanelRangeRequest request) {
@@ -134,13 +138,15 @@ public class GrafanaService {
                 chart.dashboardUid(),
                 chart.panelId(),
                 context.cachedPanelsById().get(chart.panelId()));
+        GrafanaRenderOptions renderOptions = grafanaClient.loadRenderOptions();
         RenderedPanelImage renderedPanel = renderPanelWithFallback(
                 chart.dashboardUid(),
                 context.dashboardSlug(),
                 chart.panelId(),
                 from,
                 to,
-                context.variableValues());
+                context.variableValues(),
+                renderOptions);
         String encodedImage = Base64.getEncoder().encodeToString(renderedPanel.imageBytes());
         String title = StringUtils.hasText(chart.title()) ? chart.title().trim() : metadata.title();
         return new GrafanaRenderedPanel(chart.panelId(), title, metadata.description(), encodedImage);
@@ -159,6 +165,7 @@ public class GrafanaService {
             return List.of();
         }
 
+        GrafanaRenderOptions renderOptions = grafanaClient.loadRenderOptions();
         List<GrafanaRenderedPanel> renderedPanels = new ArrayList<>(panelSelections.size());
         for (GrafanaPanelSelection selection : panelSelections) {
             if (selection == null || !StringUtils.hasText(selection.dashboardUid()) || selection.panelId() <= 0) {
@@ -182,7 +189,8 @@ public class GrafanaService {
                     selection.panelId(),
                     from,
                     to,
-                    variableValues);
+                    variableValues,
+                    renderOptions);
             byte[] imageBytes = renderedPanel.imageBytes();
             String encodedImage = Base64.getEncoder().encodeToString(imageBytes);
             renderedPanels.add(new GrafanaRenderedPanel(selection.panelId(), title, "", encodedImage));
@@ -191,12 +199,36 @@ public class GrafanaService {
         return List.copyOf(renderedPanels);
     }
 
-    private GrafanaRenderResponse renderPanelsForTest(LoadTest loadTest, Instant from, Instant to) {
-        return renderPanelsForTemplate(resolveDefaultTemplate(loadTest), from, to);
+    public List<GrafanaRenderedPanel> renderTemplatePanelsForTest(LoadTest loadTest, ConfluenceTemplate template) {
+        Objects.requireNonNull(loadTest, "loadTest must not be null");
+        Objects.requireNonNull(template, "template must not be null");
+        Instant from = loadTest.start();
+        Instant to = loadTest.end();
+        if (from == null || to == null) {
+            throw new GrafanaInvalidTimeRangeException("Start and end time must be set for the test");
+        }
+        if (!to.isAfter(from)) {
+            throw new GrafanaInvalidTimeRangeException("End time must be after start time");
+        }
+        return renderTemplatePanels(template, loadTest.id(), from, to, false);
     }
 
-    private GrafanaRenderResponse renderPanelsForTemplate(ConfluenceTemplate template, Instant from, Instant to) {
-        List<TemplateRenderedPanel> renderedTemplatePanels = renderTemplatePanelsInternal(template, from, to);
+    private GrafanaRenderResponse renderPanelsForTest(
+            LoadTest loadTest,
+            Instant from,
+            Instant to,
+            boolean forceRefresh) {
+        return renderPanelsForTemplate(resolveDefaultTemplate(loadTest), loadTest.id(), from, to, forceRefresh);
+    }
+
+    private GrafanaRenderResponse renderPanelsForTemplate(
+            ConfluenceTemplate template,
+            UUID testUuid,
+            Instant from,
+            Instant to,
+            boolean forceRefresh) {
+        List<TemplateRenderedPanel> renderedTemplatePanels =
+                renderTemplatePanelsInternal(template, testUuid, from, to, forceRefresh);
         List<GrafanaRenderedDashboard> dashboards = new ArrayList<>();
         Map<String, List<GrafanaRenderedPanel>> panelsByDashboardUid = new LinkedHashMap<>();
         Map<String, String> dashboardSlugs = new LinkedHashMap<>();
@@ -218,22 +250,30 @@ public class GrafanaService {
         return response;
     }
 
-    private List<GrafanaRenderedPanel> renderTemplatePanels(ConfluenceTemplate template, Instant from, Instant to) {
-        return renderTemplatePanelsInternal(template, from, to).stream()
+    private List<GrafanaRenderedPanel> renderTemplatePanels(
+            ConfluenceTemplate template,
+            UUID testUuid,
+            Instant from,
+            Instant to,
+            boolean forceRefresh) {
+        return renderTemplatePanelsInternal(template, testUuid, from, to, forceRefresh).stream()
                 .map(TemplateRenderedPanel::panel)
                 .toList();
     }
 
     private List<TemplateRenderedPanel> renderTemplatePanelsInternal(
             ConfluenceTemplate template,
+            UUID testUuid,
             Instant from,
-            Instant to) {
+            Instant to,
+            boolean forceRefresh) {
         List<ConfluenceTemplateChart> templateCharts = template.charts() == null ? List.of() : template.charts();
         if (templateCharts.isEmpty()) {
             throw new GrafanaRenderingException(
                     "Для шаблона отчета '%s' не настроены графики".formatted(template.fullName()));
         }
 
+        GrafanaRenderOptions renderOptions = grafanaClient.loadRenderOptions();
         Map<String, DashboardRenderContext> contextByDashboardUid = new LinkedHashMap<>();
         List<TemplateRenderedPanel> renderedPanels = new ArrayList<>(templateCharts.size());
         for (ConfluenceTemplateChart chart : templateCharts) {
@@ -244,6 +284,41 @@ public class GrafanaService {
             DashboardRenderContext context = contextByDashboardUid.computeIfAbsent(
                     dashboardUid,
                     this::loadDashboardRenderContext);
+            Optional<GrafanaRenderedPanelCacheService.CachedPanelImage> cachedPanel = findCachedPanel(
+                    testUuid,
+                    template.id(),
+                    dashboardUid,
+                    chart.panelId(),
+                    from,
+                    to,
+                    context.variableValues(),
+                    renderOptions,
+                    forceRefresh);
+            if (cachedPanel.isPresent()) {
+                GrafanaRenderedPanelCacheService.CachedPanelImage cached = cachedPanel.get();
+                String dashboardSlug = StringUtils.hasText(cached.dashboardSlug())
+                        ? cached.dashboardSlug()
+                        : context.dashboardSlug();
+                if (!Objects.equals(dashboardSlug, context.dashboardSlug())) {
+                    context = new DashboardRenderContext(
+                            dashboardSlug,
+                            context.variableValues(),
+                            context.cachedPanelsById());
+                    contextByDashboardUid.put(dashboardUid, context);
+                }
+                String encodedImage = Base64.getEncoder().encodeToString(cached.imageBytes());
+                String title = resolvePanelTitle(chart.title(), cached.title(), chart.panelId());
+                renderedPanels.add(new TemplateRenderedPanel(
+                        dashboardUid,
+                        dashboardSlug,
+                        new GrafanaRenderedPanel(
+                                chart.panelId(),
+                                title,
+                                cached.description() == null ? "" : cached.description(),
+                                encodedImage)));
+                continue;
+            }
+
             ResolvedPanelMetadata metadata = resolvePanelMetadata(
                     dashboardUid,
                     chart.panelId(),
@@ -254,7 +329,8 @@ public class GrafanaService {
                     chart.panelId(),
                     from,
                     to,
-                    context.variableValues());
+                    context.variableValues(),
+                    renderOptions);
             if (!Objects.equals(renderedPanel.dashboardSlug(), context.dashboardSlug())) {
                 context = new DashboardRenderContext(
                         renderedPanel.dashboardSlug(),
@@ -264,6 +340,19 @@ public class GrafanaService {
             }
             String encodedImage = Base64.getEncoder().encodeToString(renderedPanel.imageBytes());
             String title = StringUtils.hasText(chart.title()) ? chart.title().trim() : metadata.title();
+            storeCachedPanel(
+                    testUuid,
+                    template.id(),
+                    dashboardUid,
+                    renderedPanel.dashboardSlug(),
+                    chart.panelId(),
+                    from,
+                    to,
+                    context.variableValues(),
+                    renderOptions,
+                    title,
+                    metadata.description(),
+                    renderedPanel.imageBytes());
             renderedPanels.add(new TemplateRenderedPanel(
                     dashboardUid,
                     renderedPanel.dashboardSlug(),
@@ -288,17 +377,90 @@ public class GrafanaService {
                                 .formatted(normalizedDashboardUid, panelId, template.fullName())));
     }
 
+    private Optional<GrafanaRenderedPanelCacheService.CachedPanelImage> findCachedPanel(
+            UUID testUuid,
+            int templateId,
+            String dashboardUid,
+            int panelId,
+            Instant from,
+            Instant to,
+            Map<String, String> variableValues,
+            GrafanaRenderOptions renderOptions,
+            boolean forceRefresh) {
+        if (forceRefresh || renderedPanelCacheService == null) {
+            return Optional.empty();
+        }
+        return renderedPanelCacheService.find(
+                testUuid,
+                templateId,
+                dashboardUid,
+                panelId,
+                from,
+                to,
+                variableValues,
+                renderOptions);
+    }
+
+    private void storeCachedPanel(
+            UUID testUuid,
+            int templateId,
+            String dashboardUid,
+            String dashboardSlug,
+            int panelId,
+            Instant from,
+            Instant to,
+            Map<String, String> variableValues,
+            GrafanaRenderOptions renderOptions,
+            String title,
+            String description,
+            byte[] imageBytes) {
+        if (renderedPanelCacheService == null) {
+            return;
+        }
+        renderedPanelCacheService.store(
+                testUuid,
+                templateId,
+                dashboardUid,
+                dashboardSlug,
+                panelId,
+                from,
+                to,
+                variableValues,
+                renderOptions,
+                title,
+                description,
+                imageBytes);
+    }
+
+    private String resolvePanelTitle(String templateTitle, String cachedTitle, int panelId) {
+        if (StringUtils.hasText(templateTitle)) {
+            return templateTitle.trim();
+        }
+        if (StringUtils.hasText(cachedTitle)) {
+            return cachedTitle.trim();
+        }
+        return "Панель " + panelId;
+    }
+
     private RenderedPanelImage renderPanelWithFallback(
             String dashboardUid,
             String dashboardSlug,
             int panelId,
             Instant from,
             Instant to,
-            Map<String, String> variableValues) {
+            Map<String, String> variableValues,
+            GrafanaRenderOptions renderOptions) {
         try {
             return new RenderedPanelImage(
                     dashboardSlug,
-                    grafanaClient.renderPanel(dashboardUid, dashboardSlug, panelId, from, to, variableValues));
+                    grafanaClient.renderPanel(
+                            dashboardUid,
+                            dashboardSlug,
+                            panelId,
+                            from,
+                            to,
+                            variableValues,
+                            renderOptions));
         } catch (GrafanaClientException ex) {
             String refreshedSlug = refreshDashboardSlug(dashboardUid, dashboardSlug, panelId, ex);
             if (!StringUtils.hasText(refreshedSlug) || Objects.equals(refreshedSlug, dashboardSlug)) {
@@ -306,7 +468,14 @@ public class GrafanaService {
             }
             return new RenderedPanelImage(
                     refreshedSlug,
-                    grafanaClient.renderPanel(dashboardUid, refreshedSlug, panelId, from, to, variableValues));
+                    grafanaClient.renderPanel(
+                            dashboardUid,
+                            refreshedSlug,
+                            panelId,
+                            from,
+                            to,
+                            variableValues,
+                            renderOptions));
         }
     }
 

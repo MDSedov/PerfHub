@@ -8,9 +8,11 @@ import com.example.chronicler.model.ConfluenceTemplate;
 import com.example.chronicler.model.ConfluenceTemplateChart;
 import com.example.chronicler.dto.grafana.GrafanaPanelMetadata;
 import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
+import com.example.chronicler.dto.grafana.GrafanaRenderOptions;
 import com.example.chronicler.dto.grafana.GrafanaRenderRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderResponse;
+import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.exception.GrafanaInvalidTimeRangeException;
 import com.example.chronicler.exception.GrafanaRenderingException;
@@ -58,14 +60,19 @@ class GrafanaServiceTest {
         grafanaDashboardPanelRepository = new StubGrafanaDashboardPanelRepository();
         grafanaDashboardVariableRepository = new StubGrafanaDashboardVariableRepository();
         confluenceTemplateSettingsService = new StubConfluenceTemplateSettingsService();
-        grafanaService = new GrafanaService(
+        grafanaService = createGrafanaService(null);
+    }
+
+    private GrafanaService createGrafanaService(GrafanaRenderedPanelCacheService renderedPanelCacheService) {
+        return new GrafanaService(
                 grafanaClient,
                 grafanaRenderCache,
                 loadTestRepository,
                 grafanaDashboardRepository,
                 grafanaDashboardPanelRepository,
                 new GrafanaVariableService(grafanaDashboardVariableRepository),
-                confluenceTemplateSettingsService);
+                confluenceTemplateSettingsService,
+                renderedPanelCacheService);
     }
 
     @Test
@@ -265,6 +272,94 @@ class GrafanaServiceTest {
     }
 
     @Test
+    void renderPanelsUsesPersistentCacheWhenAvailable() {
+        StubRenderedPanelCacheService panelCacheService = new StubRenderedPanelCacheService();
+        grafanaService = createGrafanaService(panelCacheService);
+
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+        byte[] imageBytes = new byte[] {10, 11};
+
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.MAX, null));
+        confluenceTemplateSettingsService.registerDefaultTemplate(
+                LoadTestType.MAX,
+                new ConfluenceTemplate(
+                        1,
+                        "max",
+                        "MAX report",
+                        "MAX report",
+                        "<p>Body</p>",
+                        List.of(new ConfluenceTemplateChart(1L, 1, "Template title", "uid", 31, 0))));
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "slug", List.of(31), true)));
+        panelCacheService.put(
+                testUuid,
+                1,
+                "uid",
+                31,
+                from,
+                to,
+                Map.of(),
+                new GrafanaRenderOptions(1200, 600, "Europe/Moscow"),
+                new GrafanaRenderedPanelCacheService.CachedPanelImage(
+                        "slug",
+                        "Cached title",
+                        "Cached description",
+                        imageBytes));
+
+        GrafanaRenderResponse response = grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
+
+        assertThat(response.dashboards()).hasSize(1);
+        assertThat(response.dashboards().get(0).panels()).hasSize(1);
+        GrafanaRenderedPanel panel = response.dashboards().get(0).panels().get(0);
+        assertThat(panel.title()).isEqualTo("Template title");
+        assertThat(panel.description()).isEqualTo("Cached description");
+        assertThat(panel.imageBase64()).isEqualTo("Cgs=");
+        assertThat(grafanaClient.renderCalls()).isEmpty();
+        assertThat(panelCacheService.storeCalls()).isEmpty();
+    }
+
+    @Test
+    void renderPanelsStoresPersistentCacheAfterRendering() {
+        StubRenderedPanelCacheService panelCacheService = new StubRenderedPanelCacheService();
+        grafanaService = createGrafanaService(panelCacheService);
+
+        UUID testUuid = UUID.randomUUID();
+        Instant from = Instant.parse("2024-01-01T00:00:00Z");
+        Instant to = Instant.parse("2024-01-01T01:00:00Z");
+        byte[] imageBytes = new byte[] {12};
+
+        loadTestRepository.put(new LoadTest(testUuid, from, to, LoadTestType.MAX, null));
+        confluenceTemplateSettingsService.registerDefaultTemplate(
+                LoadTestType.MAX,
+                new ConfluenceTemplate(
+                        1,
+                        "max",
+                        "MAX report",
+                        "MAX report",
+                        "<p>Body</p>",
+                        List.of(new ConfluenceTemplateChart(1L, 1, "Panel 32", "uid", 32, 0))));
+        grafanaDashboardRepository.setDashboards(
+                List.of(new GrafanaDashboard("uid", "slug", List.of(32), true)));
+        grafanaClient.setRenderedPanel(32, imageBytes);
+        grafanaClient.setPanelMetadata(32, new GrafanaPanelMetadata("Panel 32", "Rendered description"));
+
+        grafanaService.renderPanels(new GrafanaRenderRequest(testUuid));
+
+        assertThat(grafanaClient.renderCalls()).containsExactly(32);
+        assertThat(panelCacheService.storeCalls()).hasSize(1);
+        StubRenderedPanelCacheService.StoreCall storeCall = panelCacheService.storeCalls().get(0);
+        assertThat(storeCall.testUuid()).isEqualTo(testUuid);
+        assertThat(storeCall.templateId()).isEqualTo(1);
+        assertThat(storeCall.dashboardUid()).isEqualTo("uid");
+        assertThat(storeCall.panelId()).isEqualTo(32);
+        assertThat(storeCall.title()).isEqualTo("Panel 32");
+        assertThat(storeCall.description()).isEqualTo("Rendered description");
+        assertThat(storeCall.imageBytes()).isEqualTo(imageBytes);
+    }
+
+    @Test
     void renderPanelsSkipsGrafanaVariablesWithoutResolvedValue() {
         UUID testUuid = UUID.randomUUID();
         Instant from = Instant.parse("2024-01-01T00:00:00Z");
@@ -399,6 +494,105 @@ class GrafanaServiceTest {
                 .doesNotContainKey("namespace");
     }
 
+    private static final class StubRenderedPanelCacheService extends GrafanaRenderedPanelCacheService {
+
+        private final Map<String, CachedPanelImage> cachedImages = new HashMap<>();
+        private final List<StoreCall> storeCalls = new ArrayList<>();
+
+        private StubRenderedPanelCacheService() {
+            super(null, "grafana-render-cache");
+        }
+
+        void put(
+                UUID testUuid,
+                int templateId,
+                String dashboardUid,
+                int panelId,
+                Instant from,
+                Instant to,
+                Map<String, String> variables,
+                GrafanaRenderOptions options,
+                CachedPanelImage cachedPanelImage) {
+            cachedImages.put(key(testUuid, templateId, dashboardUid, panelId, from, to, variables, options), cachedPanelImage);
+        }
+
+        List<StoreCall> storeCalls() {
+            return List.copyOf(storeCalls);
+        }
+
+        @Override
+        public Optional<CachedPanelImage> find(
+                UUID testUuid,
+                int templateId,
+                String dashboardUid,
+                int panelId,
+                Instant from,
+                Instant to,
+                Map<String, String> variables,
+                GrafanaRenderOptions options) {
+            return Optional.ofNullable(cachedImages.get(
+                    key(testUuid, templateId, dashboardUid, panelId, from, to, variables, options)));
+        }
+
+        @Override
+        public void store(
+                UUID testUuid,
+                int templateId,
+                String dashboardUid,
+                String dashboardSlug,
+                int panelId,
+                Instant from,
+                Instant to,
+                Map<String, String> variables,
+                GrafanaRenderOptions options,
+                String title,
+                String description,
+                byte[] imageBytes) {
+            storeCalls.add(new StoreCall(
+                    testUuid,
+                    templateId,
+                    dashboardUid,
+                    dashboardSlug,
+                    panelId,
+                    from,
+                    to,
+                    variables == null ? Map.of() : Map.copyOf(variables),
+                    options,
+                    title,
+                    description,
+                    imageBytes));
+        }
+
+        private String key(
+                UUID testUuid,
+                int templateId,
+                String dashboardUid,
+                int panelId,
+                Instant from,
+                Instant to,
+                Map<String, String> variables,
+                GrafanaRenderOptions options) {
+            Map<String, String> safeVariables = variables == null ? Map.of() : new java.util.TreeMap<>(variables);
+            return "%s|%d|%s|%d|%s|%s|%s|%s"
+                    .formatted(testUuid, templateId, dashboardUid, panelId, from, to, safeVariables, options);
+        }
+
+        private record StoreCall(
+                UUID testUuid,
+                int templateId,
+                String dashboardUid,
+                String dashboardSlug,
+                int panelId,
+                Instant from,
+                Instant to,
+                Map<String, String> variables,
+                GrafanaRenderOptions options,
+                String title,
+                String description,
+                byte[] imageBytes) {
+        }
+    }
+
     private static final class StubGrafanaClient extends GrafanaClient {
 
         private final Map<Integer, byte[]> rendered = new HashMap<>();
@@ -478,6 +672,24 @@ class GrafanaServiceTest {
                 Map<String, String> variables) {
             renderVariablesByPanel.put(panelId, variables == null ? Map.of() : Map.copyOf(variables));
             return renderPanel(dashboardUid, dashboardSlug, panelId, from, to);
+        }
+
+        @Override
+        public byte[] renderPanel(
+                String dashboardUid,
+                String dashboardSlug,
+                int panelId,
+                Instant from,
+                Instant to,
+                Map<String, String> variables,
+                GrafanaRenderOptions renderOptions) {
+            renderVariablesByPanel.put(panelId, variables == null ? Map.of() : Map.copyOf(variables));
+            return renderPanel(dashboardUid, dashboardSlug, panelId, from, to);
+        }
+
+        @Override
+        public GrafanaRenderOptions loadRenderOptions() {
+            return new GrafanaRenderOptions(1200, 600, "Europe/Moscow");
         }
 
         @Override

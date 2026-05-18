@@ -27,7 +27,6 @@ import com.example.chronicler.dto.confluence.ConfluenceReportRequest;
 import com.example.chronicler.dto.confluence.ConfluenceReportResponse;
 import com.example.chronicler.dto.dropapp.DropAppConfigurationSnapshotDetailsDto;
 import com.example.chronicler.dto.dropapp.JiraReleaseDistributionDto;
-import com.example.chronicler.dto.grafana.GrafanaPanelSelection;
 import com.example.chronicler.dto.grafana.GrafanaRenderRangeRequest;
 import com.example.chronicler.dto.grafana.GrafanaRenderedPanel;
 import com.example.chronicler.exception.ConfluenceClientException;
@@ -128,10 +127,10 @@ class ConfluenceServiceTest {
         Instant firstEnd = Instant.parse("2024-01-01T01:00:00Z");
         Instant secondStart = Instant.parse("2024-01-02T00:00:00Z");
         Instant secondEnd = Instant.parse("2024-01-02T05:00:00Z");
-        when(loadTestRepository.findById(firstTestUuid))
-                .thenReturn(Optional.of(new LoadTest(firstTestUuid, firstStart, firstEnd, LoadTestType.MAX, null)));
-        when(loadTestRepository.findById(secondTestUuid))
-                .thenReturn(Optional.of(new LoadTest(secondTestUuid, secondStart, secondEnd, LoadTestType.SOAK, null)));
+        LoadTest firstLoadTest = new LoadTest(firstTestUuid, firstStart, firstEnd, LoadTestType.MAX, null);
+        LoadTest secondLoadTest = new LoadTest(secondTestUuid, secondStart, secondEnd, LoadTestType.SOAK, null);
+        when(loadTestRepository.findById(firstTestUuid)).thenReturn(Optional.of(firstLoadTest));
+        when(loadTestRepository.findById(secondTestUuid)).thenReturn(Optional.of(secondLoadTest));
 
         byte[] firstImage = new byte[] {1, 2, 3};
         byte[] secondImage = new byte[] {4, 5, 6};
@@ -156,15 +155,9 @@ class ConfluenceServiceTest {
                 List.of(new ConfluenceTemplateChart(2L, 202, "Latency", "uid-2", 9, 0)));
         when(confluenceTemplateSettingsService.getActiveTemplate(101)).thenReturn(firstTemplate);
         when(confluenceTemplateSettingsService.getActiveTemplate(202)).thenReturn(secondTemplate);
-        when(grafanaService.renderSelectedPanels(
-                        firstStart,
-                        firstEnd,
-                        List.of(new GrafanaPanelSelection("uid-1", 7))))
+        when(grafanaService.renderTemplatePanelsForTest(firstLoadTest, firstTemplate))
                 .thenReturn(List.of(firstPanel));
-        when(grafanaService.renderSelectedPanels(
-                        secondStart,
-                        secondEnd,
-                        List.of(new GrafanaPanelSelection("uid-2", 9))))
+        when(grafanaService.renderTemplatePanelsForTest(secondLoadTest, secondTemplate))
                 .thenReturn(List.of(secondPanel));
 
         ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
@@ -204,14 +197,8 @@ class ConfluenceServiceTest {
         assertThat(secondReport.attachmentNames()).hasSize(1);
         assertThat(secondReport.attachmentNames().get(0)).contains("grafana-panel-9-");
 
-        verify(grafanaService).renderSelectedPanels(
-                firstStart,
-                firstEnd,
-                List.of(new GrafanaPanelSelection("uid-1", 7)));
-        verify(grafanaService).renderSelectedPanels(
-                secondStart,
-                secondEnd,
-                List.of(new GrafanaPanelSelection("uid-2", 9)));
+        verify(grafanaService).renderTemplatePanelsForTest(firstLoadTest, firstTemplate);
+        verify(grafanaService).renderTemplatePanelsForTest(secondLoadTest, secondTemplate);
 
         verify(confluenceClient).createChildPage(credentials, "123", "SPACE", firstTitle, "<p>Max template</p>");
         verify(confluenceClient).createChildPage(credentials, "123", "SPACE", secondTitle, "<p>Soak template</p>");
@@ -305,8 +292,8 @@ class ConfluenceServiceTest {
 
         Instant start = Instant.parse("2024-02-01T00:00:00Z");
         Instant end = Instant.parse("2024-02-01T02:00:00Z");
-        when(loadTestRepository.findById(testUuid))
-                .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.MAX, null)));
+        LoadTest loadTest = new LoadTest(testUuid, start, end, LoadTestType.MAX, null);
+        when(loadTestRepository.findById(testUuid)).thenReturn(Optional.of(loadTest));
 
         ConfluenceTemplate template = new ConfluenceTemplate(
                 301,
@@ -358,10 +345,7 @@ class ConfluenceServiceTest {
         byte[] image = new byte[] {1, 9, 7};
         GrafanaRenderedPanel panel = new GrafanaRenderedPanel(
                 7, "CPU", "", Base64.getEncoder().encodeToString(image));
-        when(grafanaService.renderSelectedPanels(
-                        start,
-                        end,
-                        List.of(new GrafanaPanelSelection("uid-1", 7))))
+        when(grafanaService.renderTemplatePanelsForTest(loadTest, template))
                 .thenReturn(List.of(panel));
 
         ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
