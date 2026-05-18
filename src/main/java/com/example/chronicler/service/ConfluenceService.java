@@ -60,10 +60,13 @@ public class ConfluenceService {
     private static final String GRAFANA_IMAGE_HEIGHT_KEY = "image-height";
     private static final String CONFLUENCE_SERVICE = "confluence";
     private static final String REPORTS_PARENT_PAGE_ID_KEY = "reports-parent-page-id";
+    private static final String JIRA_SERVICE = "jira";
+    private static final String JIRA_PROJECT_NAME_KEY = "project-name";
     private static final String RELEASE_PLACEHOLDER = "@release";
     private static final String JIRA_RELEASE_TASK_PLACEHOLDER = "@jira_release_task";
     private static final String JIRA_RELEASE_LINK_PLACEHOLDER = "@jira_release_link";
     private static final String JIRA_RELEASE_DISTRIBUTION_TABLE_PLACEHOLDER = "@jira_release_distr_table";
+    private static final String JIRA_RELEASE_REQUIRED_LT_TABLE_PLACEHOLDER = "@jira_release_tasks_required_lt";
     private static final String CONFIG_PLACEHOLDER = "@config";
     private static final String GRAPHICS_PLACEHOLDER = "@graphics";
     private static final String TEST_TYPE_PLACEHOLDER = "@test_type";
@@ -82,6 +85,11 @@ public class ConfluenceService {
     private static final String RELEASE_REPORTS_START_MARKER = "@perfhub_reports_start";
     private static final String RELEASE_REPORTS_END_MARKER = "@perfhub_reports_end";
     private static final String REPORT_PLACEHOLDER_TEXT = "Требуется заполнить вручную.";
+    private static final String JIRA_REQUIRED_LT_FIELD = "Требуется НТ";
+    private static final String JIRA_REQUIRED_LT_VALUE = "Да";
+    private static final String JIRA_REQUIRED_LT_COLUMNS =
+            "key,summary,type,created,updated,assignee,priority,components,status,resolution";
+    private static final int JIRA_REQUIRED_LT_MAX_ISSUES = 20;
     private static final String PLACEHOLDER_BLOCK_TAGS =
             "p|div|section|article|aside|blockquote|li|h1|h2|h3|h4|h5|h6";
     private static final String PLACEHOLDER_PADDING_PATTERN = "(?:\\s|&nbsp;|&#160;|<br\\s*/?>)*";
@@ -706,6 +714,7 @@ public class ConfluenceService {
                 : template.fullName();
         String resolved = getSafeBody(titleTemplate)
                 .replace(RELEASE_PLACEHOLDER, releaseValue)
+                .replace(JIRA_RELEASE_REQUIRED_LT_TABLE_PLACEHOLDER, "")
                 .replace(JIRA_RELEASE_TASK_PLACEHOLDER, titlePlaceholder(safeJiraReleaseValues.task()))
                 .replace(JIRA_RELEASE_LINK_PLACEHOLDER, "")
                 .replace(JIRA_RELEASE_DISTRIBUTION_TABLE_PLACEHOLDER, "")
@@ -740,6 +749,12 @@ public class ConfluenceService {
             JiraReleasePlaceholderValues jiraReleaseValues) {
         JiraReleasePlaceholderValues safeJiraReleaseValues = safeJiraReleaseValues(jiraReleaseValues);
         String body = getSafeBody(templateBody).replace(RELEASE_PLACEHOLDER, escape(releaseValue));
+        if (body.contains(JIRA_RELEASE_REQUIRED_LT_TABLE_PLACEHOLDER)) {
+            body = replaceSectionPlaceholder(
+                    body,
+                    JIRA_RELEASE_REQUIRED_LT_TABLE_PLACEHOLDER,
+                    buildJiraRequiredLtTable(releaseValue));
+        }
         body = body.replace(JIRA_RELEASE_TASK_PLACEHOLDER, escape(orPlaceholder(safeJiraReleaseValues.task())));
         body = body.replace(JIRA_RELEASE_LINK_PLACEHOLDER, buildJiraReleaseLink(safeJiraReleaseValues));
         body = replaceSectionPlaceholder(
@@ -850,6 +865,78 @@ public class ConfluenceService {
         }
         bodyBuilder.append("</table>\n");
         return bodyBuilder.toString();
+    }
+
+    private String buildJiraRequiredLtTable(String releaseValue) {
+        String jql = buildJiraRequiredLtJql(releaseValue);
+        if (!StringUtils.hasText(jql)) {
+            return "<p>" + escape(REPORT_PLACEHOLDER_TEXT) + "</p>";
+        }
+        return "<ac:structured-macro ac:name=\"jira\">\n"
+                + "<ac:parameter ac:name=\"columns\">" + escape(JIRA_REQUIRED_LT_COLUMNS) + "</ac:parameter>\n"
+                + "<ac:parameter ac:name=\"jqlQuery\">" + escape(jql) + "</ac:parameter>\n"
+                + "<ac:parameter ac:name=\"maximumIssues\">" + JIRA_REQUIRED_LT_MAX_ISSUES + "</ac:parameter>\n"
+                + "</ac:structured-macro>\n";
+    }
+
+    private String buildJiraRequiredLtJql(String releaseValue) {
+        String release = normalizeOptionalText(releaseValue);
+        String projectName = configurationProvider.findValue(JIRA_SERVICE, JIRA_PROJECT_NAME_KEY)
+                .map(StringUtils::trimWhitespace)
+                .filter(StringUtils::hasText)
+                .orElse(null);
+        if (!StringUtils.hasText(release) || !StringUtils.hasText(projectName) || "—".equals(release)) {
+            return null;
+        }
+        String releaseLabel = buildJiraLoadTestReleaseLabel(release);
+        return ("project = \"%s\" AND issuetype in (Story, Bug) AND (affectedVersion = %s OR fixVersion = %s OR labels = %s) "
+                + "AND \"%s\" in (%s) ORDER BY priority, project, affectedVersion")
+                .formatted(
+                        escapeJql(projectName),
+                        formatJqlValue(release),
+                        formatJqlValue(release),
+                        formatJqlValue(releaseLabel),
+                        escapeJql(JIRA_REQUIRED_LT_FIELD),
+                        formatJqlValue(JIRA_REQUIRED_LT_VALUE));
+    }
+
+    private String buildJiraLoadTestReleaseLabel(String release) {
+        String normalizedRelease = normalizeOptionalText(release);
+        if (!StringUtils.hasText(normalizedRelease)) {
+            return "ld";
+        }
+        String[] parts = normalizedRelease.split("\\.");
+        if (parts.length >= 3 && trailingVersionPartsAreZero(parts, 2)
+                && StringUtils.hasText(parts[0]) && StringUtils.hasText(parts[1])) {
+            return "ld" + parts[0] + "." + parts[1];
+        }
+        return "ld" + normalizedRelease;
+    }
+
+    private boolean trailingVersionPartsAreZero(String[] parts, int fromIndex) {
+        for (int index = fromIndex; index < parts.length; index++) {
+            if (!parts[index].matches("0+")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String formatJqlValue(String value) {
+        String normalizedValue = normalizeOptionalText(value);
+        if (!StringUtils.hasText(normalizedValue)) {
+            return "\"\"";
+        }
+        if (normalizedValue.matches("[\\p{L}\\p{N}._-]+")) {
+            return escapeJql(normalizedValue);
+        }
+        return "\"" + escapeJql(normalizedValue) + "\"";
+    }
+
+    private String escapeJql(String value) {
+        return (value == null ? "" : value)
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"");
     }
 
     private String buildServiceLink(JiraReleaseDistributionDto distribution) {
@@ -1023,7 +1110,14 @@ public class ConfluenceService {
         for (int index = 0; index < links.size(); index++) {
             ConfluenceReleaseReportLink link = links.get(index);
             ReleaseReportPlaceholderValues values = buildReleaseReportPlaceholderValues(link, index);
-            String rendered = template
+            String rendered = template;
+            if (rendered.contains(JIRA_RELEASE_REQUIRED_LT_TABLE_PLACEHOLDER)) {
+                rendered = replaceSectionPlaceholder(
+                        rendered,
+                        JIRA_RELEASE_REQUIRED_LT_TABLE_PLACEHOLDER,
+                        buildJiraRequiredLtTable(values.release()));
+            }
+            rendered = rendered
                     .replace(TEST_NUMBER_PLACEHOLDER, escape(expandReleaseReportText(values.testNumber(), values)))
                     .replace(TEST_TITLE_PLACEHOLDER, escape(values.testTitle()))
                     .replace(JIRA_RELEASE_TASK_PLACEHOLDER, escape(expandReleaseReportText(values.jiraReleaseTask(), values)))
@@ -1113,6 +1207,7 @@ public class ConfluenceService {
         String safeValue = orPlaceholder(value);
         return safeValue
                 .replace(RELEASE_PLACEHOLDER, values.release())
+                .replace(JIRA_RELEASE_REQUIRED_LT_TABLE_PLACEHOLDER, "")
                 .replace(JIRA_RELEASE_TASK_PLACEHOLDER, values.jiraReleaseTask())
                 .replace(JIRA_RELEASE_LINK_PLACEHOLDER, values.jiraReleaseTask())
                 .replace(JIRA_RELEASE_DISTRIBUTION_TABLE_PLACEHOLDER, "")

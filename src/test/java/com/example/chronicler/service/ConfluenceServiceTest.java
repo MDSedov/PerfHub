@@ -312,9 +312,11 @@ class ConfluenceServiceTest {
                 "<p>@release</p><p>@test_start</p><p>@test_start_date</p><p>@test_start_time</p>"
                         + "<p>@test_end</p><p>@test_end_date</p><p>@test_end_time</p>"
                         + "<p>@jira_release_task</p><p>@jira_release_link</p>"
-                        + "<p>@jira_release_distr_table</p><p>@config</p><p>@graphics</p>",
+                        + "<p>@jira_release_distr_table</p><p>@jira_release_tasks_required_lt</p>"
+                        + "<p>@config</p><p>@graphics</p>",
                 List.of(new ConfluenceTemplateChart(11L, 301, "CPU", "uid-1", 7, 0)));
         when(confluenceTemplateSettingsService.getActiveTemplate(301)).thenReturn(template);
+        when(configurationProvider.findValue("jira", "project-name")).thenReturn(Optional.of("EPROFILE"));
 
         when(kubernetesConfigurationService.getConfigurations(testUuid))
                 .thenReturn(List.of(new KubernetesConfiguration(
@@ -407,6 +409,12 @@ class ConfluenceServiceTest {
         assertThat(body).contains("<th>Дистрибутив в Nexus</th>");
         assertThat(body).contains("<a href=\"https://dpm.example/service/profile\">profile</a>");
         assertThat(body).contains("<a href=\"https://nexus.example/repository/sp-02/017/00_5.profile\">sp-02/017/00_5.profile</a>");
+        assertThat(body).contains("<ac:structured-macro ac:name=\"jira\">");
+        assertThat(body).contains("<ac:parameter ac:name=\"columns\">key,summary,type,created,updated,assignee,priority,components,status,resolution</ac:parameter>");
+        assertThat(body).contains("project = &quot;EPROFILE&quot; AND issuetype in (Story, Bug)");
+        assertThat(body).contains("affectedVersion = 24.1.7 OR fixVersion = 24.1.7 OR labels = ld24.1.7");
+        assertThat(body).contains("&quot;Требуется НТ&quot; in (Да)");
+        assertThat(body).contains("<ac:parameter ac:name=\"maximumIssues\">20</ac:parameter>");
         assertThat(body).contains("<ac:structured-macro ac:name=\"expand\">");
         assertThat(body).contains("<ac:parameter ac:name=\"title\">Конфигурация стенда</ac:parameter>");
         assertThat(body).contains("ri:attachment ri:filename=\"dropapp-configuration-55.zip\"");
@@ -427,6 +435,7 @@ class ConfluenceServiceTest {
         assertThat(body).doesNotContain("@jira_release_task");
         assertThat(body).doesNotContain("@jira_release_link");
         assertThat(body).doesNotContain("@jira_release_distr_table");
+        assertThat(body).doesNotContain("@jira_release_tasks_required_lt");
         assertThat(body).doesNotContain("@config");
         assertThat(body).doesNotContain("@graphics");
         assertThat(response.reports().get(0).attachmentNames())
@@ -763,6 +772,74 @@ class ConfluenceServiceTest {
         assertThat(body).contains("<p style=\"display: none;\">@perfhub_reports_end</p>");
         assertThat(body).doesNotContain("<p>@perfhub_reports_start</p>");
         assertThat(body).doesNotContain("<p>@perfhub_reports_end</p>");
+    }
+
+    @Test
+    void createReleaseReportPageReplacesRequiredLtPlaceholderWithJiraMacro() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        UUID testUuid = UUID.fromString("bbbbbbbb-1111-2222-3333-cccccccccccc");
+        ConfluenceReleaseReportPageRequest request =
+                new ConfluenceReleaseReportPageRequest("parent-1", null, List.of(testUuid));
+        ConfluencePage parentPage = new ConfluencePage("parent-1", "page", "Релизы", 1, "<p>Parent</p>", "SPACE");
+        ConfluencePage createdPage =
+                new ConfluencePage("release-lt", "page", "Отчет по релизу 2.17.0", 1, "", "SPACE");
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                43,
+                "release_template",
+                "Отчет по релизу",
+                "Отчет по релизу @release @jira_release_tasks_required_lt",
+                ConfluenceTemplateType.RELEASE,
+                null,
+                "<h2>3.2 Пользовательские истории и дефекты релиза с отметкой \"Требуется НТ = Да\"</h2>"
+                        + "<p>@jira_release_tasks_required_lt</p>",
+                List.of());
+
+        when(confluenceClient.getPage(credentials, "parent-1")).thenReturn(parentPage);
+        when(confluenceClient.getPage(credentials, "release-lt")).thenReturn(createdPage);
+        when(confluenceTemplateSettingsService.resolveReleaseTemplateShortName()).thenReturn("release_template");
+        when(confluenceTemplateSettingsService.findActiveTemplateByShortName("release_template"))
+                .thenReturn(Optional.of(template));
+        when(configurationProvider.findValue("jira", "project-name")).thenReturn(Optional.of("EPROFILE"));
+        when(kubernetesConfigurationService.getConfigurations(testUuid))
+                .thenReturn(List.of(new KubernetesConfiguration(
+                        1L,
+                        testUuid,
+                        "prod",
+                        "profile",
+                        "profile-1",
+                        "profile",
+                        "1.0.0",
+                        "2.17.0",
+                        "100m",
+                        "200m",
+                        "256Mi",
+                        "512Mi",
+                        Instant.parse("2024-05-01T11:05:00Z"))));
+        when(confluenceClient.createChildPage(
+                        eq(credentials),
+                        eq("parent-1"),
+                        eq("SPACE"),
+                        eq("Отчет по релизу 2.17.0"),
+                        anyString()))
+                .thenReturn(createdPage);
+
+        confluenceService.createReleaseReportPage(credentials, request);
+
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(confluenceClient).createChildPage(
+                eq(credentials),
+                eq("parent-1"),
+                eq("SPACE"),
+                eq("Отчет по релизу 2.17.0"),
+                bodyCaptor.capture());
+        String body = bodyCaptor.getValue();
+        assertThat(body).contains("<ac:structured-macro ac:name=\"jira\">");
+        assertThat(body).contains("<ac:parameter ac:name=\"columns\">key,summary,type,created,updated,assignee,priority,components,status,resolution</ac:parameter>");
+        assertThat(body).contains("project = &quot;EPROFILE&quot; AND issuetype in (Story, Bug)");
+        assertThat(body).contains("affectedVersion = 2.17.0 OR fixVersion = 2.17.0 OR labels = ld2.17");
+        assertThat(body).contains("&quot;Требуется НТ&quot; in (Да) ORDER BY priority, project, affectedVersion");
+        assertThat(body).contains("<ac:parameter ac:name=\"maximumIssues\">20</ac:parameter>");
+        assertThat(body).doesNotContain("@jira_release_tasks_required_lt");
     }
 
     @Test
