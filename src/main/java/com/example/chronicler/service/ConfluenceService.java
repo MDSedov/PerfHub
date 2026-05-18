@@ -110,6 +110,7 @@ public class ConfluenceService {
     private final ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
     private final ConfluenceReleaseReportLinkRepository releaseReportLinkRepository;
     private final ConfigurationProvider configurationProvider;
+    private final ConfluenceRequestThrottler confluenceRequestThrottler;
 
     /**
      * Создаёт сервис для работы с Confluence, кешем рендеров Grafana и загрузкой шаблонов.
@@ -122,7 +123,8 @@ public class ConfluenceService {
             KubernetesConfigurationService kubernetesConfigurationService,
             ConfluenceTemplateSettingsService confluenceTemplateSettingsService,
             ConfluenceReleaseReportLinkRepository releaseReportLinkRepository,
-            ConfigurationProvider configurationProvider) {
+            ConfigurationProvider configurationProvider,
+            ConfluenceRequestThrottler confluenceRequestThrottler) {
         this.confluenceClient = confluenceClient;
         this.grafanaService = grafanaService;
         this.templateLoader = templateLoader;
@@ -131,6 +133,7 @@ public class ConfluenceService {
         this.confluenceTemplateSettingsService = confluenceTemplateSettingsService;
         this.releaseReportLinkRepository = releaseReportLinkRepository;
         this.configurationProvider = configurationProvider;
+        this.confluenceRequestThrottler = confluenceRequestThrottler;
     }
 
     private static final String OVERVIEW_TEMPLATE_NAME = "overall-report";
@@ -218,6 +221,7 @@ public class ConfluenceService {
                 .orElseThrow(() -> new ConfluenceOperationException(
                         "В настройках Confluence не заполнено поле \"Номер родительской страницы для отчетов по НТ\""));
 
+        confluenceRequestThrottler.awaitReportParentPagesRequestSlot();
         ConfluencePage rootPage = confluenceClient.getPage(credentials, rootPageId);
         return buildCurrentPageTree(credentials, rootPage.id(), rootPage.title(), new LinkedHashSet<>());
     }
@@ -1437,6 +1441,7 @@ public class ConfluenceService {
             Set<String> visitedPageIds) {
         visitedPageIds.add(pageId);
         List<ConfluencePageTreeNode> children = new ArrayList<>();
+        confluenceRequestThrottler.awaitReportParentPagesRequestSlot();
         for (ConfluencePageSummary childPage : confluenceClient.listChildPages(credentials, pageId)) {
             if (!StringUtils.hasText(childPage.id()) || visitedPageIds.contains(childPage.id())) {
                 continue;

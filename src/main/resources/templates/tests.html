@@ -536,6 +536,7 @@
     const DAYS_TO_FETCH = 30;
     const MS_IN_DAY = 24 * 60 * 60 * 1000;
     const RELEASE_REPORT_RESULT_ID = '__release_report__';
+    const CONFLUENCE_RELEASE_PAGES_CACHE_KEY = 'chronicler.confluence.release-pages.v1';
     const REPORT_SELECTION_HINT =
             'Выберите тесты для которых необходимо сформировать отчеты в Confluence. Выбрать тесты можно в колонке "В ОТЧЕТ" таблицы со списком всех тестов.';
     const MOSCOW_FORMATTER = new Intl.DateTimeFormat('sv-SE', {
@@ -1525,6 +1526,53 @@
         return result;
     }
 
+    function applyConfluenceReleasePagesPayload(payload) {
+        configuredReportsRootPageId = payload?.id ? String(payload.id) : '';
+        configuredReportsRootPageUrl = payload?.pageUrl ? String(payload.pageUrl) : '';
+        confluenceReleasePageOptions = (Array.isArray(payload?.children) ? payload.children : [])
+                .flatMap(page => flattenConfluenceReleasePages(page));
+        confluenceReleasePagesErrorMessage = configuredReportsRootPageId
+                ? ''
+                : 'Не удалось определить родительскую страницу из настроек Confluence';
+        return Boolean(configuredReportsRootPageId);
+    }
+
+    function readConfluenceReleasePagesCache() {
+        try {
+            const rawCache = window.localStorage?.getItem(CONFLUENCE_RELEASE_PAGES_CACHE_KEY);
+            if (!rawCache) {
+                return null;
+            }
+            const cacheEntry = JSON.parse(rawCache);
+            return cacheEntry?.payload && typeof cacheEntry.payload === 'object'
+                    ? cacheEntry.payload
+                    : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function writeConfluenceReleasePagesCache(payload) {
+        try {
+            window.localStorage?.setItem(
+                    CONFLUENCE_RELEASE_PAGES_CACHE_KEY,
+                    JSON.stringify({
+                        cachedAt: new Date().toISOString(),
+                        payload
+                    }));
+        } catch (error) {
+            // Browser storage can be disabled or full; the fresh response is still used for this modal session.
+        }
+    }
+
+    function restoreConfluenceReleasePagesFromCache() {
+        const cachedPayload = readConfluenceReleasePagesCache();
+        if (!cachedPayload?.id) {
+            return false;
+        }
+        return applyConfluenceReleasePagesPayload(cachedPayload);
+    }
+
     function renderConfluenceReleasePageOptions() {
         if (!generateReportsExistingReleasePageSelect) {
             return;
@@ -1627,6 +1675,10 @@
             renderConfluenceReleasePageOptions();
             return;
         }
+        if (!forceReload && restoreConfluenceReleasePagesFromCache()) {
+            renderConfluenceReleasePageOptions();
+            return;
+        }
         if (confluenceReleasePagesPromise) {
             return confluenceReleasePagesPromise;
         }
@@ -1649,12 +1701,8 @@
                                     'Не удалось загрузить список страниц Confluence'));
                 }
                 const payload = await response.json();
-                configuredReportsRootPageId = payload?.id ? String(payload.id) : '';
-                configuredReportsRootPageUrl = payload?.pageUrl ? String(payload.pageUrl) : '';
-                confluenceReleasePageOptions = (Array.isArray(payload?.children) ? payload.children : [])
-                        .flatMap(page => flattenConfluenceReleasePages(page));
-                if (!configuredReportsRootPageId) {
-                    confluenceReleasePagesErrorMessage = 'Не удалось определить родительскую страницу из настроек Confluence';
+                if (applyConfluenceReleasePagesPayload(payload)) {
+                    writeConfluenceReleasePagesCache(payload);
                 }
             } catch (error) {
                 configuredReportsRootPageId = '';
@@ -1831,7 +1879,7 @@
         renderGenerateReportsResults();
         const modalApi = showGenerateReportsModalDialog();
         window.requestAnimationFrame(() => modalApi?.handleUpdate?.());
-        void loadConfluenceReleasePages(true).finally(() => {
+        void loadConfluenceReleasePages().finally(() => {
             modalApi?.handleUpdate?.();
             if (generateReportsModalElement?.classList.contains('show')) {
                 focusGenerateReportsPrimaryControl();

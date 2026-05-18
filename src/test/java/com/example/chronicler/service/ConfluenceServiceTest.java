@@ -87,6 +87,9 @@ class ConfluenceServiceTest {
     @Mock
     private ConfigurationProvider configurationProvider;
 
+    @Mock
+    private ConfluenceRequestThrottler confluenceRequestThrottler;
+
     private ConfluenceService confluenceService;
 
     @BeforeEach
@@ -99,7 +102,8 @@ class ConfluenceServiceTest {
                 kubernetesConfigurationService,
                 confluenceTemplateSettingsService,
                 releaseReportLinkRepository,
-                configurationProvider);
+                configurationProvider,
+                confluenceRequestThrottler);
         lenient().when(kubernetesConfigurationService.getConfigurations(any(UUID.class))).thenReturn(List.of());
         lenient().when(confluenceClient.buildPageUrl(anyString()))
                 .thenAnswer(invocation -> "https://confluence.example/pages/viewpage.action?pageId="
@@ -645,6 +649,7 @@ class ConfluenceServiceTest {
         assertThat(response.children().get(0).children()).extracting(ConfluencePageTreeNode::id)
                 .containsExactly("test-1");
         verify(confluenceClient, never()).listPageDescendants(credentials, "root-1");
+        verify(confluenceRequestThrottler, times(5)).awaitReportParentPagesRequestSlot();
     }
 
     @Test
