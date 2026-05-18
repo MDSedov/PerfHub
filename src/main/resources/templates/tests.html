@@ -3165,73 +3165,103 @@
         return section;
     }
 
-    function createConfigurationMetaCard(label, value, extraClass = '', issueUrl = null) {
+    function createConfigurationReleaseNode(release, issueUrl) {
+        const normalizedRelease = normalizeReleaseValue(release);
         const normalizedUrl = normalizeReleaseValue(issueUrl);
-        const hasLink = normalizeReleaseValue(value) && normalizedUrl;
-        const card = document.createElement(hasLink ? 'a' : 'div');
-        card.className = `configuration-meta-card${extraClass ? ` ${extraClass}` : ''}${hasLink ? ' configuration-meta-link-card configuration-meta-link-card-with-icon' : ''}`;
-        if (hasLink) {
-            card.href = normalizedUrl;
-            card.target = '_blank';
-            card.rel = 'noopener noreferrer';
-            card.title = 'Открыть задачу релиза в Jira';
+        if (!normalizedRelease) {
+            return document.createTextNode('—');
         }
-        const kicker = document.createElement('div');
-        kicker.className = 'configuration-meta-label';
-        kicker.textContent = label;
-        const content = document.createElement('div');
-        content.className = 'configuration-meta-value';
-        content.textContent = valueOrDash(value);
-
-        if (hasLink) {
-            const textWrapper = document.createElement('div');
-            textWrapper.className = 'configuration-meta-link-text';
-            const icon = document.createElement('span');
-            icon.className = 'configuration-download-icon configuration-meta-link-icon';
-            const iconGlyph = document.createElement('i');
-            iconGlyph.className = 'bi bi-box-arrow-up-right';
-            iconGlyph.setAttribute('aria-hidden', 'true');
-            icon.appendChild(iconGlyph);
-            textWrapper.appendChild(kicker);
-            textWrapper.appendChild(content);
-            card.appendChild(textWrapper);
-            card.appendChild(icon);
-        } else {
-            card.appendChild(kicker);
-            card.appendChild(content);
+        if (!normalizedUrl) {
+            return document.createTextNode(normalizedRelease);
         }
-        return card;
+        const link = document.createElement('a');
+        link.className = 'release-issue-link configuration-summary-link';
+        link.href = normalizedUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.title = 'Открыть задачу релиза в Jira';
+        const text = document.createElement('span');
+        text.textContent = normalizedRelease;
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-box-arrow-up-right';
+        icon.setAttribute('aria-hidden', 'true');
+        link.appendChild(text);
+        link.appendChild(icon);
+        return link;
     }
 
-    function createConfigurationDownloadCard(testId, configuration) {
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'configuration-meta-card configuration-download-card';
-        card.setAttribute('aria-label', 'Скачать ZIP с конфигурацией стенда');
-        card.title = 'Скачать ZIP';
-        const textWrapper = document.createElement('span');
-        const kicker = document.createElement('span');
-        kicker.className = 'configuration-meta-label';
-        kicker.textContent = 'Архив';
-        const content = document.createElement('span');
-        content.className = 'configuration-meta-value';
-        content.textContent = 'Скачать ZIP';
-        const icon = document.createElement('span');
-        icon.className = 'configuration-download-icon';
-        icon.innerHTML = '<i class="bi bi-download"></i>';
+    function formatDocumentCount(count) {
+        const value = Number.isFinite(Number(count)) ? Number(count) : 0;
+        const lastTwo = value % 100;
+        if (lastTwo >= 11 && lastTwo <= 14) {
+            return `${value} документов`;
+        }
+        const last = value % 10;
+        if (last === 1) {
+            return `${value} документ`;
+        }
+        if (last >= 2 && last <= 4) {
+            return `${value} документа`;
+        }
+        return `${value} документов`;
+    }
 
-        textWrapper.appendChild(kicker);
-        textWrapper.appendChild(content);
-        card.appendChild(textWrapper);
-        card.appendChild(icon);
+    function createConfigurationArchiveButton(testId, configuration, documentCount) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-outline-success btn-sm configuration-summary-download';
+        button.title = 'Скачать ZIP-архив с конфигурацией стенда';
+        button.innerHTML = `<i class="bi bi-download" aria-hidden="true"></i><span>Скачать ZIP-архив из ${formatDocumentCount(documentCount)}</span>`;
 
         const hasArchive = Boolean(testId && configuration?.id);
-        card.disabled = !hasArchive;
+        button.disabled = !hasArchive;
         if (!hasArchive) {
-            card.title = 'Архив доступен после повторного получения конфигурации стенда';
+            button.title = 'Архив доступен после повторного получения конфигурации стенда';
         }
-        card.addEventListener('click', () => triggerTestConfigurationArchiveDownload(testId));
-        return card;
+        button.addEventListener('click', () => triggerTestConfigurationArchiveDownload(testId));
+        return button;
+    }
+
+    function appendConfigurationSummaryRow(tbody, parameter, valueContent) {
+        const row = document.createElement('tr');
+        const parameterCell = document.createElement('th');
+        parameterCell.scope = 'row';
+        parameterCell.textContent = parameter;
+        const valueCell = document.createElement('td');
+        if (valueContent instanceof Node) {
+            valueCell.appendChild(valueContent);
+        } else {
+            valueCell.textContent = valueOrDash(valueContent);
+        }
+        row.appendChild(parameterCell);
+        row.appendChild(valueCell);
+        tbody.appendChild(row);
+    }
+
+    function buildConfigurationSummaryTable(configuration, documents, testId) {
+        const table = document.createElement('table');
+        table.className = 'table table-sm align-middle mb-0 configuration-summary-table';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th scope="col">Параметр</th>
+                    <th scope="col">Значение</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+        appendConfigurationSummaryRow(tbody, 'Дата сохранения', configuration.savedAt);
+        appendConfigurationSummaryRow(tbody, 'Namespace', configuration.namespaces.join(', '));
+        appendConfigurationSummaryRow(
+                tbody,
+                'Номер релиза',
+                createConfigurationReleaseNode(configuration.release, configuration.jiraReleaseIssueUrl));
+        appendConfigurationSummaryRow(
+                tbody,
+                'Скачать архив с конфигурацией',
+                createConfigurationArchiveButton(testId, configuration, documents.length));
+        return table;
     }
 
     function buildConfigurationItemsTable(items) {
@@ -3267,6 +3297,28 @@
         table.appendChild(thead);
         table.appendChild(tbody);
         return table;
+    }
+
+    function isConfigurationServiceSystemRow(item) {
+        const serviceName = normalizeReleaseValue(item?.serviceName ?? item?.podName);
+        if (!serviceName) {
+            return false;
+        }
+        const normalized = serviceName.trim()
+                .toLowerCase()
+                .replace(/\s+/g, ' ')
+                .replace(/\s*,\s*/g, ', ');
+        return normalized === 'deployments'
+                || normalized === 'ingress'
+                || normalized === 'services'
+                || normalized === 'deployments ingress'
+                || normalized === 'deployments ingress, services'
+                || normalized === 'deployments, ingress, services';
+    }
+
+    function filterConfigurationServiceItems(items) {
+        return (Array.isArray(items) ? items : [])
+                .filter(item => !isConfigurationServiceSystemRow(item));
     }
 
     function buildJiraReleaseDistributionsTable(distributions) {
@@ -3364,14 +3416,10 @@
         wrapper.className = 'test-details-modal-content test-details-stack';
 
         const metaSection = createConfigurationDetailsSection('Общая информация');
-        const metaGrid = document.createElement('div');
-        metaGrid.className = 'configuration-meta-grid';
-        metaGrid.appendChild(createConfigurationMetaCard('Дата сохранения', configuration.savedAt));
-        metaGrid.appendChild(createConfigurationMetaCard('Namespace', configuration.namespaces.join(', ')));
-        metaGrid.appendChild(createConfigurationMetaCard('Релиз', configuration.release, '', configuration.jiraReleaseIssueUrl));
-        metaGrid.appendChild(createConfigurationMetaCard('Документов', String(documents.length)));
-        metaGrid.appendChild(createConfigurationDownloadCard(testId, configuration));
-        metaSection.appendChild(metaGrid);
+        const metaTableWrapper = document.createElement('div');
+        metaTableWrapper.className = 'table-responsive w-100';
+        metaTableWrapper.appendChild(buildConfigurationSummaryTable(configuration, documents, testId));
+        metaSection.appendChild(metaTableWrapper);
         wrapper.appendChild(metaSection);
 
         if (distributions.length > 0) {
@@ -3384,7 +3432,8 @@
         }
 
         const servicesSection = createConfigurationDetailsSection('Сервисы');
-        if (items.length === 0) {
+        const serviceItems = filterConfigurationServiceItems(items);
+        if (serviceItems.length === 0) {
             const emptyState = document.createElement('div');
             emptyState.className = 'text-muted small';
             emptyState.textContent = 'Сервисные данные для этой конфигурации отсутствуют.';
@@ -3392,7 +3441,7 @@
         } else {
             const tableWrapper = document.createElement('div');
             tableWrapper.className = 'table-responsive w-100';
-            tableWrapper.appendChild(buildConfigurationItemsTable(items));
+            tableWrapper.appendChild(buildConfigurationItemsTable(serviceItems));
             servicesSection.appendChild(tableWrapper);
         }
         wrapper.appendChild(servicesSection);

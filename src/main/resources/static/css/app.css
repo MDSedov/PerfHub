@@ -1772,6 +1772,26 @@ body {
             padding-top: 1rem;
         }
 
+        .configuration-summary-table tbody th {
+            width: 34%;
+            min-width: 190px;
+            color: #39443e;
+            font-weight: 700;
+            background: #f7faf8;
+        }
+
+        .configuration-summary-table tbody td {
+            color: #1c231f;
+        }
+
+        .configuration-summary-link,
+        .configuration-summary-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            white-space: normal;
+        }
+
         .configuration-meta-card {
             min-height: 100%;
             border: 1px solid #e5efe8;
