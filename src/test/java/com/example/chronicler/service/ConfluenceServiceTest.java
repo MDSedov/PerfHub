@@ -716,10 +716,12 @@ class ConfluenceServiceTest {
                 ConfluenceTemplateType.RELEASE,
                 null,
                 "<h2>7. Результаты тестирования</h2>"
-                        + "<p>@perfhub_reports_start</p>"
+                        + "<div class=\"release-reports\">"
+                        + "<p><span>@perfhub_reports_start</span></p>"
                         + "<h3>@test_number @test_title</h3>"
                         + "<p>@test_status</p>"
-                        + "<p>@perfhub_reports_end</p>",
+                        + "<p><span>@perfhub_reports_end</span></p>"
+                        + "</div>",
                 List.of());
 
         when(confluenceClient.getPage(credentials, "parent-1")).thenReturn(parentPage);
@@ -881,14 +883,16 @@ class ConfluenceServiceTest {
                 "Отчет по релизу",
                 3,
                 "<h2>7. Результаты тестирования</h2>"
-                        + "<p>@perfhub_reports_start</p>"
+                        + "<div class=\"release-reports\">"
+                        + "<p><span>@perfhub_reports_start</span></p>"
                         + "<h3>@test_number @test_title</h3>"
                         + "<p>@test_title_short</p>"
                         + "<p>@test_start_date @test_start_time - @test_end_date @test_end_time</p>"
                         + "<p>@test_status</p>"
                         + "<p>@test_summary</p>"
                         + "<p>Подробные результаты: @test_report_link</p>"
-                        + "<p>@perfhub_reports_end</p>",
+                        + "<p><span>@perfhub_reports_end</span></p>"
+                        + "</div>",
                 "SPACE");
         when(confluenceClient.getPage(credentials, "release-1")).thenReturn(releasePage);
         when(releaseReportLinkRepository.findBlockTemplate("release-1")).thenReturn(Optional.empty());

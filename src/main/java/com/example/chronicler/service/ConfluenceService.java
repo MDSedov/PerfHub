@@ -1026,6 +1026,17 @@ public class ConfluenceService {
 
     private ReleaseReportsBlock extractReleaseReportsBlock(String body) {
         String safeBody = getSafeBody(body);
+        MarkerBlock startMarkerBlock = findMarkerBlock(safeBody, RELEASE_REPORTS_START_MARKER);
+        MarkerBlock endMarkerBlock = findMarkerBlock(safeBody, RELEASE_REPORTS_END_MARKER);
+        if (startMarkerBlock != null
+                && endMarkerBlock != null
+                && endMarkerBlock.start() >= startMarkerBlock.end()) {
+            return new ReleaseReportsBlock(
+                    startMarkerBlock.end(),
+                    endMarkerBlock.start(),
+                    safeBody.substring(startMarkerBlock.end(), endMarkerBlock.start()));
+        }
+
         int startMarkerIndex = safeBody.indexOf(RELEASE_REPORTS_START_MARKER);
         int endMarkerIndex = safeBody.indexOf(RELEASE_REPORTS_END_MARKER);
         if (startMarkerIndex < 0 || endMarkerIndex < 0 || endMarkerIndex <= startMarkerIndex) {
@@ -1090,21 +1101,91 @@ public class ConfluenceService {
     }
 
     private String hideReleaseReportMarker(String body, String marker) {
-        Pattern markerBlockPattern = Pattern.compile(
-                "(?is)<(" + PLACEHOLDER_BLOCK_TAGS + ")([^>]*)>"
-                        + PLACEHOLDER_PADDING_PATTERN
-                        + Pattern.quote(marker)
-                        + PLACEHOLDER_PADDING_PATTERN
-                        + "</\\1>");
-        return markerBlockPattern.matcher(getSafeBody(body))
-                .replaceAll(result -> "<"
-                        + result.group(1)
-                        + withHiddenMarkerStyle(result.group(2))
-                        + ">"
-                        + marker
-                        + "</"
-                        + result.group(1)
-                        + ">");
+        String safeBody = getSafeBody(body);
+        StringBuilder hiddenBody = new StringBuilder();
+        int appendFrom = 0;
+        int searchFrom = 0;
+        int markerIndex;
+        while ((markerIndex = safeBody.indexOf(marker, searchFrom)) >= 0) {
+            MarkerBlock markerBlock = findMarkerBlock(safeBody, marker, markerIndex);
+            if (markerBlock == null || markerBlock.start() < appendFrom) {
+                searchFrom = markerIndex + marker.length();
+                continue;
+            }
+            hiddenBody.append(safeBody, appendFrom, markerBlock.start());
+            hiddenBody.append(hiddenMarkerBlock(markerBlock, marker));
+            appendFrom = markerBlock.end();
+            searchFrom = markerBlock.end();
+        }
+        hiddenBody.append(safeBody.substring(appendFrom));
+        return hiddenBody.toString();
+    }
+
+    private MarkerBlock findMarkerBlock(String body, String marker) {
+        String safeBody = getSafeBody(body);
+        int searchFrom = 0;
+        int markerIndex;
+        while ((markerIndex = safeBody.indexOf(marker, searchFrom)) >= 0) {
+            MarkerBlock markerBlock = findMarkerBlock(safeBody, marker, markerIndex);
+            if (markerBlock != null) {
+                return markerBlock;
+            }
+            searchFrom = markerIndex + marker.length();
+        }
+        return null;
+    }
+
+    private MarkerBlock findMarkerBlock(String body, String marker, int markerIndex) {
+        List<MarkerBlockCandidate> candidates = new ArrayList<>();
+        Matcher openTagMatcher = markerBlockOpenPattern().matcher(body);
+        while (openTagMatcher.find() && openTagMatcher.end() <= markerIndex) {
+            candidates.add(new MarkerBlockCandidate(
+                    openTagMatcher.start(),
+                    openTagMatcher.end(),
+                    openTagMatcher.group(1),
+                    openTagMatcher.group(2)));
+        }
+
+        for (int index = candidates.size() - 1; index >= 0; index--) {
+            MarkerBlockCandidate candidate = candidates.get(index);
+            Pattern closePattern = Pattern.compile("(?is)</\\s*" + Pattern.quote(candidate.tagName()) + "\\s*>");
+            Matcher closeTagMatcher = closePattern.matcher(body);
+            closeTagMatcher.region(markerIndex + marker.length(), body.length());
+            if (!closeTagMatcher.find()) {
+                continue;
+            }
+            String content = body.substring(candidate.openEnd(), closeTagMatcher.start());
+            if (content.contains(marker) && marker.equals(normalizeMarkerBlockContent(content))) {
+                return new MarkerBlock(
+                        candidate.start(),
+                        closeTagMatcher.end(),
+                        candidate.tagName(),
+                        candidate.attributes());
+            }
+        }
+        return null;
+    }
+
+    private Pattern markerBlockOpenPattern() {
+        return Pattern.compile("(?is)<(" + PLACEHOLDER_BLOCK_TAGS + ")([^>]*)>");
+    }
+
+    private String hiddenMarkerBlock(MarkerBlock markerBlock, String marker) {
+        return "<"
+                + markerBlock.tagName()
+                + withHiddenMarkerStyle(markerBlock.attributes())
+                + ">"
+                + marker
+                + "</"
+                + markerBlock.tagName()
+                + ">";
+    }
+
+    private String normalizeMarkerBlockContent(String content) {
+        String text = BR_TAG_PATTERN.matcher(getSafeBody(content)).replaceAll(" ");
+        text = text.replace("&nbsp;", " ").replace("&#160;", " ");
+        text = text.replaceAll("(?is)<[^>]+>", "");
+        return HtmlUtils.htmlUnescape(text).trim().replaceAll("\\s+", " ");
     }
 
     private String withHiddenMarkerStyle(String attributes) {
@@ -1768,6 +1849,18 @@ public class ConfluenceService {
     private record ConfigurationArchiveAttachment(String attachmentName) {}
 
     private record ReleaseReportsBlock(int replacementStart, int replacementEnd, String itemTemplate) {}
+
+    private record MarkerBlock(int start, int end, String tagName, String attributes) {
+        private MarkerBlock {
+            attributes = attributes == null ? "" : attributes;
+        }
+    }
+
+    private record MarkerBlockCandidate(int start, int openEnd, String tagName, String attributes) {
+        private MarkerBlockCandidate {
+            attributes = attributes == null ? "" : attributes;
+        }
+    }
 
     private record JiraReleasePlaceholderValues(
             String task,
