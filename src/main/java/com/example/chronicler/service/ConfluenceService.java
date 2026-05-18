@@ -907,14 +907,14 @@ public class ConfluenceService {
     private String buildJiraLoadTestReleaseLabel(String release) {
         String normalizedRelease = normalizeOptionalText(release);
         if (!StringUtils.hasText(normalizedRelease)) {
-            return "ld";
+            return "Id";
         }
         String[] parts = normalizedRelease.split("\\.");
         if (parts.length >= 3 && trailingVersionPartsAreZero(parts, 2)
                 && StringUtils.hasText(parts[0]) && StringUtils.hasText(parts[1])) {
-            return "ld" + parts[0] + "." + parts[1];
+            return "Id" + parts[0] + "." + parts[1];
         }
-        return "ld" + normalizedRelease;
+        return "Id" + normalizedRelease;
     }
 
     private boolean trailingVersionPartsAreZero(String[] parts, int fromIndex) {

@@ -416,7 +416,7 @@ class ConfluenceServiceTest {
         assertThat(body).contains("<ac:structured-macro ac:name=\"jira\">");
         assertThat(body).contains("<ac:parameter ac:name=\"columns\">key,summary,type,created,updated,assignee,priority,components,status,resolution</ac:parameter>");
         assertThat(body).contains("project = &quot;EPROFILE&quot; AND issuetype in (Story, Bug)");
-        assertThat(body).contains("affectedVersion = 24.1.7 OR fixVersion = 24.1.7 OR labels = ld24.1.7");
+        assertThat(body).contains("affectedVersion = 24.1.7 OR fixVersion = 24.1.7 OR labels = Id24.1.7");
         assertThat(body).contains("&quot;Требуется НТ&quot; in (Да)");
         assertThat(body).contains("<ac:parameter ac:name=\"maximumIssues\">20</ac:parameter>");
         assertThat(body).contains("<ac:structured-macro ac:name=\"expand\">");
@@ -841,7 +841,7 @@ class ConfluenceServiceTest {
         assertThat(body).contains("<ac:structured-macro ac:name=\"jira\">");
         assertThat(body).contains("<ac:parameter ac:name=\"columns\">key,summary,type,created,updated,assignee,priority,components,status,resolution</ac:parameter>");
         assertThat(body).contains("project = &quot;EPROFILE&quot; AND issuetype in (Story, Bug)");
-        assertThat(body).contains("affectedVersion = 2.17.0 OR fixVersion = 2.17.0 OR labels = ld2.17");
+        assertThat(body).contains("affectedVersion = 2.17.0 OR fixVersion = 2.17.0 OR labels = Id2.17");
         assertThat(body).contains("&quot;Требуется НТ&quot; in (Да) ORDER BY priority, project, affectedVersion");
         assertThat(body).contains("<ac:parameter ac:name=\"maximumIssues\">20</ac:parameter>");
         assertThat(body).doesNotContain("@jira_release_tasks_required_lt");
