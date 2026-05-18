@@ -100,6 +100,8 @@ public class ConfluenceService {
     private static final Pattern DISPLAY_NONE_STYLE_PATTERN = Pattern.compile("(?i)(^|;)\\s*display\\s*:\\s*none\\b");
     private static final Pattern PAGE_ID_QUERY_PATTERN = Pattern.compile("[?&]pageId=([^&#]+)");
     private static final Pattern PAGE_ID_PATH_PATTERN = Pattern.compile("/pages/(?:viewpage\\.action/)?([^/?#]+)");
+    private static final byte[] PNG_SIGNATURE =
+            new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
 
     private final ConfluenceClient confluenceClient;
     private final GrafanaService grafanaService;
@@ -365,9 +367,13 @@ public class ConfluenceService {
         for (GrafanaRenderedPanel panel : renderedPanels) {
             byte[] imageBytes = decodePanelImage(panel);
             String attachmentName = generateAttachmentName(panel);
-            confluenceClient.uploadAttachment(credentials, page.id(), attachmentName, imageBytes);
-            attachmentNames.add(attachmentName);
-            chartAttachments.add(new RenderedChartAttachment(panel.title(), panel.description(), attachmentName));
+            String uploadedAttachmentName =
+                    confluenceClient.uploadAttachment(credentials, page.id(), attachmentName, imageBytes);
+            attachmentNames.add(uploadedAttachmentName);
+            chartAttachments.add(new RenderedChartAttachment(
+                    panel.title(),
+                    panel.description(),
+                    uploadedAttachmentName));
         }
 
         String existingBody = normalizeStorageMarkup(page.body());
@@ -412,9 +418,13 @@ public class ConfluenceService {
             GrafanaRenderedPanel panel = renderedPanels.get(index);
             byte[] imageBytes = decodePanelImage(panel);
             String attachmentName = generateAttachmentName(panel);
-            uploadAttachmentWithRetry(credentials, reportPage.id(), attachmentName, imageBytes);
-            attachmentNames.add(attachmentName);
-            chartAttachments.add(new RenderedChartAttachment(chart.title(), panel.description(), attachmentName));
+            String uploadedAttachmentName =
+                    uploadAttachmentWithRetry(credentials, reportPage.id(), attachmentName, imageBytes);
+            attachmentNames.add(uploadedAttachmentName);
+            chartAttachments.add(new RenderedChartAttachment(
+                    chart.title(),
+                    panel.description(),
+                    uploadedAttachmentName));
         }
 
         ConfigurationArchiveAttachment configurationArchive = uploadConfigurationArchiveIfAvailable(
@@ -508,10 +518,26 @@ public class ConfluenceService {
             throw new ConfluenceOperationException("Cached Grafana panel image is empty");
         }
         try {
-            return Base64.getDecoder().decode(panel.imageBase64());
+            byte[] imageBytes = Base64.getDecoder().decode(panel.imageBase64());
+            if (!isPng(imageBytes)) {
+                throw new ConfluenceOperationException("Cached Grafana panel image is not a PNG");
+            }
+            return imageBytes;
         } catch (IllegalArgumentException ex) {
             throw new ConfluenceOperationException("Cached Grafana panel image could not be decoded", ex);
         }
+    }
+
+    private boolean isPng(byte[] imageBytes) {
+        if (imageBytes == null || imageBytes.length < PNG_SIGNATURE.length) {
+            return false;
+        }
+        for (int index = 0; index < PNG_SIGNATURE.length; index++) {
+            if (imageBytes[index] != PNG_SIGNATURE[index]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -1483,30 +1509,32 @@ public class ConfluenceService {
         }
     }
 
-    private void uploadAttachmentWithRetry(
+    private String uploadAttachmentWithRetry(
             ConfluenceCredentials credentials,
             String pageId,
             String attachmentName,
             byte[] imageBytes) {
-        uploadAttachmentWithRetry(
+        String uploadedAttachmentName = uploadAttachmentWithRetry(
                 credentials,
                 pageId,
                 () -> confluenceClient.uploadAttachment(credentials, pageId, attachmentName, imageBytes));
+        return StringUtils.hasText(uploadedAttachmentName) ? uploadedAttachmentName : attachmentName;
     }
 
-    private void uploadAttachmentWithRetry(
+    private String uploadAttachmentWithRetry(
             ConfluenceCredentials credentials,
             String pageId,
             String attachmentName,
             byte[] bytes,
             MediaType mediaType) {
-        uploadAttachmentWithRetry(
+        String uploadedAttachmentName = uploadAttachmentWithRetry(
                 credentials,
                 pageId,
                 () -> confluenceClient.uploadAttachment(credentials, pageId, attachmentName, bytes, mediaType));
+        return StringUtils.hasText(uploadedAttachmentName) ? uploadedAttachmentName : attachmentName;
     }
 
-    private void uploadAttachmentWithRetry(
+    private String uploadAttachmentWithRetry(
             ConfluenceCredentials credentials,
             String pageId,
             AttachmentUpload upload) {
@@ -1517,8 +1545,7 @@ public class ConfluenceService {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 waitForPageAvailability(credentials, pageId);
-                upload.upload();
-                return;
+                return upload.upload();
             } catch (ConfluenceClientException ex) {
                 lastError = ex;
                 if (attempt == maxAttempts) {
@@ -1552,14 +1579,14 @@ public class ConfluenceService {
                 || !StringUtils.hasText(archive.fileName())) {
             return null;
         }
-        uploadAttachmentWithRetry(
+        String uploadedAttachmentName = uploadAttachmentWithRetry(
                 credentials,
                 pageId,
                 archive.fileName(),
                 archive.content(),
                 resolveArchiveMediaType(archive.contentType()));
-        attachmentNames.add(archive.fileName());
-        return new ConfigurationArchiveAttachment(archive.fileName());
+        attachmentNames.add(uploadedAttachmentName);
+        return new ConfigurationArchiveAttachment(uploadedAttachmentName);
     }
 
     private MediaType resolveArchiveMediaType(String contentType) {
@@ -1738,6 +1765,6 @@ public class ConfluenceService {
 
     @FunctionalInterface
     private interface AttachmentUpload {
-        void upload();
+        String upload();
     }
 }

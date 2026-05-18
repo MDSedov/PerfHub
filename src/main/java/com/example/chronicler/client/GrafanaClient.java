@@ -10,6 +10,7 @@ import com.example.chronicler.exception.GrafanaClientException;
 import com.example.chronicler.service.ConfigurationProvider;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -37,6 +38,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class GrafanaClient {
 
     private static final Logger log = LoggerFactory.getLogger(GrafanaClient.class);
+    private static final byte[] PNG_SIGNATURE =
+            new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
     private static final String SERVICE = "grafana";
     private static final String BASE_URL_KEY = "base-url";
     private static final String RENDER_PATH_KEY = "render-path";
@@ -162,6 +165,7 @@ public class GrafanaClient {
                 log.warn("Grafana renderer returned an empty body for {}", uri);
                 return new byte[0];
             }
+            validatePngResponse(response, body, uri);
             return body;
         } catch (RestClientResponseException ex) {
             String message = "Failed to render Grafana panel %d for dashboard '%s' (%s): %s"
@@ -181,6 +185,44 @@ public class GrafanaClient {
                 requiredInt(IMAGE_WIDTH_KEY),
                 requiredInt(IMAGE_HEIGHT_KEY),
                 required(TIMEZONE_KEY));
+    }
+
+    private void validatePngResponse(ResponseEntity<byte[]> response, byte[] body, URI uri) {
+        MediaType contentType = response.getHeaders().getContentType();
+        if (contentType != null && !MediaType.IMAGE_PNG.isCompatibleWith(contentType)) {
+            throw new GrafanaClientException(
+                    "Grafana renderer returned unexpected content type '%s' for %s"
+                            .formatted(contentType, uri),
+                    null);
+        }
+        if (!isPng(body)) {
+            throw new GrafanaClientException(
+                    "Grafana renderer returned non-PNG response for %s: %s"
+                            .formatted(uri, previewBody(body)),
+                    null);
+        }
+    }
+
+    private boolean isPng(byte[] body) {
+        if (body == null || body.length < PNG_SIGNATURE.length) {
+            return false;
+        }
+        for (int index = 0; index < PNG_SIGNATURE.length; index++) {
+            if (body[index] != PNG_SIGNATURE[index]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String previewBody(byte[] body) {
+        if (body == null || body.length == 0) {
+            return "<empty body>";
+        }
+        int length = Math.min(body.length, 160);
+        return new String(body, 0, length, StandardCharsets.UTF_8)
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     public String loadDashboardSlug(String dashboardUid) {

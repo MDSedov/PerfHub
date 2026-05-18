@@ -22,6 +22,9 @@ import org.springframework.web.client.RestTemplate;
 
 class GrafanaClientTest {
 
+    private static final byte[] PNG_BYTES =
+            new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3};
+
     private RestTemplate restTemplate;
     private MockRestServiceServer mockServer;
     private GrafanaClient grafanaClient;
@@ -50,12 +53,12 @@ class GrafanaClientTest {
                                 + "?panelId=1&from=1714521600000&to=1714525200000&width=1000&height=500&tz=UTC"))
                 .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
                 .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
-                .andRespond(MockRestResponseCreators.withSuccess(new byte[] {1, 2, 3}, MediaType.IMAGE_PNG));
+                .andRespond(MockRestResponseCreators.withSuccess(PNG_BYTES, MediaType.IMAGE_PNG));
 
         byte[] result = grafanaClient.renderPanel("dashboard-uid", "dashboard-slug", 1, from, to);
 
         mockServer.verify();
-        assertThat(result).containsExactly(1, 2, 3);
+        assertThat(result).containsExactly(PNG_BYTES);
     }
 
     @Test
@@ -69,7 +72,7 @@ class GrafanaClientTest {
                                 + "&var-service=backend&var-namespace=prod"))
                 .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
                 .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
-                .andRespond(MockRestResponseCreators.withSuccess(new byte[] {9}, MediaType.IMAGE_PNG));
+                .andRespond(MockRestResponseCreators.withSuccess(PNG_BYTES, MediaType.IMAGE_PNG));
 
         Map<String, String> variables = new LinkedHashMap<>();
         variables.put("service", "backend");
@@ -84,7 +87,7 @@ class GrafanaClientTest {
                 variables);
 
         mockServer.verify();
-        assertThat(result).containsExactly(9);
+        assertThat(result).containsExactly(PNG_BYTES);
     }
 
     @Test
@@ -137,6 +140,22 @@ class GrafanaClientTest {
                 .isInstanceOf(GrafanaClientException.class)
                 .hasMessageContaining("HTTP 404")
                 .hasMessageContaining("renderer route not found");
+    }
+
+    @Test
+    void renderPanelShouldRejectNonPngSuccessResponse() {
+        Instant from = Instant.parse("2024-05-01T00:00:00Z");
+        Instant to = Instant.parse("2024-05-01T01:00:00Z");
+
+        mockServer.expect(MockRestRequestMatchers.requestTo(
+                        "http://localhost:3000/render/d-solo/dashboard-uid/dashboard-slug"
+                                + "?panelId=1&from=1714521600000&to=1714525200000&width=1000&height=500&tz=UTC"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andRespond(MockRestResponseCreators.withSuccess("<html>login</html>", MediaType.TEXT_HTML));
+
+        assertThatThrownBy(() -> grafanaClient.renderPanel("dashboard-uid", "dashboard-slug", 1, from, to))
+                .isInstanceOf(GrafanaClientException.class)
+                .hasMessageContaining("unexpected content type");
     }
 
     @Test

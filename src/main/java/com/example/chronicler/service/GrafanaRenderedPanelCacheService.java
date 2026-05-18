@@ -29,6 +29,8 @@ public class GrafanaRenderedPanelCacheService {
     private static final Logger log = LoggerFactory.getLogger(GrafanaRenderedPanelCacheService.class);
     private static final String CONTENT_TYPE = "image/png";
     private static final String DEFAULT_VARIABLES_HASH = "no-variables";
+    private static final byte[] PNG_SIGNATURE =
+            new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
 
     private final GrafanaRenderedPanelCacheRepository repository;
     private final Path cacheRoot;
@@ -76,11 +78,17 @@ public class GrafanaRenderedPanelCacheService {
                 deleteBrokenEntry(cached);
                 return Optional.empty();
             }
+            byte[] imageBytes = Files.readAllBytes(imagePath);
+            if (!isPng(imageBytes)) {
+                log.warn("Cached Grafana panel image '{}' is not a PNG. Removing cache entry.", cached.filePath());
+                deleteBrokenEntry(cached);
+                return Optional.empty();
+            }
             return Optional.of(new CachedPanelImage(
                     cached.dashboardSlug(),
                     cached.title(),
                     cached.description(),
-                    Files.readAllBytes(imagePath)));
+                    imageBytes));
         } catch (IOException | IllegalArgumentException ex) {
             log.warn("Failed to read cached Grafana panel image '{}': {}", cached.filePath(), ex.getMessage());
             deleteBrokenEntry(cached);
@@ -102,6 +110,14 @@ public class GrafanaRenderedPanelCacheService {
             String description,
             byte[] imageBytes) {
         if (testUuid == null || options == null || imageBytes == null || imageBytes.length == 0) {
+            return;
+        }
+        if (!isPng(imageBytes)) {
+            log.warn(
+                    "Skipping Grafana panel cache write for test '{}' dashboard '{}' panel {} because payload is not PNG",
+                    testUuid,
+                    dashboardUid,
+                    panelId);
             return;
         }
 
@@ -202,6 +218,18 @@ public class GrafanaRenderedPanelCacheService {
     private String sanitizePathSegment(String value) {
         String normalized = StringUtils.hasText(value) ? value.trim() : "unknown";
         return normalized.replaceAll("[^a-zA-Z0-9._-]", "_");
+    }
+
+    private boolean isPng(byte[] imageBytes) {
+        if (imageBytes == null || imageBytes.length < PNG_SIGNATURE.length) {
+            return false;
+        }
+        for (int index = 0; index < PNG_SIGNATURE.length; index++) {
+            if (imageBytes[index] != PNG_SIGNATURE[index]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void deleteBrokenEntry(GrafanaRenderedPanelCacheEntry cached) {

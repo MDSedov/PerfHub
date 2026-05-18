@@ -62,6 +62,9 @@ import org.springframework.web.client.HttpClientErrorException;
 @ExtendWith(MockitoExtension.class)
 class ConfluenceServiceTest {
 
+    private static final byte[] PNG_SIGNATURE =
+            new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+
     @Mock
     private ConfluenceClient confluenceClient;
 
@@ -132,8 +135,8 @@ class ConfluenceServiceTest {
         when(loadTestRepository.findById(firstTestUuid)).thenReturn(Optional.of(firstLoadTest));
         when(loadTestRepository.findById(secondTestUuid)).thenReturn(Optional.of(secondLoadTest));
 
-        byte[] firstImage = new byte[] {1, 2, 3};
-        byte[] secondImage = new byte[] {4, 5, 6};
+        byte[] firstImage = pngBytes(1);
+        byte[] secondImage = pngBytes(2);
         GrafanaRenderedPanel firstPanel = new GrafanaRenderedPanel(
                 7, "First panel", "", Base64.getEncoder().encodeToString(firstImage));
         GrafanaRenderedPanel secondPanel = new GrafanaRenderedPanel(
@@ -189,13 +192,13 @@ class ConfluenceServiceTest {
         assertThat(firstReport.pageTitle()).isEqualTo(firstTitle);
         assertThat(firstReport.pageUrl()).isEqualTo("https://confluence.example/pages/viewpage.action?pageId=456");
         assertThat(firstReport.attachmentNames()).hasSize(1);
-        assertThat(firstReport.attachmentNames().get(0)).contains("grafana-panel-7-");
+        assertThat(firstReport.attachmentNames().get(0)).isEqualTo("grafana-panel-7.png");
         assertThat(secondReport.testUuid()).isEqualTo(secondTestUuid);
         assertThat(secondReport.pageId()).isEqualTo("789");
         assertThat(secondReport.pageTitle()).isEqualTo(secondTitle);
         assertThat(secondReport.pageUrl()).isEqualTo("https://confluence.example/pages/viewpage.action?pageId=789");
         assertThat(secondReport.attachmentNames()).hasSize(1);
-        assertThat(secondReport.attachmentNames().get(0)).contains("grafana-panel-9-");
+        assertThat(secondReport.attachmentNames().get(0)).isEqualTo("grafana-panel-9.png");
 
         verify(grafanaService).renderTemplatePanelsForTest(firstLoadTest, firstTemplate);
         verify(grafanaService).renderTemplatePanelsForTest(secondLoadTest, secondTemplate);
@@ -342,7 +345,7 @@ class ConfluenceServiceTest {
                                 "https://nexus.example/repository/sp-02/017/00_5.profile")),
                         List.of()));
 
-        byte[] image = new byte[] {1, 9, 7};
+        byte[] image = pngBytes(7);
         GrafanaRenderedPanel panel = new GrafanaRenderedPanel(
                 7, "CPU", "", Base64.getEncoder().encodeToString(image));
         when(grafanaService.renderTemplatePanelsForTest(loadTest, template))
@@ -645,8 +648,8 @@ class ConfluenceServiceTest {
                 "2024-03-01T01:00:00Z",
                 900);
 
-        byte[] firstImage = new byte[] {4, 2};
-        byte[] secondImage = new byte[] {9, 1};
+        byte[] firstImage = pngBytes(12);
+        byte[] secondImage = pngBytes(13);
         GrafanaRenderedPanel firstPanel = new GrafanaRenderedPanel(
                 12,
                 "CPU",
@@ -674,7 +677,7 @@ class ConfluenceServiceTest {
         assertThat(response.pageTitle()).isEqualTo("Target");
         assertThat(response.pageUrl()).isEqualTo("https://confluence.example/pages/viewpage.action?pageId=654");
         assertThat(response.appendedChartsCount()).isEqualTo(2);
-        assertThat(response.attachmentNames()).hasSize(2);
+        assertThat(response.attachmentNames()).containsExactly("first.png", "second.png");
 
         verify(grafanaService).renderTemplatePanelsByRange(
                 new GrafanaRenderRangeRequest(request.from(), request.to(), request.templateId()));
@@ -690,7 +693,8 @@ class ConfluenceServiceTest {
         assertThat(updatedBody).contains("<p>Описание CPU</p>");
         assertThat(updatedBody).contains("<h3>Latency</h3>");
         assertThat(updatedBody).contains("<p>Описание latency</p>");
-        assertThat(updatedBody).contains("ri:filename=");
+        assertThat(updatedBody).contains("ri:attachment ri:filename=\"first.png\"");
+        assertThat(updatedBody).contains("ri:attachment ri:filename=\"second.png\"");
         assertThat(updatedBody).contains("ac:width=\"1200\"");
         assertThat(updatedBody).contains("ac:height=\"630\"");
     }
@@ -949,5 +953,12 @@ class ConfluenceServiceTest {
                         + parentPageId
                         + ": HTTP 400 Bad Request: A page with this title already exists",
                 cause);
+    }
+
+    private static byte[] pngBytes(int marker) {
+        byte[] bytes = new byte[PNG_SIGNATURE.length + 1];
+        System.arraycopy(PNG_SIGNATURE, 0, bytes, 0, PNG_SIGNATURE.length);
+        bytes[PNG_SIGNATURE.length] = (byte) marker;
+        return bytes;
     }
 }

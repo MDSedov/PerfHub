@@ -95,7 +95,7 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        return renderPanelsForTest(loadTest, from, to, request.shouldForceRefresh());
+        return renderPanelsForTest(loadTest, from, to, request.shouldForceRefresh(), request.shouldUseCacheOnly());
     }
 
     /**
@@ -109,7 +109,7 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        return renderPanelsForTemplate(resolveTemplate(request.templateId()), null, from, to, false);
+        return renderPanelsForTemplate(resolveTemplate(request.templateId()), null, from, to, false, false);
     }
 
     public List<GrafanaRenderedPanel> renderTemplatePanelsByRange(GrafanaRenderRangeRequest request) {
@@ -120,7 +120,7 @@ public class GrafanaService {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
 
-        return renderTemplatePanels(resolveTemplate(request.templateId()), null, from, to, false);
+        return renderTemplatePanels(resolveTemplate(request.templateId()), null, from, to, false, false);
     }
 
     public GrafanaRenderedPanel renderPanelByRange(GrafanaRenderPanelRangeRequest request) {
@@ -210,15 +210,16 @@ public class GrafanaService {
         if (!to.isAfter(from)) {
             throw new GrafanaInvalidTimeRangeException("End time must be after start time");
         }
-        return renderTemplatePanels(template, loadTest.id(), from, to, false);
+        return renderTemplatePanels(template, loadTest.id(), from, to, false, false);
     }
 
     private GrafanaRenderResponse renderPanelsForTest(
             LoadTest loadTest,
             Instant from,
             Instant to,
-            boolean forceRefresh) {
-        return renderPanelsForTemplate(resolveDefaultTemplate(loadTest), loadTest.id(), from, to, forceRefresh);
+            boolean forceRefresh,
+            boolean cacheOnly) {
+        return renderPanelsForTemplate(resolveDefaultTemplate(loadTest), loadTest.id(), from, to, forceRefresh, cacheOnly);
     }
 
     private GrafanaRenderResponse renderPanelsForTemplate(
@@ -226,9 +227,10 @@ public class GrafanaService {
             UUID testUuid,
             Instant from,
             Instant to,
-            boolean forceRefresh) {
+            boolean forceRefresh,
+            boolean cacheOnly) {
         List<TemplateRenderedPanel> renderedTemplatePanels =
-                renderTemplatePanelsInternal(template, testUuid, from, to, forceRefresh);
+                renderTemplatePanelsInternal(template, testUuid, from, to, forceRefresh, cacheOnly);
         List<GrafanaRenderedDashboard> dashboards = new ArrayList<>();
         Map<String, List<GrafanaRenderedPanel>> panelsByDashboardUid = new LinkedHashMap<>();
         Map<String, String> dashboardSlugs = new LinkedHashMap<>();
@@ -246,7 +248,9 @@ public class GrafanaService {
         }
 
         GrafanaRenderResponse response = new GrafanaRenderResponse(from.toString(), to.toString(), List.copyOf(dashboards));
-        grafanaRenderCache.store(response);
+        if (!cacheOnly) {
+            grafanaRenderCache.store(response);
+        }
         return response;
     }
 
@@ -255,8 +259,9 @@ public class GrafanaService {
             UUID testUuid,
             Instant from,
             Instant to,
-            boolean forceRefresh) {
-        return renderTemplatePanelsInternal(template, testUuid, from, to, forceRefresh).stream()
+            boolean forceRefresh,
+            boolean cacheOnly) {
+        return renderTemplatePanelsInternal(template, testUuid, from, to, forceRefresh, cacheOnly).stream()
                 .map(TemplateRenderedPanel::panel)
                 .toList();
     }
@@ -266,7 +271,8 @@ public class GrafanaService {
             UUID testUuid,
             Instant from,
             Instant to,
-            boolean forceRefresh) {
+            boolean forceRefresh,
+            boolean cacheOnly) {
         List<ConfluenceTemplateChart> templateCharts = template.charts() == null ? List.of() : template.charts();
         if (templateCharts.isEmpty()) {
             throw new GrafanaRenderingException(
@@ -316,6 +322,9 @@ public class GrafanaService {
                                 title,
                                 cached.description() == null ? "" : cached.description(),
                                 encodedImage)));
+                continue;
+            }
+            if (cacheOnly) {
                 continue;
             }
 

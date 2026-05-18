@@ -911,6 +911,7 @@
     const evaluationRequests = new Map();
     const grafanaPanelsCache = new Map();
     const grafanaPanelRequests = new Map();
+    const grafanaServerCacheRequests = new Map();
     const grafanaRenderedPanels = new Map();
     const testConfigurationCache = new Map();
     const testConfigurationRequests = new Map();
@@ -2933,13 +2934,15 @@
         }
     }
 
-    async function fetchGrafanaPanels(testId, forceRefresh = false) {
+    async function fetchGrafanaPanels(testId, options = {}) {
+        const forceRefresh = Boolean(options.forceRefresh);
+        const cacheOnly = Boolean(options.cacheOnly);
         const response = await fetch('/api/grafana/panels/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ testUuid: testId, forceRefresh })
+            body: JSON.stringify({ testUuid: testId, forceRefresh, cacheOnly })
         });
         const responseText = await response.text();
         if (!response.ok) {
@@ -2956,7 +2959,9 @@
         }
         const payload = responseText ? JSON.parse(responseText) : null;
         const normalized = normalizeGrafanaPanels(payload);
-        grafanaPanelsCache.set(testId, normalized);
+        if (!cacheOnly || normalized.panels.length > 0) {
+            grafanaPanelsCache.set(testId, normalized);
+        }
         return normalized;
     }
 
@@ -2970,6 +2975,18 @@
             }));
         }
         return grafanaPanelRequests.get(testId);
+    }
+
+    function tryLoadGrafanaPanelsFromServerCache(testId) {
+        if (grafanaPanelsCache.has(testId)) {
+            return Promise.resolve(grafanaPanelsCache.get(testId));
+        }
+        if (!grafanaServerCacheRequests.has(testId)) {
+            grafanaServerCacheRequests.set(testId, fetchGrafanaPanels(testId, { cacheOnly: true }).finally(() => {
+                grafanaServerCacheRequests.delete(testId);
+            }));
+        }
+        return grafanaServerCacheRequests.get(testId);
     }
 
     function normalizeGrafanaPanels(response) {
@@ -3618,6 +3635,7 @@
             if (!testsById.has(testId)) {
                 grafanaPanelsCache.delete(testId);
                 grafanaPanelRequests.delete(testId);
+                grafanaServerCacheRequests.delete(testId);
                 grafanaRenderedPanels.delete(testId);
             }
         });
@@ -3905,6 +3923,29 @@
                         grafanaLoadButton.disabled = false;
                         grafanaLoadButton.textContent = 'Загрузить графики';
                     });
+        } else {
+            grafanaPlaceholder.classList.remove('visually-hidden');
+            grafanaPlaceholder.textContent = 'Проверяем сохраненные графики…';
+            tryLoadGrafanaPanelsFromServerCache(testId)
+                    .then(result => {
+                        if (!grafanaBox.isConnected) {
+                            return;
+                        }
+                        const panels = Array.isArray(result?.panels) ? result.panels : [];
+                        if (panels.length > 0) {
+                            applyGrafanaPanels(panels);
+                        } else {
+                            grafanaPlaceholder.textContent = '';
+                            grafanaPlaceholder.classList.add('visually-hidden');
+                        }
+                    })
+                    .catch(() => {
+                        if (!grafanaBox.isConnected) {
+                            return;
+                        }
+                        grafanaPlaceholder.textContent = '';
+                        grafanaPlaceholder.classList.add('visually-hidden');
+                    });
         }
 
         grafanaLoadButton.addEventListener('click', async () => {
@@ -3916,7 +3957,7 @@
             showToast('Загружаем графики…', 'info', 6000);
             try {
                 const panelsData = forceRefresh
-                        ? await fetchGrafanaPanels(testId, true)
+                        ? await fetchGrafanaPanels(testId, { forceRefresh: true })
                         : await ensureGrafanaPanels(testId);
                 const panels = Array.isArray(panelsData?.panels) ? panelsData.panels : [];
                 if (!panels || panels.length === 0) {
