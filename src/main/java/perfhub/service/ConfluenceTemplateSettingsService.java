@@ -202,9 +202,6 @@ public class ConfluenceTemplateSettingsService {
         if (!StringUtils.hasText(reportTitle)) {
             throw new IllegalArgumentException("Название отчета обязательно");
         }
-        if (!StringUtils.hasText(templatePageId) && !StringUtils.hasText(text)) {
-            throw new IllegalArgumentException("ID страницы с шаблоном отчета в Confluence обязателен");
-        }
 
         List<SanitizedChart> charts = new ArrayList<>();
         List<TemplateChartCommand> requestedCharts = command.charts() == null ? List.of() : command.charts();

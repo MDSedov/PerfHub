@@ -149,6 +149,55 @@ class ConfluenceTemplateSettingsServiceTest {
     }
 
     @Test
+    void createTemplateAllowsEmptyBodyWithoutTemplatePageId() {
+        ConfluenceTemplateSettingsService savingService =
+                new ConfluenceTemplateSettingsService(
+                        templateRepository,
+                        chartRepository,
+                        grafanaDashboardPanelRepository,
+                        null);
+        when(templateRepository.create(
+                        eq("max_template"),
+                        eq("Отчет"),
+                        eq("Отчет"),
+                        eq("Отчет"),
+                        eq(ConfluenceTemplateType.TEST),
+                        eq(""),
+                        eq("")))
+                .thenReturn(45);
+        when(templateRepository.findActiveById(45))
+                .thenReturn(Optional.of(new ConfluenceTemplate(
+                        45,
+                        "max_template",
+                        "Отчет",
+                        "Отчет",
+                        ConfluenceTemplateType.TEST,
+                        "",
+                        "",
+                        List.of())));
+        when(chartRepository.findByTemplateId(45)).thenReturn(List.of());
+
+        savingService.createTemplate(new ConfluenceTemplateSettingsService.TemplateSaveCommand(
+                null,
+                null,
+                "Отчет",
+                "TEST",
+                "max",
+                "",
+                "",
+                List.of()));
+
+        verify(templateRepository).create(
+                "max_template",
+                "Отчет",
+                "Отчет",
+                "Отчет",
+                ConfluenceTemplateType.TEST,
+                "",
+                "");
+    }
+
+    @Test
     void createTemplateCanSkipGrafanaPanelValidationForSettingsImport() {
         ConfluenceTemplateSettingsService savingService =
                 new ConfluenceTemplateSettingsService(

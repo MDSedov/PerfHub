@@ -479,6 +479,7 @@ public class ConfluenceService {
         } catch (IllegalArgumentException ex) {
             throw new ConfluenceOperationException(ex.getMessage(), ex);
         }
+        validateTestReportTemplate(loadTest, template);
         return new ResolvedReportItem(loadTest, template);
     }
 
@@ -487,7 +488,9 @@ public class ConfluenceService {
             throw new ConfluenceOperationException("tests must not contain null elements");
         }
         LoadTest loadTest = resolveLoadTest(testUuid);
-        return new ResolvedReportItem(loadTest, resolveDefaultTemplate(loadTest));
+        ConfluenceTemplate template = resolveDefaultTemplate(loadTest);
+        validateTestReportTemplate(loadTest, template);
+        return new ResolvedReportItem(loadTest, template);
     }
 
     private LoadTest resolveLoadTest(UUID testUuid) {
@@ -508,6 +511,17 @@ public class ConfluenceService {
                             "Confluence report template is not configured for test type " + loadTestType.value()));
         } catch (IllegalArgumentException ex) {
             throw new ConfluenceOperationException(ex.getMessage(), ex);
+        }
+    }
+
+    private void validateTestReportTemplate(LoadTest loadTest, ConfluenceTemplate template) {
+        if (template.templateType() != ConfluenceTemplateType.TEST) {
+            throw new ConfluenceOperationException("Выбранный шаблон не является шаблоном отчета по тесту");
+        }
+        if (!StringUtils.hasText(template.templatePageId())) {
+            throw new ConfluenceOperationException(
+                    "У шаблона отчета %s не указан базовый шаблон в Confluence"
+                            .formatted(formatLoadTestType(loadTest.type())));
         }
     }
 

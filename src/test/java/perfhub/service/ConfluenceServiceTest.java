@@ -142,14 +142,14 @@ class ConfluenceServiceTest {
         GrafanaRenderedPanel secondPanel = new GrafanaRenderedPanel(
                 9, "Second panel", "", Base64.getEncoder().encodeToString(secondImage));
 
-        ConfluenceTemplate firstTemplate = new ConfluenceTemplate(
+        ConfluenceTemplate firstTemplate = testReportTemplate(
                 101,
                 "max",
                 "Пользовательский MAX отчет",
                 "Пользовательский MAX отчет",
                 "<p>Max template</p>",
                 List.of(new ConfluenceTemplateChart(1L, 101, "CPU", "uid-1", 7, 0)));
-        ConfluenceTemplate secondTemplate = new ConfluenceTemplate(
+        ConfluenceTemplate secondTemplate = testReportTemplate(
                 202,
                 "soak",
                 "Пользовательский SOAK отчет",
@@ -165,6 +165,8 @@ class ConfluenceServiceTest {
 
         ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
         when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+        stubTemplatePage(credentials, firstTemplate);
+        stubTemplatePage(credentials, secondTemplate);
 
         String firstTitle = firstTemplate.fullName();
         String secondTitle = secondTemplate.fullName();
@@ -242,6 +244,36 @@ class ConfluenceServiceTest {
     }
 
     @Test
+    void createReportsThrowsWhenTemplatePageIdIsMissing() {
+        ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
+        UUID testUuid = UUID.fromString("eeeeeeee-1111-2222-3333-444444444444");
+        ConfluenceReportRequest request = new ConfluenceReportRequest(
+                "123",
+                null,
+                List.of(new ConfluenceReportRequest.ReportItem(testUuid, 303)));
+
+        Instant start = Instant.parse("2024-01-03T00:00:00Z");
+        Instant end = Instant.parse("2024-01-03T05:00:00Z");
+        LoadTest loadTest = new LoadTest(testUuid, start, end, LoadTestType.MAX, null);
+        ConfluenceTemplate template = new ConfluenceTemplate(
+                303,
+                "max_template",
+                "Шаблон MAX",
+                "Шаблон MAX",
+                ConfluenceTemplateType.TEST,
+                "",
+                "<p>Inline body</p>",
+                List.of());
+        when(loadTestRepository.findById(testUuid)).thenReturn(Optional.of(loadTest));
+        when(confluenceTemplateSettingsService.getActiveTemplate(303)).thenReturn(template);
+
+        assertThatThrownBy(() -> confluenceService.createReports(credentials, request))
+                .isInstanceOf(ConfluenceOperationException.class)
+                .hasMessage("У шаблона отчета Максимум не указан базовый шаблон в Confluence");
+        verify(confluenceClient, never()).getPage(any(), anyString());
+    }
+
+    @Test
     void createReportsThrowsWhenParentHasNoSpace() {
         ConfluenceCredentials credentials = new ConfluenceCredentials("user", "token");
         UUID testUuid = UUID.fromString("aaaaaaaa-0000-bbbb-cccc-dddddddddddd");
@@ -255,7 +287,7 @@ class ConfluenceServiceTest {
         when(loadTestRepository.findById(testUuid))
                 .thenReturn(Optional.of(new LoadTest(testUuid, start, end, LoadTestType.MAX, null)));
         when(confluenceTemplateSettingsService.getActiveTemplate(101))
-                .thenReturn(new ConfluenceTemplate(101, "max", "Max Report", "Max Report", "<p>Body</p>", List.of()));
+                .thenReturn(testReportTemplate(101, "max", "Max Report", "Max Report", "<p>Body</p>", List.of()));
 
         ConfluencePage parentPage = new ConfluencePage("parent", "page", "Parent", 2, "", null);
         when(confluenceClient.getPage(credentials, "parent")).thenReturn(parentPage);
@@ -298,7 +330,7 @@ class ConfluenceServiceTest {
         LoadTest loadTest = new LoadTest(testUuid, start, end, LoadTestType.MAX, null);
         when(loadTestRepository.findById(testUuid)).thenReturn(Optional.of(loadTest));
 
-        ConfluenceTemplate template = new ConfluenceTemplate(
+        ConfluenceTemplate template = testReportTemplate(
                 301,
                 "max",
                 "Шаблон MAX",
@@ -360,6 +392,7 @@ class ConfluenceServiceTest {
                 template.text(),
                 "SPACE");
         when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+        stubTemplatePage(credentials, template);
         when(confluenceClient.createChildPage(
                         credentials,
                         "123",
@@ -462,7 +495,7 @@ class ConfluenceServiceTest {
                         "512Mi",
                         Instant.parse("2024-02-01T02:30:00Z"))));
 
-        ConfluenceTemplate template = new ConfluenceTemplate(
+        ConfluenceTemplate template = testReportTemplate(
                 302,
                 "max",
                 "Шаблон MAX",
@@ -475,6 +508,7 @@ class ConfluenceServiceTest {
         ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
         ConfluencePage createdPage = new ConfluencePage("556", "page", "Отчет 24.1.7", 1, normalizedTemplateBody, "SPACE");
         when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+        stubTemplatePage(credentials, template);
         when(confluenceClient.createChildPage(
                         credentials,
                         "123",
@@ -522,7 +556,7 @@ class ConfluenceServiceTest {
                         "512Mi",
                         Instant.parse("2024-02-02T02:30:00Z"))));
 
-        ConfluenceTemplate template = new ConfluenceTemplate(
+        ConfluenceTemplate template = testReportTemplate(
                 401,
                 "max",
                 "Шаблон MAX",
@@ -534,6 +568,7 @@ class ConfluenceServiceTest {
         ConfluencePage parentPage = new ConfluencePage("123", "page", "Parent", 4, "", "SPACE");
         ConfluencePage createdPage = new ConfluencePage("777", "page", "Отчет 24.1.7 [99999999]", 1, template.text(), "SPACE");
         when(confluenceClient.getPage(credentials, "123")).thenReturn(parentPage);
+        stubTemplatePage(credentials, template);
         when(confluenceClient.createChildPage(
                         credentials,
                         "123",
@@ -948,6 +983,35 @@ class ConfluenceServiceTest {
         assertThat(updatedBody).doesNotContain("@test_end_date");
         assertThat(updatedBody).doesNotContain("@test_end_time");
         assertThat(updatedBody).doesNotContain("@test_report_link");
+    }
+
+    private ConfluenceTemplate testReportTemplate(
+            int id,
+            String shortName,
+            String fullName,
+            String reportTitle,
+            String text,
+            List<ConfluenceTemplateChart> charts) {
+        return new ConfluenceTemplate(
+                id,
+                shortName,
+                fullName,
+                reportTitle,
+                ConfluenceTemplateType.TEST,
+                "template-" + id,
+                text,
+                charts);
+    }
+
+    private void stubTemplatePage(ConfluenceCredentials credentials, ConfluenceTemplate template) {
+        lenient().when(confluenceClient.getPage(credentials, template.templatePageId()))
+                .thenReturn(new ConfluencePage(
+                        template.templatePageId(),
+                        "page",
+                        template.fullName(),
+                        1,
+                        template.text(),
+                        "SPACE"));
     }
 
     private ConfluenceClientException duplicateTitleException(String parentPageId) {

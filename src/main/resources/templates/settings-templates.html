@@ -224,7 +224,7 @@
                                     </div>
                                 </div>
                                 <div class="col-12 col-lg-6">
-                                    <label for="templatePageIdInput" class="form-label">ID страницы с шаблоном отчета в Confluence</label>
+                                    <label for="templatePageIdInput" class="form-label">ID страницы с шаблоном отчета в Confluence (необязательно)</label>
                                     <input type="text"
                                            class="form-control"
                                            id="templatePageIdInput"
@@ -1365,9 +1365,6 @@
         }
         if (!reportTitle) {
             throw new Error('Укажите название отчета');
-        }
-        if (!templatePageId) {
-            throw new Error('Укажите ID страницы с шаблоном отчета в Confluence');
         }
         if (templatePageIdInput) {
             templatePageIdInput.value = templatePageId;
