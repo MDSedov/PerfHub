@@ -488,7 +488,7 @@ public class RequirementEvaluationService {
         if (loadTest == null) {
             return List.of();
         }
-        Optional<ConfluenceTemplate> template = resolveTemplate(loadTest.type());
+        Optional<ConfluenceTemplate> template = resolveTemplate(loadTest.effectiveTypeCode());
         if (template.isEmpty()) {
             if (strict) {
                 throw new RequirementEvaluationException(TEMPLATE_MISSING_MESSAGE);
@@ -532,11 +532,14 @@ public class RequirementEvaluationService {
         return new ArrayList<>(requirementsByKey.values());
     }
 
-    private Optional<ConfluenceTemplate> resolveTemplate(LoadTestType loadTestType) {
-        if (loadTestType == null || loadTestType == LoadTestType.UNKNOWN) {
+    private Optional<ConfluenceTemplate> resolveTemplate(String loadTestTypeCode) {
+        if (!StringUtils.hasText(loadTestTypeCode) || "unknown".equalsIgnoreCase(loadTestTypeCode.trim())) {
             return Optional.empty();
         }
-        String shortName = confluenceTemplateSettingsService.resolveDefaultTemplateShortName(loadTestType);
+        LoadTestType knownType = LoadTestType.fromDatabaseValue(loadTestTypeCode);
+        String shortName = knownType == LoadTestType.UNKNOWN
+                ? confluenceTemplateSettingsService.resolveDefaultTemplateShortName(loadTestTypeCode)
+                : confluenceTemplateSettingsService.resolveDefaultTemplateShortName(knownType);
         return confluenceTemplateSettingsService.findActiveTemplateByShortName(shortName);
     }
 

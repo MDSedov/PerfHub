@@ -842,6 +842,12 @@ class GrafanaServiceTest {
         }
 
         @Override
+        public ConfluenceTemplate resolveDefaultTemplate(String loadTestTypeCode) {
+            LoadTestType type = LoadTestType.fromDatabaseValue(loadTestTypeCode);
+            return resolveDefaultTemplate(type);
+        }
+
+        @Override
         public ConfluenceTemplate getActiveTemplate(int id) {
             ConfluenceTemplate template = templatesById.get(id);
             if (template != null) {

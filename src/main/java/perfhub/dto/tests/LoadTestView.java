@@ -1,7 +1,6 @@
 package perfhub.dto.tests;
 
 import perfhub.model.LoadTest;
-import perfhub.model.LoadTestType;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -13,6 +12,7 @@ public record LoadTestView(
         String start,
         String end,
         String type,
+        String typeName,
         String release,
         String jiraReleaseIssueUrl,
         boolean hasSavedConfiguration,
@@ -45,12 +45,12 @@ public record LoadTestView(
             String release,
             String jiraReleaseIssueUrl,
             boolean hasSavedConfiguration) {
-        LoadTestType type = loadTest.type() == null ? LoadTestType.UNKNOWN : loadTest.type();
         return new LoadTestView(
                 loadTest.id().toString(),
                 formatInstant(loadTest.start()),
                 formatInstant(loadTest.end()),
-                type.value(),
+                loadTest.effectiveTypeCode(),
+                loadTest.effectiveTypeName(),
                 normalizeRelease(release),
                 normalizeRelease(jiraReleaseIssueUrl),
                 hasSavedConfiguration,

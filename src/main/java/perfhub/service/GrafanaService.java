@@ -526,7 +526,7 @@ public class GrafanaService {
 
     private ConfluenceTemplate resolveDefaultTemplate(LoadTest loadTest) {
         try {
-            return confluenceTemplateSettingsService.resolveDefaultTemplate(loadTest.type());
+            return confluenceTemplateSettingsService.resolveDefaultTemplate(loadTest.effectiveTypeCode());
         } catch (IllegalArgumentException ex) {
             throw new GrafanaRenderingException(ex.getMessage());
         }

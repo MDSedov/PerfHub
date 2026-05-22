@@ -7,8 +7,8 @@ import perfhub.dto.tests.SaveTestCommentRequest;
 import perfhub.dto.tests.SaveTestReportDetailsRequest;
 import perfhub.dto.tests.SaveTestTypeRequest;
 import perfhub.model.LoadTest;
-import perfhub.model.LoadTestType;
 import perfhub.repository.LoadTestRepository;
+import perfhub.repository.TestTypeRepository;
 import perfhub.service.KubernetesConfigurationService;
 import perfhub.service.RequirementEvaluationService;
 import java.time.Instant;
@@ -36,14 +36,17 @@ import org.springframework.web.server.ResponseStatusException;
 public class LoadTestController {
 
     private final LoadTestRepository loadTestRepository;
+    private final TestTypeRepository testTypeRepository;
     private final KubernetesConfigurationService kubernetesConfigurationService;
     private final RequirementEvaluationService requirementEvaluationService;
 
     public LoadTestController(
             LoadTestRepository loadTestRepository,
+            TestTypeRepository testTypeRepository,
             KubernetesConfigurationService kubernetesConfigurationService,
             RequirementEvaluationService requirementEvaluationService) {
         this.loadTestRepository = loadTestRepository;
+        this.testTypeRepository = testTypeRepository;
         this.kubernetesConfigurationService = kubernetesConfigurationService;
         this.requirementEvaluationService = requirementEvaluationService;
     }
@@ -127,11 +130,9 @@ public class LoadTestController {
         if (request == null || request.type() == null || request.type().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type is required");
         }
-        LoadTestType type;
-        try {
-            type = LoadTestType.fromValue(request.type());
-        } catch (IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage(), ex);
+        String type = request.type().trim().toLowerCase(java.util.Locale.ROOT);
+        if (!"unknown".equals(type) && testTypeRepository.findIdByValue(type).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported load test type: " + request.type());
         }
         LoadTest updated = loadTestRepository.updateType(testUuid, type);
         return LoadTestView.fromModel(

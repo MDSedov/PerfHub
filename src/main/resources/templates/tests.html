@@ -680,9 +680,17 @@
         confirm: 'stability'
     };
 
-    const TEST_TYPE_OPTIONS = ['unknown', 'max', 'stability', 'soak', 'psu', 'dt'];
+    const DEFAULT_TEST_TYPE_OPTIONS = [
+        {code: 'max', name: 'Максимум'},
+        {code: 'stability', name: 'Стабильность'},
+        {code: 'soak', name: 'Надежность'},
+        {code: 'psu', name: 'PSU'},
+        {code: 'dt', name: 'DT'}
+    ];
 
-    const TYPE_LABELS = {
+    let testTypeOptions = DEFAULT_TEST_TYPE_OPTIONS.slice();
+
+    let TYPE_LABELS = {
         max: 'Максимум',
         stability: 'Стабильность',
         soak: 'Надежность',
@@ -721,7 +729,36 @@
         return TEST_TYPE_ALIASES[normalized] ?? normalized;
     }
 
-    function normalizeTestType(type) {
+    function refreshTestTypeLabels() {
+        TYPE_LABELS = {unknown: 'UNKNOWN'};
+        testTypeOptions.forEach(type => {
+            const code = canonicalizeTestType(type?.code);
+            const name = (type?.name ?? '').toString().trim();
+            if (code) {
+                TYPE_LABELS[code] = name || code.toUpperCase();
+            }
+        });
+    }
+
+    function getTestTypeOptions(includeUnknown = false, currentType = '') {
+        const options = includeUnknown
+                ? [{code: 'unknown', name: TYPE_LABELS.unknown}, ...testTypeOptions]
+                : testTypeOptions.slice();
+        const normalizedCurrent = canonicalizeTestType(currentType);
+        if (normalizedCurrent && !options.some(option => canonicalizeTestType(option?.code) === normalizedCurrent)) {
+            options.push({
+                code: normalizedCurrent,
+                name: TYPE_LABELS[normalizedCurrent] ?? normalizedCurrent.toUpperCase()
+            });
+        }
+        return options;
+    }
+
+    function normalizeTestType(type, fallbackName = '') {
+        const label = (fallbackName ?? '').toString().trim();
+        if (label) {
+            return label;
+        }
         const normalized = canonicalizeTestType(type);
         if (normalized && TYPE_LABELS[normalized]) {
             return TYPE_LABELS[normalized];
@@ -1122,7 +1159,7 @@
         if (!test) {
             return 'Детальная информация о тесте';
         }
-        return normalizeTestType(test.type);
+        return normalizeTestType(test.type, test.typeName);
     }
 
     function buildTestDetailsSubtitle(test) {
@@ -1478,7 +1515,7 @@
             const typeCell = document.createElement('td');
             const typeBadge = document.createElement('span');
             typeBadge.className = 'badge text-bg-light text-success badge-test-type';
-            typeBadge.textContent = normalizeTestType(test?.type);
+            typeBadge.textContent = normalizeTestType(test?.type, test?.typeName);
             applyTestTypeTooltip(typeBadge, test?.type);
             typeCell.appendChild(typeBadge);
             row.appendChild(typeCell);
@@ -1848,7 +1885,7 @@
         if (release) {
             parts.push(`Релиз ${release}`);
         }
-        parts.push(normalizeTestType(test?.type));
+        parts.push(normalizeTestType(test?.type, test?.typeName));
         const start = formatDateNoSeconds(test?.start);
         if (start && start !== '—') {
             parts.push(start);
@@ -2691,6 +2728,30 @@
             }
             updateEvaluateButtonState();
             return false;
+        }
+    }
+
+    async function loadTestTypes() {
+        try {
+            const response = await fetch('/api/test-types');
+            if (!response.ok) {
+                throw new Error('Ответ сервера: ' + response.status);
+            }
+            const payload = await response.json();
+            const loadedTypes = Array.isArray(payload)
+                    ? payload
+                            .map(type => ({
+                                code: canonicalizeTestType(type?.code),
+                                name: (type?.name ?? '').toString().trim()
+                            }))
+                            .filter(type => type.code && type.code !== 'unknown')
+                    : [];
+            if (loadedTypes.length > 0) {
+                testTypeOptions = loadedTypes;
+                refreshTestTypeLabels();
+            }
+        } catch (error) {
+            refreshTestTypeLabels();
         }
     }
 
@@ -3673,12 +3734,13 @@
         }
     }
 
-    function updateCachedTestType(testId, type) {
+    function updateCachedTestType(testId, type, typeName = '') {
         const test = findTestById(testId);
         if (!test) {
             return;
         }
         test.type = canonicalizeTestType(type) || 'unknown';
+        test.typeName = (typeName ?? '').toString().trim() || normalizeTestType(test.type);
         refreshActiveTestDetailsHeader(testId);
     }
 
@@ -3701,10 +3763,10 @@
         typeLabel.textContent = 'Тип теста';
         const typeSelect = document.createElement('select');
         typeSelect.className = 'form-select';
-        TEST_TYPE_OPTIONS.forEach(type => {
+        getTestTypeOptions(true, test?.type).forEach(type => {
             const option = document.createElement('option');
-            option.value = type;
-            option.textContent = normalizeTestType(type);
+            option.value = canonicalizeTestType(type?.code);
+            option.textContent = (type?.name ?? '').toString().trim() || normalizeTestType(type?.code);
             typeSelect.appendChild(option);
         });
         typeSelect.value = canonicalizeTestType(test?.type) || 'unknown';
@@ -3784,11 +3846,12 @@
                     saveTestReportDetails(testId, reportStatusArea.value, reportSummaryArea.value)
                 ]);
                 const savedType = canonicalizeTestType(typeUpdate?.type) || typeSelect.value;
+                const savedTypeName = typeUpdate?.typeName || normalizeTestType(savedType);
                 typeSelect.value = savedType;
                 notesArea.value = commentUpdate?.comment ?? notesArea.value;
                 reportStatusArea.value = reportDetailsUpdate?.reportStatus ?? reportStatusArea.value;
                 reportSummaryArea.value = reportDetailsUpdate?.reportSummary ?? reportSummaryArea.value;
-                updateCachedTestType(testId, savedType);
+                updateCachedTestType(testId, savedType, savedTypeName);
                 updateCachedTestComment(testId, notesArea.value);
                 updateCachedTestReportDetails(testId, reportStatusArea.value, reportSummaryArea.value);
                 updateTypeOptions(allTests);
@@ -4285,7 +4348,7 @@
             const normalizedType = canonicalizeTestType(test?.type) || 'unknown';
             const typeLabel = document.createElement('span');
             typeLabel.className = 'test-type-label';
-            typeLabel.textContent = normalizeTestType(normalizedType);
+            typeLabel.textContent = normalizeTestType(normalizedType, test?.typeName);
             applyTestTypeTooltip(typeLabel, normalizedType);
             typeCell.appendChild(typeLabel);
 
@@ -4634,6 +4697,7 @@
         initFilterDropdowns();
         initializePageTooltips(document);
         updateEvaluateButtonState();
+        await loadTestTypes();
         await loadReportTemplates();
         const loaded = await loadTests();
         if (loaded) {

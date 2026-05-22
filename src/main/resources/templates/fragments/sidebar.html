@@ -88,6 +88,14 @@
                     <span>Пользователи и роли</span>
                 </span>
             </a>
+            <a class="sidebar-sublink"
+               th:href="@{/admin/test-types}"
+               th:classappend="${activeAdminSection} == 'test-types' ? ' active' : ''">
+                <span class="sidebar-item">
+                    <span class="menu-icon"><i class="bi bi-tags"></i></span>
+                    <span>Типы тестов</span>
+                </span>
+            </a>
         </div>
     </div>
 

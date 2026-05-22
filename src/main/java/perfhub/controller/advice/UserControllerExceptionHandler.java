@@ -1,6 +1,7 @@
 package perfhub.controller.advice;
 
 import perfhub.controller.ProfileController;
+import perfhub.controller.admin.TestTypeAdminController;
 import perfhub.controller.admin.UserAdminController;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice(assignableTypes = {
         UserAdminController.class,
+        TestTypeAdminController.class,
         ProfileController.class
 })
 public class UserControllerExceptionHandler {

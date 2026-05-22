@@ -7,6 +7,7 @@ import java.sql.Types;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
@@ -20,6 +21,7 @@ public class LoadTestRepository {
     private static final Duration MERGE_GAP_THRESHOLD = Duration.ofMinutes(3);
     private static final String BASE_SELECT =
             "SELECT t.test_uuid, t.start_time, t.end_time, tt.test_type AS test_type, "
+                    + "COALESCE(NULLIF(TRIM(tt.display_name), ''), tt.test_type) AS test_type_name, "
                     + "t.comment, t.report_status, t.report_summary "
                     + "FROM tests t "
                     + "LEFT JOIN test_types tt ON t.test_type_id = tt.id ";
@@ -52,6 +54,8 @@ public class LoadTestRepository {
                     rs.getTimestamp("start_time").toInstant(),
                     rs.getTimestamp("end_time").toInstant(),
                     LoadTestType.fromDatabaseValue(rs.getString("test_type")),
+                    rs.getString("test_type"),
+                    rs.getString("test_type_name"),
                     rs.getString("comment"),
                     rs.getString("report_status"),
                     rs.getString("report_summary"));
@@ -184,7 +188,11 @@ public class LoadTestRepository {
     }
 
     public LoadTest updateType(UUID id, LoadTestType type) {
-        Integer testTypeId = resolveTestTypeId(type);
+        return updateType(id, type == null ? null : type.value());
+    }
+
+    public LoadTest updateType(UUID id, String typeCode) {
+        Integer testTypeId = resolveTestTypeId(typeCode);
         int updated = jdbcTemplate.update(
                 UPDATE_TYPE_SQL,
                 ps -> {
@@ -252,9 +260,20 @@ public class LoadTestRepository {
         if (type == null || type == LoadTestType.UNKNOWN) {
             return null;
         }
-        return testTypeRepository.findIdByValue(type.value())
+        return resolveTestTypeId(type.value());
+    }
+
+    private Integer resolveTestTypeId(String typeCode) {
+        if (typeCode == null || typeCode.isBlank()) {
+            return null;
+        }
+        String normalized = typeCode.trim().toLowerCase(Locale.ROOT);
+        if (LoadTestType.UNKNOWN.value().equals(normalized)) {
+            return null;
+        }
+        return testTypeRepository.findIdByValue(normalized)
                 .orElseThrow(() -> new IllegalStateException(
-                        "Test type '" + type.value() + "' is not configured in test_types table"));
+                        "Test type '" + normalized + "' is not configured in test_types table"));
     }
 
 }

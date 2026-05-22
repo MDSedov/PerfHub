@@ -504,10 +504,24 @@
 
     const TEMPLATE_SUFFIX = '_template';
     const RELEASE_TEMPLATE_SHORT_NAME = 'release_template';
-    const KNOWN_TEST_TYPES = new Set(['max', 'stability', 'soak', 'psu', 'dt']);
+    let knownTestTypes = new Set(['max', 'stability', 'soak', 'psu', 'dt']);
     const TEMPLATE_TEST_TYPE_ALIASES = {
         confirm: 'stability'
     };
+
+    async function loadKnownTestTypes() {
+        try {
+            const types = await requestJson('/api/test-types');
+            const loaded = toArray(types)
+                    .map(type => normalizeText(type?.code)?.toLowerCase())
+                    .filter(type => type && type !== 'unknown');
+            if (loaded.length) {
+                knownTestTypes = new Set(loaded);
+            }
+        } catch (error) {
+            // Оставляем стандартные типы как fallback.
+        }
+    }
 
     function inferTemplateType(template) {
         const explicit = normalizeText(template?.templateType)?.toUpperCase();
@@ -523,12 +537,12 @@
     function inferTemplateTestType(template) {
         const explicit = normalizeText(template?.testType)?.toLowerCase();
         const normalizedExplicit = TEMPLATE_TEST_TYPE_ALIASES[explicit] ?? explicit;
-        if (KNOWN_TEST_TYPES.has(normalizedExplicit)) {
+        if (knownTestTypes.has(normalizedExplicit)) {
             return normalizedExplicit;
         }
         const shortName = normalizeText(template?.shortName)?.toLowerCase() ?? '';
         const directShortName = TEMPLATE_TEST_TYPE_ALIASES[shortName] ?? shortName;
-        if (KNOWN_TEST_TYPES.has(directShortName)) {
+        if (knownTestTypes.has(directShortName)) {
             return directShortName;
         }
         if (!shortName.endsWith(TEMPLATE_SUFFIX)) {
@@ -536,7 +550,7 @@
         }
         const candidate = shortName.slice(0, -TEMPLATE_SUFFIX.length);
         const normalizedCandidate = TEMPLATE_TEST_TYPE_ALIASES[candidate] ?? candidate;
-        return KNOWN_TEST_TYPES.has(normalizedCandidate) ? normalizedCandidate : '';
+        return knownTestTypes.has(normalizedCandidate) ? normalizedCandidate : '';
     }
 
     function normalizeConfluencePageId(rawValue) {
@@ -580,6 +594,7 @@
         }
         if (selected.has('reportTemplates')) {
             setSettingsStatus('Готовим шаблоны отчетов…', 'info');
+            await loadKnownTestTypes();
             const templates = await requestJson('/api/settings/confluence-templates/export');
             if (!Array.isArray(templates)) {
                 throw new Error('Сервер вернул некорректный список шаблонов отчетов.');
@@ -780,6 +795,7 @@
             return 0;
         }
         const existingTemplates = toArray(await requestJson('/api/settings/confluence-templates/export'));
+        await loadKnownTestTypes();
         const byShortName = new Map(existingTemplates
                 .map(template => [normalizeText(template?.shortName)?.toLowerCase(), template])
                 .filter(([key]) => key));
@@ -957,6 +973,7 @@
     }
 
     (async function init() {
+        await loadKnownTestTypes();
         await loadSettings();
     })();
 </script>

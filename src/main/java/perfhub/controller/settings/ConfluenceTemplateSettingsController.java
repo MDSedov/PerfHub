@@ -97,7 +97,7 @@ public class ConfluenceTemplateSettingsController {
                 template.reportTitle(),
                 template.reportTitleShort(),
                 template.templateType().name(),
-                settingsService.resolveTemplateTestType(template).map(perfhub.model.LoadTestType::value).orElse(null),
+                settingsService.resolveTemplateTestTypeCode(template).orElse(null),
                 template.templatePageId(),
                 template.text(),
                 charts);

@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PerfHub — Типы тестов</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+            crossorigin="anonymous">
+    <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <script>
+        (function () {
+            try {
+                if (localStorage.getItem('perfhub.sidebar.collapsed') === 'true') {
+                    document.documentElement.classList.add('sidebar-collapsed');
+                }
+            } catch (error) {
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="/css/app.css?v=perfhub-11">
+</head>
+<body class="bg-white">
+<div class="app-shell">
+    <aside class="sidebar" th:replace="~{fragments/sidebar :: sidebar}"></aside>
+
+    <div class="page-content">
+        <main class="container-fluid py-5 px-4 px-lg-5">
+            <div class="card settings-card">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                        <div>
+                            <h5 class="card-title mb-1">Типы тестов</h5>
+                        </div>
+                        <button type="button"
+                                class="btn btn-success"
+                                id="createTestTypeButton">
+                            Новый тип теста
+                        </button>
+                    </div>
+
+                    <div id="testTypesStatus" class="alert d-none" role="alert"></div>
+
+                    <div id="testTypesLoading" class="text-muted py-3">
+                        Загружаем типы тестов…
+                    </div>
+
+                    <div id="testTypesTableWrapper" class="table-responsive d-none">
+                        <table class="table align-middle tests-table mb-0">
+                            <thead>
+                            <tr>
+                                <th scope="col">Название теста</th>
+                                <th scope="col">Код теста</th>
+                                <th scope="col">Тип теста</th>
+                                <th scope="col" class="text-center">Редактировать тип</th>
+                                <th scope="col" class="text-center">Удалить тип</th>
+                            </tr>
+                            </thead>
+                            <tbody id="testTypesTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="testTypesEmpty" class="text-muted py-4 d-none">
+                        Типы тестов не найдены.
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <div class="modal fade"
+             id="testTypeDetailsModal"
+             tabindex="-1"
+             aria-labelledby="testTypeDetailsModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <form id="testTypeDetailsForm">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="testTypeDetailsModalLabel">Тип теста</h5>
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="modal"
+                                    aria-label="Закрыть"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <div class="col-12 col-lg-6">
+                                    <label for="testTypeNameInput" class="form-label">Название</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="testTypeNameInput"
+                                           autocomplete="off"
+                                           required>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <label for="testTypeCodeInput" class="form-label">Код</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="testTypeCodeInput"
+                                           autocomplete="off"
+                                           inputmode="text"
+                                           pattern="[A-Za-z0-9_-]+"
+                                           required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button"
+                                    class="btn btn-outline-danger me-auto d-none"
+                                    id="deleteTestTypeInModalButton">Удалить тип</button>
+                            <button type="submit"
+                                    class="btn btn-success"
+                                    id="saveTestTypeButton">Сохранить изменения</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div id="toastContainer" class="toast-container"></div>
+    </div>
+</div>
+
+<script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9K/Y/xFd25tOfvtTDHkJ/xZBfX0Ax7Anxr1Lk0XG"
+        crossorigin="anonymous"></script>
+<script src="/js/background-errors.js"></script>
+
+<script>
+    const testTypesStatus = document.getElementById('testTypesStatus');
+    const testTypesLoading = document.getElementById('testTypesLoading');
+    const testTypesTableWrapper = document.getElementById('testTypesTableWrapper');
+    const testTypesTableBody = document.getElementById('testTypesTableBody');
+    const testTypesEmpty = document.getElementById('testTypesEmpty');
+    const createTestTypeButton = document.getElementById('createTestTypeButton');
+    const toastContainer = document.getElementById('toastContainer');
+
+    const testTypeDetailsModalElement = document.getElementById('testTypeDetailsModal');
+    const testTypeDetailsModalLabel = document.getElementById('testTypeDetailsModalLabel');
+    const testTypeDetailsForm = document.getElementById('testTypeDetailsForm');
+    const testTypeNameInput = document.getElementById('testTypeNameInput');
+    const testTypeCodeInput = document.getElementById('testTypeCodeInput');
+    const deleteTestTypeInModalButton = document.getElementById('deleteTestTypeInModalButton');
+    const saveTestTypeButton = document.getElementById('saveTestTypeButton');
+
+    let testTypesCache = [];
+    let testTypesLoaded = false;
+    let activeTestType = null;
+    let busy = false;
+
+    const testTypeDetailsModal = createModalController(testTypeDetailsModalElement);
+
+    function createModalController(element) {
+        if (!element) {
+            return null;
+        }
+        if (window.bootstrap?.Modal) {
+            try {
+                return bootstrap.Modal.getOrCreateInstance(element);
+            } catch (error) {
+                console.warn('Не удалось инициализировать Bootstrap modal, используется резервный режим.', error);
+            }
+        }
+        const fallbackController = {
+            show() {
+                element.style.display = 'block';
+                element.classList.add('show');
+                element.removeAttribute('aria-hidden');
+                element.setAttribute('aria-modal', 'true');
+                document.body.classList.add('modal-open');
+                const backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop fade show';
+                backdrop.dataset.fallbackModalBackdrop = element.id;
+                document.body.appendChild(backdrop);
+            },
+            hide() {
+                element.classList.remove('show');
+                element.style.display = 'none';
+                element.setAttribute('aria-hidden', 'true');
+                element.removeAttribute('aria-modal');
+                document.body.classList.remove('modal-open');
+                document
+                    .querySelectorAll(`[data-fallback-modal-backdrop="${element.id}"]`)
+                    .forEach(backdrop => backdrop.remove());
+            }
+        };
+        element.querySelectorAll('[data-bs-dismiss="modal"]').forEach(button => {
+            if (button.dataset.fallbackDismissBound === 'true') {
+                return;
+            }
+            button.dataset.fallbackDismissBound = 'true';
+            button.addEventListener('click', () => fallbackController.hide());
+        });
+        return fallbackController;
+    }
+
+    function removeToast(toast) {
+        if (!toast) {
+            return;
+        }
+        const timerId = toast.dataset.timerId;
+        if (timerId) {
+            clearTimeout(Number(timerId));
+        }
+        toast.remove();
+    }
+
+    function showToast(message, type = 'info', durationMs = 12000) {
+        if (!toastContainer) {
+            return null;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast-item ${type}`;
+        const body = document.createElement('p');
+        body.className = 'toast-body';
+        body.textContent = message;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Закрыть уведомление');
+        close.innerHTML = '&times;';
+        close.addEventListener('click', () => removeToast(toast));
+        const content = document.createElement('div');
+        content.className = 'flex-grow-1';
+        content.appendChild(body);
+        toast.appendChild(content);
+        toast.appendChild(close);
+        toastContainer.appendChild(toast);
+        const timerId = setTimeout(() => removeToast(toast), durationMs);
+        toast.dataset.timerId = timerId.toString();
+        return toast;
+    }
+
+    function extractErrorMessage(errorText, fallbackMessage) {
+        if (!errorText) {
+            return fallbackMessage;
+        }
+        try {
+            const parsed = JSON.parse(errorText);
+            if (typeof parsed?.message === 'string' && parsed.message.trim() !== '') {
+                return parsed.message.trim();
+            }
+        } catch (error) {
+            // ignore malformed payload
+        }
+        const normalized = String(errorText).trim();
+        return normalized === '' ? fallbackMessage : normalized;
+    }
+
+    function setTestTypesStatus(message, type = 'info') {
+        testTypesStatus.className = `alert alert-${type}`;
+        testTypesStatus.textContent = message;
+        testTypesStatus.classList.remove('d-none');
+    }
+
+    function clearTestTypesStatus() {
+        testTypesStatus.className = 'alert d-none';
+        testTypesStatus.textContent = '';
+    }
+
+    function setBusy(isBusy) {
+        busy = isBusy;
+        [createTestTypeButton, saveTestTypeButton, deleteTestTypeInModalButton]
+                .filter(Boolean)
+                .forEach(button => {
+                    button.disabled = isBusy;
+                });
+        if (saveTestTypeButton) {
+            saveTestTypeButton.textContent = activeTestType?.id
+                ? (isBusy ? 'Сохраняем…' : 'Сохранить изменения')
+                : (isBusy ? 'Создаем…' : 'Создать тип теста');
+        }
+        if (activeTestType?.standard && deleteTestTypeInModalButton) {
+            deleteTestTypeInModalButton.disabled = true;
+        }
+    }
+
+    function renderTypeBadge(testType) {
+        const badge = document.createElement('span');
+        badge.className = testType?.standard
+            ? 'badge text-bg-light border'
+            : 'badge text-bg-success';
+        badge.textContent = testType?.typeLabel || (testType?.standard ? 'Стандартный' : 'Пользовательский');
+        return badge;
+    }
+
+    function renderTestTypesTable() {
+        testTypesTableBody.innerHTML = '';
+
+        if (!testTypesLoaded) {
+            testTypesLoading.classList.remove('d-none');
+            testTypesTableWrapper.classList.add('d-none');
+            testTypesEmpty.classList.add('d-none');
+            return;
+        }
+
+        testTypesLoading.classList.add('d-none');
+
+        if (testTypesCache.length === 0) {
+            testTypesTableWrapper.classList.add('d-none');
+            testTypesEmpty.classList.remove('d-none');
+            return;
+        }
+
+        testTypesEmpty.classList.add('d-none');
+        testTypesTableWrapper.classList.remove('d-none');
+
+        testTypesCache.forEach(testType => {
+            const row = document.createElement('tr');
+
+            const nameCell = document.createElement('td');
+            nameCell.textContent = testType.name ?? '—';
+
+            const codeCell = document.createElement('td');
+            const code = document.createElement('code');
+            code.textContent = testType.code ?? '—';
+            codeCell.appendChild(code);
+
+            const typeCell = document.createElement('td');
+            typeCell.appendChild(renderTypeBadge(testType));
+
+            const editCell = document.createElement('td');
+            editCell.className = 'text-center';
+            const editButton = document.createElement('button');
+            editButton.type = 'button';
+            editButton.className = 'template-action-button';
+            editButton.setAttribute('aria-label', `Редактировать тип теста ${testType.name}`);
+            editButton.setAttribute('aria-haspopup', 'dialog');
+            editButton.setAttribute('aria-controls', 'testTypeDetailsModal');
+            editButton.innerHTML = '<i class="bi bi-pencil-square"></i>';
+            editButton.addEventListener('click', () => openTestTypeModal(testType));
+            editCell.appendChild(editButton);
+
+            const deleteCell = document.createElement('td');
+            deleteCell.className = 'text-center';
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'template-action-button danger';
+            deleteButton.setAttribute('aria-label', `Удалить тип теста ${testType.name}`);
+            if (testType.standard) {
+                deleteButton.disabled = true;
+                deleteButton.setAttribute('title', 'Стандартный тип теста нельзя удалить');
+            }
+            deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
+            deleteButton.addEventListener('click', () => deleteTestType(testType));
+            deleteCell.appendChild(deleteButton);
+
+            row.appendChild(nameCell);
+            row.appendChild(codeCell);
+            row.appendChild(typeCell);
+            row.appendChild(editCell);
+            row.appendChild(deleteCell);
+            testTypesTableBody.appendChild(row);
+        });
+    }
+
+    function openTestTypeModal(testType = null) {
+        activeTestType = testType ? {...testType} : null;
+        const isExisting = Boolean(activeTestType?.id);
+        testTypeDetailsModalLabel.textContent = isExisting
+            ? `Тип теста: ${activeTestType.name}`
+            : 'Новый тип теста';
+        testTypeNameInput.value = activeTestType?.name ?? '';
+        testTypeCodeInput.value = activeTestType?.code ?? '';
+        testTypeCodeInput.disabled = Boolean(activeTestType?.standard);
+        deleteTestTypeInModalButton.classList.toggle('d-none', !isExisting || activeTestType?.standard);
+        setBusy(false);
+        testTypeDetailsModal?.show();
+        setTimeout(() => testTypeNameInput?.focus(), 0);
+    }
+
+    function buildTestTypePayload() {
+        const payload = {
+            name: testTypeNameInput.value.trim(),
+            code: testTypeCodeInput.value.trim()
+        };
+        if (!payload.name) {
+            throw new Error('Укажите название теста');
+        }
+        if (!payload.code) {
+            throw new Error('Укажите код теста');
+        }
+        if (!/^[A-Za-z0-9_-]+$/.test(payload.code)) {
+            throw new Error('Код теста может содержать только латинские буквы, цифры, дефис и подчеркивание');
+        }
+        return payload;
+    }
+
+    async function loadTestTypes() {
+        testTypesLoaded = false;
+        renderTestTypesTable();
+        clearTestTypesStatus();
+        try {
+            const response = await fetch('/api/admin/test-types');
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось загрузить типы тестов'));
+            }
+            const payload = await response.json();
+            testTypesCache = Array.isArray(payload) ? payload : [];
+            testTypesLoaded = true;
+            renderTestTypesTable();
+        } catch (error) {
+            testTypesCache = [];
+            testTypesLoaded = true;
+            renderTestTypesTable();
+            setTestTypesStatus(error.message || 'Не удалось загрузить типы тестов', 'danger');
+        }
+    }
+
+    async function saveTestType(event) {
+        event.preventDefault();
+        if (busy) {
+            return;
+        }
+        let payload;
+        try {
+            payload = buildTestTypePayload();
+        } catch (error) {
+            showToast(error.message || 'Проверьте заполнение типа теста', 'danger');
+            return;
+        }
+
+        setBusy(true);
+        const isExisting = Boolean(activeTestType?.id);
+        const url = isExisting ? `/api/admin/test-types/${activeTestType.id}` : '/api/admin/test-types';
+        const method = isExisting ? 'PUT' : 'POST';
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось сохранить тип теста'));
+            }
+            await response.json();
+            testTypeDetailsModal?.hide();
+            await loadTestTypes();
+            showToast(isExisting ? 'Тип теста обновлен' : 'Тип теста создан', 'success');
+        } catch (error) {
+            showToast(error.message || 'Не удалось сохранить тип теста', 'danger');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function deleteTestType(testType = activeTestType) {
+        if (!testType?.id || busy) {
+            return;
+        }
+        if (testType.standard) {
+            showToast('Стандартный тип теста нельзя удалить', 'warning');
+            return;
+        }
+        if (!window.confirm(`Вы точно хотите удалить тип теста ${testType.name}?`)) {
+            return;
+        }
+        setBusy(true);
+        try {
+            const response = await fetch(`/api/admin/test-types/${testType.id}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось удалить тип теста'));
+            }
+            if (activeTestType?.id === testType.id) {
+                testTypeDetailsModal?.hide();
+                activeTestType = null;
+            }
+            await loadTestTypes();
+            showToast('Тип теста удален', 'success');
+        } catch (error) {
+            showToast(error.message || 'Не удалось удалить тип теста', 'danger');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    createTestTypeButton?.addEventListener('click', () => openTestTypeModal());
+    testTypeDetailsForm?.addEventListener('submit', saveTestType);
+    deleteTestTypeInModalButton?.addEventListener('click', () => deleteTestType());
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadTestTypes();
+        if (typeof startBackgroundErrorPolling === 'function') {
+            startBackgroundErrorPolling(showToast);
+        }
+    });
+</script>
+<script src="/js/sidebar-collapse.js?v=perfhub-10"></script>
+</body>
+</html>

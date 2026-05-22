@@ -501,14 +501,17 @@ public class ConfluenceService {
 
     private ConfluenceTemplate resolveDefaultTemplate(LoadTest loadTest) {
         LoadTestType loadTestType = loadTest.type();
-        if (loadTestType == null || loadTestType == LoadTestType.UNKNOWN) {
+        String loadTestTypeCode = loadTest.effectiveTypeCode();
+        if (!StringUtils.hasText(loadTestTypeCode) || LoadTestType.UNKNOWN.value().equalsIgnoreCase(loadTestTypeCode)) {
             throw new ConfluenceOperationException("Test type for test " + loadTest.id() + " is not defined");
         }
         try {
-            String shortName = confluenceTemplateSettingsService.resolveDefaultTemplateShortName(loadTestType);
+            String shortName = loadTestType == null || loadTestType == LoadTestType.UNKNOWN
+                    ? confluenceTemplateSettingsService.resolveDefaultTemplateShortName(loadTestTypeCode)
+                    : confluenceTemplateSettingsService.resolveDefaultTemplateShortName(loadTestType);
             return confluenceTemplateSettingsService.findActiveTemplateByShortName(shortName)
                     .orElseThrow(() -> new ConfluenceOperationException(
-                            "Confluence report template is not configured for test type " + loadTestType.value()));
+                            "Confluence report template is not configured for test type " + loadTestTypeCode));
         } catch (IllegalArgumentException ex) {
             throw new ConfluenceOperationException(ex.getMessage(), ex);
         }
@@ -521,7 +524,7 @@ public class ConfluenceService {
         if (!StringUtils.hasText(template.templatePageId())) {
             throw new ConfluenceOperationException(
                     "У шаблона отчета %s не указан базовый шаблон в Confluence"
-                            .formatted(formatLoadTestType(loadTest.type())));
+                            .formatted(formatLoadTestType(loadTest)));
         }
     }
 
@@ -813,7 +816,7 @@ public class ConfluenceService {
             return body;
         }
         return getSafeBody(body)
-                .replace(TEST_TYPE_PLACEHOLDER, escape(formatLoadTestType(loadTest.type())))
+                .replace(TEST_TYPE_PLACEHOLDER, escape(formatLoadTestType(loadTest)))
                 .replace(TEST_START_DATE_PLACEHOLDER, escape(formatTestStartDate(loadTest)))
                 .replace(TEST_START_TIME_PLACEHOLDER, escape(formatTestStartTime(loadTest)))
                 .replace(TEST_END_DATE_PLACEHOLDER, escape(formatTestEndDate(loadTest)))
@@ -1017,7 +1020,7 @@ public class ConfluenceService {
         LoadTest loadTest = resolveLoadTest(item.testUuid());
         String testTitle = StringUtils.hasText(item.testTitle())
                 ? item.testTitle().trim()
-                : defaultTestTitle(loadTest.type());
+                : defaultTestTitle(loadTest);
         String testTitleShort = StringUtils.hasText(item.testTitleShort())
                 ? item.testTitleShort().trim()
                 : testTitle;
@@ -1031,7 +1034,7 @@ public class ConfluenceService {
                 StringUtils.hasText(item.testNumber()) ? item.testNumber().trim() : "",
                 testTitle,
                 testTitleShort,
-                formatLoadTestType(loadTest.type()),
+                formatLoadTestType(loadTest),
                 formatTestPeriod(loadTest),
                 orPlaceholder(loadTest.reportStatus()),
                 orPlaceholder(loadTest.reportSummary()),
@@ -1506,6 +1509,17 @@ public class ConfluenceService {
         };
     }
 
+    private String formatLoadTestType(LoadTest loadTest) {
+        if (loadTest == null) {
+            return "UNKNOWN";
+        }
+        String typeName = loadTest.effectiveTypeName();
+        if (StringUtils.hasText(typeName) && !"UNKNOWN".equalsIgnoreCase(typeName.trim())) {
+            return typeName.trim();
+        }
+        return formatLoadTestType(loadTest.type());
+    }
+
     private String defaultTestTitle(LoadTestType type) {
         if (type == null) {
             return "Отчет по нагрузочному тесту";
@@ -1518,6 +1532,20 @@ public class ConfluenceService {
             case DT -> "Проверка DT";
             case UNKNOWN -> "Отчет по нагрузочному тесту";
         };
+    }
+
+    private String defaultTestTitle(LoadTest loadTest) {
+        if (loadTest == null) {
+            return "Отчет по нагрузочному тесту";
+        }
+        if (loadTest.type() != null && loadTest.type() != LoadTestType.UNKNOWN) {
+            return defaultTestTitle(loadTest.type());
+        }
+        String typeName = loadTest.effectiveTypeName();
+        if (StringUtils.hasText(typeName) && !"UNKNOWN".equalsIgnoreCase(typeName.trim())) {
+            return typeName.trim();
+        }
+        return "Отчет по нагрузочному тесту";
     }
 
     private String orPlaceholder(String value) {

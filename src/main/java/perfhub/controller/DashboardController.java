@@ -108,6 +108,13 @@ public class DashboardController {
         return "admin-users";
     }
 
+    @GetMapping("/admin/test-types")
+    public String adminTestTypes(Model model) {
+        model.addAttribute("activePage", "admin");
+        model.addAttribute("activeAdminSection", "test-types");
+        return "admin-test-types";
+    }
+
     @GetMapping("/profile")
     public String profile(Model model) {
         model.addAttribute("activePage", "profile");

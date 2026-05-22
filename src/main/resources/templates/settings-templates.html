@@ -427,14 +427,15 @@
     let templateEditorTooltipElement = null;
     const TEMPLATE_SUFFIX = '_template';
     const RELEASE_TEMPLATE_SHORT_NAME = 'release_template';
-    const TEST_TYPE_OPTIONS = ['max', 'stability', 'soak', 'psu', 'dt'];
-    const TEST_TYPE_LABELS = {
-        max: 'Максимум',
-        stability: 'Стабильность',
-        soak: 'Надежность',
-        psu: 'PSU',
-        dt: 'DT'
-    };
+    const DEFAULT_TEST_TYPE_OPTIONS = [
+        {code: 'max', name: 'Максимум'},
+        {code: 'stability', name: 'Стабильность'},
+        {code: 'soak', name: 'Надежность'},
+        {code: 'psu', name: 'PSU'},
+        {code: 'dt', name: 'DT'}
+    ];
+    let testTypeOptions = DEFAULT_TEST_TYPE_OPTIONS.slice();
+    let TEST_TYPE_LABELS = {};
     const PLACEHOLDER_DESCRIPTIONS = {
         '@release': 'Номер релиза для отчета.',
         '@jira_release_task': 'Номер задачи релиза в Jira.',
@@ -796,10 +797,30 @@
         return String(templateType ?? 'TEST').trim().toUpperCase() === 'RELEASE' ? 'RELEASE' : 'TEST';
     }
 
+    function refreshTestTypeLabels() {
+        TEST_TYPE_LABELS = {};
+        testTypeOptions.forEach(type => {
+            const code = String(type?.code ?? '').trim().toLowerCase();
+            const name = String(type?.name ?? '').trim();
+            if (code) {
+                TEST_TYPE_LABELS[code] = name || code.toUpperCase();
+            }
+        });
+    }
+
     function normalizeTestType(testType) {
         const normalized = String(testType ?? '').trim().toLowerCase();
-        return TEST_TYPE_OPTIONS.includes(normalized) ? normalized : '';
+        return testTypeOptions.some(type => String(type?.code ?? '').trim().toLowerCase() === normalized)
+                ? normalized
+                : '';
     }
+
+    function testTypeLabel(testType) {
+        const normalized = normalizeTestType(testType);
+        return normalized ? (TEST_TYPE_LABELS[normalized] ?? normalized.toUpperCase()) : '';
+    }
+
+    refreshTestTypeLabels();
 
     function systemShortNameForTemplateType(templateType, testType = '') {
         return normalizeTemplateType(templateType) === 'RELEASE'
@@ -846,8 +867,10 @@
     }
 
     function findFirstAvailableTestType(excludedId = null) {
-        return TEST_TYPE_OPTIONS.find(testType =>
-                !isSystemShortNameTaken(systemShortNameForTemplateType('TEST', testType), excludedId)) ?? '';
+        return testTypeOptions
+                .map(type => normalizeTestType(type?.code))
+                .find(testType => testType
+                        && !isSystemShortNameTaken(systemShortNameForTemplateType('TEST', testType), excludedId)) ?? '';
     }
 
     function ensureTemplateSystemSelection() {
@@ -1135,7 +1158,11 @@
             return;
         }
 
-        TEST_TYPE_OPTIONS.forEach(testType => {
+        testTypeOptions.forEach(option => {
+            const testType = normalizeTestType(option?.code);
+            if (!testType) {
+                return;
+            }
             const shortName = systemShortNameForTemplateType('TEST', testType);
             const existingTemplate = findActiveTemplateByShortName(shortName, activeTemplateDraft.id);
             const isUnavailable = Boolean(existingTemplate);
@@ -1143,7 +1170,7 @@
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'btn btn-outline-success btn-sm template-test-type-card';
-            button.textContent = TEST_TYPE_LABELS[testType] ?? testType.toUpperCase();
+            button.textContent = testTypeLabel(testType) || testType.toUpperCase();
             button.dataset.testType = testType;
             button.classList.toggle('active', isActive);
             button.classList.toggle('opacity-50', isUnavailable);
@@ -1414,6 +1441,31 @@
         }
     }
 
+    async function loadTestTypes() {
+        try {
+            const response = await fetch('/api/test-types');
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(await response.text(), 'Не удалось загрузить типы тестов'));
+            }
+            const payload = await response.json();
+            const loadedTypes = Array.isArray(payload)
+                    ? payload
+                            .map(type => ({
+                                code: String(type?.code ?? '').trim().toLowerCase(),
+                                name: String(type?.name ?? '').trim()
+                            }))
+                            .filter(type => type.code && type.code !== 'unknown')
+                    : [];
+            if (loadedTypes.length > 0) {
+                testTypeOptions = loadedTypes;
+                refreshTestTypeLabels();
+            }
+        } catch (error) {
+            refreshTestTypeLabels();
+            showToast(error.message || 'Не удалось загрузить типы тестов', 'warning');
+        }
+    }
+
     async function loadPanelOptions() {
         try {
             const response = await fetch('/api/settings/confluence-templates/panel-options');
@@ -1671,6 +1723,7 @@
     });
 
     (async function init() {
+        await loadTestTypes();
         await Promise.allSettled([
             loadTemplates(),
             loadPanelOptions()

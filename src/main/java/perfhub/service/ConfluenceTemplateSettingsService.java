@@ -9,13 +9,16 @@ import perfhub.model.LoadTestType;
 import perfhub.repository.ConfluenceTemplateChartRepository;
 import perfhub.repository.ConfluenceTemplateRepository;
 import perfhub.repository.GrafanaDashboardPanelRepository;
+import perfhub.repository.TestTypeRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -26,6 +29,7 @@ public class ConfluenceTemplateSettingsService {
     private static final Pattern PAGE_ID_QUERY_PATTERN = Pattern.compile("[?&]pageId=([0-9]+)");
     private static final Pattern PAGE_ID_PATH_PATTERN = Pattern.compile("/pages/(?:viewpage\\.action/)?([0-9]+)");
     private static final Pattern PAGE_ID_VALUE_PATTERN = Pattern.compile("[0-9]+");
+    private static final Pattern TEST_TYPE_CODE_PATTERN = Pattern.compile("[a-z0-9_-]+");
     private static final String TEMPLATE_SUFFIX = "_template";
     private static final String RELEASE_TEMPLATE_SHORT_NAME = "release_template";
 
@@ -33,16 +37,28 @@ public class ConfluenceTemplateSettingsService {
     private final ConfluenceTemplateChartRepository chartRepository;
     private final GrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
     private final GrafanaDashboardSettingsService grafanaDashboardSettingsService;
+    private final TestTypeRepository testTypeRepository;
 
     public ConfluenceTemplateSettingsService(
             ConfluenceTemplateRepository templateRepository,
             ConfluenceTemplateChartRepository chartRepository,
             GrafanaDashboardPanelRepository grafanaDashboardPanelRepository,
             GrafanaDashboardSettingsService grafanaDashboardSettingsService) {
+        this(templateRepository, chartRepository, grafanaDashboardPanelRepository, grafanaDashboardSettingsService, null);
+    }
+
+    @Autowired
+    public ConfluenceTemplateSettingsService(
+            ConfluenceTemplateRepository templateRepository,
+            ConfluenceTemplateChartRepository chartRepository,
+            GrafanaDashboardPanelRepository grafanaDashboardPanelRepository,
+            GrafanaDashboardSettingsService grafanaDashboardSettingsService,
+            TestTypeRepository testTypeRepository) {
         this.templateRepository = templateRepository;
         this.chartRepository = chartRepository;
         this.grafanaDashboardPanelRepository = grafanaDashboardPanelRepository;
         this.grafanaDashboardSettingsService = grafanaDashboardSettingsService;
+        this.testTypeRepository = testTypeRepository;
     }
 
     public List<ConfluenceTemplate> listTemplates() {
@@ -78,6 +94,14 @@ public class ConfluenceTemplateSettingsService {
                         "Confluence report template is not configured for test type " + loadTestType.value()));
     }
 
+    public ConfluenceTemplate resolveDefaultTemplate(String loadTestTypeCode) {
+        String normalizedCode = normalizeConfiguredTestTypeCode(loadTestTypeCode);
+        String shortName = resolveDefaultTemplateShortName(normalizedCode);
+        return findActiveTemplateByShortName(shortName)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Confluence report template is not configured for test type " + normalizedCode));
+    }
+
     public String resolveDefaultTemplateShortName(LoadTestType loadTestType) {
         if (loadTestType == null || loadTestType == LoadTestType.UNKNOWN) {
             throw new IllegalArgumentException("Тип теста не определен");
@@ -85,11 +109,21 @@ public class ConfluenceTemplateSettingsService {
         return loadTestType.value() + TEMPLATE_SUFFIX;
     }
 
+    public String resolveDefaultTemplateShortName(String loadTestTypeCode) {
+        return normalizeConfiguredTestTypeCode(loadTestTypeCode) + TEMPLATE_SUFFIX;
+    }
+
     public String resolveReleaseTemplateShortName() {
         return RELEASE_TEMPLATE_SHORT_NAME;
     }
 
     public Optional<LoadTestType> resolveTemplateTestType(ConfluenceTemplate template) {
+        return resolveTemplateTestTypeCode(template)
+                .map(LoadTestType::fromDatabaseValue)
+                .filter(type -> type != LoadTestType.UNKNOWN);
+    }
+
+    public Optional<String> resolveTemplateTestTypeCode(ConfluenceTemplate template) {
         if (template == null || template.templateType() != ConfluenceTemplateType.TEST) {
             return Optional.empty();
         }
@@ -97,9 +131,12 @@ public class ConfluenceTemplateSettingsService {
         if (!StringUtils.hasText(shortName) || !shortName.endsWith(TEMPLATE_SUFFIX)) {
             return Optional.empty();
         }
-        LoadTestType testType = LoadTestType.fromDatabaseValue(
-                shortName.substring(0, shortName.length() - TEMPLATE_SUFFIX.length()));
-        return testType == LoadTestType.UNKNOWN ? Optional.empty() : Optional.of(testType);
+        String code = shortName.substring(0, shortName.length() - TEMPLATE_SUFFIX.length());
+        try {
+            return Optional.of(normalizeConfiguredTestTypeCode(code));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
     }
 
     @Transactional
@@ -193,8 +230,8 @@ public class ConfluenceTemplateSettingsService {
         }
 
         ConfluenceTemplateType templateType = ConfluenceTemplateType.fromDatabaseValue(command.templateType());
-        LoadTestType testType = resolveCommandTestType(command.testType(), templateType);
-        String shortName = resolveSystemShortName(templateType, testType);
+        String testTypeCode = resolveCommandTestTypeCode(command.testType(), templateType);
+        String shortName = resolveSystemShortName(templateType, testTypeCode);
         String reportTitle = StringUtils.trimWhitespace(command.reportTitle());
         String reportTitleShort = StringUtils.trimWhitespace(command.reportTitleShort());
         String templatePageId = normalizeTemplatePageId(command.templatePageId());
@@ -237,22 +274,39 @@ public class ConfluenceTemplateSettingsService {
                 List.copyOf(charts));
     }
 
-    private LoadTestType resolveCommandTestType(String rawTestType, ConfluenceTemplateType templateType) {
+    private String resolveCommandTestTypeCode(String rawTestType, ConfluenceTemplateType templateType) {
         if (templateType == ConfluenceTemplateType.RELEASE) {
             return null;
         }
-        LoadTestType testType = LoadTestType.fromDatabaseValue(rawTestType);
-        if (testType == LoadTestType.UNKNOWN) {
-            throw new IllegalArgumentException("Выберите тип теста");
-        }
-        return testType;
+        return normalizeConfiguredTestTypeCode(rawTestType);
     }
 
-    private String resolveSystemShortName(ConfluenceTemplateType templateType, LoadTestType testType) {
+    private String resolveSystemShortName(ConfluenceTemplateType templateType, String testTypeCode) {
         if (templateType == ConfluenceTemplateType.RELEASE) {
             return resolveReleaseTemplateShortName();
         }
-        return resolveDefaultTemplateShortName(testType);
+        return resolveDefaultTemplateShortName(testTypeCode);
+    }
+
+    private String normalizeConfiguredTestTypeCode(String rawTestType) {
+        String normalized = StringUtils.trimWhitespace(rawTestType);
+        if (!StringUtils.hasText(normalized)) {
+            throw new IllegalArgumentException("Выберите тип теста");
+        }
+        normalized = normalized.toLowerCase(Locale.ROOT);
+        LoadTestType knownType = LoadTestType.fromDatabaseValue(normalized);
+        if (knownType != LoadTestType.UNKNOWN) {
+            return knownType.value();
+        }
+        if (LoadTestType.UNKNOWN.value().equals(normalized) || !TEST_TYPE_CODE_PATTERN.matcher(normalized).matches()) {
+            throw new IllegalArgumentException("Выберите тип теста");
+        }
+        if (testTypeRepository == null) {
+            return normalized;
+        }
+        return testTypeRepository.findByValue(normalized)
+                .map(TestTypeRepository.TestTypeRecord::code)
+                .orElseThrow(() -> new IllegalArgumentException("Выберите тип теста"));
     }
 
     private String resolveFullName(String requestedFullName, String reportTitle, String shortName) {
