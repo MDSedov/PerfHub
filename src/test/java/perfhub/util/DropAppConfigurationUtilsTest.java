@@ -46,4 +46,25 @@ class DropAppConfigurationUtilsTest {
             assertThat(item.limitRam()).isEqualTo("512Mi");
         });
     }
+
+    @Test
+    void groupPodItemsDoesNotUseContainerVersionAsReleaseFallback() {
+        List<DropAppConfigurationItemDto> result = DropAppConfigurationUtils.groupPodItems(List.of(
+                new DropAppConfigurationItemDto(
+                        "lt",
+                        null,
+                        "billing-85d68d75d7-7gd4",
+                        "app",
+                        "2.17.0-12",
+                        "",
+                        "100m",
+                        "500m",
+                        "256Mi",
+                        "512Mi")));
+
+        assertThat(result).singleElement().satisfies(item -> {
+            assertThat(item.version()).isEqualTo("2.17.0-12");
+            assertThat(item.release()).isNull();
+        });
+    }
 }

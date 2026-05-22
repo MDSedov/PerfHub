@@ -131,7 +131,6 @@ public final class DropAppConfigurationUtils {
         private final String serviceName;
         private final Set<String> podNames = new LinkedHashSet<>();
         private final Map<ContainerKey, DropAppConfigurationItemDto> containerRows = new LinkedHashMap<>();
-        private final List<String> versions = new ArrayList<>();
         private final List<String> releases = new ArrayList<>();
         private int declaredPodCount;
 
@@ -155,9 +154,6 @@ public final class DropAppConfigurationUtils {
             }
             if (item.podCount() != null && item.podCount() > declaredPodCount) {
                 declaredPodCount = item.podCount();
-            }
-            if (StringUtils.hasText(item.version())) {
-                versions.add(item.version());
             }
             if (StringUtils.hasText(item.release())) {
                 releases.add(item.release());
@@ -201,11 +197,7 @@ public final class DropAppConfigurationUtils {
         }
 
         private String resolveRelease() {
-            String maxRelease = ReleaseVersionUtils.findMaxRelease(releases);
-            if (StringUtils.hasText(maxRelease)) {
-                return maxRelease;
-            }
-            return ReleaseVersionUtils.findMaxRelease(versions);
+            return ReleaseVersionUtils.findMaxRelease(releases);
         }
     }
 

@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -62,6 +61,7 @@ public class DropAppClient {
     private static final String SERVICE = "dropapp";
     private static final String TOKEN_KEY = "token";
     private static final String BASE_URL_KEY = "base-url";
+    private static final String RELEASE_VERSION_LABEL = "helpers.app.kubernetes.io/version";
     private static final Set<String> SENSITIVE_HEADERS = Set.of(HttpHeaders.AUTHORIZATION);
 
     private final RestTemplate restTemplate;
@@ -700,7 +700,7 @@ public class DropAppClient {
         if (metadata == null || metadata.labels() == null) {
             return "";
         }
-        return metadata.labels().getOrDefault("helpers.app.kubernetes.io/version", "");
+        return extractReleaseFromLabels(metadata.labels());
     }
 
     private String resolveRelease(Map<String, String> podLabels, List<DeploymentDescriptor> deployments) {
@@ -722,28 +722,8 @@ public class DropAppClient {
         if (labels == null || labels.isEmpty()) {
             return "";
         }
-        String branch = labels.get("helpers.app.kubernetes.io/config-branch");
-        if (branch == null || branch.isBlank()) {
-            branch = labels.get("helperrs.app.kubernetes.io/config-branch");
-        }
-        return normalizeRelease(branch);
-    }
-
-    private String normalizeRelease(String value) {
-        if (value == null) {
-            return "";
-        }
-        String normalized = value.trim();
-        if (normalized.isEmpty()) {
-            return "";
-        }
-        if (normalized.toLowerCase(Locale.ROOT).startsWith("release")) {
-            normalized = normalized.substring("release".length());
-        }
-        normalized = normalized.replaceFirst("^[._\\-/]+", "");
-        normalized = normalized.replace('_', '.');
-        normalized = normalized.replaceAll("\\s+", "");
-        return normalized;
+        String release = labels.get(RELEASE_VERSION_LABEL);
+        return StringUtils.hasText(release) ? release.trim() : "";
     }
 
     private String extractValue(KubernetesContainer container, Function<KubernetesContainer, String> extractor) {

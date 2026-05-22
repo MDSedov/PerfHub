@@ -22,6 +22,13 @@ class ReleaseVersionUtilsTest {
     }
 
     @Test
+    void findMaxReleasePreservesHotfixSuffix() {
+        String release = ReleaseVersionUtils.findMaxRelease(List.of("2.17.0", "2.17.0-12", "2.17.0-9"));
+
+        assertThat(release).isEqualTo("2.17.0-12");
+    }
+
+    @Test
     void compareTreatsReleaseWithoutQualifierAsHigher() {
         int comparison = ReleaseVersionUtils.compare("2.12.1", "2.12.1-rc1");
 
