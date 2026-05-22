@@ -898,6 +898,7 @@
     const NO_CONFIG_MESSAGE = 'Конфигурация стенда для данного теста отсутствует';
     const MISSING_RELEASE_VALUE = '__missing__';
     const AUTO_REFRESH_MS = 60_000;
+    const ACTIVE_TEST_POLL_RANGE_MS = 15 * 60 * 1000;
     const ACTIVE_TEST_END_GRACE_MS = 3 * 60 * 1000;
 
     const REQUIREMENT_STATUS_LABELS = {
@@ -4432,7 +4433,7 @@
         return { start, end, label: datePart };
     }
 
-    async function fetchVictoriaMetricsRange(start, end) {
+    async function fetchVictoriaMetricsRange(start, end, logError = true) {
         const url = '/api/victoriametrics/tests/';
         try {
             const response = await fetch(url, {
@@ -4456,9 +4457,17 @@
                 throw new Error(message);
             }
         } catch (error) {
-            console.error('Не удалось запросить Victoria Metrics', { url, start, end, error });
+            if (logError) {
+                console.error('Не удалось запросить Victoria Metrics', { url, start, end, error });
+            }
             throw error;
         }
+    }
+
+    async function refreshActiveTestsFromVictoriaMetrics() {
+        const endDate = new Date();
+        const startDate = new Date(endDate.getTime() - ACTIVE_TEST_POLL_RANGE_MS);
+        await fetchVictoriaMetricsRange(formatInMoscow(startDate), formatInMoscow(endDate), false);
     }
 
     async function refreshLastMonth() {
@@ -4564,6 +4573,11 @@
         }
         autoRefreshInProgress = true;
         try {
+            try {
+                await refreshActiveTestsFromVictoriaMetrics();
+            } catch (error) {
+                // Фоновый запрос не должен мешать чтению уже сохраненных тестов.
+            }
             const loaded = await loadTests(false);
             if (loaded) {
                 await refreshUpdatedActiveTests();
@@ -4627,6 +4641,7 @@
             await requestConfigurationsForPendingTests();
         }
         startAutoRefresh();
+        void autoRefresh();
         if (typeof startBackgroundErrorPolling === 'function') {
             startBackgroundErrorPolling(showToast, {scope: 'load-tests'});
         }
