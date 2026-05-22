@@ -410,18 +410,39 @@ public class GrafanaClient {
         }
         Map<Integer, GrafanaPanelDefinition> panelsById = new LinkedHashMap<>();
         for (GrafanaDashboardPanel panel : dashboard.panels()) {
-            if (panel == null || panel.id() == null || panel.id() <= 0) {
-                continue;
-            }
-            String title = panel.title();
-            if (!StringUtils.hasText(title)) {
-                title = "Панель " + panel.id();
-            }
-            String query = extractFirstQuery(panel.targets());
-            Double threshold = extractFirstThreshold(panel.fieldConfig());
-            panelsById.put(panel.id(), new GrafanaPanelDefinition(panel.id(), title, query, threshold));
+            collectPanelDefinitions(panel, panelsById);
         }
         return panelsById.values().stream().toList();
+    }
+
+    private void collectPanelDefinitions(
+            GrafanaDashboardPanel panel,
+            Map<Integer, GrafanaPanelDefinition> panelsById) {
+        if (panel == null) {
+            return;
+        }
+        if (panel.panels() != null) {
+            for (GrafanaDashboardPanel nestedPanel : panel.panels()) {
+                collectPanelDefinitions(nestedPanel, panelsById);
+            }
+        }
+        if (isRowPanel(panel)) {
+            return;
+        }
+        if (panel.id() == null || panel.id() <= 0) {
+            return;
+        }
+        String title = panel.title();
+        if (!StringUtils.hasText(title)) {
+            title = "Панель " + panel.id();
+        }
+        String query = extractFirstQuery(panel.targets());
+        Double threshold = extractFirstThreshold(panel.fieldConfig());
+        panelsById.put(panel.id(), new GrafanaPanelDefinition(panel.id(), title, query, threshold));
+    }
+
+    private boolean isRowPanel(GrafanaDashboardPanel panel) {
+        return panel != null && "row".equalsIgnoreCase(StringUtils.trimWhitespace(panel.type()));
     }
 
     private List<GrafanaVariableDefinition> extractVariables(GrafanaDashboard dashboard) {
@@ -628,7 +649,24 @@ public class GrafanaClient {
                 return Optional.empty();
             }
             return panels.stream()
-                    .filter(panel -> panel != null && panel.id() != null && panel.id() == panelId)
+                    .map(panel -> findPanelById(panel, panelId))
+                    .flatMap(Optional::stream)
+                    .findFirst();
+        }
+
+        private Optional<GrafanaDashboardPanel> findPanelById(GrafanaDashboardPanel panel, int panelId) {
+            if (panel == null) {
+                return Optional.empty();
+            }
+            if (panel.id() != null && panel.id() == panelId) {
+                return Optional.of(panel);
+            }
+            if (panel.panels() == null) {
+                return Optional.empty();
+            }
+            return panel.panels().stream()
+                    .map(nestedPanel -> findPanelById(nestedPanel, panelId))
+                    .flatMap(Optional::stream)
                     .findFirst();
         }
     }
@@ -636,10 +674,12 @@ public class GrafanaClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaDashboardPanel(
             Integer id,
+            String type,
             String title,
             String description,
             List<GrafanaTarget> targets,
-            GrafanaFieldConfig fieldConfig) {}
+            GrafanaFieldConfig fieldConfig,
+            List<GrafanaDashboardPanel> panels) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GrafanaTarget(String expr, String target) {}

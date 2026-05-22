@@ -2,6 +2,7 @@ package perfhub.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 
 import perfhub.exception.GrafanaClientException;
 import perfhub.service.ConfigurationProvider;
@@ -219,6 +220,111 @@ class GrafanaClientTest {
                     assertThat(panel.query()).isEqualTo("{\"jmeterall.a.pct95\"}");
                     assertThat(panel.threshold()).isEqualTo(550.0);
                 });
+    }
+
+    @Test
+    void discoverDashboardsShouldReadPanelsInsideRowsAndSkipRows() {
+        mockServer.expect(MockRestRequestMatchers.requestTo("http://localhost:3000/api/search?type=dash-db"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        [
+                          {
+                            "uid": "dashboard-uid",
+                            "url": "/d/dashboard-uid/dashboard-slug",
+                            "title": "Performance"
+                          }
+                        ]
+                        """, MediaType.APPLICATION_JSON));
+
+        mockServer.expect(MockRestRequestMatchers.requestTo("http://localhost:3000/api/dashboards/uid/dashboard-uid"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        {
+                          "meta": {
+                            "url": "/d/dashboard-uid/dashboard-slug"
+                          },
+                          "dashboard": {
+                            "title": "Performance dashboard",
+                            "panels": [
+                              {
+                                "id": 1,
+                                "type": "row",
+                                "title": "Backend",
+                                "panels": [
+                                  {
+                                    "id": 2,
+                                    "type": "timeseries",
+                                    "title": "RPS",
+                                    "targets": [
+                                      {"expr": "sum(rate(http_requests_total[1m]))"}
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "id": 3,
+                                "type": "timeseries",
+                                "title": "Errors",
+                                "targets": [
+                                  {"expr": "sum(rate(errors_total[1m]))"}
+                                ]
+                              },
+                              {
+                                "id": 4,
+                                "type": "row",
+                                "title": "Infrastructure"
+                              }
+                            ]
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var dashboards = grafanaClient.discoverDashboards();
+
+        mockServer.verify();
+        assertThat(dashboards).hasSize(1);
+        assertThat(dashboards.get(0).panels())
+                .extracting(panel -> panel.panelId(), panel -> panel.title(), panel -> panel.query())
+                .containsExactly(
+                        tuple(2, "RPS", "sum(rate(http_requests_total[1m]))"),
+                        tuple(3, "Errors", "sum(rate(errors_total[1m]))"));
+    }
+
+    @Test
+    void getPanelMetadataShouldFindPanelInsideRow() {
+        mockServer.expect(MockRestRequestMatchers.requestTo("http://localhost:3000/api/dashboards/uid/dashboard-uid"))
+                .andExpect(MockRestRequestMatchers.method(HttpMethod.GET))
+                .andExpect(MockRestRequestMatchers.header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
+                .andRespond(MockRestResponseCreators.withSuccess("""
+                        {
+                          "dashboard": {
+                            "title": "Performance dashboard",
+                            "panels": [
+                              {
+                                "id": 1,
+                                "type": "row",
+                                "title": "Backend",
+                                "panels": [
+                                  {
+                                    "id": 2,
+                                    "type": "timeseries",
+                                    "title": "RPS",
+                                    "description": "Requests per second"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var metadata = grafanaClient.getPanelMetadata("dashboard-uid", 2);
+
+        mockServer.verify();
+        assertThat(metadata.title()).isEqualTo("RPS");
+        assertThat(metadata.description()).isEqualTo("Requests per second");
     }
 
     private static String key(String key) {
