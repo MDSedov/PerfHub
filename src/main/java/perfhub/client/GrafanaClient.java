@@ -9,6 +9,7 @@ import perfhub.dto.grafana.GrafanaRenderOptions;
 import perfhub.exception.GrafanaClientException;
 import perfhub.service.ConfigurationProvider;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -124,6 +125,21 @@ public class GrafanaClient {
         requireText(dashboardUid, "dashboardUid must not be empty");
         requireText(dashboardSlug, "dashboardSlug must not be empty");
         requirePositive(panelId, "panelId must be positive");
+        return renderPanelReference(dashboardUid, dashboardSlug, Integer.toString(panelId), from, to, variables, renderOptions, false);
+    }
+
+    public byte[] renderDeploymentPanel(String dashboardUid, String dashboardSlug, String reference,
+            Instant from, Instant to, Map<String, String> variables, GrafanaRenderOptions options) {
+        if (reference == null || !reference.matches("[a-z0-9][a-z0-9.-]*\\$panel-[1-9][0-9]*")) {
+            throw new IllegalArgumentException("Некорректная ссылка панели DropApp");
+        }
+        return renderPanelReference(dashboardUid, dashboardSlug, reference, from, to, variables, options, true);
+    }
+
+    private byte[] renderPanelReference(String dashboardUid, String dashboardSlug, String panelId, Instant from,
+            Instant to, Map<String, String> variables, GrafanaRenderOptions renderOptions, boolean deploymentScoped) {
+        requireText(dashboardUid, "dashboardUid must not be empty");
+        requireText(dashboardSlug, "dashboardSlug must not be empty");
         requireNonNull(from, "from must not be null");
         requireNonNull(to, "to must not be null");
         requireNonNull(renderOptions, "renderOptions must not be null");
@@ -162,18 +178,21 @@ public class GrafanaClient {
                     uri, HttpMethod.GET, new HttpEntity<>(null, headers), byte[].class);
             byte[] body = response.getBody();
             if (body == null) {
+                if (deploymentScoped) {
+                    throw new GrafanaClientException("Grafana вернула пустое изображение DropApp", null);
+                }
                 log.warn("Grafana renderer returned an empty body for {}", uri);
                 return new byte[0];
             }
             validatePngResponse(response, body, uri);
             return body;
         } catch (RestClientResponseException ex) {
-            String message = "Failed to render Grafana panel %d for dashboard '%s' (%s): %s"
+            String message = "Failed to render Grafana panel %s for dashboard '%s' (%s): %s"
                     .formatted(panelId, dashboardSlug, dashboardUid, describeHttpFailure(ex));
             log.error("{} via {}", message, uri, ex);
             throw new GrafanaClientException(message, ex);
         } catch (RestClientException ex) {
-            String message = "Failed to render Grafana panel %d for dashboard '%s' (%s): %s"
+            String message = "Failed to render Grafana panel %s for dashboard '%s' (%s): %s"
                     .formatted(panelId, dashboardSlug, dashboardUid, describeClientFailure(ex));
             log.error("{} via {}", message, uri, ex);
             throw new GrafanaClientException(message, ex);
@@ -185,6 +204,58 @@ public class GrafanaClient {
                 requiredInt(IMAGE_WIDTH_KEY),
                 requiredInt(IMAGE_HEIGHT_KEY),
                 required(TIMEZONE_KEY));
+    }
+
+    public List<String> listRenderDashboardUids() {
+        JsonNode result = readCatalogJson(UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
+                .pathSegment("api", "search").queryParam("type", "dash-db").build().encode().toUri());
+        if (!result.isArray()) {
+            throw new GrafanaClientException("Неподдержанный ответ поиска Grafana", null);
+        }
+        List<String> uids = new ArrayList<>();
+        result.forEach(item -> {
+            if (item.path("uid").isTextual() && !item.path("uid").asText().isBlank()) {
+                uids.add(item.path("uid").asText());
+            }
+        });
+        return uids.stream().distinct().toList();
+    }
+
+    public JsonNode loadRenderDashboard(String uid) {
+        return readCatalogJson(UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
+                .pathSegment("api", "dashboards", "uid", uid).build().encode().toUri());
+    }
+
+    public List<String> loadDeploymentLabelValues(String datasourceUid, String selector) {
+        JsonNode response = readCatalogJson(UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
+                .pathSegment("api", "datasources", "proxy", "uid", datasourceUid, "api", "v1", "label", "deployment", "values")
+                .queryParam("match[]", selector).build().encode().toUri());
+        if (!"success".equals(response.path("status").asText()) || !response.path("data").isArray()) {
+            throw new GrafanaClientException("Не удалось получить deployment через Grafana datasource API", null);
+        }
+        List<String> values = new ArrayList<>();
+        for (JsonNode item : response.path("data")) {
+            if (!item.isTextual()) {
+                throw new GrafanaClientException("Неподдержанный формат значений deployment", null);
+            }
+            values.add(item.asText());
+        }
+        return List.copyOf(values);
+    }
+
+    private JsonNode readCatalogJson(URI uri) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setBearerAuth(required(API_KEY_KEY));
+        try {
+            JsonNode body = restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(null, headers), JsonNode.class).getBody();
+            if (body == null) {
+                throw new GrafanaClientException("Пустой ответ каталога Grafana", null);
+            }
+            return body;
+        } catch (RestClientException ex) {
+            throw new GrafanaClientException("Не удалось обновить каталог Grafana", ex);
+        }
     }
 
     private void validatePngResponse(ResponseEntity<byte[]> response, byte[] body, URI uri) {

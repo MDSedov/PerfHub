@@ -5,4 +5,8 @@ public record ConfluenceTemplatePanelOptionDto(
         int panelId,
         String code,
         String dashboardTitle,
-        String panelTitle) {}
+        String panelTitle,
+        String renderScope,
+        java.util.List<perfhub.dto.grafana.GrafanaRenderDashboard.Option> deployments,
+        String catalogStatus,
+        java.time.Instant catalogUpdatedAt) {}

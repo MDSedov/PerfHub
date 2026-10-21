@@ -28,6 +28,7 @@ public class ConnectionTestService {
     private final JiraClient jiraClient;
     private final DropAppService dropAppService;
     private final ConfigurationProvider configurationProvider;
+    private final GrafanaRenderCatalogService renderCatalogService;
 
     public ConnectionTestService(
             VictoriaMetricsClient victoriaMetricsClient,
@@ -36,7 +37,8 @@ public class ConnectionTestService {
             ConfluenceClient confluenceClient,
             JiraClient jiraClient,
             DropAppService dropAppService,
-            ConfigurationProvider configurationProvider) {
+            ConfigurationProvider configurationProvider,
+            GrafanaRenderCatalogService renderCatalogService) {
         this.victoriaMetricsClient = victoriaMetricsClient;
         this.gigachatService = gigachatService;
         this.grafanaClient = grafanaClient;
@@ -44,6 +46,7 @@ public class ConnectionTestService {
         this.jiraClient = jiraClient;
         this.dropAppService = dropAppService;
         this.configurationProvider = configurationProvider;
+        this.renderCatalogService = renderCatalogService;
     }
 
     public ConnectionTestResponse testConnection(String rawService) {
@@ -88,9 +91,19 @@ public class ConnectionTestService {
         String service = "grafana";
         try {
             String status = grafanaClient.checkHealth();
-            return success(service, "Grafana ответила: " + status);
+            return new ConnectionTestResponse(service, true, "Grafana ответила: " + status, refreshRenderCatalog());
         } catch (Exception ex) {
             return failure(service, ex);
+        }
+    }
+
+    private perfhub.dto.grafana.GrafanaCatalogResult refreshRenderCatalog() {
+        try {
+            return renderCatalogService.refresh();
+        } catch (RuntimeException ex) {
+            log.warn("Grafana render catalog refresh failed ({})", ex.getClass().getSimpleName());
+            return new perfhub.dto.grafana.GrafanaCatalogResult("UNAVAILABLE",
+                    "Grafana доступна, но каталог обновить не удалось. Повторите проверку подключения.", Instant.now());
         }
     }
 

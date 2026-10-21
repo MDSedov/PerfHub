@@ -2,6 +2,8 @@ package perfhub.service;
 
 import perfhub.model.ConfigurationEntry;
 import perfhub.repository.ConfigurationRepository;
+import perfhub.repository.GrafanaRenderCatalogRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import perfhub.security.CurrentUserProvider;
 import java.util.List;
 import java.util.Optional;
@@ -13,12 +15,20 @@ public class ConfigurationService implements ConfigurationProvider {
 
     private final ConfigurationRepository repository;
     private final CurrentUserProvider currentUserProvider;
+    private final GrafanaRenderCatalogRepository renderCatalogRepository;
 
     public ConfigurationService(
             ConfigurationRepository repository,
             CurrentUserProvider currentUserProvider) {
+        this(repository, currentUserProvider, null);
+    }
+
+    @Autowired
+    public ConfigurationService(ConfigurationRepository repository, CurrentUserProvider currentUserProvider,
+            GrafanaRenderCatalogRepository renderCatalogRepository) {
         this.repository = repository;
         this.currentUserProvider = currentUserProvider;
+        this.renderCatalogRepository = renderCatalogRepository;
     }
 
     public List<ConfigurationEntry> fetchAll() {
@@ -37,7 +47,13 @@ public class ConfigurationService implements ConfigurationProvider {
                 throw new IllegalArgumentException("Configuration key must not be blank");
             }
             String value = entry.value() != null ? entry.value() : "";
+            boolean grafanaChanged = "grafana".equals(service)
+                    && List.of("base-url", "api-key", "render-path").contains(key)
+                    && !repository.findValue(service, key, userId).orElse("").equals(value);
             repository.upsert(service, key, value, userId);
+            if (grafanaChanged && renderCatalogRepository != null) {
+                renderCatalogRepository.rotate(userId == null ? 0L : userId);
+            }
         }
     }
 

@@ -958,8 +958,6 @@
     const evaluationCache = new Map();
     const evaluationRequests = new Map();
     const grafanaPanelsCache = new Map();
-    const grafanaPanelRequests = new Map();
-    const grafanaServerCacheRequests = new Map();
     const grafanaRenderedPanels = new Map();
     const testConfigurationCache = new Map();
     const testConfigurationRequests = new Map();
@@ -3039,27 +3037,11 @@
     }
 
     function ensureGrafanaPanels(testId) {
-        if (grafanaPanelsCache.has(testId)) {
-            return Promise.resolve(grafanaPanelsCache.get(testId));
-        }
-        if (!grafanaPanelRequests.has(testId)) {
-            grafanaPanelRequests.set(testId, fetchGrafanaPanels(testId).finally(() => {
-                grafanaPanelRequests.delete(testId);
-            }));
-        }
-        return grafanaPanelRequests.get(testId);
+        return fetchGrafanaPanels(testId);
     }
 
     function tryLoadGrafanaPanelsFromServerCache(testId) {
-        if (grafanaPanelsCache.has(testId)) {
-            return Promise.resolve(grafanaPanelsCache.get(testId));
-        }
-        if (!grafanaServerCacheRequests.has(testId)) {
-            grafanaServerCacheRequests.set(testId, fetchGrafanaPanels(testId, { cacheOnly: true }).finally(() => {
-                grafanaServerCacheRequests.delete(testId);
-            }));
-        }
-        return grafanaServerCacheRequests.get(testId);
+        return fetchGrafanaPanels(testId, { cacheOnly: true });
     }
 
     function normalizeGrafanaPanels(response) {
@@ -3081,6 +3063,8 @@
                 }
             });
         });
+        normalized.panels.sort((left, right) =>
+            (left.templateChartOrder ?? Number.MAX_SAFE_INTEGER) - (right.templateChartOrder ?? Number.MAX_SAFE_INTEGER));
         return normalized;
     }
 
@@ -3708,8 +3692,6 @@
         grafanaPanelsCache.forEach((_, testId) => {
             if (!testsById.has(testId)) {
                 grafanaPanelsCache.delete(testId);
-                grafanaPanelRequests.delete(testId);
-                grafanaServerCacheRequests.delete(testId);
                 grafanaRenderedPanels.delete(testId);
             }
         });
@@ -3965,41 +3947,10 @@
             grafanaRenderedPanels.set(testId, grafanaBox.innerHTML);
         }
 
-        const cachedPanels = grafanaPanelsCache.get(testId);
-        const cachedRender = grafanaRenderedPanels.get(testId);
-        if (cachedRender) {
-            grafanaPlaceholder.textContent = '';
-            grafanaPlaceholder.classList.add('visually-hidden');
-            grafanaBox.innerHTML = cachedRender;
-            grafanaLoadButton.textContent = 'Обновить графики из Grafana для данного теста';
-        } else if (cachedPanels && Array.isArray(cachedPanels.panels) && cachedPanels.panels.length > 0) {
-            applyGrafanaPanels(cachedPanels.panels);
-        } else if (grafanaPanelRequests.has(testId)) {
-            const request = grafanaPanelRequests.get(testId);
-            grafanaLoadButton.disabled = true;
-            grafanaLoadButton.textContent = 'Загружаем…';
-            grafanaPlaceholder.classList.remove('visually-hidden');
-            grafanaPlaceholder.textContent = 'Загружаем графики…';
-            request
-                    .then(result => {
-                        applyGrafanaPanels(result?.panels);
-                    })
-                    .catch(error => {
-                        if (!grafanaBox.isConnected) {
-                            return;
-                        }
-                        const reason = error?.message ? `: ${error.message}` : '';
-                        grafanaPlaceholder.textContent = `Графики загрузить не удалось${reason}`;
-                        grafanaBox.innerHTML = '';
-                    })
-                    .finally(() => {
-                        if (!grafanaBox.isConnected) {
-                            return;
-                        }
-                        grafanaLoadButton.disabled = false;
-                        grafanaLoadButton.textContent = 'Загрузить графики';
-                    });
-        } else {
+        // При повторном открытии сервер проверяет актуальные строки и контекст PNG.
+        // Старый HTML по одному testId не подтверждает deployment, порядок или размер.
+        grafanaRenderedPanels.delete(testId);
+        {
             grafanaPlaceholder.classList.remove('visually-hidden');
             grafanaPlaceholder.textContent = 'Проверяем сохраненные графики…';
             tryLoadGrafanaPanelsFromServerCache(testId)

@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -50,6 +51,7 @@ public class GrafanaService {
     private final GrafanaVariableService grafanaVariableService;
     private final ConfluenceTemplateSettingsService confluenceTemplateSettingsService;
     private final GrafanaRenderedPanelCacheService renderedPanelCacheService;
+    private final GrafanaRenderCatalogService renderCatalogService;
 
     public GrafanaService(
             GrafanaClient grafanaClient,
@@ -60,6 +62,17 @@ public class GrafanaService {
             GrafanaVariableService grafanaVariableService,
             ConfluenceTemplateSettingsService confluenceTemplateSettingsService,
             GrafanaRenderedPanelCacheService renderedPanelCacheService) {
+        this(grafanaClient, grafanaRenderCache, loadTestRepository, grafanaDashboardRepository,
+                grafanaDashboardPanelRepository, grafanaVariableService, confluenceTemplateSettingsService,
+                renderedPanelCacheService, null);
+    }
+
+    @Autowired
+    public GrafanaService(GrafanaClient grafanaClient, GrafanaRenderCache grafanaRenderCache,
+            LoadTestRepository loadTestRepository, GrafanaDashboardRepository grafanaDashboardRepository,
+            GrafanaDashboardPanelRepository grafanaDashboardPanelRepository, GrafanaVariableService grafanaVariableService,
+            ConfluenceTemplateSettingsService confluenceTemplateSettingsService, GrafanaRenderedPanelCacheService renderedPanelCacheService,
+            GrafanaRenderCatalogService renderCatalogService) {
         this.grafanaClient = grafanaClient;
         this.grafanaRenderCache = grafanaRenderCache;
         this.loadTestRepository = loadTestRepository;
@@ -68,6 +81,7 @@ public class GrafanaService {
         this.grafanaVariableService = grafanaVariableService;
         this.confluenceTemplateSettingsService = confluenceTemplateSettingsService;
         this.renderedPanelCacheService = renderedPanelCacheService;
+        this.renderCatalogService = renderCatalogService;
     }
 
     /**
@@ -132,7 +146,10 @@ public class GrafanaService {
         }
 
         ConfluenceTemplate template = resolveTemplate(request.templateId());
-        ConfluenceTemplateChart chart = findTemplateChart(template, request.dashboardUid(), request.panelId());
+        ConfluenceTemplateChart chart = findTemplateChart(template, request.dashboardUid(), request.panelId(), request.templateChartId());
+        if (isDeploymentChart(chart)) {
+            return renderDeploymentChart(chart, template.id(), null, from, to, false, false).orElseThrow().panel();
+        }
         DashboardRenderContext context = loadDashboardRenderContext(chart.dashboardUid());
         ResolvedPanelMetadata metadata = resolvePanelMetadata(
                 chart.dashboardUid(),
@@ -149,7 +166,7 @@ public class GrafanaService {
                 renderOptions);
         String encodedImage = Base64.getEncoder().encodeToString(renderedPanel.imageBytes());
         String title = StringUtils.hasText(chart.title()) ? chart.title().trim() : metadata.title();
-        return new GrafanaRenderedPanel(chart.panelId(), title, metadata.description(), encodedImage);
+        return rowPanel(chart, title, metadata.description(), encodedImage);
     }
 
     public List<GrafanaRenderedPanel> renderSelectedPanels(
@@ -287,6 +304,10 @@ public class GrafanaService {
                 throw new GrafanaRenderingException("Grafana panel selection is invalid");
             }
             String dashboardUid = requireText(chart.dashboardUid(), "dashboardUid");
+            if (isDeploymentChart(chart)) {
+                renderDeploymentChart(chart, template.id(), testUuid, from, to, forceRefresh, cacheOnly).ifPresent(renderedPanels::add);
+                continue;
+            }
             DashboardRenderContext context = contextByDashboardUid.computeIfAbsent(
                     dashboardUid,
                     this::loadDashboardRenderContext);
@@ -317,8 +338,7 @@ public class GrafanaService {
                 renderedPanels.add(new TemplateRenderedPanel(
                         dashboardUid,
                         dashboardSlug,
-                        new GrafanaRenderedPanel(
-                                chart.panelId(),
+                        rowPanel(chart,
                                 title,
                                 cached.description() == null ? "" : cached.description(),
                                 encodedImage)));
@@ -365,25 +385,112 @@ public class GrafanaService {
             renderedPanels.add(new TemplateRenderedPanel(
                     dashboardUid,
                     renderedPanel.dashboardSlug(),
-                    new GrafanaRenderedPanel(chart.panelId(), title, metadata.description(), encodedImage)));
+                    rowPanel(chart, title, metadata.description(), encodedImage)));
         }
         return List.copyOf(renderedPanels);
     }
 
-    private ConfluenceTemplateChart findTemplateChart(ConfluenceTemplate template, String dashboardUid, int panelId) {
+    private ConfluenceTemplateChart findTemplateChart(ConfluenceTemplate template, String dashboardUid, int panelId, Long rowId) {
         String normalizedDashboardUid = requireText(dashboardUid, "dashboardUid");
         if (panelId <= 0) {
             throw new GrafanaRenderingException("panelId must be positive");
         }
         List<ConfluenceTemplateChart> templateCharts = template.charts() == null ? List.of() : template.charts();
-        return templateCharts.stream()
+        var matches = templateCharts.stream()
                 .filter(chart -> chart != null
                         && chart.panelId() == panelId
                         && Objects.equals(chart.dashboardUid(), normalizedDashboardUid))
-                .findFirst()
+                .filter(chart -> rowId == null || chart.id() == rowId)
+                .toList();
+        if (rowId == null && matches.stream().map(chart -> String.valueOf(chart.deployment())).distinct().count() > 1) {
+            throw new GrafanaRenderingException("Выберите строку шаблона: у панели несколько deployment");
+        }
+        if (rowId != null && matches.isEmpty()) {
+            throw new GrafanaRenderingException("Строка графика не найдена; перечитайте шаблон отчёта");
+        }
+        return matches.stream().findFirst()
                 .orElseThrow(() -> new GrafanaRenderingException(
                         "Панель Grafana %s:%d не найдена в шаблоне '%s'"
                                 .formatted(normalizedDashboardUid, panelId, template.fullName())));
+    }
+
+    private boolean isDeploymentChart(ConfluenceTemplateChart chart) {
+        return chart.deploymentScoped() || renderCatalogService != null && renderCatalogService.findPanel(chart.dashboardUid(), chart.panelId())
+                .map(panel -> panel.panel().deploymentScoped()).orElse(false);
+    }
+
+    private Optional<TemplateRenderedPanel> renderDeploymentChart(ConfluenceTemplateChart chart, int templateId,
+            UUID testUuid, Instant from, Instant to, boolean forceRefresh, boolean cacheOnly) {
+        if (!GrafanaRenderCatalogService.isConcreteDeployment(chart.deployment())) {
+            throw new GrafanaRenderingException("Для графика DropApp выберите один конкретный deployment");
+        }
+        String deployment = chart.deployment();
+        if (renderCatalogService == null) {
+            throw new GrafanaRenderingException("Обновите каталог DropApp через проверку Grafana");
+        }
+        var selected = renderCatalogService.findPanel(chart.dashboardUid(), chart.panelId())
+                .filter(panel -> panel.panel().deploymentScoped())
+                .orElseThrow(() -> new GrafanaRenderingException("Обновите каталог DropApp через проверку Grafana"));
+        var snapshot = selected.snapshot();
+        requireCurrentSnapshot(snapshot);
+        var panel = selected.panel();
+        for (String variable : List.of("pod", "container")) {
+            var definition = snapshot.dashboard().variables().get(variable);
+            if (definition == null || !definition.includeAll() || definition.allValue() != null && !definition.allValue().isBlank()) {
+                throw new GrafanaRenderingException("Неподдержанная настройка All переменной " + variable);
+            }
+        }
+        Map<String, String> variables = new LinkedHashMap<>(renderCatalogService.values(snapshot.dashboard()));
+        variables.put("deployment", deployment);
+        variables.put("pod", "$__all");
+        variables.put("container", "$__all");
+        String reference = deployment + "$" + panel.elementRef();
+        String cacheContext = renderCatalogService.cacheContext(snapshot, deployment, reference) + "\n" + panel.fingerprint();
+        GrafanaRenderOptions options = grafanaClient.loadRenderOptions();
+        var cached = !forceRefresh && renderedPanelCacheService != null
+                ? renderedPanelCacheService.find(testUuid, templateId, chart.dashboardUid(), chart.panelId(), from, to, variables, options, cacheContext)
+                : Optional.<GrafanaRenderedPanelCacheService.CachedPanelImage>empty();
+        String title = chart.displayTitle();
+        if (cached.isPresent()) {
+            requireCurrentSnapshot(snapshot);
+            return Optional.of(new TemplateRenderedPanel(chart.dashboardUid(), snapshot.dashboard().slug(),
+                    rowPanel(chart, title, panel.description(), Base64.getEncoder().encodeToString(cached.get().imageBytes()))));
+        }
+        if (cacheOnly) {
+            return Optional.empty();
+        }
+        String slug = snapshot.dashboard().slug();
+        byte[] bytes;
+        try {
+            bytes = grafanaClient.renderDeploymentPanel(chart.dashboardUid(), slug, reference, from, to, variables, options);
+        } catch (GrafanaClientException ex) {
+            String refreshed = refreshDashboardSlug(chart.dashboardUid(), slug, chart.panelId(), ex);
+            if (!StringUtils.hasText(refreshed) || refreshed.equals(slug)) {
+                throw ex;
+            }
+            slug = refreshed;
+            bytes = grafanaClient.renderDeploymentPanel(chart.dashboardUid(), slug, reference, from, to, variables, options);
+        }
+        if (bytes == null || bytes.length == 0) {
+            throw new GrafanaClientException("Grafana вернула пустое изображение DropApp", null);
+        }
+        requireCurrentSnapshot(snapshot);
+        if (renderedPanelCacheService != null) {
+            renderedPanelCacheService.store(testUuid, templateId, chart.dashboardUid(), slug, chart.panelId(), from, to,
+                    variables, options, title, panel.description(), bytes, cacheContext);
+        }
+        return Optional.of(new TemplateRenderedPanel(chart.dashboardUid(), slug,
+                rowPanel(chart, title, panel.description(), Base64.getEncoder().encodeToString(bytes))));
+    }
+
+    private GrafanaRenderedPanel rowPanel(ConfluenceTemplateChart chart, String title, String description, String image) {
+        return new GrafanaRenderedPanel(chart.panelId(), title, description, image, chart.id(), chart.deployment(), chart.sortOrder());
+    }
+
+    private void requireCurrentSnapshot(perfhub.dto.grafana.GrafanaCatalogSnapshot snapshot) {
+        if (!renderCatalogService.isCurrent(snapshot)) {
+            throw new GrafanaRenderingException("Контекст Grafana изменился; обновите каталог и повторите запрос графиков");
+        }
     }
 
     private Optional<GrafanaRenderedPanelCacheService.CachedPanelImage> findCachedPanel(

@@ -52,10 +52,15 @@ public class GrafanaRenderedPanelCacheService {
             Instant to,
             Map<String, String> variables,
             GrafanaRenderOptions options) {
+        return find(testUuid, templateId, dashboardUid, panelId, from, to, variables, options, null);
+    }
+
+    public Optional<CachedPanelImage> find(UUID testUuid, int templateId, String dashboardUid, int panelId,
+            Instant from, Instant to, Map<String, String> variables, GrafanaRenderOptions options, String renderContext) {
         if (testUuid == null || options == null) {
             return Optional.empty();
         }
-        String variablesHash = variablesHash(variables);
+        String variablesHash = contextHash(variables, renderContext);
         Optional<GrafanaRenderedPanelCacheEntry> entry = repository.findLatestMatching(
                 testUuid,
                 templateId,
@@ -109,6 +114,13 @@ public class GrafanaRenderedPanelCacheService {
             String title,
             String description,
             byte[] imageBytes) {
+        store(testUuid, templateId, dashboardUid, dashboardSlug, panelId, from, to, variables, options,
+                title, description, imageBytes, null);
+    }
+
+    public void store(UUID testUuid, int templateId, String dashboardUid, String dashboardSlug, int panelId,
+            Instant from, Instant to, Map<String, String> variables, GrafanaRenderOptions options,
+            String title, String description, byte[] imageBytes, String renderContext) {
         if (testUuid == null || options == null || imageBytes == null || imageBytes.length == 0) {
             return;
         }
@@ -121,7 +133,7 @@ public class GrafanaRenderedPanelCacheService {
             return;
         }
 
-        String variablesHash = variablesHash(variables);
+        String variablesHash = contextHash(variables, renderContext);
         String lookupHash = sha256Hex(
                 "%s|%s|%s|%d|%s|%s|%s|%d|%d|%s"
                         .formatted(
@@ -190,6 +202,12 @@ public class GrafanaRenderedPanelCacheService {
             return DEFAULT_VARIABLES_HASH;
         }
         return sha256Hex(normalized.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String contextHash(Map<String, String> variables, String renderContext) {
+        String legacyHash = variablesHash(variables);
+        return renderContext == null ? legacyHash
+                : sha256Hex((renderContext + "\n" + legacyHash).getBytes(StandardCharsets.UTF_8));
     }
 
     private String buildRelativePath(UUID testUuid, int templateId, String dashboardUid, int panelId, String lookupHash) {

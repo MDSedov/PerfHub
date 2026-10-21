@@ -56,7 +56,8 @@ public class ConfluenceTemplateSettingsController {
                         option.panelId(),
                         option.code(),
                         option.dashboardTitle(),
-                        option.panelTitle()))
+                        option.panelTitle(), option.renderScope(), option.deployments(),
+                        option.catalogStatus(), option.catalogUpdatedAt()))
                 .toList();
     }
 
@@ -109,7 +110,8 @@ public class ConfluenceTemplateSettingsController {
         String code = codesByPanelKey.getOrDefault(
                 panelKey(chart.dashboardUid(), chart.panelId()),
                 chart.dashboardUid() + " -> " + chart.panelId());
-        return new ConfluenceTemplateChartDto(chart.title(), chart.dashboardUid(), chart.panelId(), code);
+        return new ConfluenceTemplateChartDto(chart.title(), chart.dashboardUid(), chart.panelId(), code,
+                chart.id(), chart.renderScope(), chart.deployment());
     }
 
     private String panelKey(String dashboardUid, int panelId) {
@@ -132,7 +134,7 @@ public class ConfluenceTemplateSettingsController {
                                 .map(item -> new ConfluenceTemplateSettingsService.TemplateChartCommand(
                                         item.title(),
                                         item.dashboardUid(),
-                                        item.panelId()))
+                                        item.panelId(), item.renderScope(), item.deployment()))
                                 .toList();
         return new ConfluenceTemplateSettingsService.TemplateSaveCommand(
                 request.shortName(),

@@ -307,6 +307,22 @@ ALTER TABLE confluence_report_template_charts ADD COLUMN IF NOT EXISTS sort_orde
 CREATE INDEX IF NOT EXISTS idx_confluence_report_template_charts_template
     ON confluence_report_template_charts (template_id, sort_order);
 
+CREATE TABLE IF NOT EXISTS grafana_render_sources (
+    owner_id BIGINT PRIMARY KEY,
+    revision VARCHAR(36) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS grafana_render_snapshots (
+    owner_id BIGINT NOT NULL,
+    revision VARCHAR(36) NOT NULL,
+    dashboard_uid VARCHAR(128) NOT NULL,
+    context_key VARCHAR(64) NOT NULL,
+    snapshot_json CLOB NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    stale BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (owner_id, revision, dashboard_uid, context_key)
+);
+
 CREATE TABLE IF NOT EXISTS grafana_dashboards (
     dashboard_uid VARCHAR(64) PRIMARY KEY,
     slug VARCHAR(128) NOT NULL,
@@ -764,3 +780,6 @@ WHERE dashboard_uid IS NULL OR panel_id IS NULL;
 ALTER TABLE test_requirement_evaluations ALTER COLUMN dashboard_uid SET NOT NULL;
 ALTER TABLE test_requirement_evaluations ALTER COLUMN panel_id SET NOT NULL;
 ALTER TABLE test_requirement_evaluations ADD CONSTRAINT uq_test_requirement UNIQUE (test_uuid, dashboard_uid, panel_id);
+
+ALTER TABLE confluence_report_template_charts ADD COLUMN IF NOT EXISTS render_scope VARCHAR(64);
+ALTER TABLE confluence_report_template_charts ADD COLUMN IF NOT EXISTS deployment VARCHAR(253);

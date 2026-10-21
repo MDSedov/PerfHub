@@ -423,7 +423,7 @@ public class ConfluenceService {
                     uploadAttachmentWithRetry(credentials, reportPage.id(), attachmentName, imageBytes);
             attachmentNames.add(uploadedAttachmentName);
             chartAttachments.add(new RenderedChartAttachment(
-                    chart.title(),
+                    chart.displayTitle(),
                     panel.description(),
                     uploadedAttachmentName));
         }

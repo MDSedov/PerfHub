@@ -985,6 +985,89 @@ class ConfluenceServiceTest {
         assertThat(updatedBody).doesNotContain("@test_report_link");
     }
 
+    @Test
+    void scopedCreateKeepsThreeAttachmentsEscapedTitlesOrderAndSquareSize() throws Exception {
+        var credentials = new ConfluenceCredentials("fixture", "fixture-token");
+        var id = UUID.randomUUID();
+        var test = new LoadTest(id, Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-01-01T01:00:00Z"), LoadTestType.MAX, null);
+        var charts = List.of(
+                new ConfluenceTemplateChart(1,1,"CPU <&>","demo",106,0,"DROPAPP_DEPLOYMENT","profile"),
+                new ConfluenceTemplateChart(2,1,"CPU","demo",106,1,"DROPAPP_DEPLOYMENT","other"),
+                new ConfluenceTemplateChart(3,1,"RAM","demo",78,2,"DROPAPP_DEPLOYMENT","profile"));
+        var template = testReportTemplate(1,"max_template","DropApp","DropApp","<p>@graphics</p>",charts);
+        when(loadTestRepository.findById(id)).thenReturn(Optional.of(test));
+        when(confluenceTemplateSettingsService.getActiveTemplate(1)).thenReturn(template);
+        when(confluenceClient.getPage(credentials,"parent")).thenReturn(new ConfluencePage("parent","page","Parent",1,"","SPACE"));
+        stubTemplatePage(credentials,template);
+        var page = new ConfluencePage("report","page","DropApp",1,template.text(),"SPACE");
+        when(confluenceClient.createChildPage(eq(credentials),eq("parent"),eq("SPACE"),anyString(),anyString())).thenReturn(page);
+        when(configurationProvider.getRequiredValue("grafana","image-width")).thenReturn("1000");
+        when(configurationProvider.getRequiredValue("grafana","image-height")).thenReturn("1000");
+        var image = new java.awt.image.BufferedImage(1000,1000,java.awt.image.BufferedImage.TYPE_INT_RGB);
+        var bytes = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(image,"png",bytes);
+        var panels = charts.stream().map(chart -> new GrafanaRenderedPanel(chart.panelId(),chart.displayTitle(),"",
+                Base64.getEncoder().encodeToString(bytes.toByteArray()),chart.id(),chart.deployment(),chart.sortOrder())).toList();
+        when(grafanaService.renderTemplatePanelsForTest(test,template)).thenReturn(panels);
+        when(confluenceClient.uploadAttachment(eq(credentials),eq("report"),anyString(),any(byte[].class)))
+                .thenAnswer(call -> call.getArgument(2));
+        var result = confluenceService.createReports(credentials,new ConfluenceReportRequest("parent",null,
+                List.of(new ConfluenceReportRequest.ReportItem(id,1))));
+        assertThat(result.reports().get(0).attachmentNames()).hasSize(3).doesNotHaveDuplicates();
+        var body = ArgumentCaptor.forClass(String.class);
+        verify(confluenceClient).updatePage(eq(credentials),eq(page),body.capture());
+        assertThat(body.getValue()).contains("&lt;&amp;&gt; [deployment: profile]","ac:width=\"1000\"","ac:height=\"1000\"");
+        assertThat(body.getValue().indexOf("CPU &lt;")).isLessThan(body.getValue().indexOf("CPU [deployment: other]"));
+        assertThat(body.getValue().indexOf("CPU [deployment: other]")).isLessThan(body.getValue().indexOf("RAM [deployment: profile]"));
+        var order = org.mockito.Mockito.inOrder(grafanaService,confluenceClient);
+        order.verify(grafanaService).renderTemplatePanelsForTest(test,template);
+        order.verify(confluenceClient).createChildPage(eq(credentials),eq("parent"),eq("SPACE"),anyString(),anyString());
+        var uploads = ArgumentCaptor.forClass(byte[].class);
+        verify(confluenceClient,times(3)).uploadAttachment(eq(credentials),eq("report"),anyString(),uploads.capture());
+        for (byte[] uploaded : uploads.getAllValues()) {
+            var decoded = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(uploaded));
+            assertThat(decoded.getWidth()).isEqualTo(1000);
+            assertThat(decoded.getHeight()).isEqualTo(1000);
+        }
+        org.mockito.Mockito.clearInvocations(confluenceClient);
+        when(grafanaService.renderTemplatePanelsForTest(test,template))
+                .thenThrow(new perfhub.exception.GrafanaClientException("synthetic",null));
+        assertThatThrownBy(() -> confluenceService.createReports(credentials,new ConfluenceReportRequest("parent",null,
+                List.of(new ConfluenceReportRequest.ReportItem(id,1)))))
+                .isInstanceOf(perfhub.exception.GrafanaClientException.class);
+        verify(confluenceClient,never()).createChildPage(any(),anyString(),anyString(),anyString(),anyString());
+        verify(confluenceClient,never()).uploadAttachment(any(),anyString(),anyString(),any(byte[].class));
+        verify(confluenceClient,never()).updatePage(any(),any(),anyString());
+    }
+
+    @Test
+    void scopedAppendKeepsOrderAndFailsBeforeAnyWriteWhenPreparationFails() {
+        var credentials = new ConfluenceCredentials("fixture","fixture-token");
+        var request = new ConfluenceChartsAppendRequest("target","2026-01-01T00:00:00Z","2026-01-01T01:00:00Z",1);
+        var page = new ConfluencePage("target","page","Target",1,"<p>Existing</p>","SPACE");
+        when(confluenceClient.getPage(credentials,"target")).thenReturn(page);
+        var panels = List.of(new GrafanaRenderedPanel(106,"CPU [deployment: profile]","",Base64.getEncoder().encodeToString(pngBytes(1))),
+                new GrafanaRenderedPanel(106,"CPU [deployment: other]","",Base64.getEncoder().encodeToString(pngBytes(2))),
+                new GrafanaRenderedPanel(78,"RAM [deployment: profile]","",Base64.getEncoder().encodeToString(pngBytes(3))));
+        when(configurationProvider.getRequiredValue("grafana","image-width")).thenReturn("1000");
+        when(configurationProvider.getRequiredValue("grafana","image-height")).thenReturn("1000");
+        var range = new GrafanaRenderRangeRequest(request.from(),request.to(),1);
+        when(grafanaService.renderTemplatePanelsByRange(range)).thenReturn(panels);
+        when(confluenceClient.uploadAttachment(eq(credentials),eq("target"),anyString(),any(byte[].class))).thenAnswer(call -> call.getArgument(2));
+        var result = confluenceService.appendChartsToPage(credentials,request);
+        assertThat(result.attachmentNames()).hasSize(3).doesNotHaveDuplicates();
+        var body = ArgumentCaptor.forClass(String.class);
+        verify(confluenceClient).updatePage(eq(credentials),eq(page),body.capture());
+        assertThat(body.getValue()).contains("ac:width=\"1000\"","ac:height=\"1000\"");
+        assertThat(body.getValue().indexOf("CPU [deployment: profile]")).isLessThan(body.getValue().indexOf("CPU [deployment: other]"));
+        assertThat(body.getValue().indexOf("CPU [deployment: other]")).isLessThan(body.getValue().indexOf("RAM [deployment: profile]"));
+        org.mockito.Mockito.clearInvocations(confluenceClient);
+        when(grafanaService.renderTemplatePanelsByRange(range)).thenThrow(new perfhub.exception.GrafanaClientException("synthetic",null));
+        assertThatThrownBy(() -> confluenceService.appendChartsToPage(credentials,request)).isInstanceOf(perfhub.exception.GrafanaClientException.class);
+        verify(confluenceClient,never()).uploadAttachment(any(),anyString(),anyString(),any(byte[].class));
+        verify(confluenceClient,never()).updatePage(any(),any(),anyString());
+    }
+
     private ConfluenceTemplate testReportTemplate(
             int id,
             String shortName,

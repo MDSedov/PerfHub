@@ -21,7 +21,9 @@ public class ConfluenceTemplateChartRepository {
                    chart_title,
                    dashboard_uid,
                    panel_id,
-                   sort_order
+                   sort_order,
+                   render_scope,
+                   deployment
               FROM confluence_report_template_charts
             """;
     private static final String SELECT_ALL_SQL = BASE_SELECT + " ORDER BY template_id, sort_order, id";
@@ -31,8 +33,8 @@ public class ConfluenceTemplateChartRepository {
             "DELETE FROM confluence_report_template_charts WHERE template_id = ?";
     private static final String INSERT_SQL = """
             INSERT INTO confluence_report_template_charts
-                (template_id, chart_title, dashboard_uid, panel_id, sort_order)
-            VALUES (?, ?, ?, ?, ?)
+                (template_id, chart_title, dashboard_uid, panel_id, sort_order, render_scope, deployment)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -42,7 +44,9 @@ public class ConfluenceTemplateChartRepository {
             rs.getString("chart_title"),
             rs.getString("dashboard_uid"),
             rs.getInt("panel_id"),
-            rs.getInt("sort_order"));
+            rs.getInt("sort_order"),
+            rs.getString("render_scope"),
+            rs.getString("deployment"));
 
     public ConfluenceTemplateChartRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -72,6 +76,8 @@ public class ConfluenceTemplateChartRepository {
                 ps.setString(3, chart.dashboardUid());
                 ps.setInt(4, chart.panelId());
                 ps.setInt(5, chart.sortOrder());
+                ps.setString(6, chart.renderScope());
+                ps.setString(7, chart.deployment());
             }
 
             @Override

@@ -68,4 +68,16 @@ class ConfigurationServiceTest {
         assertEquals("Не задан обязательный параметр подключения dropapp.token", error.getMessage());
         verify(repository).copyGlobalConnectionValuesToUser(42L);
     }
+
+    @Test
+    void sourceChangeRotatesOnlyCurrentOwnerWhileDimensionsKeepCatalogRevision() {
+        var catalog = org.mockito.Mockito.mock(perfhub.repository.GrafanaRenderCatalogRepository.class);
+        var settings = new ConfigurationService(repository,currentUserProvider,catalog);
+        when(currentUserProvider.currentUserId()).thenReturn(Optional.of(42L));
+        settings.upsertAll(List.of(new ConfigurationEntry(null,"grafana","image-height","1000",null,1)));
+        verify(catalog,never()).rotate(42L);
+        settings.upsertAll(List.of(new ConfigurationEntry(null,"grafana","base-url","https://grafana.example",null,1)));
+        verify(catalog).rotate(42L);
+        verify(catalog,never()).rotate(0L);
+    }
 }

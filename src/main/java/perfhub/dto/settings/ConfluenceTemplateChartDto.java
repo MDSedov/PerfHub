@@ -4,4 +4,7 @@ public record ConfluenceTemplateChartDto(
         String title,
         String dashboardUid,
         int panelId,
-        String code) {}
+        String code,
+        Long templateChartId,
+        String renderScope,
+        String deployment) {}

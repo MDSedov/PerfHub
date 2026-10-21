@@ -20,5 +20,7 @@ public record ConfluenceTemplateSaveRequest(
     public record TemplateChartPayload(
             @NotBlank String title,
             @NotBlank String dashboardUid,
-            @Positive int panelId) {}
+            @Positive int panelId,
+            String renderScope,
+            String deployment) {}
 }

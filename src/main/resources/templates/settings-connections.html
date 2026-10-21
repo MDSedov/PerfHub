@@ -685,8 +685,14 @@
             throw new Error('Ответ сервера: ' + response.status);
         }
         const result = await response.json();
+        const catalog = result?.catalog;
+        if (catalog) {
+            const warning = !['READY', 'EMPTY'].includes(catalog.status);
+            showToast(catalog.message || 'Получен результат обновления каталога Grafana.', warning ? 'warning' : 'info', 9000);
+        }
         return {
             success: Boolean(result?.success),
+            catalog,
             message: result?.message || (result?.success ? 'Соединение успешно' : 'Соединение не установлено')
         };
     }
@@ -742,7 +748,18 @@
             const statusBadge = document.createElement('span');
             statusBadge.className = `connection-status-badge ${statusView.className}`;
             statusBadge.textContent = statusView.text;
-            statusCell.appendChild(statusBadge);
+            const catalog = connectionStatuses.get(serviceId)?.catalog;
+            if (catalog) {
+                const catalogText = document.createElement('div');
+                catalogText.className = 'small mt-1 ' + (['READY', 'EMPTY'].includes(catalog.status) ? 'text-muted' : 'text-warning');
+                catalogText.style.whiteSpace = 'normal';
+                catalogText.style.overflowWrap = 'anywhere';
+                catalogText.title = catalog.message || '';
+                catalogText.textContent = `Каталог: ${catalog.status}`
+                    + (catalog.updatedAt ? ` ${new Date(catalog.updatedAt).toLocaleString()}` : '');
+                statusCell.appendChild(catalogText);
+            }
+            statusCell.prepend(statusBadge);
             row.appendChild(statusCell);
 
             const detailsCell = document.createElement('td');

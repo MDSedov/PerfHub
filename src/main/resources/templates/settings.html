@@ -497,7 +497,9 @@
             charts: toArray(template?.charts).map(chart => ({
                 title: chart?.title ?? '',
                 dashboardUid: chart?.dashboardUid ?? '',
-                panelId: Number(chart?.panelId ?? 0)
+                panelId: Number(chart?.panelId ?? 0),
+                renderScope: chart?.renderScope ?? null,
+                deployment: chart?.deployment ?? null
             }))
         };
     }
@@ -784,7 +786,9 @@
             charts: toArray(template?.charts).map(chart => ({
                 title: normalizeText(chart?.title) ?? '',
                 dashboardUid: normalizeText(chart?.dashboardUid) ?? '',
-                panelId: Number.parseInt(chart?.panelId, 10)
+                panelId: Number.parseInt(chart?.panelId, 10),
+                renderScope: chart?.renderScope ?? null,
+                deployment: chart?.deployment ?? null
             })).filter(chart => chart.title && chart.dashboardUid && Number.isFinite(chart.panelId) && chart.panelId > 0)
         };
     }

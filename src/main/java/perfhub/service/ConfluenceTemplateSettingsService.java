@@ -16,6 +16,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.time.Instant;
+import perfhub.dto.grafana.GrafanaRenderDashboard.Option;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +41,7 @@ public class ConfluenceTemplateSettingsService {
     private final GrafanaDashboardPanelRepository grafanaDashboardPanelRepository;
     private final GrafanaDashboardSettingsService grafanaDashboardSettingsService;
     private final TestTypeRepository testTypeRepository;
+    private final GrafanaRenderCatalogService renderCatalogService;
 
     public ConfluenceTemplateSettingsService(
             ConfluenceTemplateRepository templateRepository,
@@ -47,18 +51,27 @@ public class ConfluenceTemplateSettingsService {
         this(templateRepository, chartRepository, grafanaDashboardPanelRepository, grafanaDashboardSettingsService, null);
     }
 
-    @Autowired
     public ConfluenceTemplateSettingsService(
             ConfluenceTemplateRepository templateRepository,
             ConfluenceTemplateChartRepository chartRepository,
             GrafanaDashboardPanelRepository grafanaDashboardPanelRepository,
             GrafanaDashboardSettingsService grafanaDashboardSettingsService,
             TestTypeRepository testTypeRepository) {
+        this(templateRepository, chartRepository, grafanaDashboardPanelRepository, grafanaDashboardSettingsService,
+                testTypeRepository, null);
+    }
+
+    @Autowired
+    public ConfluenceTemplateSettingsService(ConfluenceTemplateRepository templateRepository,
+            ConfluenceTemplateChartRepository chartRepository, GrafanaDashboardPanelRepository grafanaDashboardPanelRepository,
+            GrafanaDashboardSettingsService grafanaDashboardSettingsService, TestTypeRepository testTypeRepository,
+            GrafanaRenderCatalogService renderCatalogService) {
         this.templateRepository = templateRepository;
         this.chartRepository = chartRepository;
         this.grafanaDashboardPanelRepository = grafanaDashboardPanelRepository;
         this.grafanaDashboardSettingsService = grafanaDashboardSettingsService;
         this.testTypeRepository = testTypeRepository;
+        this.renderCatalogService = renderCatalogService;
     }
 
     public List<ConfluenceTemplate> listTemplates() {
@@ -70,8 +83,26 @@ public class ConfluenceTemplateSettingsService {
     }
 
     public List<PanelOption> listPanelOptions() {
-        return grafanaDashboardSettingsService.listDashboards().stream()
-                .flatMap(this::toPanelOptions)
+        Map<String, PanelOption> options = new LinkedHashMap<>();
+        grafanaDashboardSettingsService.listDashboards().stream().flatMap(this::toPanelOptions)
+                .forEach(option -> options.put(option.dashboardUid() + ":" + option.panelId(), option));
+        if (renderCatalogService != null) {
+            for (var snapshot : renderCatalogService.localSnapshots()) {
+                for (var panel : snapshot.dashboard().panels()) {
+                    if (!panel.deploymentScoped()) {
+                        // Обычная панель использует прежний каталог/lookup; не предлагаем несохранённый вариант.
+                        continue;
+                    }
+                    var dashboard = snapshot.dashboard();
+                    options.put(dashboard.uid() + ":" + panel.id(), new PanelOption(dashboard.uid(), panel.id(),
+                            dashboard.title() + " -> " + panel.title(), dashboard.title(), panel.title(),
+                            panel.deploymentScoped() ? GrafanaRenderCatalogService.DEPLOYMENT_SCOPE : null,
+                            panel.deploymentScoped() ? snapshot.deployments() : List.of(),
+                            snapshot.stale() ? "STALE" : snapshot.deployments().isEmpty() ? "EMPTY" : "READY", snapshot.updatedAt()));
+                }
+            }
+        }
+        return options.values().stream()
                 .sorted(Comparator.comparing(PanelOption::code, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
@@ -169,7 +200,7 @@ public class ConfluenceTemplateSettingsService {
     public ConfluenceTemplate updateTemplate(int id, TemplateSaveCommand command, boolean validateCharts) {
         templateRepository.findActiveById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Шаблон отчета не найден"));
-        SanitizedTemplate sanitized = sanitize(command, validateCharts);
+        SanitizedTemplate sanitized = sanitize(command, validateCharts, chartRepository.findByTemplateId(id));
         validateUniqueNames(sanitized.shortName(), id);
         templateRepository.update(
                 id,
@@ -225,6 +256,11 @@ public class ConfluenceTemplateSettingsService {
     }
 
     private SanitizedTemplate sanitize(TemplateSaveCommand command, boolean validateCharts) {
+        return sanitize(command, validateCharts, List.of());
+    }
+
+    private SanitizedTemplate sanitize(TemplateSaveCommand command, boolean validateCharts,
+            List<ConfluenceTemplateChart> previousCharts) {
         if (command == null) {
             throw new IllegalArgumentException("Данные шаблона не переданы");
         }
@@ -255,12 +291,34 @@ public class ConfluenceTemplateSettingsService {
             if (!StringUtils.hasText(dashboardUid) || chart.panelId() <= 0) {
                 throw new IllegalArgumentException("Код графика обязателен");
             }
-            if (validateCharts) {
+            var catalogPanel = renderCatalogService == null ? Optional.<GrafanaRenderCatalogService.CatalogPanel>empty()
+                    : renderCatalogService.findPanel(dashboardUid, chart.panelId());
+            String scope = StringUtils.hasText(chart.renderScope()) ? chart.renderScope().trim() : null;
+            String deployment = chart.deployment();
+            if (scope != null && !GrafanaRenderCatalogService.DEPLOYMENT_SCOPE.equals(scope)) {
+                throw new IllegalArgumentException("Неизвестный renderScope графика");
+            }
+            boolean scoped = scope != null || catalogPanel.map(p -> p.panel().deploymentScoped()).orElse(false);
+            if (scoped) {
+                scope = GrafanaRenderCatalogService.DEPLOYMENT_SCOPE;
+                GrafanaRenderCatalogService.requireDeployment(deployment);
+                if (validateCharts) {
+                    var selected = catalogPanel.filter(p -> p.panel().deploymentScoped()).orElseThrow(() ->
+                            new IllegalArgumentException("Обновите каталог DropApp через проверку подключения Grafana"));
+                    boolean retained = previousCharts.stream().anyMatch(old -> old.dashboardUid().equals(dashboardUid)
+                            && old.panelId() == chart.panelId() && old.deploymentScoped() && deployment.equals(old.deployment()));
+                    if (!retained && selected.snapshot().deployments().stream().noneMatch(option -> deployment.equals(option.value()))) {
+                        throw new IllegalArgumentException("Deployment отсутствует в каталоге Grafana; обновите проверку подключения");
+                    }
+                }
+            } else if (deployment != null && !deployment.isBlank()) {
+                throw new IllegalArgumentException("Deployment допустим только для графика DropApp");
+            } else if (validateCharts) {
                 grafanaDashboardPanelRepository.findByUidAndPanelId(dashboardUid, chart.panelId())
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "График %s (panelId=%s) не найден в кэше Grafana".formatted(dashboardUid, chart.panelId())));
             }
-            charts.add(new SanitizedChart(title, dashboardUid, chart.panelId(), index));
+            charts.add(new SanitizedChart(title, dashboardUid, chart.panelId(), index, scope, scoped ? deployment : null));
         }
 
         return new SanitizedTemplate(
@@ -353,7 +411,7 @@ public class ConfluenceTemplateSettingsService {
                         chart.title(),
                         chart.dashboardUid(),
                         chart.panelId(),
-                        chart.sortOrder()))
+                        chart.sortOrder(), chart.renderScope(), chart.deployment()))
                 .toList();
     }
 
@@ -381,14 +439,22 @@ public class ConfluenceTemplateSettingsService {
         }
     }
 
-    public record TemplateChartCommand(String title, String dashboardUid, int panelId) {}
+    public record TemplateChartCommand(String title, String dashboardUid, int panelId, String renderScope, String deployment) {
+        public TemplateChartCommand(String title, String dashboardUid, int panelId) {
+            this(title, dashboardUid, panelId, null, null);
+        }
+    }
 
     public record PanelOption(
             String dashboardUid,
             int panelId,
             String code,
             String dashboardTitle,
-            String panelTitle) {}
+            String panelTitle, String renderScope, List<Option> deployments, String catalogStatus, Instant catalogUpdatedAt) {
+        public PanelOption(String dashboardUid, int panelId, String code, String dashboardTitle, String panelTitle) {
+            this(dashboardUid, panelId, code, dashboardTitle, panelTitle, null, List.of(), null, null);
+        }
+    }
 
     private record SanitizedTemplate(
             String shortName,
@@ -404,5 +470,5 @@ public class ConfluenceTemplateSettingsService {
             String title,
             String dashboardUid,
             int panelId,
-            int sortOrder) {}
+            int sortOrder, String renderScope, String deployment) {}
 }
