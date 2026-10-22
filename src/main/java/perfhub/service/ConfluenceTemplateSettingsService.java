@@ -89,16 +89,23 @@ public class ConfluenceTemplateSettingsService {
         if (renderCatalogService != null) {
             for (var snapshot : renderCatalogService.localSnapshots()) {
                 for (var panel : snapshot.dashboard().panels()) {
+                    var dashboard = snapshot.dashboard();
+                    String key = dashboard.uid() + ":" + panel.id();
                     if (!panel.deploymentScoped()) {
                         // Обычная панель использует прежний каталог/lookup; не предлагаем несохранённый вариант.
+                        PanelOption existing = options.get(key);
+                        if (existing != null) {
+                            options.put(key, new PanelOption(existing.dashboardUid(), existing.panelId(), existing.code(),
+                                    existing.dashboardTitle(), existing.panelTitle(), null, List.of(),
+                                    snapshot.stale() ? "STALE" : "READY", snapshot.updatedAt(), "NOT_APPLICABLE"));
+                        }
                         continue;
                     }
-                    var dashboard = snapshot.dashboard();
-                    options.put(dashboard.uid() + ":" + panel.id(), new PanelOption(dashboard.uid(), panel.id(),
+                    options.put(key, new PanelOption(dashboard.uid(), panel.id(),
                             dashboard.title() + " -> " + panel.title(), dashboard.title(), panel.title(),
-                            panel.deploymentScoped() ? GrafanaRenderCatalogService.DEPLOYMENT_SCOPE : null,
-                            panel.deploymentScoped() ? snapshot.deployments() : List.of(),
-                            snapshot.stale() ? "STALE" : snapshot.deployments().isEmpty() ? "EMPTY" : "READY", snapshot.updatedAt()));
+                            GrafanaRenderCatalogService.DEPLOYMENT_SCOPE, snapshot.deployments(),
+                            snapshot.stale() ? "STALE" : snapshot.deployments().isEmpty() ? "EMPTY" : "READY",
+                            snapshot.updatedAt(), "SUPPORTED"));
                 }
             }
         }
@@ -450,9 +457,10 @@ public class ConfluenceTemplateSettingsService {
             int panelId,
             String code,
             String dashboardTitle,
-            String panelTitle, String renderScope, List<Option> deployments, String catalogStatus, Instant catalogUpdatedAt) {
+            String panelTitle, String renderScope, List<Option> deployments, String catalogStatus, Instant catalogUpdatedAt,
+            String deploymentApplicability) {
         public PanelOption(String dashboardUid, int panelId, String code, String dashboardTitle, String panelTitle) {
-            this(dashboardUid, panelId, code, dashboardTitle, panelTitle, null, List.of(), null, null);
+            this(dashboardUid, panelId, code, dashboardTitle, panelTitle, null, List.of(), null, null, "UNKNOWN");
         }
     }
 

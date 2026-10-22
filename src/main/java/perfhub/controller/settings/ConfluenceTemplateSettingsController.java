@@ -57,7 +57,7 @@ public class ConfluenceTemplateSettingsController {
                         option.code(),
                         option.dashboardTitle(),
                         option.panelTitle(), option.renderScope(), option.deployments(),
-                        option.catalogStatus(), option.catalogUpdatedAt()))
+                        option.catalogStatus(), option.catalogUpdatedAt(), option.deploymentApplicability()))
                 .toList();
     }
 

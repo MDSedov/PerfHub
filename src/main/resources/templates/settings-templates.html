@@ -354,6 +354,7 @@
                                         <th scope="col">Порядок</th>
                                         <th scope="col">Название графика</th>
                                         <th scope="col">Код графика</th>
+                                        <th scope="col">Deployment</th>
                                         <th scope="col" class="text-center">Удалить</th>
                                     </tr>
                                     </thead>
@@ -1195,13 +1196,85 @@
         });
     }
 
+    function createChartDeploymentCell(chart, panelOption, index) {
+        const cell = document.createElement('td');
+        cell.className = 'template-chart-deployment';
+        const label = document.createElement('label');
+        label.className = 'visually-hidden';
+        label.htmlFor = `chartDeployment-${index}`;
+        label.textContent = `Deployment строки ${index + 1}`;
+        const select = document.createElement('select');
+        select.id = label.htmlFor;
+        select.className = 'form-select';
+        const hint = document.createElement('div');
+        hint.id = `${select.id}-hint`;
+        hint.className = 'visually-hidden';
+        select.setAttribute('aria-describedby', hint.id);
+
+        const applicability = panelOption?.deploymentApplicability
+            ?? (panelOption?.renderScope === 'DROPAPP_DEPLOYMENT' ? 'SUPPORTED' : 'UNKNOWN');
+        const supported = applicability === 'SUPPORTED';
+        const status = panelOption?.catalogStatus;
+        const options = supported && ['READY', 'STALE'].includes(status) && Array.isArray(panelOption?.deployments)
+            ? panelOption.deployments : [];
+        select.disabled = options.length === 0;
+        select.required = supported;
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        if (!chart.dashboardUid || !chart.panelId) {
+            placeholder.textContent = 'Сначала выберите график';
+            hint.textContent = 'Доступность deployment зависит от выбранного графика.';
+        } else if (applicability === 'NOT_APPLICABLE') {
+            placeholder.textContent = 'Не применяется';
+            hint.textContent = 'Этот график не поддерживает выбор deployment.';
+            if (status === 'STALE') {
+                hint.textContent += ' Метаданные устарели; обновите их проверкой подключения Grafana.';
+            }
+        } else if (!supported || !['READY', 'STALE', 'EMPTY'].includes(status)) {
+            placeholder.textContent = supported ? 'Каталог недоступен' : 'Применимость не определена';
+            hint.textContent = 'Метаданные или список deployment недоступны. Выполните проверку подключения Grafana.';
+        } else if (options.length === 0) {
+            placeholder.textContent = 'Нет доступных deployment';
+            hint.textContent = status === 'STALE'
+                ? 'Список устарел и не содержит доступных deployment. Обновите его проверкой подключения Grafana.'
+                : 'Каталог обновлён: доступных deployment нет. Сохранённое значение можно оставить для исторического графика.';
+        } else {
+            placeholder.textContent = 'Выберите deployment';
+            hint.textContent = status === 'STALE'
+                ? 'Список устарел. Обновите его проверкой подключения Grafana. Все pod показываются на одном графике.'
+                : 'Все pod выбранного deployment показываются на одном графике.';
+        }
+        select.appendChild(placeholder);
+        options.forEach(option => {
+            const item = document.createElement('option');
+            item.value = option.value;
+            item.textContent = option.text;
+            select.appendChild(item);
+        });
+        if (chart.deployment && !options.some(option => option.value === chart.deployment)) {
+            const retained = document.createElement('option');
+            retained.value = chart.deployment;
+            retained.textContent = `${chart.deployment} (сохранённое значение${options.length ? ', отсутствует в каталоге' : ''})`;
+            select.appendChild(retained);
+        }
+        if (status === 'STALE') {
+            Array.from(select.options).forEach(option => { option.textContent += ' (список устарел)'; });
+        }
+        cell.title = hint.textContent;
+        select.title = hint.textContent;
+        select.value = chart.deployment ?? '';
+        select.addEventListener('change', () => { chart.deployment = select.value || null; });
+        cell.append(label, select, hint);
+        return cell;
+    }
+
     function renderTemplateChartsTable() {
         templateChartsTableBody.innerHTML = '';
 
         if (!Array.isArray(activeTemplateDraft.charts) || activeTemplateDraft.charts.length === 0) {
             const emptyRow = document.createElement('tr');
             const emptyCell = document.createElement('td');
-            emptyCell.colSpan = 4;
+            emptyCell.colSpan = 5;
             emptyCell.className = 'text-muted py-3';
             emptyCell.textContent = 'Графики для шаблона пока не добавлены.';
             emptyRow.appendChild(emptyCell);
@@ -1311,44 +1384,8 @@
             const panelOption = findPanelOptionByValue(normalizePanelOptionValue(chart.dashboardUid, chart.panelId));
             if (panelOption?.renderScope === 'DROPAPP_DEPLOYMENT' || chart.renderScope === 'DROPAPP_DEPLOYMENT') {
                 chart.renderScope = 'DROPAPP_DEPLOYMENT';
-                const label = document.createElement('label');
-                label.className = 'form-label small mt-2 mb-1';
-                label.htmlFor = `chartDeployment-${index}`;
-                label.textContent = 'Deployment';
-                const select = document.createElement('select');
-                select.id = label.htmlFor;
-                select.className = 'form-select';
-                select.required = true;
-                const placeholder = document.createElement('option');
-                placeholder.value = '';
-                placeholder.textContent = 'Выберите deployment';
-                select.appendChild(placeholder);
-                const options = Array.isArray(panelOption?.deployments) ? panelOption.deployments : [];
-                options.forEach(option => {
-                    const item = document.createElement('option');
-                    item.value = option.value;
-                    item.textContent = option.text;
-                    select.appendChild(item);
-                });
-                if (chart.deployment && !options.some(option => option.value === chart.deployment)) {
-                    const retained = document.createElement('option');
-                    retained.value = chart.deployment;
-                    retained.textContent = `${chart.deployment} (сохранённое значение, отсутствует в каталоге)`;
-                    select.appendChild(retained);
-                }
-                select.value = chart.deployment ?? '';
-                select.addEventListener('change', () => { chart.deployment = select.value || null; });
-                const hint = document.createElement('div');
-                hint.className = 'form-text';
-                hint.textContent = !panelOption
-                    ? 'Список deployment недоступен. Выполните проверку подключения Grafana.'
-                    : panelOption.catalogStatus === 'STALE'
-                        ? 'Список устарел. Обновите его проверкой подключения Grafana. Все pod показываются на одном графике.'
-                        : options.length === 0
-                            ? 'Каталог обновлён: доступных deployment нет. Сохранённое значение можно оставить для исторического графика.'
-                            : 'Все pod выбранного deployment показываются на одном графике.';
-                codeCell.append(label, select, hint);
             }
+            const deploymentCell = createChartDeploymentCell(chart, panelOption, index);
 
             const removeCell = document.createElement('td');
             removeCell.className = 'text-center';
@@ -1366,6 +1403,7 @@
             row.appendChild(orderCell);
             row.appendChild(titleCell);
             row.appendChild(codeCell);
+            row.appendChild(deploymentCell);
             row.appendChild(removeCell);
             templateChartsTableBody.appendChild(row);
         });

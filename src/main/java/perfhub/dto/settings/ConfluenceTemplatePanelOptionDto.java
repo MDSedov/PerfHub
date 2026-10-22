@@ -9,4 +9,5 @@ public record ConfluenceTemplatePanelOptionDto(
         String renderScope,
         java.util.List<perfhub.dto.grafana.GrafanaRenderDashboard.Option> deployments,
         String catalogStatus,
-        java.time.Instant catalogUpdatedAt) {}
+        java.time.Instant catalogUpdatedAt,
+        String deploymentApplicability) {}

@@ -2945,6 +2945,11 @@ body {
             vertical-align: top;
         }
 
+        .template-charts-table .template-chart-deployment {
+            min-width: 220px;
+            width: 24%;
+        }
+
         .template-chart-order {
             display: inline-flex;
             align-items: center;

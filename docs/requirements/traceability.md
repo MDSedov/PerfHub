@@ -13,7 +13,7 @@ Baseline `baseline-existing-perfhub` официально согласован �
 
 ## Исходный baseline: сводные числа
 
-После штатного архивирования DropApp 22.10.2026 основные specs содержат **49 требований и 126 сценариев в 8 областях**. Таблица ниже сохраняет исторический срез baseline 12.10.2026 (41/93); новые восемь требований и их уровни проверки приведены в разделе DropApp.
+После штатного архивирования DropApp и постоянного поля Deployment 22.10.2026 основные specs содержат **50 требований и 134 сценария в 8 областях**. Таблица ниже сохраняет исторический срез baseline 12.10.2026 (41/93); последующие требования и их уровни проверки приведены в разделах DropApp и постоянного поля Deployment.
 
 | Показатель | Количество |
 |---|---:|
@@ -158,6 +158,15 @@ Baseline `baseline-existing-perfhub` официально согласован �
 | <a id="ph-cfg-006"></a>PH-CFG-006 / S01…03 | [Перенос](../../openspec/specs/connection-settings/spec.md#requirement-ph-cfg-006-перенос-deployment-в-шаблонах-отчётов) | DTO/settings.html, DropAppJsonContractTest/TemplateDeploymentTest/JS; локальный export→production normalizers→offline import→JDBC | A: порядок/deployment сохранены, id назначены заново; не заявляется проверка файлового диалога браузера |
 
 Каждый из **33 сценариев** сопоставлен с фактическим результатом в [Verify](../../openspec/changes/archive/2026-10-22-support-dropapp-repeated-panels/verification.md#матрица-всех-33-сценариев). [Реализация/API/откат](../dropapp-rendering.md), [матрица регрессии](../../openspec/changes/archive/2026-10-22-support-dropapp-repeated-panels/design.md#regression-matrix), [решения и ограничения](gaps-and-decisions.md#dropapp-decisions). НФТ, стек, зависимости, production-конфигурация и основные specs не менялись. Строгая валидация проверяет структуру артефактов; завершение UI Verify подтверждено отдельными результатами браузера, не статусом CLI.
+
+<a id="deployment-field-proposal"></a>
+## Постоянное поле Deployment — Apply/Verify от 22.10.2026
+
+**Review/Apply и отдельные Archive/Git разрешены владельцем 22.10.2026.** Постоянное поле, disabled с причиной и одиночный выбор реализованы и проверены на изолированном стенде. По последующему запросу видимые комментарии убраны, пояснение сохранено в title/ARIA, STALE помечается в вариантах. Штатный CLI перенёс PH-REP-010 / восемь сценариев в [основную спецификацию](../../openspec/specs/reporting-publication/spec.md#requirement-ph-rep-010-постоянное-поле-deployment-в-редакторе-графиков), сохранив прежние требования. Причина отсутствия метаданных в корпоративном запуске остаётся D.
+
+| ID / сценарии | Новый контракт | Основание AS-IS и план проверки | Статус / решение |
+|---|---|---|---|
+| <a id="ph-rep-010"></a>PH-REP-010 / S01…08 | [Постоянная колонка, single-select, disabled с причиной](../../openspec/specs/reporting-publication/spec.md#requirement-ph-rep-010-постоянное-поле-deployment-в-редакторе-графиков) | A: [render/helper поля](../../src/main/resources/templates/settings-templates.html), [локальные метаданные](../../src/main/java/perfhub/service/ConfluenceTemplateSettingsService.java), [service/JDBC](../../src/test/java/perfhub/service/ConfluenceTemplateDeploymentTest.java), [owner/context](../../src/test/java/perfhub/service/GrafanaRenderCatalogServiceTest.java), [JSON/mapping](../../src/test/java/perfhub/service/DropAppJsonContractTest.java). [Матрица всех восьми сценариев](../../openspec/changes/archive/2026-10-22-show-deployment-field-for-all-panels/verification.md#матрица-ph-rep-010): реальный Thymeleaf/браузер, READY/UNKNOWN/EMPTY/STALE, history, explicit change, native drag/PUT/toast/reopen. | A: 166/166 Java-тестов на JDK 17 в безопасной копии, действующие JS-контракты и 15 браузерных контрольных точек PASS; [Verify и ограничения](../../openspec/changes/archive/2026-10-22-show-deployment-field-for-all-panels/verification.md), [G-21](gaps-and-decisions.md#g-21), [Q-15](gaps-and-decisions.md#q-15). G-22/корпоративная причина не закрыты. Штатный Archive выполнен, Git разрешён владельцем. |
 
 ## Сопровождение
 

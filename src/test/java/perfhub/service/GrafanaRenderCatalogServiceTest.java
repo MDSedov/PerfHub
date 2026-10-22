@@ -98,6 +98,34 @@ class GrafanaRenderCatalogServiceTest {
     }
 
     @Test
+    void panelOptionApplicabilityUsesOnlyCurrentOwnerSourceAndVariableContext() {
+        var dashboards = mock(GrafanaDashboardSettingsService.class);
+        when(dashboards.listDashboards()).thenReturn(List.of(new perfhub.dto.settings.GrafanaDashboardDetailsDto(
+                "demo", "dropapp", "DropApp", true,
+                List.of(new perfhub.dto.settings.GrafanaDashboardPanelDto(106, "CPU", true, null, null, false)), List.of())));
+        var templates = new ConfluenceTemplateSettingsService(null, null, null, dashboards, null, service);
+        assertThat(templates.listPanelOptions().get(0).deploymentApplicability()).isEqualTo("UNKNOWN");
+        service.refresh();
+        clearInvocations(client);
+        assertThat(templates.listPanelOptions()).allSatisfy(option ->
+                assertThat(option.deploymentApplicability()).isEqualTo("SUPPORTED"));
+        when(currentUser.currentUserId()).thenReturn(Optional.of(2L));
+        assertThat(templates.listPanelOptions()).singleElement().satisfies(option ->
+                assertThat(option.deploymentApplicability()).isEqualTo("UNKNOWN"));
+        when(currentUser.currentUserId()).thenReturn(Optional.of(1L));
+        for (var changed : List.of(Map.of("namespace", "other"), Map.of("datasource", "other-source"))) {
+            when(variables.loadValues("demo")).thenReturn(changed);
+            assertThat(templates.listPanelOptions()).singleElement().satisfies(option ->
+                    assertThat(option.deploymentApplicability()).isEqualTo("UNKNOWN"));
+        }
+        when(variables.loadValues("demo")).thenReturn(Map.of());
+        repository.rotate(1);
+        assertThat(templates.listPanelOptions()).singleElement().satisfies(option ->
+                assertThat(option.deploymentApplicability()).isEqualTo("UNKNOWN"));
+        verifyNoInteractions(client);
+    }
+
+    @Test
     void regexKeepsTextAndValueDistinctAndUnsupportedQueryDoesNotPublish() {
         var dashboard = DropAppFixtures.snapshot().dashboard();
         var vars = new java.util.LinkedHashMap<>(dashboard.variables());
