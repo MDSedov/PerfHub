@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -29,6 +30,7 @@ public class ConnectionTestService {
     private final DropAppService dropAppService;
     private final ConfigurationProvider configurationProvider;
     private final GrafanaRenderCatalogService renderCatalogService;
+    private final GrafanaCatalogDiagnosticsService catalogDiagnostics;
 
     public ConnectionTestService(
             VictoriaMetricsClient victoriaMetricsClient,
@@ -39,6 +41,21 @@ public class ConnectionTestService {
             DropAppService dropAppService,
             ConfigurationProvider configurationProvider,
             GrafanaRenderCatalogService renderCatalogService) {
+        this(victoriaMetricsClient, gigachatService, grafanaClient, confluenceClient, jiraClient, dropAppService,
+                configurationProvider, renderCatalogService, null);
+    }
+
+    @Autowired
+    public ConnectionTestService(
+            VictoriaMetricsClient victoriaMetricsClient,
+            GigachatService gigachatService,
+            GrafanaClient grafanaClient,
+            ConfluenceClient confluenceClient,
+            JiraClient jiraClient,
+            DropAppService dropAppService,
+            ConfigurationProvider configurationProvider,
+            GrafanaRenderCatalogService renderCatalogService,
+            GrafanaCatalogDiagnosticsService catalogDiagnostics) {
         this.victoriaMetricsClient = victoriaMetricsClient;
         this.gigachatService = gigachatService;
         this.grafanaClient = grafanaClient;
@@ -47,6 +64,7 @@ public class ConnectionTestService {
         this.dropAppService = dropAppService;
         this.configurationProvider = configurationProvider;
         this.renderCatalogService = renderCatalogService;
+        this.catalogDiagnostics = catalogDiagnostics;
     }
 
     public ConnectionTestResponse testConnection(String rawService) {
@@ -101,6 +119,9 @@ public class ConnectionTestService {
         try {
             return renderCatalogService.refresh();
         } catch (RuntimeException ex) {
+            if (catalogDiagnostics != null) {
+                return catalogDiagnostics.unavailable();
+            }
             log.warn("Grafana render catalog refresh failed ({})", ex.getClass().getSimpleName());
             return new perfhub.dto.grafana.GrafanaCatalogResult("UNAVAILABLE",
                     "Grafana доступна, но каталог обновить не удалось. Повторите проверку подключения.", Instant.now());

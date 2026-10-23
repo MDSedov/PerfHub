@@ -98,6 +98,15 @@
 
 Проверка baseline до Apply: статическая трассировка, инвентаризация маршрутов/шаблонов, проверка существования источников и тестовых методов, строгая структурная валидация OpenSpec, сравнение контрольных сумм исходников и прежних артефактов. Ни один сценарий не помечен как подтверждённый работающим приложением. Детали покрытых частей тестов — [матрица](traceability.md). Зелёная валидация OpenSpec не доказывает выполнение приёмочных сценариев.
 
+## Диагностика каталога Grafana — уточнение 23.10.2026
+
+| ID | Факт / риск / предложение | Решение и границы доказательств |
+|---|---|---|
+| <a id="g-23"></a>G-23 / P1 | A/C: фото владельца показывают PARTIAL, UNKNOWN CPU DropApp и GrafanaClientException; [readCatalogJson](../../src/main/java/perfhub/client/GrafanaClient.java) оборачивает ошибку, [refresh](../../src/main/java/perfhub/service/GrafanaRenderCatalogService.java) сообщает только класс | Недостаточная диагностика закрыта согласованным [патчем](../../openspec/changes/diagnose-grafana-catalog-failures/proposal.md): [Verify](../../openspec/changes/diagnose-grafana-catalog-failures/verification.md), 187/187 Java на JDK 17, JS и 13 browser checkpoints. Стадия/HTTP-код конкретного корпоративного отказа остаются D до получения нового файла; selector и права не менялись |
+| <a id="q-16"></a>Q-16 | Владелец попросил исправить код, отправить в Git и сохранять необходимые сведения без работы с отладчиком | Согласовано владельцем 23.10.2026: «согласовано, примени». PH-CFG-007 / S01…09 реализован: ограниченный UTF-8 файл на пользователя, stage/category/HTTP, путь в catalog.message и безопасный отказ записи. [Specs](../../openspec/changes/diagnose-grafana-catalog-failures/specs/connection-settings/spec.md), [design](../../openspec/changes/diagnose-grafana-catalog-failures/design.md), [tasks](../../openspec/changes/diagnose-grafana-catalog-failures/tasks.md) согласованы и проверены, см. [Verify](../../openspec/changes/diagnose-grafana-catalog-failures/verification.md). Commit/push результата разрешены владельцем; Archive, merge/deployment не разрешены |
+
+G-01 (другие секреты в общем логе) и G-22 (игнорирование catalog при импорте) остаются отдельными открытыми пробелами. Новый отчёт не копирует общий журнал; корпоративные API и пользовательская БД при Apply/Verify не использовались. Известные особенности узкой таблицы подключений описаны отдельно в Verify и не исправлялись.
+
 ## Рекомендуемый порядок отдельных изменений (B)
 
 1. Baseline согласован и штатно архивирован с переносом в main specs; 8/41/93 сохранены, строгая проверка пройдена. Q-01…Q-10 остаются в реестре, НФТ-изменения отложены.

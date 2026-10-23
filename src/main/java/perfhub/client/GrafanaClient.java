@@ -7,10 +7,14 @@ import perfhub.dto.grafana.GrafanaVariableOption;
 import perfhub.dto.grafana.GrafanaPanelMetadata;
 import perfhub.dto.grafana.GrafanaRenderOptions;
 import perfhub.exception.GrafanaClientException;
+import perfhub.exception.GrafanaCatalogClientException;
+import perfhub.dto.grafana.GrafanaCatalogDiagnostic.Category;
+import perfhub.dto.grafana.GrafanaCatalogDiagnostic.Stage;
 import perfhub.service.ConfigurationProvider;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,6 +35,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.HttpMessageConverterExtractor;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -207,10 +212,11 @@ public class GrafanaClient {
     }
 
     public List<String> listRenderDashboardUids() {
-        JsonNode result = readCatalogJson(UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
-                .pathSegment("api", "search").queryParam("type", "dash-db").build().encode().toUri());
+        CatalogJson response = readCatalogJson(UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
+                .pathSegment("api", "search").queryParam("type", "dash-db").build().encode().toUri(), Stage.DASHBOARD_SEARCH);
+        JsonNode result = response.body();
         if (!result.isArray()) {
-            throw new GrafanaClientException("Неподдержанный ответ поиска Grafana", null);
+            throw new GrafanaCatalogClientException(Stage.DASHBOARD_SEARCH, Category.INVALID_RESPONSE, response.status(), null);
         }
         List<String> uids = new ArrayList<>();
         result.forEach(item -> {
@@ -223,40 +229,54 @@ public class GrafanaClient {
 
     public JsonNode loadRenderDashboard(String uid) {
         return readCatalogJson(UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
-                .pathSegment("api", "dashboards", "uid", uid).build().encode().toUri());
+                .pathSegment("api", "dashboards", "uid", uid).build().encode().toUri(), Stage.DASHBOARD_LOAD).body();
     }
 
     public List<String> loadDeploymentLabelValues(String datasourceUid, String selector) {
-        JsonNode response = readCatalogJson(UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
+        CatalogJson result = readCatalogJson(UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
                 .pathSegment("api", "datasources", "proxy", "uid", datasourceUid, "api", "v1", "label", "deployment", "values")
-                .queryParam("match[]", selector).build().encode().toUri());
+                .queryParam("match[]", selector).build().encode().toUri(), Stage.DEPLOYMENT_VALUES);
+        JsonNode response = result.body();
         if (!"success".equals(response.path("status").asText()) || !response.path("data").isArray()) {
-            throw new GrafanaClientException("Не удалось получить deployment через Grafana datasource API", null);
+            throw new GrafanaCatalogClientException(Stage.DEPLOYMENT_VALUES, Category.INVALID_RESPONSE, result.status(), null);
         }
         List<String> values = new ArrayList<>();
         for (JsonNode item : response.path("data")) {
             if (!item.isTextual()) {
-                throw new GrafanaClientException("Неподдержанный формат значений deployment", null);
+                throw new GrafanaCatalogClientException(Stage.DEPLOYMENT_VALUES, Category.INVALID_RESPONSE, result.status(), null);
             }
             values.add(item.asText());
         }
         return List.copyOf(values);
     }
 
-    private JsonNode readCatalogJson(URI uri) {
+    private CatalogJson readCatalogJson(URI uri, Stage stage) {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
         headers.setBearerAuth(required(API_KEY_KEY));
         try {
-            JsonNode body = restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(null, headers), JsonNode.class).getBody();
-            if (body == null) {
-                throw new GrafanaClientException("Пустой ответ каталога Grafana", null);
-            }
-            return body;
+            return restTemplate.execute(uri, HttpMethod.GET,
+                    restTemplate.httpEntityCallback(new HttpEntity<>(null, headers), JsonNode.class), response -> {
+                        int status = response.getStatusCode().value();
+                        try {
+                            JsonNode body = new HttpMessageConverterExtractor<>(JsonNode.class,
+                                    restTemplate.getMessageConverters()).extractData(response);
+                            if (body == null) {
+                                throw new GrafanaCatalogClientException(stage, Category.INVALID_RESPONSE, status, null);
+                            }
+                            return new CatalogJson(body, status);
+                        } catch (IOException | RestClientException ex) {
+                            throw new GrafanaCatalogClientException(stage, Category.INVALID_RESPONSE, status, ex);
+                        }
+                    });
+        } catch (RestClientResponseException ex) {
+            throw new GrafanaCatalogClientException(stage, Category.HTTP_ERROR, ex.getStatusCode().value(), ex);
         } catch (RestClientException ex) {
-            throw new GrafanaClientException("Не удалось обновить каталог Grafana", ex);
+            throw new GrafanaCatalogClientException(stage, Category.TRANSPORT_ERROR, null, ex);
         }
     }
+
+    private record CatalogJson(JsonNode body, int status) {}
 
     private void validatePngResponse(ResponseEntity<byte[]> response, byte[] body, URI uri) {
         MediaType contentType = response.getHeaders().getContentType();

@@ -2,6 +2,14 @@
 
 Baseline `baseline-existing-perfhub` официально согласован владельцем 12.10.2026, исходники `main`/`f3498db`. [Результат review](baseline-review.md). **A** означает факты реализации, **B** — последующие неутверждённые предложения; ошибки и нерешённые политики **C/D** находятся в [реестре](gaps-and-decisions.md). После штатного переноса ссылки требований ведут в основные specs.
 
+## Диагностика каталога Grafana — согласованный Apply/Verify 23.10.2026
+
+[diagnose-grafana-catalog-failures](../../openspec/changes/diagnose-grafana-catalog-failures/proposal.md) согласован владельцем отдельным сообщением «согласовано, примени». [Delta specs](../../openspec/changes/diagnose-grafana-catalog-failures/specs/connection-settings/spec.md), [design](../../openspec/changes/diagnose-grafana-catalog-failures/design.md), [tasks](../../openspec/changes/diagnose-grafana-catalog-failures/tasks.md) применены и проверены: [Verify](../../openspec/changes/diagnose-grafana-catalog-failures/verification.md), 187/187 Java-тестов на JDK 17, JS contracts и 13 browser checkpoints. Archive не запрошен: основной baseline и его сводные числа не менялись. Commit/push результата разрешены владельцем; merge/deployment не разрешены.
+
+| ID / сценарии | Согласованный контракт | Реализация и доказательства | Границы |
+|---|---|---|---|
+| <a id="ph-cfg-007"></a>PH-CFG-007 / S01…09 | Читаемый безопасный файл последней проверки Grafana, этап/категория/HTTP-код, путь в catalog.message; отказ записи не меняет каталог | A: [клиент](../../src/main/java/perfhub/client/GrafanaClient.java), [сервис каталога](../../src/main/java/perfhub/service/GrafanaRenderCatalogService.java), [запись отчёта](../../src/main/java/perfhub/service/GrafanaCatalogDiagnosticsService.java). T: [HTTP](../../src/test/java/perfhub/client/GrafanaDeploymentClientTest.java), [catalog/in-memory H2/конфиденциальность](../../src/test/java/perfhub/service/GrafanaRenderCatalogServiceTest.java), [файлы/конкурентность/I/O](../../src/test/java/perfhub/service/GrafanaCatalogDiagnosticsServiceTest.java), [fallback](../../src/test/java/perfhub/service/ConnectionTestGrafanaCatalogTest.java); все S01…09 сопоставлены в Verify | Изолированное приложение, синтетический источник и тестовые пользователи. Корпоративная причина остаётся D до отчёта владельца; [G-23/Q-16](gaps-and-decisions.md#q-16). Неперенесённый в main specs согласованный delta, не изменение baseline |
+
 ## Уровни доказательств
 
 - **Код**: изучены вызывающие маршруты/условия и связанные исходники, а не только наличие имени класса.
