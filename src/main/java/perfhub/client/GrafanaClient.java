@@ -233,17 +233,31 @@ public class GrafanaClient {
     }
 
     public List<String> loadDeploymentLabelValues(String datasourceUid, String selector) {
-        CatalogJson result = readCatalogJson(UriComponentsBuilder.fromHttpUrl(required(BASE_URL_KEY))
-                .pathSegment("api", "datasources", "proxy", "uid", datasourceUid, "api", "v1", "label", "deployment", "values")
-                .queryParam("match[]", selector).build().encode().toUri(), Stage.DEPLOYMENT_VALUES);
+        String baseUrl = required(BASE_URL_KEY);
+        String apiKey = required(API_KEY_KEY);
+        Stage stage = Stage.DEPLOYMENT_VALUES;
+        CatalogJson result;
+        try {
+            result = readCatalogJson(UriComponentsBuilder.fromHttpUrl(baseUrl)
+                    .pathSegment("api", "datasources", "proxy", "uid", datasourceUid, "api", "v1", "label", "deployment", "values")
+                    .queryParam("match[]", selector).build().encode().toUri(), stage, apiKey);
+        } catch (GrafanaCatalogClientException ex) {
+            if (ex.category() != Category.HTTP_ERROR || !Integer.valueOf(404).equals(ex.httpStatus())) {
+                throw ex;
+            }
+            stage = Stage.DEPLOYMENT_VALUES_RESOURCES;
+            result = readCatalogJson(UriComponentsBuilder.fromHttpUrl(baseUrl)
+                    .pathSegment("api", "datasources", "uid", datasourceUid, "resources", "api", "v1", "label", "deployment", "values")
+                    .queryParam("match[]", selector).build().encode().toUri(), stage, apiKey);
+        }
         JsonNode response = result.body();
         if (!"success".equals(response.path("status").asText()) || !response.path("data").isArray()) {
-            throw new GrafanaCatalogClientException(Stage.DEPLOYMENT_VALUES, Category.INVALID_RESPONSE, result.status(), null);
+            throw new GrafanaCatalogClientException(stage, Category.INVALID_RESPONSE, result.status(), null);
         }
         List<String> values = new ArrayList<>();
         for (JsonNode item : response.path("data")) {
             if (!item.isTextual()) {
-                throw new GrafanaCatalogClientException(Stage.DEPLOYMENT_VALUES, Category.INVALID_RESPONSE, result.status(), null);
+                throw new GrafanaCatalogClientException(stage, Category.INVALID_RESPONSE, result.status(), null);
             }
             values.add(item.asText());
         }
@@ -251,9 +265,13 @@ public class GrafanaClient {
     }
 
     private CatalogJson readCatalogJson(URI uri, Stage stage) {
+        return readCatalogJson(uri, stage, required(API_KEY_KEY));
+    }
+
+    private CatalogJson readCatalogJson(URI uri, Stage stage, String apiKey) {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        headers.setBearerAuth(required(API_KEY_KEY));
+        headers.setBearerAuth(apiKey);
         try {
             return restTemplate.execute(uri, HttpMethod.GET,
                     restTemplate.httpEntityCallback(new HttpEntity<>(null, headers), JsonNode.class), response -> {
