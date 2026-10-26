@@ -2,6 +2,17 @@
 
 Baseline `baseline-existing-perfhub` официально согласован владельцем 12.10.2026, исходники `main`/`f3498db`. [Результат review](baseline-review.md). **A** означает факты реализации, **B** — последующие неутверждённые предложения; ошибки и нерешённые политики **C/D** находятся в [реестре](gaps-and-decisions.md). После штатного переноса ссылки требований ведут в основные specs.
 
+## Успешная проверка Grafana без служебного вывода — Archive от 26.10.2026
+
+**Review/Apply получены:** владелец уточнил «Диагностический файл тоже не пиши. Согласовано. Реализуй». [Proposal](../../openspec/changes/archive/2026-10-26-quiet-successful-grafana-checks/proposal.md), [specs](../../openspec/changes/archive/2026-10-26-quiet-successful-grafana-checks/specs/connection-settings/spec.md), [design](../../openspec/changes/archive/2026-10-26-quiet-successful-grafana-checks/design.md), [tasks](../../openspec/changes/archive/2026-10-26-quiet-successful-grafana-checks/tasks.md) актуализированы в согласованных границах. Успешные READY/EMPTY скрыты на странице подключений, рутинное INFO и автоматическая запись отчёта отключены, message возвращается без ссылки/ID. Безопасные WARN фактических ошибок и обновление каталога сохранены. 26.10.2026 по отдельной команде владельца выполнен штатный Archive: PH-CFG-005 обновлён и PH-CFG-008 добавлен в основные specs. Исторические согласованные артефакты сохранены; PH-CFG-008 заменяет файловое поведение применённого PH-CFG-007.
+
+| ID / сценарии | Согласованное поведение | Реализация / проверки | Статус |
+|---|---|---|---|
+| PH-CFG-005 / S01…S05, перенесено в main specs | Обновление/API каталога сохраняются; READY/EMPTY без подписи и отдельного toast, ошибки видны | settings-connections.html, ConnectionTestService, GrafanaRenderCatalogService; функциональный UI Verify и сохранение deployment | Реализовано; результаты в [Verify](../../openspec/changes/archive/2026-10-26-quiet-successful-grafana-checks/verification.md) |
+| <a id="ph-cfg-008"></a>PH-CFG-008 / S01…S04, перенесено в main specs | Без рутинного INFO, новых файлов и суффикса message; прежние файлы не изменяются; WARN остаются | GrafanaCatalogDiagnosticsService; appender, subprocess (пустой/заполненный CWD), HTTP/catalog/snapshot и полная безопасная сборка | Реализовано; 204/204 Java-тестов PASS, JDK 17; итоговая матрица в [Verify](../../openspec/changes/archive/2026-10-26-quiet-successful-grafana-checks/verification.md) |
+
+Решение: [Q-18](gaps-and-decisions.md#q-18). Подтверждение владельца о восстановлении deployment: [расследование](../../openspec/changes/fallback-to-grafana-deployment-resources/investigation-2026-10-26.md). Оно не доказывает, какой HTTP-маршрут сработал на стенде. Archive выполнен, commit/push разрешены владельцем 26.10.2026; deployment в эту команду не входит. Текущий baseline после Archive: 8 capabilities, 51 requirement, 139 scenarios.
+
 ## Resources для списка deployment — Apply/Verify от 23.10.2026
 
 **Review/Apply получены 23.10.2026:** владелец ответил «согласовано, примени fallback-to-grafana-deployment-resources» после представления всех артефактов. [Изменение](../../openspec/changes/fallback-to-grafana-deployment-resources/proposal.md) реализовано: один запрос resources того же datasource только после proxy 404. Отчёт владельца подтвердил исходные DEPLOYMENT_VALUES/HTTP_ERROR/404; первопричина и результат нового маршрута на корпоративном стенде остаются D, [G-24/Q-17](gaps-and-decisions.md#q-17). Main specs без изменения, Archive не запрошен.

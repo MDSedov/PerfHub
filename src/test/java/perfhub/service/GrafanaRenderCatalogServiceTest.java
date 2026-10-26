@@ -13,13 +13,10 @@ import perfhub.support.DropAppFixtures;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.net.SocketTimeoutException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -27,6 +24,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.test.web.client.response.MockRestResponseCreators;
 import org.springframework.web.client.RestTemplate;
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -48,8 +46,9 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 
 class GrafanaRenderCatalogServiceTest {
-    @TempDir
-    Path reports;
+    private Logger diagnosticLogger;
+    private Level previousLogLevel;
+    private ListAppender<ILoggingEvent> diagnosticEvents;
     private EmbeddedDatabase database;
     private GrafanaClient client;
     private GrafanaRenderCatalogRepository repository;
@@ -74,10 +73,21 @@ class GrafanaRenderCatalogServiceTest {
         when(client.loadDeploymentLabelValues(anyString(),anyString())).thenReturn(List.of("profile","other","$__all","All","profile"));
         when(variables.loadValues(anyString())).thenReturn(Map.of());
         service = new GrafanaRenderCatalogService(client,parser,repository,currentUser,variables);
+        diagnosticLogger = (Logger) LoggerFactory.getLogger(GrafanaCatalogDiagnosticsService.class);
+        previousLogLevel = diagnosticLogger.getLevel();
+        diagnosticLogger.setLevel(Level.INFO);
+        diagnosticEvents = new ListAppender<>();
+        diagnosticEvents.start();
+        diagnosticLogger.addAppender(diagnosticEvents);
     }
 
     @AfterEach
-    void close() { database.shutdown(); }
+    void close() {
+        diagnosticLogger.detachAppender(diagnosticEvents);
+        diagnosticLogger.setLevel(previousLogLevel);
+        diagnosticEvents.stop();
+        database.shutdown();
+    }
 
     @Test
     void refreshPreservesLiteralSelectorAndLocalReadDoesNotCallGrafanaOrNfrDiscover() {
@@ -170,90 +180,102 @@ class GrafanaRenderCatalogServiceTest {
     }
 
     @Test
-    void reportsPartialPerDashboardThenReplacesItOnRecoveryWithoutExtraRequests() throws Exception {
+    void warnsForFailedDashboardThenRecoversWithoutRoutineLogsOrExtraRequests() {
         service = withDiagnostics(repository);
         when(client.listRenderDashboardUids()).thenReturn(List.of("demo", "private-dashboard"));
         when(client.loadRenderDashboard("private-dashboard")).thenThrow(new GrafanaCatalogClientException(
                 Stage.DASHBOARD_LOAD, Category.HTTP_ERROR, 404, new IllegalStateException("private-response")));
         var partial = service.refresh();
         assertThat(partial.status()).isEqualTo("PARTIAL");
-        assertThat(partial.message()).contains("logs/grafana-catalog-diagnostics-user-1.txt");
-        String old = reportText();
-        assertThat(old).contains("Обновлено дашбордов: 1", "Ошибок дашбордов: 1", "Общих ошибок: 0", "DASHBOARD_LOAD", "HTTP: 404")
+        assertThat(partial.message()).doesNotContain("logs/", "Диагностика", "ID проверки");
+        assertThat(diagnosticEvents.list).hasSize(1);
+        assertThat(warningText()).contains("stage=DASHBOARD_LOAD", "category=HTTP_ERROR", "http=404")
                 .doesNotContain("private-dashboard", "private-response");
+        assertThat(service.localSnapshots()).hasSize(1);
+        diagnosticEvents.list.clear();
         when(client.listRenderDashboardUids()).thenReturn(List.of("demo"));
         assertThat(service.refresh().status()).isEqualTo("READY");
-        String recovered = reportText();
-        assertThat(recovered).contains("Результат: READY", "Ошибок дашбордов: 0").doesNotContain("HTTP: 404");
-        assertThat(recovered).isNotEqualTo(old);
+        assertThat(diagnosticEvents.list).isEmpty();
         clearInvocations(client);
         assertThat(service.findPanel("demo", 106)).isPresent();
-        assertThat(reportText()).isEqualTo(recovered);
+        assertThat(diagnosticEvents.list).isEmpty();
         verifyNoInteractions(client);
     }
 
     @Test
-    void searchFailureCountsAsGlobalAndRetainsPreviouslyPublishedSnapshot() throws Exception {
+    void searchFailureWarnsAndRetainsPreviouslyPublishedSnapshot() {
         service = withDiagnostics(repository);
         service.refresh();
         when(client.listRenderDashboardUids()).thenThrow(new GrafanaCatalogClientException(
                 Stage.DASHBOARD_SEARCH, Category.TRANSPORT_ERROR, null, new IllegalStateException("private-error")));
         assertThat(service.refresh().status()).isEqualTo("STALE");
-        assertThat(reportText()).contains("Ошибок дашбордов: 0", "Общих ошибок: 1", "DASHBOARD_SEARCH", "TRANSPORT_ERROR", "HTTP: отсутствует")
+        assertThat(diagnosticEvents.list).hasSize(1);
+        assertThat(warningText()).contains("stage=DASHBOARD_SEARCH", "category=TRANSPORT_ERROR", "http=null")
                 .doesNotContain("private-error");
         assertThat(service.localSnapshots().get(0).stale()).isTrue();
     }
 
     @Test
-    void reportsParserAndInvalidContextWithoutPublishingSnapshot() throws Exception {
+    void warnsForParserAndInvalidContextWithoutPublishingSnapshot() {
         service = withDiagnostics(repository);
         when(parser.parse(eq("demo"), any())).thenThrow(new IllegalArgumentException("private-metadata"));
         assertThat(service.refresh().status()).isEqualTo("UNAVAILABLE");
-        assertThat(reportText()).contains("DASHBOARD_PARSE", "UNSUPPORTED_METADATA").doesNotContain("private-metadata");
+        assertThat(diagnosticEvents.list).hasSize(1);
+        assertThat(warningText()).contains("stage=DASHBOARD_PARSE", "category=UNSUPPORTED_METADATA").doesNotContain("private-metadata");
+        diagnosticEvents.list.clear();
         doReturn(DropAppFixtures.snapshot().dashboard()).when(parser).parse(eq("demo"), any());
         when(variables.loadValues("demo")).thenReturn(Map.of("namespace", "*private-namespace"));
         clearInvocations(client);
         assertThat(service.refresh().status()).isEqualTo("UNAVAILABLE");
-        assertThat(reportText()).contains("DEPLOYMENT_CONTEXT", "INVALID_CONTEXT").doesNotContain("private-namespace");
+        assertThat(diagnosticEvents.list).hasSize(1);
+        assertThat(warningText()).contains("stage=DEPLOYMENT_CONTEXT", "category=INVALID_CONTEXT").doesNotContain("private-namespace");
         verify(client, never()).loadDeploymentLabelValues(anyString(), anyString());
+        diagnosticEvents.list.clear();
         when(variables.loadValues("demo")).thenReturn(Map.of("datasource", "$private-source"));
         assertThat(service.refresh().status()).isEqualTo("UNAVAILABLE");
-        assertThat(reportText()).contains("DEPLOYMENT_CONTEXT", "INVALID_CONTEXT").doesNotContain("private-source");
+        assertThat(diagnosticEvents.list).hasSize(1);
+        assertThat(warningText()).contains("stage=DEPLOYMENT_CONTEXT", "category=INVALID_CONTEXT").doesNotContain("private-source");
         assertThat(service.localSnapshots()).isEmpty();
     }
 
     @Test
-    void recordsContextChangeAndRejectedLatePublication() throws Exception {
+    void warnsForContextChangeAndRejectedLatePublication() {
         service = withDiagnostics(repository);
         when(variables.loadValues("demo")).thenReturn(Map.of(), Map.of("namespace", "other"));
         assertThat(service.refresh().status()).isEqualTo("UNAVAILABLE");
-        assertThat(reportText()).contains("Этап: CONTEXT_CHECK", "Категория: CONTEXT_CHANGED", "HTTP: отсутствует");
+        assertThat(diagnosticEvents.list).hasSize(1);
+        assertThat(warningText()).contains("stage=CONTEXT_CHECK", "category=CONTEXT_CHANGED", "http=null");
+        diagnosticEvents.list.clear();
         when(variables.loadValues("demo")).thenReturn(Map.of());
         when(client.loadDeploymentLabelValues(anyString(), anyString())).thenAnswer(call -> {
             repository.rotate(1);
             return List.of("profile");
         });
         assertThat(service.refresh().status()).isEqualTo("UNAVAILABLE");
-        assertThat(reportText()).contains("Этап: SNAPSHOT_PUBLISH", "Категория: CONTEXT_CHANGED");
+        assertThat(diagnosticEvents.list).hasSize(1);
+        assertThat(warningText()).contains("stage=SNAPSHOT_PUBLISH", "category=CONTEXT_CHANGED");
         assertThat(service.localSnapshots()).isEmpty();
     }
 
     @Test
-    void reportsStorageFailureBeforeLoopWithoutLeakingException() throws Exception {
+    void warnsForStorageFailureWithoutLeakingException() {
         var broken = mock(GrafanaRenderCatalogRepository.class);
         when(broken.revision(1)).thenThrow(new IllegalStateException("private-storage"));
         service = withDiagnostics(broken);
         assertThat(service.refresh().status()).isEqualTo("UNAVAILABLE");
-        assertThat(reportText()).contains("CATALOG_INITIALIZE", "LOCAL_STORAGE_ERROR", "Общих ошибок: 1").doesNotContain("private-storage");
+        assertThat(diagnosticEvents.list).hasSize(1);
+        assertThat(warningText()).contains("stage=CATALOG_INITIALIZE", "category=LOCAL_STORAGE_ERROR").doesNotContain("private-storage");
         verifyNoInteractions(client);
+        diagnosticEvents.list.clear();
         doReturn("test-revision").when(broken).revision(1);
         when(broken.save(eq(1L), eq("test-revision"), any())).thenThrow(new IllegalStateException("private-save"));
         assertThat(service.refresh().status()).isEqualTo("UNAVAILABLE");
-        assertThat(reportText()).contains("SNAPSHOT_PUBLISH", "LOCAL_STORAGE_ERROR", "Ошибок дашбордов: 1").doesNotContain("private-save");
+        assertThat(diagnosticEvents.list).hasSize(1);
+        assertThat(warningText()).contains("stage=SNAPSHOT_PUBLISH", "category=LOCAL_STORAGE_ERROR").doesNotContain("private-save");
     }
 
     @Test
-    void realHttpFailureProducesSafeFileLogsAndConnectionResponse() throws Exception {
+    void realHttpFailureKeepsSafeWarningAndConnectionResponse() throws Exception {
         var rest = new RestTemplate();
         var http = MockRestServiceServer.createServer(rest);
         var settings = Map.of("base-url", "http://grafana.example/private-base", "api-key", "private-token");
@@ -275,7 +297,7 @@ class GrafanaRenderCatalogServiceTest {
         when(parser.parse(eq("private-uid"), any())).thenReturn(new GrafanaRenderDashboard(dashboard.uid(),
                 dashboard.slug(), "private-title", dashboard.panels(), dashboard.variables()));
         when(variables.loadValues("demo")).thenReturn(Map.of("namespace", "private-namespace"));
-        var diagnostics = new GrafanaCatalogDiagnosticsService(currentUser, reports);
+        var diagnostics = new GrafanaCatalogDiagnosticsService();
         service = new GrafanaRenderCatalogService(transport, parser, repository, currentUser, variables, diagnostics);
         when(client.checkHealth()).thenReturn("ok");
         var connection = new ConnectionTestService(null, null, client, null, null, null, null, service, diagnostics);
@@ -288,12 +310,12 @@ class GrafanaRenderCatalogServiceTest {
             assertThat(result.success()).isTrue();
             assertThat(result.message()).isEqualTo("Grafana ответила: ok");
             assertThat(result.catalog().status()).isEqualTo("UNAVAILABLE");
-            String text = reportText();
-            assertThat(text).contains("DEPLOYMENT_VALUES", "HTTP: 403", "HTTP_ERROR");
+            String text = warningText();
+            assertThat(text).contains("stage=DEPLOYMENT_VALUES", "http=403", "category=HTTP_ERROR");
             String[] secrets = {"private-base", "private-token", "private-uid", "private-title", "private-namespace", "private-response", "forged-log", "Authorization", "http://"};
             assertThat(text).doesNotContain(secrets);
             assertThat(mapper.writeValueAsString(result)).doesNotContain(secrets);
-            assertThat(events.list).allSatisfy(event -> {
+            assertThat(events.list).hasSize(1).allSatisfy(event -> {
                 assertThat(event.getFormattedMessage()).doesNotContain(secrets);
                 assertThat(event.getThrowableProxy()).isNull();
             });
@@ -309,7 +331,7 @@ class GrafanaRenderCatalogServiceTest {
 
     @Test
     void resourcesRecoveryPublishesFilteredOptionsThenEmptyWithoutRequestsOnLocalRead() throws Exception {
-        var http = useHttpCatalog(reports);
+        var http = useHttpCatalog();
         expectCatalogRead(http);
         expectDeploymentRead(http, false, MockRestResponseCreators.withStatus(HttpStatus.NOT_FOUND));
         expectDeploymentRead(http, true, MockRestResponseCreators.withSuccess(
@@ -319,14 +341,12 @@ class GrafanaRenderCatalogServiceTest {
             assertThat(snapshot.stale()).isFalse();
             assertThat(snapshot.deployments()).extracting(o -> o.value()).containsExactly("other", "profile");
         });
-        assertThat(reportText()).contains("Результат: READY", "Ошибок дашбордов: 0", "Доступных deployment: 2")
-                .doesNotContain("HTTP: 404", "Этап:");
-        String report = reportText();
+        assertThat(diagnosticEvents.list).isEmpty();
         assertThat(service.findPanel("demo", 106)).isPresent();
         when(currentUser.currentUserId()).thenReturn(Optional.of(2L));
         assertThat(service.localSnapshots()).isEmpty();
         when(currentUser.currentUserId()).thenReturn(Optional.of(1L));
-        assertThat(reportText()).isEqualTo(report);
+        assertThat(diagnosticEvents.list).isEmpty();
         http.verify();
         http.reset();
         expectCatalogRead(http);
@@ -337,14 +357,15 @@ class GrafanaRenderCatalogServiceTest {
             assertThat(snapshot.stale()).isFalse();
             assertThat(snapshot.deployments()).isEmpty();
         });
-        assertThat(reportText()).contains("Результат: EMPTY", "Ошибок дашбордов: 0").doesNotContain("HTTP: 404");
+        assertThat(diagnosticEvents.list).isEmpty();
         http.verify();
     }
 
     @Test
     void resourcesFailureCountsDashboardOnceForUnavailableAndPartialCatalogs() throws Exception {
-        var http = useHttpCatalog(reports);
+        var http = useHttpCatalog();
         for (boolean ordinary : List.of(false, true)) {
+            diagnosticEvents.list.clear();
             http.expect(request -> assertThat(request.getURI().getPath()).endsWith("/api/search"))
                     .andRespond(MockRestResponseCreators.withSuccess(ordinary ? "[{\"uid\":\"demo\"},{\"uid\":\"ordinary\"}]" : "[{\"uid\":\"demo\"}]", MediaType.APPLICATION_JSON));
             expectDashboardRead(http);
@@ -357,8 +378,9 @@ class GrafanaRenderCatalogServiceTest {
                         .andRespond(MockRestResponseCreators.withSuccess("{}", MediaType.APPLICATION_JSON));
             }
             assertThat(service.refresh().status()).isEqualTo(ordinary ? "PARTIAL" : "UNAVAILABLE");
-            assertThat(reportText()).contains("Обновлено дашбордов: " + (ordinary ? 1 : 0), "Ошибок дашбордов: 1", "Общих ошибок: 0",
-                    "Этап: DEPLOYMENT_VALUES_RESOURCES", "HTTP: 500");
+            assertThat(diagnosticEvents.list).hasSize(1);
+            assertThat(warningText()).contains("stage=DEPLOYMENT_VALUES_RESOURCES", "category=HTTP_ERROR", "http=500");
+            assertThat(service.localSnapshots()).hasSize(ordinary ? 1 : 0);
             assertThat(service.findPanel("demo", 106)).isEmpty();
             if (ordinary) {
                 assertThat(service.findPanel("ordinary", 1)).isPresent();
@@ -370,14 +392,14 @@ class GrafanaRenderCatalogServiceTest {
 
     @Test
     void resourcesFailuresKeepStaleCatalogAndSafeTerminalDiagnostics() throws Exception {
-        var http = useHttpCatalog(reports);
+        var http = useHttpCatalog();
         expectCatalogRead(http);
         expectDeploymentRead(http, false, MockRestResponseCreators.withSuccess("{\"status\":\"success\",\"data\":[\"profile\"]}", MediaType.APPLICATION_JSON));
         assertThat(service.refresh().status()).isEqualTo("READY");
         http.verify();
         http.reset();
         when(client.checkHealth()).thenReturn("ok");
-        var diagnostics = new GrafanaCatalogDiagnosticsService(currentUser, reports);
+        var diagnostics = new GrafanaCatalogDiagnosticsService();
         var connection = new ConnectionTestService(null, null, client, null, null, null, null, service, diagnostics);
         List<ResponseCreator> failures = List.of(
                 MockRestResponseCreators.withStatus(HttpStatus.FORBIDDEN).body("private-response\nforged-log"),
@@ -389,6 +411,7 @@ class GrafanaRenderCatalogServiceTest {
         logger.addAppender(events);
         try {
             for (int i = 0; i < failures.size(); i++) {
+                diagnosticEvents.list.clear();
                 expectCatalogRead(http);
                 expectDeploymentRead(http, false, MockRestResponseCreators.withStatus(HttpStatus.NOT_FOUND).body("private-proxy-response\nforged-proxy"));
                 expectDeploymentRead(http, true, failures.get(i));
@@ -396,17 +419,18 @@ class GrafanaRenderCatalogServiceTest {
                 assertThat(result.success()).isTrue();
                 assertThat(result.message()).isEqualTo("Grafana ответила: ok");
                 assertThat(result.catalog().status()).isEqualTo("STALE");
-                assertThat(reportText()).contains("Этап: DEPLOYMENT_VALUES_RESOURCES", "Ошибок дашбордов: 1", "Общих ошибок: 0",
-                        "HTTP: " + List.of("403", "200", "отсутствует").get(i),
-                        "Категория: " + List.of("HTTP_ERROR", "INVALID_RESPONSE", "TRANSPORT_ERROR").get(i));
+                assertThat(diagnosticEvents.list).hasSize(1);
+                assertThat(warningText()).contains("stage=DEPLOYMENT_VALUES_RESOURCES",
+                        "http=" + List.of("403", "200", "null").get(i),
+                        "category=" + List.of("HTTP_ERROR", "INVALID_RESPONSE", "TRANSPORT_ERROR").get(i));
                 assertThat(service.localSnapshots()).singleElement().satisfies(snapshot -> {
                     assertThat(snapshot.stale()).isTrue();
                     assertThat(snapshot.deployments()).extracting(o -> o.value()).containsExactly("profile");
                 });
                 String[] secrets = {"private-base", "private-token", "demo-source", "private-namespace", "private-response", "private-proxy-response", "forged-log", "forged-proxy", "Authorization", "http://"};
-                assertThat(reportText()).doesNotContain(secrets);
+                assertThat(warningText()).doesNotContain(secrets);
                 assertThat(mapper.writeValueAsString(result)).doesNotContain(secrets);
-                assertThat(events.list).isNotEmpty().allSatisfy(event -> {
+                assertThat(events.list).hasSize(1).allSatisfy(event -> {
                     assertThat(event.getFormattedMessage()).doesNotContain(secrets);
                     assertThat(event.getThrowableProxy()).isNull();
                 });
@@ -422,8 +446,9 @@ class GrafanaRenderCatalogServiceTest {
 
     @Test
     void resourcesSuccessDoesNotPublishAfterNamespaceOrRevisionChanges() throws Exception {
-        var http = useHttpCatalog(reports);
+        var http = useHttpCatalog();
         for (boolean rotate : List.of(false, true)) {
+            diagnosticEvents.list.clear();
             when(variables.loadValues("demo")).thenReturn(Map.of("namespace", "private-namespace"));
             expectCatalogRead(http);
             expectDeploymentRead(http, false, MockRestResponseCreators.withStatus(HttpStatus.NOT_FOUND));
@@ -436,7 +461,8 @@ class GrafanaRenderCatalogServiceTest {
                 return MockRestResponseCreators.withSuccess("{\"status\":\"success\",\"data\":[\"profile\"]}", MediaType.APPLICATION_JSON).createResponse(request);
             });
             assertThat(service.refresh().status()).isEqualTo("UNAVAILABLE");
-            assertThat(reportText()).contains("Этап: " + (rotate ? "SNAPSHOT_PUBLISH" : "CONTEXT_CHECK"), "Категория: CONTEXT_CHANGED");
+            assertThat(diagnosticEvents.list).hasSize(1);
+            assertThat(warningText()).contains("stage=" + (rotate ? "SNAPSHOT_PUBLISH" : "CONTEXT_CHECK"), "category=CONTEXT_CHANGED");
             assertThat(service.localSnapshots()).isEmpty();
             http.verify();
             http.reset();
@@ -444,23 +470,21 @@ class GrafanaRenderCatalogServiceTest {
     }
 
     @Test
-    void resourcesRecoveryStaysReadyWhenDiagnosticDirectoryIsBlocked() throws Exception {
-        Path blocked = reports.resolve("blocked");
-        Files.writeString(blocked, "synthetic");
-        var http = useHttpCatalog(blocked);
+    void resourcesRecoveryKeepsSuccessfulMessageWithoutDiagnosticSuffix() {
+        var http = useHttpCatalog();
         expectCatalogRead(http);
         expectDeploymentRead(http, false, MockRestResponseCreators.withStatus(HttpStatus.NOT_FOUND));
         expectDeploymentRead(http, true, MockRestResponseCreators.withSuccess("{\"status\":\"success\",\"data\":[\"profile\"]}", MediaType.APPLICATION_JSON));
         var result = service.refresh();
         assertThat(result.status()).isEqualTo("READY");
-        assertThat(result.message()).contains("Не удалось сохранить диагностику этой проверки");
+        assertThat(result.message()).isEqualTo("Каталог графиков и deployment обновлён.");
+        assertThat(diagnosticEvents.list).isEmpty();
         assertThat(service.localSnapshots()).singleElement().satisfies(snapshot ->
                 assertThat(snapshot.deployments()).extracting(o -> o.value()).containsExactly("profile"));
-        assertThat(Files.readString(blocked)).isEqualTo("synthetic");
         http.verify();
     }
 
-    private MockRestServiceServer useHttpCatalog(Path directory) {
+    private MockRestServiceServer useHttpCatalog() {
         var rest = new RestTemplate();
         var http = MockRestServiceServer.createServer(rest);
         var settings = Map.of("base-url", "http://grafana.example/private-base", "api-key", "private-token");
@@ -470,7 +494,7 @@ class GrafanaRenderCatalogServiceTest {
         });
         when(variables.loadValues("demo")).thenReturn(Map.of("namespace", "private-namespace"));
         service = new GrafanaRenderCatalogService(transport, parser, repository, currentUser, variables,
-                new GrafanaCatalogDiagnosticsService(currentUser, directory));
+                new GrafanaCatalogDiagnosticsService());
         return http;
     }
 
@@ -497,10 +521,14 @@ class GrafanaRenderCatalogServiceTest {
 
     private GrafanaRenderCatalogService withDiagnostics(GrafanaRenderCatalogRepository source) {
         return new GrafanaRenderCatalogService(client, parser, source, currentUser, variables,
-                new GrafanaCatalogDiagnosticsService(currentUser, reports));
+                new GrafanaCatalogDiagnosticsService());
     }
 
-    private String reportText() throws Exception {
-        return Files.readString(reports.resolve("grafana-catalog-diagnostics-user-1.txt"));
+    private String warningText() {
+        assertThat(diagnosticEvents.list).isNotEmpty().allSatisfy(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(event.getThrowableProxy()).isNull();
+        });
+        return String.join("\n", diagnosticEvents.list.stream().map(ILoggingEvent::getFormattedMessage).toList());
     }
 }

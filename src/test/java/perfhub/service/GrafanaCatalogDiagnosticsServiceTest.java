@@ -6,185 +6,165 @@ import perfhub.dto.grafana.GrafanaCatalogDiagnostic.Failure;
 import perfhub.dto.grafana.GrafanaCatalogDiagnostic.Stage;
 import perfhub.dto.grafana.GrafanaCatalogDiagnostic.State;
 import perfhub.dto.grafana.GrafanaCatalogResult;
-import perfhub.security.CurrentUserProvider;
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 class GrafanaCatalogDiagnosticsServiceTest {
     @TempDir
     Path directory;
+    private final GrafanaCatalogDiagnosticsService service = new GrafanaCatalogDiagnosticsService();
+    private Logger logger;
+    private Level previousLevel;
+    private ListAppender<ILoggingEvent> events;
 
-    @Test
-    void replacesPreviousFailureWithSuccessfulReportWithoutHistory() throws Exception {
-        var service = service(directory.resolve("logs"));
-        var failed = report(State.PARTIAL, 1);
-        var original = result(State.PARTIAL);
-        var published = service.publish(1L, failed, original);
-        assertThat(published.status()).isEqualTo(original.status());
-        assertThat(published.updatedAt()).isEqualTo(original.updatedAt());
-        assertThat(published.message()).startsWith(original.message()).contains("logs/grafana-catalog-diagnostics-user-1.txt", failed.checkId().toString());
-        Path file = directory.resolve("logs/grafana-catalog-diagnostics-user-1.txt");
-        assertThat(Files.readString(file)).contains("HTTP: 403", "DEPLOYMENT_VALUES", "Результат: PARTIAL");
-        var successful = report(State.READY, 0);
-        service.publish(1L, successful, result(State.READY));
-        assertThat(Files.readString(file)).contains(successful.checkId().toString(), "Результат: READY")
-                .doesNotContain(failed.checkId().toString(), "HTTP: 403");
-        try (var files = Files.list(directory.resolve("logs"))) {
-            assertThat(files.map(p -> p.getFileName().toString()).toList()).containsExactly("grafana-catalog-diagnostics-user-1.txt");
-        }
-    }
-
-    @Test
-    void boundsReportAndCountsEveryOmittedFailure() throws Exception {
-        var report = report(State.UNAVAILABLE, 1000);
-        assertThat(report.failures()).hasSize(100);
-        service(directory).publish(2L, report, result(State.UNAVAILABLE));
-        Path file = directory.resolve("grafana-catalog-diagnostics-user-2.txt");
-        assertThat(Files.size(file)).isLessThanOrEqualTo(GrafanaCatalogDiagnosticsService.MAX_REPORT_BYTES);
-        String text = Files.readString(file);
-        assertThat(text).contains("Пропущено записей ошибок: 900", "HTTP: 403");
-        assertThat(text.split("Этап:", -1)).hasSize(101);
-    }
-
-    @Test
-    void concurrentChecksPublishWholeSeparateReportsForEachUser() throws Exception {
-        var service = service(directory);
-        var executor = Executors.newFixedThreadPool(6);
-        List<GrafanaCatalogDiagnostic> reports = new ArrayList<>();
-        List<Future<GrafanaCatalogResult>> tasks = new ArrayList<>();
-        try {
-            for (int i = 0; i < 24; i++) {
-                var report = report(State.PARTIAL, 1);
-                reports.add(report);
-                long owner = i % 2 + 1;
-                tasks.add(executor.submit(() -> service.publish(owner, report, result(State.PARTIAL))));
-            }
-            for (var task : tasks) {
-                assertThat(task.get().message()).contains("Диагностика: logs/");
-            }
-        } finally {
-            executor.shutdownNow();
-        }
-        for (long owner : List.of(1L, 2L)) {
-            String text = Files.readString(directory.resolve("grafana-catalog-diagnostics-user-" + owner + ".txt"));
-            assertThat(reports.stream().filter(r -> text.contains(r.checkId().toString())).count()).isEqualTo(1);
-            assertThat(text).contains("Категория: HTTP_ERROR", "HTTP: 403").endsWith("\n");
-        }
-        try (var files = Files.list(directory)) {
-            assertThat(files.count()).isEqualTo(2);
-        }
-    }
-
-    @Test
-    void blockedDirectoryPreservesResultAndDoesNotClaimOldReportIsCurrent() throws Exception {
-        Path blocked = directory.resolve("blocked");
-        Files.writeString(blocked, "synthetic-secret");
-        var service = service(blocked);
-        var original = result(State.PARTIAL);
-        var published = service.publish(3L, report(State.PARTIAL, 1), original);
-        assertThat(published.status()).isEqualTo(original.status());
-        assertThat(published.updatedAt()).isEqualTo(original.updatedAt());
-        assertThat(published.message()).startsWith(original.message()).contains("Не удалось сохранить диагностику этой проверки")
-                .doesNotContain("Диагностика: logs/", "synthetic-secret", blocked.toString());
-    }
-
-    @Test
-    void createWriteAndMoveFailuresRetainOldFileAndCleanTemporaryFiles() throws Exception {
-        var original = result(State.STALE);
-        Path file = directory.resolve("grafana-catalog-diagnostics-user-1.txt");
-        for (String operation : List.of("create", "write", "move")) {
-            Files.writeString(file, "previous report");
-            var service = spy(service(directory));
-            var failure = new IOException("synthetic-secret\nforged-log");
-            switch (operation) {
-                case "create" -> doThrow(failure).when(service).createDirectory();
-                case "write" -> doThrow(failure).when(service).writeTemporary(any(), any());
-                case "move" -> doThrow(failure).when(service).replaceFile(any(), any());
-                default -> throw new AssertionError();
-            }
-            var published = service.publish(1L, report(State.STALE, 1), original);
-            assertThat(published.status()).isEqualTo("STALE");
-            assertThat(published.updatedAt()).isEqualTo(original.updatedAt());
-            assertThat(published.message()).contains("Не удалось сохранить диагностику этой проверки").doesNotContain("synthetic-secret", "previous report");
-            assertThat(Files.readString(file)).isEqualTo("previous report");
-            try (var files = Files.list(directory)) {
-                assertThat(files.count()).isEqualTo(1);
-            }
-        }
-    }
-
-    @Test
-    void cleanupFailureIsSafeAndDoesNotChangeSuccessfulPublication() throws Exception {
-        var service = spy(service(directory));
-        doThrow(new IOException("synthetic-secret")).when(service).deleteTemporary(any());
-        var published = service.publish(1L, report(State.READY, 0), result(State.READY));
-        assertThat(published.status()).isEqualTo("READY");
-        assertThat(published.message()).contains("Диагностика: logs/").doesNotContain("synthetic-secret");
-        assertThat(Files.readString(directory.resolve("grafana-catalog-diagnostics-user-1.txt"))).contains("Результат: READY");
-    }
-
-    @Test
-    void unknownUserDoesNotOverwriteGlobalFileAndOnlyAllowlistedFieldsReachLogs() throws Exception {
-        var user = mock(CurrentUserProvider.class);
-        when(user.currentUserId()).thenThrow(new IllegalStateException("synthetic-secret\nforged-log"));
-        var service = new GrafanaCatalogDiagnosticsService(user, directory);
-        Logger logger = (Logger) LoggerFactory.getLogger(GrafanaCatalogDiagnosticsService.class);
-        var events = new ListAppender<ILoggingEvent>();
+    @BeforeEach
+    void captureLogs() {
+        logger = (Logger) LoggerFactory.getLogger(GrafanaCatalogDiagnosticsService.class);
+        previousLevel = logger.getLevel();
+        logger.setLevel(Level.INFO);
+        events = new ListAppender<>();
         events.start();
         logger.addAppender(events);
+    }
+
+    @AfterEach
+    void stopCapturingLogs() {
+        logger.detachAppender(events);
+        logger.setLevel(previousLevel);
+        events.stop();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = State.class, names = {"READY", "EMPTY"})
+    void successfulPublicationKeepsResultWithoutRoutineLogOrDiagnosticSuffix(State state) {
+        var original = result(state);
+        assertThat(service.publish(1L, report(state, 0), original)).isSameAs(original);
+        assertThat(events.list).isEmpty();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = State.class, names = {"PARTIAL", "STALE", "UNAVAILABLE"})
+    void failedPublicationKeepsResultAndOnlyActualFailureWarning(State state) {
+        var original = result(state);
+        assertThat(service.publish(1L, report(state, 1), original)).isSameAs(original);
+        assertThat(events.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(event.getFormattedMessage()).contains("stage=DEPLOYMENT_VALUES", "category=HTTP_ERROR", "http=403")
+                    .doesNotContain("result=", "updated=", "failed=", "globalFailures=", "omitted=");
+            assertThat(event.getThrowableProxy()).isNull();
+        });
+    }
+
+    @Test
+    void boundedFailureWarningsDoNotReintroduceRoutineSummary() {
+        var diagnostic = report(State.UNAVAILABLE, 1000);
+        assertThat(diagnostic.failures()).hasSize(100);
+        assertThat(diagnostic.omittedFailures()).isEqualTo(900);
+        service.publish(2L, diagnostic, result(State.UNAVAILABLE));
+        assertThat(events.list).hasSize(100).allSatisfy(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(event.getFormattedMessage()).contains("stage=DEPLOYMENT_VALUES", "http=403").doesNotContain("result=");
+        });
+    }
+
+    @Test
+    void unexpectedFailureAndUntrustedMetadataProduceOnlySafeWarnings() {
+        var unavailable = service.unavailable();
+        assertThat(unavailable.status()).isEqualTo("UNAVAILABLE");
+        assertThat(unavailable.message()).isEqualTo("Grafana доступна, но каталог обновить не удалось. Повторите проверку подключения.");
+        Instant now = Instant.now();
+        var unsafeKey = new Failure(Stage.DEPLOYMENT_VALUES, Category.HTTP_ERROR, 403, "synthetic-secret\nforged-log");
+        var original = result(State.UNAVAILABLE);
+        assertThat(service.publish(null, new GrafanaCatalogDiagnostic(UUID.randomUUID(), now, now, State.UNAVAILABLE,
+                0, 1, 0, 0, 0, List.of(unsafeKey)), original)).isSameAs(original);
+        assertThat(events.list).hasSize(2).allSatisfy(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(event.getFormattedMessage()).doesNotContain("synthetic-secret", "forged-log", "http://", "Authorization", "result=");
+            assertThat(event.getThrowableProxy()).isNull();
+        });
+        assertThat(events.list.get(0).getFormattedMessage()).contains("stage=CATALOG_INITIALIZE", "category=UNKNOWN", "http=null");
+        assertThat(events.list.get(1).getFormattedMessage()).contains("dashboardKey=null", "stage=DEPLOYMENT_VALUES", "http=403");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void publicationCreatesNoFilesAndLeavesExistingReportsUntouched(boolean existingReports) throws Exception {
+        Path logs = directory.resolve("logs");
+        Path previousReport = logs.resolve("grafana-catalog-diagnostics-user-1.txt");
+        Path unrelatedLog = logs.resolve("unrelated.log");
+        if (existingReports) {
+            Files.createDirectory(logs);
+            Files.writeString(previousReport, "previous diagnostic report");
+            Files.writeString(unrelatedLog, "keep existing log");
+        }
+        var previousModifiedAt = existingReports ? Files.getLastModifiedTime(previousReport) : null;
+        var unrelatedModifiedAt = existingReports ? Files.getLastModifiedTime(unrelatedLog) : null;
+        List<Path> before;
+        try (var paths = Files.walk(directory)) {
+            before = paths.map(directory::relativize).sorted().toList();
+        }
+        String javaExecutable = Path.of(System.getProperty("java.home"), "bin", "java").toString();
+        String classpath = System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"));
+        var process = new ProcessBuilder(javaExecutable, "-cp", classpath, NoFileProbe.class.getName())
+                .directory(directory.toFile()).redirectErrorStream(true).start();
         try {
-            var result = service.unavailable();
-            assertThat(result.status()).isEqualTo("UNAVAILABLE");
-            assertThat(result.message()).contains("Не удалось сохранить диагностику").doesNotContain("synthetic-secret");
-            var unsafeKey = new Failure(Stage.DEPLOYMENT_VALUES, Category.HTTP_ERROR, 403, "synthetic-secret\nforged-log");
-            Instant now = Instant.now();
-            service.publish(5L, new GrafanaCatalogDiagnostic(UUID.randomUUID(), now, now, State.UNAVAILABLE,
-                    0, 1, 0, 0, 0, List.of(unsafeKey)), result(State.UNAVAILABLE));
-            assertThat(Files.readString(directory.resolve("grafana-catalog-diagnostics-user-5.txt")))
-                    .doesNotContain("synthetic-secret", "forged-log", "http://", "Authorization", " at ");
-            assertThat(events.list).allSatisfy(event -> {
-                assertThat(event.getFormattedMessage()).doesNotContain("synthetic-secret", "forged-log", "http://");
-                assertThat(event.getThrowableProxy()).isNull();
-            });
-            assertThat(directory.resolve("grafana-catalog-diagnostics-user-0.txt")).doesNotExist();
+            assertThat(process.waitFor(15, TimeUnit.SECONDS)).isTrue();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(process.exitValue()).withFailMessage(output).isZero();
         } finally {
-            logger.detachAppender(events);
-            events.stop();
+            process.destroyForcibly();
+        }
+        try (var paths = Files.walk(directory)) {
+            assertThat(paths.map(directory::relativize).sorted().toList()).isEqualTo(before);
+        }
+        if (existingReports) {
+            assertThat(Files.readString(previousReport)).isEqualTo("previous diagnostic report");
+            assertThat(Files.getLastModifiedTime(previousReport)).isEqualTo(previousModifiedAt);
+            assertThat(Files.readString(unrelatedLog)).isEqualTo("keep existing log");
+            assertThat(Files.getLastModifiedTime(unrelatedLog)).isEqualTo(unrelatedModifiedAt);
+        } else {
+            assertThat(logs).doesNotExist();
         }
     }
 
-    private GrafanaCatalogDiagnosticsService service(Path path) {
-        return new GrafanaCatalogDiagnosticsService(mock(CurrentUserProvider.class), path);
+    public static class NoFileProbe {
+        public static void main(String[] args) {
+            var service = new GrafanaCatalogDiagnosticsService();
+            for (State state : State.values()) {
+                service.publish(1L, report(state, state == State.READY || state == State.EMPTY ? 0 : 1), result(state));
+                service.publish(2L, report(state, 0), result(state));
+            }
+            service.unavailable();
+        }
     }
 
-    private GrafanaCatalogDiagnostic report(State state, int failures) {
+    private static GrafanaCatalogDiagnostic report(State state, int failures) {
         Instant now = Instant.now();
         return new GrafanaCatalogDiagnostic(UUID.randomUUID(), now, now, state, state == State.PARTIAL ? 1 : 0,
                 failures, 0, 0, 0, IntStream.range(0, failures)
                 .mapToObj(i -> new Failure(Stage.DEPLOYMENT_VALUES, Category.HTTP_ERROR, 403, "a".repeat(64))).toList());
     }
 
-    private GrafanaCatalogResult result(State state) {
+    private static GrafanaCatalogResult result(State state) {
         return new GrafanaCatalogResult(state.name(), "Прежний результат каталога.", Instant.now());
     }
 }
