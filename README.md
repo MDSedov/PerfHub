@@ -101,3 +101,6 @@ java -jar target/perfhub-0.0.1-SNAPSHOT.jar --server.port=6500
 ```bash
 mvn test
 ```
+
+
+Тест
